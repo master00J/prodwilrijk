@@ -10,6 +10,8 @@ import BarcodeScanner from '@/components/items-to-pack/BarcodeScanner'
 import DailyReportModal from '@/components/items-to-pack/DailyReportModal'
 import ReturnItemModal from '@/components/items-to-pack/ReturnItemModal'
 import ImageUploadModal from '@/components/items-to-pack/ImageUploadModal'
+import TimeRegistrationModal from '@/components/items-to-pack/TimeRegistrationModal'
+import ActiveTimersCard from '@/components/items-to-pack/ActiveTimersCard'
 
 export default function ItemsToPackPage() {
   const [items, setItems] = useState<ItemToPack[]>([])
@@ -23,6 +25,8 @@ export default function ItemsToPackPage() {
   const [showReport, setShowReport] = useState(false)
   const [showReturnModal, setShowReturnModal] = useState(false)
   const [showImageUploadModal, setShowImageUploadModal] = useState(false)
+  const [showTimeModal, setShowTimeModal] = useState(false)
+  const [activeTimeLogs, setActiveTimeLogs] = useState<any[]>([])
   const [selectedItemForAction, setSelectedItemForAction] = useState<number | null>(null)
   const [sortColumn, setSortColumn] = useState<keyof ItemToPack | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
@@ -30,8 +34,12 @@ export default function ItemsToPackPage() {
   // Fetch items
   useEffect(() => {
     fetchItems()
+    fetchActiveTimeLogs()
     // Auto-refresh every 30 seconds
-    const interval = setInterval(fetchItems, 30000)
+    const interval = setInterval(() => {
+      fetchItems()
+      fetchActiveTimeLogs()
+    }, 30000)
     return () => clearInterval(interval)
   }, [])
 
@@ -298,6 +306,73 @@ export default function ItemsToPackPage() {
     setSelectedItemForAction(null)
   }
 
+  const fetchActiveTimeLogs = async () => {
+    try {
+      const response = await fetch('/api/time-logs/active')
+      if (!response.ok) throw new Error('Failed to fetch active time logs')
+      const data = await response.json()
+      setActiveTimeLogs(data)
+    } catch (error) {
+      console.error('Error fetching active time logs:', error)
+    }
+  }
+
+  const handleStartTimer = async (employeeIds: number[]) => {
+    try {
+      const response = await fetch('/api/time-logs/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employeeIds, type: 'items_to_pack' }),
+      })
+
+      if (!response.ok) throw new Error('Failed to start timer')
+
+      await fetchActiveTimeLogs()
+      setShowTimeModal(false)
+      alert('Time registration started successfully')
+    } catch (error) {
+      console.error('Error starting timer:', error)
+      alert('Failed to start time registration')
+    }
+  }
+
+  const handleStopTimer = async (logId: number) => {
+    try {
+      const response = await fetch(`/api/time-logs/${logId}/stop`, {
+        method: 'POST',
+      })
+
+      if (!response.ok) throw new Error('Failed to stop timer')
+
+      await fetchActiveTimeLogs()
+      alert('Time registration stopped successfully')
+    } catch (error) {
+      console.error('Error stopping timer:', error)
+      alert('Failed to stop time registration')
+    }
+  }
+
+  const handleStopAllTimers = async () => {
+    if (activeTimeLogs.length === 0) return
+
+    if (!confirm(`Stop all ${activeTimeLogs.length} active time registration(s)?`)) {
+      return
+    }
+
+    try {
+      const promises = activeTimeLogs.map((log) =>
+        fetch(`/api/time-logs/${log.id}/stop`, { method: 'POST' })
+      )
+
+      await Promise.all(promises)
+      await fetchActiveTimeLogs()
+      alert('All time registrations stopped successfully')
+    } catch (error) {
+      console.error('Error stopping all timers:', error)
+      alert('Failed to stop all time registrations')
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -311,6 +386,14 @@ export default function ItemsToPackPage() {
       <h1 className="text-3xl font-bold mb-6">Items to Pack</h1>
 
       <StatsBanner items={items} />
+
+      {activeTimeLogs.length > 0 && (
+        <ActiveTimersCard
+          timeLogs={activeTimeLogs}
+          onStop={handleStopTimer}
+          onStopAll={handleStopAllTimers}
+        />
+      )}
 
       <FiltersBar
         searchTerm={searchTerm}
@@ -331,6 +414,8 @@ export default function ItemsToPackPage() {
         onSetPriority={handleSetPriority}
         onSetMeasurement={handleSetMeasurement}
         onShowScanner={() => setShowScanner(true)}
+        onShowTimer={() => setShowTimeModal(true)}
+        activeTimerCount={activeTimeLogs.length}
       />
 
       <ItemsTable
@@ -385,6 +470,13 @@ export default function ItemsToPackPage() {
             setSelectedItemForAction(null)
           }}
           onUploaded={handleImageUploaded}
+        />
+      )}
+
+      {showTimeModal && (
+        <TimeRegistrationModal
+          onClose={() => setShowTimeModal(false)}
+          onStart={handleStartTimer}
         />
       )}
     </div>

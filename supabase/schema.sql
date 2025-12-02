@@ -58,6 +58,27 @@ CREATE TABLE IF NOT EXISTS item_images (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Employees Table
+CREATE TABLE IF NOT EXISTS employees (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Time Logs Table (for items_to_pack)
+CREATE TABLE IF NOT EXISTS time_logs (
+  id BIGSERIAL PRIMARY KEY,
+  employee_id BIGINT NOT NULL REFERENCES employees(id),
+  type VARCHAR(50) NOT NULL DEFAULT 'items_to_pack',
+  start_time TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  end_time TIMESTAMP WITH TIME ZONE,
+  is_paused BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_incoming_goods_item_number ON incoming_goods(item_number);
 CREATE INDEX IF NOT EXISTS idx_incoming_goods_po_number ON incoming_goods(po_number);
@@ -73,6 +94,10 @@ CREATE INDEX IF NOT EXISTS idx_returned_items_date_returned ON returned_items(da
 CREATE INDEX IF NOT EXISTS idx_returned_items_item_number ON returned_items(item_number);
 CREATE INDEX IF NOT EXISTS idx_item_images_item_id ON item_images(item_id);
 CREATE INDEX IF NOT EXISTS idx_item_images_item_type ON item_images(item_type);
+CREATE INDEX IF NOT EXISTS idx_time_logs_employee_id ON time_logs(employee_id);
+CREATE INDEX IF NOT EXISTS idx_time_logs_start_time ON time_logs(start_time);
+CREATE INDEX IF NOT EXISTS idx_time_logs_end_time ON time_logs(end_time);
+CREATE INDEX IF NOT EXISTS idx_time_logs_active ON time_logs(end_time) WHERE end_time IS NULL;
 
 -- Function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -96,6 +121,8 @@ ALTER TABLE items_to_pack ENABLE ROW LEVEL SECURITY;
 ALTER TABLE packed_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE returned_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE item_images ENABLE ROW LEVEL SECURITY;
+ALTER TABLE employees ENABLE ROW LEVEL SECURITY;
+ALTER TABLE time_logs ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Allow all operations for authenticated users (adjust as needed)
 DROP POLICY IF EXISTS "Allow all for authenticated users" ON incoming_goods;
@@ -124,6 +151,18 @@ CREATE POLICY "Allow all for authenticated users" ON returned_items
 
 DROP POLICY IF EXISTS "Allow all for authenticated users" ON item_images;
 CREATE POLICY "Allow all for authenticated users" ON item_images
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all for authenticated users" ON employees;
+CREATE POLICY "Allow all for authenticated users" ON employees
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all for authenticated users" ON time_logs;
+CREATE POLICY "Allow all for authenticated users" ON time_logs
   FOR ALL
   USING (true)
   WITH CHECK (true);

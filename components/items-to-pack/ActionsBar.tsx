@@ -7,6 +7,8 @@ interface ActionsBarProps {
   onSetPriority: () => void
   onSetMeasurement: () => void
   onShowScanner: () => void
+  onShowTimer: () => void
+  activeTimerCount?: number
 }
 
 export default function ActionsBar({
@@ -16,6 +18,8 @@ export default function ActionsBar({
   onSetPriority,
   onSetMeasurement,
   onShowScanner,
+  onShowTimer,
+  activeTimerCount = 0,
 }: ActionsBarProps) {
   return (
     <div className="bg-gray-50 rounded-lg p-4 mb-6 flex flex-wrap justify-between items-center gap-4">
@@ -43,6 +47,16 @@ export default function ActionsBar({
           className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-medium text-lg"
         >
           📷 Scanner
+        </button>
+        <button
+          onClick={onShowTimer}
+          className={`px-6 py-3 rounded-lg font-medium text-lg ${
+            activeTimerCount > 0
+              ? 'bg-orange-500 hover:bg-orange-600 text-white'
+              : 'bg-gray-500 hover:bg-gray-600 text-white'
+          }`}
+        >
+          ⏱️ {activeTimerCount > 0 ? `Active Timers (${activeTimerCount})` : 'Start Timer'}
         </button>
         <button
           onClick={onSetPriority}

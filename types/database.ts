@@ -46,3 +46,22 @@ export interface DailyReport {
   }>
   recommendations?: string[]
 }
+
+export interface Employee {
+  id: number
+  name: string
+  active?: boolean
+  created_at?: string
+  updated_at?: string
+}
+
+export interface TimeLog {
+  id: number
+  employee_id: number
+  type: string
+  start_time: string
+  end_time?: string | null
+  is_paused?: boolean
+  created_at?: string
+  updated_at?: string
+}
