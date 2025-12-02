@@ -49,10 +49,12 @@ export default function WMSImportPage() {
       const jsonData = XLSX.utils.sheet_to_json(worksheet)
 
       console.log('Parsed JSON data:', jsonData)
+      console.log('Total rows parsed:', jsonData.length)
 
       // Map and validate the data - looking for WMS status 30 format
       // Expected columns: Item, Pallet, Qty, and "Laatste status verandering" (column I) for date filtering
       const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD format
+      console.log('Today\'s date for filtering:', today)
       
       const mappedData = jsonData
         .map((row: any, index: number) => {
@@ -61,7 +63,7 @@ export default function WMSImportPage() {
           const amount = row['Qty'] || row['Quantity'] || row['Amount'] || row['Aantal']
           
           // Get date from "Laatste status verandering" column (column I)
-          const lastStatusChange = row['Laatste status verandering'] || row['Last Status Change'] || row['Status Change']
+          const lastStatusChange = row['Laatste status verandering'] || row['Last Status Change'] || row['Status Change'] || row['Laatste status verandering']
           
           // Parse the date - WMS format appears to be "YYYY-MM-DD HH:mm:ss.S"
           let statusDate: string | null = null
@@ -69,15 +71,19 @@ export default function WMSImportPage() {
             try {
               // Try to parse the date string
               const dateStr = lastStatusChange.toString().trim()
-              // Extract date part (before the space)
+              // WMS format: "2025-12-02 06:40:46.0" - extract date part
               const datePart = dateStr.split(' ')[0]
               // Parse and format as YYYY-MM-DD
-              const parsedDate = new Date(datePart)
+              const parsedDate = new Date(datePart + 'T00:00:00') // Add time to avoid timezone issues
               if (!isNaN(parsedDate.getTime())) {
-                statusDate = parsedDate.toISOString().split('T')[0]
+                // Format as YYYY-MM-DD
+                const year = parsedDate.getFullYear()
+                const month = String(parsedDate.getMonth() + 1).padStart(2, '0')
+                const day = String(parsedDate.getDate()).padStart(2, '0')
+                statusDate = `${year}-${month}-${day}`
               }
             } catch (e) {
-              console.warn('Could not parse date:', lastStatusChange)
+              console.warn('Could not parse date:', lastStatusChange, e)
             }
           }
           
@@ -104,14 +110,22 @@ export default function WMSImportPage() {
           }
           
           // Filter: only import items with today's date in "Laatste status verandering"
-          if (item.status_date && item.status_date !== today) {
-            console.log(`Skipping item ${item.item_number} - date ${item.status_date} is not today (${today})`)
-            return false
+          if (item.status_date) {
+            if (item.status_date !== today) {
+              console.log(`Skipping item ${item.item_number} (Pallet: ${item.po_number}) - date ${item.status_date} is not today (${today})`)
+              return false
+            } else {
+              console.log(`Including item ${item.item_number} (Pallet: ${item.po_number}) - date ${item.status_date} matches today`)
+            }
+          } else {
+            // If no date found, log it but still include it (might be missing in some exports)
+            console.warn(`Item ${item.item_number} (Pallet: ${item.po_number}) has no date - including anyway`)
           }
           
-          // If no date found, still include it (might be missing in some exports)
           return true
         })
+      
+      console.log(`After filtering: ${mappedData.length} items from today out of ${jsonData.length} total rows`)
 
       if (mappedData.length === 0) {
         throw new Error('No valid data found in the Excel file. Please check that the file contains Item, Pallet, and Qty columns.')
