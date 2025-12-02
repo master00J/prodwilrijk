@@ -1,6 +1,6 @@
 # Prodwilrijk V2
 
-Modern web application built with Next.js, TypeScript, and Supabase.
+Modern web application built with Next.js, TypeScript, and Supabase for warehouse management.
 
 ## Getting Started
 
