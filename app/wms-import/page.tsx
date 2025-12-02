@@ -50,6 +50,12 @@ export default function WMSImportPage() {
 
       console.log('Parsed JSON data:', jsonData)
       console.log('Total rows parsed:', jsonData.length)
+      
+      // Log first row to see column names
+      if (jsonData.length > 0) {
+        console.log('Available columns in first row:', Object.keys(jsonData[0]))
+        console.log('First row sample:', jsonData[0])
+      }
 
       // Map and validate the data - looking for WMS status 30 format
       // Expected columns: Item, Pallet, Qty, and "Laatste status verandering" (column I) for date filtering
@@ -63,7 +69,20 @@ export default function WMSImportPage() {
           const amount = row['Qty'] || row['Quantity'] || row['Amount'] || row['Aantal']
           
           // Get date from "Laatste status verandering" column (column I)
-          const lastStatusChange = row['Laatste status verandering'] || row['Last Status Change'] || row['Status Change'] || row['Laatste status verandering']
+          // Try multiple possible column name variations
+          const lastStatusChange = row['Laatste status verandering'] || 
+                                  row['Laatste status verandering'] || 
+                                  row['Last Status Change'] || 
+                                  row['Status Change'] ||
+                                  row['Laatste status'] ||
+                                  // Try to find any column that contains "status" or "verandering"
+                                  Object.keys(row).find(key => 
+                                    key.toLowerCase().includes('status') || 
+                                    key.toLowerCase().includes('verandering')
+                                  ) ? row[Object.keys(row).find(key => 
+                                    key.toLowerCase().includes('status') || 
+                                    key.toLowerCase().includes('verandering')
+                                  )!] : null
           
           // Parse the date - WMS format appears to be "YYYY-MM-DD HH:mm:ss.S"
           let statusDate: string | null = null
@@ -71,20 +90,35 @@ export default function WMSImportPage() {
             try {
               // Try to parse the date string
               const dateStr = lastStatusChange.toString().trim()
-              // WMS format: "2025-12-02 06:40:46.0" - extract date part
+              console.log(`Parsing date for item ${itemNumber}: "${dateStr}"`)
+              
+              // WMS format: "2025-11-28 10:18:48.0" - extract date part (before space)
               const datePart = dateStr.split(' ')[0]
-              // Parse and format as YYYY-MM-DD
-              const parsedDate = new Date(datePart + 'T00:00:00') // Add time to avoid timezone issues
-              if (!isNaN(parsedDate.getTime())) {
-                // Format as YYYY-MM-DD
-                const year = parsedDate.getFullYear()
-                const month = String(parsedDate.getMonth() + 1).padStart(2, '0')
-                const day = String(parsedDate.getDate()).padStart(2, '0')
-                statusDate = `${year}-${month}-${day}`
+              
+              // Validate date format (should be YYYY-MM-DD)
+              if (datePart.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                // Already in correct format, use it directly
+                statusDate = datePart
+              } else {
+                // Try to parse it
+                const parsedDate = new Date(datePart + 'T00:00:00') // Add time to avoid timezone issues
+                if (!isNaN(parsedDate.getTime())) {
+                  // Format as YYYY-MM-DD
+                  const year = parsedDate.getFullYear()
+                  const month = String(parsedDate.getMonth() + 1).padStart(2, '0')
+                  const day = String(parsedDate.getDate()).padStart(2, '0')
+                  statusDate = `${year}-${month}-${day}`
+                }
+              }
+              
+              if (statusDate) {
+                console.log(`Parsed date: ${statusDate} for item ${itemNumber}`)
               }
             } catch (e) {
               console.warn('Could not parse date:', lastStatusChange, e)
             }
+          } else {
+            console.warn(`No date found for item ${itemNumber}, available keys:`, Object.keys(row))
           }
           
           // Try to find a unique line identifier from WMS
