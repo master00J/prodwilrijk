@@ -73,11 +73,16 @@ export default function PrepackPage() {
 
       setMessage({
         type: 'success',
-        text: `Successfully uploaded ${result.insertedRows || filteredData.length} items!`,
+        text: `Successfully uploaded ${result.insertedRows || filteredData.length} items! Redirecting to View Prepack...`,
       })
       
       // Reset file input
       fileInput.value = ''
+      
+      // Redirect to view-prepack after 2 seconds
+      setTimeout(() => {
+        window.location.href = '/view-prepack'
+      }, 2000)
     } catch (error: any) {
       console.error('Error during upload:', error)
       setMessage({

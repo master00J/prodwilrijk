@@ -12,6 +12,15 @@ export interface ItemToPack {
   updated_at?: string
 }
 
+export interface IncomingGood {
+  id: number
+  item_number: string
+  po_number: string
+  amount: number
+  date_added: string
+  created_at?: string
+}
+
 export interface PackedItem {
   id: number
   item_number: string
@@ -36,4 +45,3 @@ export interface DailyReport {
   }>
   recommendations?: string[]
 }
-

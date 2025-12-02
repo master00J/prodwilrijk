@@ -1,3 +1,13 @@
+-- Incoming Goods Table (temporary storage before confirmation)
+CREATE TABLE IF NOT EXISTS incoming_goods (
+  id BIGSERIAL PRIMARY KEY,
+  item_number VARCHAR(255) NOT NULL,
+  po_number VARCHAR(255) NOT NULL,
+  amount INTEGER NOT NULL DEFAULT 1,
+  date_added TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Items to Pack Table
 CREATE TABLE IF NOT EXISTS items_to_pack (
   id BIGSERIAL PRIMARY KEY,
@@ -26,6 +36,9 @@ CREATE TABLE IF NOT EXISTS packed_items (
 );
 
 -- Indexes for better query performance
+CREATE INDEX IF NOT EXISTS idx_incoming_goods_item_number ON incoming_goods(item_number);
+CREATE INDEX IF NOT EXISTS idx_incoming_goods_po_number ON incoming_goods(po_number);
+CREATE INDEX IF NOT EXISTS idx_incoming_goods_date_added ON incoming_goods(date_added);
 CREATE INDEX IF NOT EXISTS idx_items_to_pack_item_number ON items_to_pack(item_number);
 CREATE INDEX IF NOT EXISTS idx_items_to_pack_po_number ON items_to_pack(po_number);
 CREATE INDEX IF NOT EXISTS idx_items_to_pack_date_added ON items_to_pack(date_added);
@@ -50,10 +63,16 @@ CREATE TRIGGER update_items_to_pack_updated_at
   EXECUTE FUNCTION update_updated_at_column();
 
 -- Row Level Security (RLS) policies
+ALTER TABLE incoming_goods ENABLE ROW LEVEL SECURITY;
 ALTER TABLE items_to_pack ENABLE ROW LEVEL SECURITY;
 ALTER TABLE packed_items ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Allow all operations for authenticated users (adjust as needed)
+CREATE POLICY "Allow all for authenticated users" ON incoming_goods
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
 CREATE POLICY "Allow all for authenticated users" ON items_to_pack
   FOR ALL
   USING (true)

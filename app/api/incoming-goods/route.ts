@@ -1,6 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 
+export async function GET(request: NextRequest) {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('incoming_goods')
+      .select('*')
+      .order('date_added', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching incoming goods:', error)
+      return NextResponse.json(
+        { error: 'Failed to fetch incoming goods' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json(data || [])
+  } catch (error) {
+    console.error('Unexpected error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -26,12 +51,11 @@ export async function POST(request: NextRequest) {
 
     if (validGoods.length === 0) {
       return NextResponse.json(
-        { error: 'No valid data to insert. Please check that all items have item_number, po_number, and amount.' },
+        { error: 'No valid data to insert.' },
         { status: 400 }
       )
     }
 
-    // Insert into incoming_goods table (will be confirmed later in view_prepack)
     const { data, error } = await supabaseAdmin
       .from('incoming_goods')
       .insert(validGoods)
@@ -39,15 +63,6 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('Database error:', error)
-      
-      // Check if it's a duplicate error
-      if (error.code === '23505') {
-        return NextResponse.json(
-          { error: 'Some items already exist in the system.' },
-          { status: 400 }
-        )
-      }
-
       return NextResponse.json(
         { error: 'Failed to insert items.' },
         { status: 500 }
@@ -57,7 +72,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       insertedRows: data?.length || validGoods.length,
-      message: `Successfully inserted ${data?.length || validGoods.length} items`,
     })
   } catch (error) {
     console.error('Unexpected error:', error)
