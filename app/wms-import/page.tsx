@@ -235,7 +235,7 @@ export default function WMSImportPage() {
             <li><strong>Optional column:</strong> Line ID (or Line_ID, ID, WMS_ID) - if not present, Pallet number will be used as unique ID</li>
             <li>First row should contain column headers</li>
             <li>Each row represents one item from WMS status 30</li>
-            <li>Only items with today's date in "Laatste status verandering" will be imported</li>
+            <li>Only items with today&apos;s date in &quot;Laatste status verandering&quot; will be imported</li>
             <li>Duplicate lines (same WMS Line ID) will be automatically skipped</li>
           </ul>
         </div>

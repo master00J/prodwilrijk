@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import Image from 'next/image'
 
 interface ImageUploadModalProps {
   itemId: number
@@ -119,11 +120,13 @@ export default function ImageUploadModal({
               <h3 className="font-medium mb-2">Selected Images ({previews.length}):</h3>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {previews.map((preview, index) => (
-                  <div key={index} className="relative">
-                    <img
+                  <div key={index} className="relative w-full h-32">
+                    <Image
                       src={preview}
                       alt={`Preview ${index + 1}`}
-                      className="w-full h-32 object-cover rounded-lg"
+                      fill
+                      className="object-cover rounded-lg"
+                      unoptimized
                     />
                     <button
                       onClick={() => removeFile(index)}

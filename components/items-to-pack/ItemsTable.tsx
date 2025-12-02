@@ -2,6 +2,7 @@
 
 import { ItemToPack } from '@/types/database'
 import { useState } from 'react'
+import Image from 'next/image'
 
 interface ItemsTableProps {
   items: ItemToPack[]
@@ -171,13 +172,16 @@ export default function ItemsTable({
                         {item.images && item.images.length > 0 ? (
                           <div className="flex gap-1">
                             {item.images.slice(0, 3).map((imgUrl, idx) => (
-                              <img
-                                key={idx}
-                                src={imgUrl}
-                                alt={`Item ${idx + 1}`}
-                                className="w-12 h-12 object-cover rounded cursor-pointer hover:scale-150 transition-transform"
-                                onClick={() => handleImageClick(item.id, imgUrl)}
-                              />
+                              <div key={idx} className="relative w-12 h-12">
+                                <Image
+                                  src={imgUrl}
+                                  alt={`Item ${idx + 1}`}
+                                  fill
+                                  className="object-cover rounded cursor-pointer hover:scale-150 transition-transform"
+                                  onClick={() => handleImageClick(item.id, imgUrl)}
+                                  unoptimized
+                                />
+                              </div>
                             ))}
                             {item.images.length > 3 && (
                               <div className="w-12 h-12 bg-gray-200 rounded flex items-center justify-center text-xs">
@@ -186,12 +190,16 @@ export default function ItemsTable({
                             )}
                           </div>
                         ) : item.image ? (
-                          <img
-                            src={item.image}
-                            alt="Item"
-                            className="w-12 h-12 object-cover rounded cursor-pointer hover:scale-150 transition-transform"
-                            onClick={() => item.image && handleImageClick(item.id, item.image!)}
-                          />
+                          <div className="relative w-12 h-12">
+                            <Image
+                              src={item.image}
+                              alt="Item"
+                              fill
+                              className="object-cover rounded cursor-pointer hover:scale-150 transition-transform"
+                              onClick={() => item.image && handleImageClick(item.id, item.image!)}
+                              unoptimized
+                            />
+                          </div>
                         ) : null}
                       </div>
                     </td>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import Image from 'next/image'
 import { ItemToPack } from '@/types/database'
 
 interface ReturnItemModalProps {
@@ -122,11 +123,13 @@ export default function ReturnItemModal({
               {previews.length > 0 && (
                 <div className="mt-2 grid grid-cols-3 gap-2">
                   {previews.map((preview, index) => (
-                    <div key={index} className="relative">
-                      <img
+                    <div key={index} className="relative w-full h-24">
+                      <Image
                         src={preview}
                         alt={`Preview ${index + 1}`}
-                        className="w-full h-24 object-cover rounded-lg"
+                        fill
+                        className="object-cover rounded-lg"
+                        unoptimized
                       />
                       <button
                         type="button"
