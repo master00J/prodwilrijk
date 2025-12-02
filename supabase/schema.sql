@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS items_to_pack (
   measurement BOOLEAN DEFAULT FALSE,
   packed BOOLEAN DEFAULT FALSE,
   image TEXT,
+  wms_line_id VARCHAR(255), -- Unique identifier from WMS for status 30 lines
+  wms_import_date TIMESTAMP WITH TIME ZONE, -- Date when imported from WMS
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -88,6 +90,8 @@ CREATE INDEX IF NOT EXISTS idx_items_to_pack_po_number ON items_to_pack(po_numbe
 CREATE INDEX IF NOT EXISTS idx_items_to_pack_date_added ON items_to_pack(date_added);
 CREATE INDEX IF NOT EXISTS idx_items_to_pack_packed ON items_to_pack(packed);
 CREATE INDEX IF NOT EXISTS idx_items_to_pack_priority ON items_to_pack(priority);
+CREATE INDEX IF NOT EXISTS idx_items_to_pack_wms_line_id ON items_to_pack(wms_line_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_items_to_pack_wms_line_unique ON items_to_pack(wms_line_id) WHERE wms_line_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_packed_items_date_packed ON packed_items(date_packed);
 CREATE INDEX IF NOT EXISTS idx_packed_items_item_number ON packed_items(item_number);
 CREATE INDEX IF NOT EXISTS idx_returned_items_date_returned ON returned_items(date_returned);

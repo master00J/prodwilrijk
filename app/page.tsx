@@ -9,13 +9,19 @@ export default function Home() {
           href="/prepack"
           className="block px-6 py-4 bg-green-500 text-white rounded-lg hover:bg-green-600 text-xl font-medium"
         >
-          1. Prepack - Excel Upload
+          1. Prepack - Excel Upload (Status 10)
         </Link>
         <Link
           href="/view-prepack"
           className="block px-6 py-4 bg-orange-500 text-white rounded-lg hover:bg-orange-600 text-xl font-medium"
         >
           2. View Prepack - Confirm Items
+        </Link>
+        <Link
+          href="/wms-import"
+          className="block px-6 py-4 bg-teal-500 text-white rounded-lg hover:bg-teal-600 text-xl font-medium"
+        >
+          2b. WMS Import - Status 30
         </Link>
         <Link
           href="/items-to-pack"

@@ -9,6 +9,8 @@ export interface ItemToPack {
   packed: boolean
   image?: string | null
   images?: string[] // Multiple images
+  wms_line_id?: string | null // Unique identifier from WMS for status 30 lines
+  wms_import_date?: string | null // Date when imported from WMS
   created_at?: string
   updated_at?: string
 }
