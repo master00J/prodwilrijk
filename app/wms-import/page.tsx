@@ -39,33 +39,15 @@ export default function WMSImportPage() {
     setImportStats(null)
 
     try {
-      // Read file as array buffer
+      // Read file as array buffer (same as old code)
       const data = await readFileAsArrayBuffer(file)
       
-      // Detect file type and parse accordingly
-      const fileName = file.name.toLowerCase()
-      const isCSV = fileName.endsWith('.csv') || fileName.endsWith('.tsv') || fileName.endsWith('.do')
-      
-      let jsonData: any[] = []
-      
-      if (isCSV) {
-        // Parse CSV/TSV file (tab or comma separated)
-        const text = new TextDecoder('utf-8').decode(data)
-        const workbook = XLSX.read(text, { 
-          type: 'string',
-          FS: '\t', // Tab separator for TSV
-          codepage: 65001 // UTF-8
-        })
-        const sheetName = workbook.SheetNames[0]
-        const worksheet = workbook.Sheets[sheetName]
-        jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '' })
-      } else {
-        // Parse Excel file
-        const workbook = XLSX.read(data, { type: 'array' })
-        const sheetName = workbook.SheetNames[0]
-        const worksheet = workbook.Sheets[sheetName]
-        jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '' })
-      }
+      // Parse file with XLSX - it automatically detects format (Excel, CSV, TSV, etc.)
+      // This is the same approach as the old code
+      const workbook = XLSX.read(data, { type: 'array' })
+      const sheetName = workbook.SheetNames[0]
+      const worksheet = workbook.Sheets[sheetName]
+      const jsonData = XLSX.utils.sheet_to_json(worksheet)
 
       if (jsonData.length === 0) {
         throw new Error('No data found in the file. Please check that the file contains data rows.')
