@@ -33,63 +33,129 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // OPTIMIZED: Batch check for existing items instead of one-by-one queries
+    // Only check for items imported today to prevent duplicate imports on the same day
+    const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD format
+    const todayStart = new Date(today + 'T00:00:00.000Z').toISOString()
+    const todayEnd = new Date(today + 'T23:59:59.999Z').toISOString()
+    
+    // Get all wms_line_ids that already exist (imported today)
+    const wmsLineIds = validItems
+      .map(item => item.wms_line_id)
+      .filter((id): id is string => id !== null && id !== undefined)
+    
+    let existingWmsLineIds = new Set<string>()
+    if (wmsLineIds.length > 0) {
+      // Batch query: get all existing wms_line_ids imported today
+      const { data: existingByWmsId } = await supabaseAdmin
+        .from('items_to_pack')
+        .select('wms_line_id')
+        .in('wms_line_id', wmsLineIds)
+        .gte('wms_import_date', todayStart)
+        .lte('wms_import_date', todayEnd)
+      
+      if (existingByWmsId) {
+        existingWmsLineIds = new Set(
+          existingByWmsId
+            .map(item => item.wms_line_id)
+            .filter((id): id is string => id !== null && id !== undefined)
+        )
+      }
+    }
+
+    // Get items without wms_line_id to check by item_number + po_number
+    const itemsWithoutWmsId = validItems.filter(item => !item.wms_line_id)
+    let existingItemPoCombos = new Set<string>()
+    
+    if (itemsWithoutWmsId.length > 0) {
+      // Get unique item_number values to query
+      const uniqueItemNumbers = [...new Set(itemsWithoutWmsId.map(item => item.item_number))]
+      
+      // Query for existing items with matching item_numbers, packed=false, and imported today
+      // Then filter in memory for matching po_numbers
+      const { data: existingByItemPo } = await supabaseAdmin
+        .from('items_to_pack')
+        .select('item_number, po_number')
+        .in('item_number', uniqueItemNumbers)
+        .eq('packed', false)
+        .gte('wms_import_date', todayStart)
+        .lte('wms_import_date', todayEnd)
+      
+      if (existingByItemPo) {
+        existingItemPoCombos = new Set(
+          existingByItemPo.map(item => `${item.item_number}|${item.po_number}`)
+        )
+      }
+    }
+
+    // Filter out items that already exist
+    const itemsToInsert = validItems.filter(item => {
+      // Check by wms_line_id first
+      if (item.wms_line_id && existingWmsLineIds.has(item.wms_line_id)) {
+        return false
+      }
+      
+      // Check by item_number + po_number if no wms_line_id
+      if (!item.wms_line_id) {
+        const combo = `${item.item_number}|${item.po_number}`
+        if (existingItemPoCombos.has(combo)) {
+          return false
+        }
+      }
+      
+      return true
+    })
+
+    let skipped = validItems.length - itemsToInsert.length
     let inserted = 0
-    let skipped = 0
     let errors = 0
 
-    // Process items one by one to handle duplicates gracefully
-    for (const item of validItems) {
+    // Bulk insert all new items in batches (Supabase has a limit per insert)
+    const BATCH_SIZE = 1000
+    for (let i = 0; i < itemsToInsert.length; i += BATCH_SIZE) {
+      const batch = itemsToInsert.slice(i, i + BATCH_SIZE)
+      
       try {
-        // Check if item with this wms_line_id already exists
-        if (item.wms_line_id) {
-          const { data: existing } = await supabaseAdmin
-            .from('items_to_pack')
-            .select('id')
-            .eq('wms_line_id', item.wms_line_id)
-            .single()
-
-          if (existing) {
-            skipped++
-            continue
-          }
-        }
-
-        // Check if item already exists (fallback: same item_number + po_number + not packed)
-        // This is a secondary check in case wms_line_id is missing
-        if (!item.wms_line_id) {
-          const { data: existing } = await supabaseAdmin
-            .from('items_to_pack')
-            .select('id')
-            .eq('item_number', item.item_number)
-            .eq('po_number', item.po_number)
-            .eq('packed', false)
-            .single()
-
-          if (existing) {
-            skipped++
-            continue
-          }
-        }
-
-        // Insert new item
         const { error: insertError } = await supabaseAdmin
           .from('items_to_pack')
-          .insert(item)
+          .insert(batch)
 
         if (insertError) {
-          // If it's a unique constraint violation, count as skipped
+          // If it's a unique constraint violation, try inserting one by one to identify duplicates
           if (insertError.code === '23505') {
-            skipped++
+            // Fallback: insert one by one to handle any remaining duplicates
+            for (const item of batch) {
+              try {
+                const { error: singleInsertError } = await supabaseAdmin
+                  .from('items_to_pack')
+                  .insert(item)
+                
+                if (singleInsertError) {
+                  if (singleInsertError.code === '23505') {
+                    // Duplicate, skip it
+                    skipped++
+                  } else {
+                    console.error('Error inserting item:', singleInsertError)
+                    errors++
+                  }
+                } else {
+                  inserted++
+                }
+              } catch (error) {
+                console.error('Error inserting item:', error)
+                errors++
+              }
+            }
           } else {
-            console.error('Error inserting item:', insertError)
-            errors++
+            console.error('Error inserting batch:', insertError)
+            errors += batch.length
           }
         } else {
-          inserted++
+          inserted += batch.length
         }
       } catch (error) {
-        console.error('Error processing item:', error)
-        errors++
+        console.error('Error processing batch:', error)
+        errors += batch.length
       }
     }
 

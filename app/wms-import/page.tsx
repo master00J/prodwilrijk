@@ -139,8 +139,9 @@ export default function WMSImportPage() {
         }
         
         // Filter: only import items with today's date in "Laatste status verandering"
-        if (statusDate && statusDate !== today) {
-          continue // Skip items not from today
+        // Skip items without a valid date or with a date that's not today
+        if (!statusDate || statusDate !== today) {
+          continue // Skip items not from today or without valid date
         }
         
         // Generate unique line identifier
