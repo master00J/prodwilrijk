@@ -231,7 +231,7 @@ export default function WMSImportPage() {
           <h3 className="font-semibold mb-2">Excel File Format:</h3>
           <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
             <li><strong>Required columns:</strong> Item (or Item Number), Pallet (or PO Number), Qty (or Quantity/Amount)</li>
-            <li><strong>Date column:</strong> "Laatste status verandering" (column I) - only items with today's date will be imported</li>
+            <li><strong>Date column:</strong> &quot;Laatste status verandering&quot; (column I) - only items with today&apos;s date will be imported</li>
             <li><strong>Optional column:</strong> Line ID (or Line_ID, ID, WMS_ID) - if not present, Pallet number will be used as unique ID</li>
             <li>First row should contain column headers</li>
             <li>Each row represents one item from WMS status 30</li>
