@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
         employee_id,
         start_time,
         end_time,
-        employees!inner(id, name)
+        employees(id, name)
       `)
       .is('end_time', null)
       .eq('type', 'items_to_pack')
