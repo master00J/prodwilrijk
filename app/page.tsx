@@ -18,6 +18,12 @@ export default function Home() {
           2. View Prepack - Confirm Items
         </Link>
         <Link
+          href="/confirmed-items"
+          className="block px-6 py-4 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 text-xl font-medium"
+        >
+          2a. Confirmed Items (for WMS reference)
+        </Link>
+        <Link
           href="/wms-import"
           className="block px-6 py-4 bg-teal-500 text-white rounded-lg hover:bg-teal-600 text-xl font-medium"
         >

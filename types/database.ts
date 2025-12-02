@@ -24,6 +24,17 @@ export interface IncomingGood {
   created_at?: string
 }
 
+export interface ConfirmedIncomingGood {
+  id: number
+  item_number: string
+  po_number: string
+  amount: number
+  date_added: string
+  date_confirmed: string
+  original_id?: number
+  created_at?: string
+}
+
 export interface PackedItem {
   id: number
   item_number: string
