@@ -2,6 +2,7 @@
 
 import { ItemToPack } from '@/types/database'
 import { useMemo } from 'react'
+import { isOlderThanWorkingDays } from '@/lib/utils/workdays'
 
 interface StatsBannerProps {
   items: ItemToPack[]
@@ -12,11 +13,14 @@ export default function StatsBanner({ items }: StatsBannerProps) {
     const priorityItems = items.filter(item => item.priority).length
     const totalQuantity = items.reduce((sum, item) => sum + (item.amount || 0), 0)
     
-    const oneDayAgo = new Date()
-    oneDayAgo.setDate(oneDayAgo.getDate() - 1)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
     const backlogItems = items.filter(item => {
       const itemDate = new Date(item.date_added)
-      return itemDate < oneDayAgo
+      itemDate.setHours(0, 0, 0, 0)
+      // Backlog = items older than 3 working days
+      return isOlderThanWorkingDays(itemDate, today, 3)
     }).length
 
     return {
@@ -39,7 +43,7 @@ export default function StatsBanner({ items }: StatsBannerProps) {
         </div>
         <div className="text-center">
           <div className="text-2xl font-bold text-red-600">{stats.backlogItems}</div>
-          <div className="text-sm text-gray-600">Backlog (&gt;1 day)</div>
+          <div className="text-sm text-gray-600">Backlog (&gt;3 workdays)</div>
         </div>
       </div>
       <div className="text-sm text-gray-500">

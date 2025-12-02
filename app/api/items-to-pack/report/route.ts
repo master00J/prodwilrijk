@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { isOlderThanWorkingDays } from '@/lib/utils/workdays'
 
 export async function GET(request: NextRequest) {
   try {
@@ -53,11 +54,15 @@ export async function GET(request: NextRequest) {
     const priorityQuantity = items?.filter(item => item.priority).reduce((sum, item) => sum + (item.amount || 0), 0) || 0
     const packedQuantity = packedItems?.reduce((sum, item) => sum + (item.amount || 0), 0) || 0
 
-    const oneDayAgo = new Date(selectedDate)
-    oneDayAgo.setDate(oneDayAgo.getDate() - 1)
+    const referenceDate = new Date(selectedDate)
+    referenceDate.setHours(0, 0, 0, 0)
+    
     const backlogQuantity = items?.filter(item => {
+      if (item.packed) return false
       const itemDate = new Date(item.date_added)
-      return itemDate < oneDayAgo && !item.packed
+      itemDate.setHours(0, 0, 0, 0)
+      // Backlog = items older than 3 working days
+      return isOlderThanWorkingDays(itemDate, referenceDate, 3)
     }).reduce((sum, item) => sum + (item.amount || 0), 0) || 0
 
     // Generate recommendations
