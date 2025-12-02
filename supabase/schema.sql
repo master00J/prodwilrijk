@@ -57,6 +57,7 @@ END;
 $$ language 'plpgsql';
 
 -- Trigger to automatically update updated_at
+DROP TRIGGER IF EXISTS update_items_to_pack_updated_at ON items_to_pack;
 CREATE TRIGGER update_items_to_pack_updated_at 
   BEFORE UPDATE ON items_to_pack
   FOR EACH ROW
@@ -68,16 +69,19 @@ ALTER TABLE items_to_pack ENABLE ROW LEVEL SECURITY;
 ALTER TABLE packed_items ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Allow all operations for authenticated users (adjust as needed)
+DROP POLICY IF EXISTS "Allow all for authenticated users" ON incoming_goods;
 CREATE POLICY "Allow all for authenticated users" ON incoming_goods
   FOR ALL
   USING (true)
   WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow all for authenticated users" ON items_to_pack;
 CREATE POLICY "Allow all for authenticated users" ON items_to_pack
   FOR ALL
   USING (true)
   WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow all for authenticated users" ON packed_items;
 CREATE POLICY "Allow all for authenticated users" ON packed_items
   FOR ALL
   USING (true)
