@@ -48,119 +48,116 @@ export default function WMSImportPage() {
       const worksheet = workbook.Sheets[sheetName]
       const jsonData = XLSX.utils.sheet_to_json(worksheet)
 
-      console.log('Parsed JSON data:', jsonData)
-      console.log('Total rows parsed:', jsonData.length)
+      if (jsonData.length === 0) {
+        throw new Error('No data found in the Excel file')
+      }
+
+      // Detect column names from first row - do this once for performance
+      const firstRow = jsonData[0] as Record<string, any>
+      const allKeys = Object.keys(firstRow)
       
-      // Log first row to see column names
-      if (jsonData.length > 0) {
-        const firstRow = jsonData[0] as Record<string, any>
-        console.log('Available columns in first row:', Object.keys(firstRow))
-        console.log('First row sample:', firstRow)
+      // Find the date column name efficiently
+      let dateColumnName: string | null = null
+      for (const key of allKeys) {
+        const lowerKey = key.toLowerCase()
+        if (lowerKey.includes('laatste') && lowerKey.includes('status') && lowerKey.includes('verandering')) {
+          dateColumnName = key
+          break
+        }
+      }
+      
+      // Fallback: try other variations
+      if (!dateColumnName) {
+        for (const key of allKeys) {
+          const lowerKey = key.toLowerCase()
+          if ((lowerKey.includes('status') && lowerKey.includes('verandering')) || 
+              lowerKey === 'laatste status verandering') {
+            dateColumnName = key
+            break
+          }
+        }
       }
 
       // Map and validate the data - looking for WMS status 30 format
       // Expected columns: Item, Pallet, Qty, and "Laatste status verandering" (column I) for date filtering
       const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD format
-      console.log('Today\'s date for filtering:', today)
       
-      const mappedData = jsonData
-        .map((row: any, index: number) => {
-          const itemNumber = row['Item'] || row['Item Number'] || row['Itemnumber'] || row['Artikelnummer']
-          const poNumber = row['Pallet'] || row['PO Number'] || row['PO'] || row['Palletnummer']
-          const amount = row['Qty'] || row['Quantity'] || row['Amount'] || row['Aantal']
-          
-          // Get date from "Laatste status verandering" column (column I)
-          // Try multiple possible column name variations
-          const lastStatusChange = row['Laatste status verandering'] || 
-                                  row['Laatste status verandering'] || 
-                                  row['Last Status Change'] || 
-                                  row['Status Change'] ||
-                                  row['Laatste status'] ||
-                                  // Try to find any column that contains "status" or "verandering"
-                                  Object.keys(row).find(key => 
-                                    key.toLowerCase().includes('status') || 
-                                    key.toLowerCase().includes('verandering')
-                                  ) ? row[Object.keys(row).find(key => 
-                                    key.toLowerCase().includes('status') || 
-                                    key.toLowerCase().includes('verandering')
-                                  )!] : null
-          
-          // Parse the date - WMS format appears to be "YYYY-MM-DD HH:mm:ss.S"
-          let statusDate: string | null = null
-          if (lastStatusChange) {
-            try {
-              // Try to parse the date string
-              const dateStr = lastStatusChange.toString().trim()
-              console.log(`Parsing date for item ${itemNumber}: "${dateStr}"`)
-              
-              // WMS format: "2025-11-28 10:18:48.0" - extract date part (before space)
-              const datePart = dateStr.split(' ')[0]
-              
-              // Validate date format (should be YYYY-MM-DD)
-              if (datePart.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                // Already in correct format, use it directly
-                statusDate = datePart
-              } else {
-                // Try to parse it
-                const parsedDate = new Date(datePart + 'T00:00:00') // Add time to avoid timezone issues
-                if (!isNaN(parsedDate.getTime())) {
-                  // Format as YYYY-MM-DD
-                  const year = parsedDate.getFullYear()
-                  const month = String(parsedDate.getMonth() + 1).padStart(2, '0')
-                  const day = String(parsedDate.getDate()).padStart(2, '0')
-                  statusDate = `${year}-${month}-${day}`
-                }
-              }
-              
-              if (statusDate) {
-                console.log(`Parsed date: ${statusDate} for item ${itemNumber}`)
-              }
-            } catch (e) {
-              console.warn('Could not parse date:', lastStatusChange, e)
-            }
-          } else {
-            console.warn(`No date found for item ${itemNumber}, available keys:`, Object.keys(row))
-          }
-          
-          // Try to find a unique line identifier from WMS
-          // Use Pallet number as unique identifier (it's in the checkbox value in the export)
-          const wmsLineId = row['Line ID'] || row['Line_ID'] || row['ID'] || row['WMS_ID'] || 
-                           row['Status30_ID'] || row['LineId'] || row['wms_line_id'] ||
-                           poNumber?.toString().trim() || // Use Pallet as fallback
-                           `${itemNumber}_${poNumber}_${amount}_${index}`
-
-          return {
-            item_number: itemNumber?.toString().trim(),
-            po_number: poNumber?.toString().trim(),
-            amount: amount ? Number(amount) : null,
-            wms_line_id: wmsLineId?.toString().trim(),
-            status_date: statusDate,
-            raw_date: lastStatusChange?.toString().trim(),
-          }
-        })
-        .filter((item) => {
-          // Filter: must have valid data
-          if (!item.item_number || !item.po_number || !item.amount || item.amount <= 0) {
-            return false
-          }
-          
-          // Filter: only import items with today's date in "Laatste status verandering"
-          if (item.status_date) {
-            if (item.status_date !== today) {
-              console.log(`Skipping item ${item.item_number} (Pallet: ${item.po_number}) - date ${item.status_date} is not today (${today})`)
-              return false
+      // Pre-compile regex for date parsing
+      const dateRegex = /^(\d{4})-(\d{2})-(\d{2})/
+      
+      const mappedData: Array<{
+        item_number: string
+        po_number: string
+        amount: number
+        wms_line_id: string
+        status_date: string | null
+        raw_date?: string
+      }> = []
+      
+      // Process rows efficiently - single pass
+      for (let i = 0; i < jsonData.length; i++) {
+        const row = jsonData[i] as Record<string, any>
+        
+        // Get basic fields
+        const itemNumber = row['Item'] || row['Item Number'] || row['Itemnumber'] || row['Artikelnummer']
+        const poNumber = row['Pallet'] || row['PO Number'] || row['PO'] || row['Palletnummer']
+        const amount = row['Qty'] || row['Quantity'] || row['Amount'] || row['Aantal']
+        
+        // Validate required fields
+        if (!itemNumber || !poNumber || !amount || Number(amount) <= 0) {
+          continue
+        }
+        
+        // Get date from detected column
+        let statusDate: string | null = null
+        let rawDate: string | undefined
+        if (dateColumnName && row[dateColumnName]) {
+          try {
+            const dateStr = String(row[dateColumnName]).trim()
+            rawDate = dateStr
+            
+            // WMS format: "2025-11-28 10:18:48.0" - extract date part (before space)
+            const datePart = dateStr.split(' ')[0]
+            
+            // Match YYYY-MM-DD format
+            const match = datePart.match(dateRegex)
+            if (match) {
+              statusDate = match[0] // Already in YYYY-MM-DD format
             } else {
-              console.log(`Including item ${item.item_number} (Pallet: ${item.po_number}) - date ${item.status_date} matches today`)
+              // Try to parse as date
+              const parsedDate = new Date(datePart + 'T00:00:00')
+              if (!isNaN(parsedDate.getTime())) {
+                const year = parsedDate.getFullYear()
+                const month = String(parsedDate.getMonth() + 1).padStart(2, '0')
+                const day = String(parsedDate.getDate()).padStart(2, '0')
+                statusDate = `${year}-${month}-${day}`
+              }
             }
-          } else {
-            // If no date found, log it but still include it (might be missing in some exports)
-            console.warn(`Item ${item.item_number} (Pallet: ${item.po_number}) has no date - including anyway`)
+          } catch (e) {
+            // Date parsing failed, continue without date
           }
-          
-          return true
+        }
+        
+        // Filter: only import items with today's date in "Laatste status verandering"
+        if (statusDate && statusDate !== today) {
+          continue // Skip items not from today
+        }
+        
+        // Generate unique line identifier
+        const wmsLineId = row['Line ID'] || row['Line_ID'] || row['ID'] || row['WMS_ID'] || 
+                         row['Status30_ID'] || row['LineId'] || row['wms_line_id'] ||
+                         String(poNumber).trim() || // Use Pallet as fallback
+                         `${itemNumber}_${poNumber}_${amount}_${i}`
+
+        mappedData.push({
+          item_number: String(itemNumber).trim(),
+          po_number: String(poNumber).trim(),
+          amount: Number(amount),
+          wms_line_id: String(wmsLineId).trim(),
+          status_date: statusDate,
+          raw_date: rawDate,
         })
-      
-      console.log(`After filtering: ${mappedData.length} items from today out of ${jsonData.length} total rows`)
+      }
 
       if (mappedData.length === 0) {
         throw new Error('No valid data found in the Excel file. Please check that the file contains Item, Pallet, and Qty columns.')
