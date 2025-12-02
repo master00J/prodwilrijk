@@ -79,8 +79,13 @@ export default function ItemsToPackPage() {
     // Apply sorting
     if (sortColumn) {
       filtered.sort((a, b) => {
-        let aVal = a[sortColumn]
-        let bVal = b[sortColumn]
+        let aVal: any = a[sortColumn]
+        let bVal: any = b[sortColumn]
+
+        // Handle null/undefined values
+        if (aVal == null && bVal == null) return 0
+        if (aVal == null) return sortDirection === 'asc' ? 1 : -1
+        if (bVal == null) return sortDirection === 'asc' ? -1 : 1
 
         if (sortColumn === 'date_added') {
           aVal = new Date(aVal as string).getTime()
