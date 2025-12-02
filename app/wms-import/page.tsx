@@ -53,8 +53,9 @@ export default function WMSImportPage() {
       
       // Log first row to see column names
       if (jsonData.length > 0) {
-        console.log('Available columns in first row:', Object.keys(jsonData[0]))
-        console.log('First row sample:', jsonData[0])
+        const firstRow = jsonData[0] as Record<string, any>
+        console.log('Available columns in first row:', Object.keys(firstRow))
+        console.log('First row sample:', firstRow)
       }
 
       // Map and validate the data - looking for WMS status 30 format
