@@ -12,6 +12,9 @@ interface ItemsTableProps {
   sortDirection: 'asc' | 'desc'
   onSort: (column: keyof ItemToPack) => void
   onRefresh: () => void
+  onDelete: (id: number) => void
+  onReturn: (id: number) => void
+  onUploadImage: (id: number) => void
 }
 
 export default function ItemsTable({
@@ -23,6 +26,9 @@ export default function ItemsTable({
   sortDirection,
   onSort,
   onRefresh,
+  onDelete,
+  onReturn,
+  onUploadImage,
 }: ItemsTableProps) {
   const [expandedImage, setExpandedImage] = useState<number | null>(null)
 
@@ -92,14 +98,17 @@ export default function ItemsTable({
                 Measurement
               </th>
               <th className="px-4 py-4 text-left text-sm font-medium text-gray-700">
-                Image
+                Images
+              </th>
+              <th className="px-4 py-4 text-left text-sm font-medium text-gray-700">
+                Actions
               </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {items.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
                   No items found
                 </td>
               </tr>
@@ -151,16 +160,58 @@ export default function ItemsTable({
                       />
                     </td>
                     <td className="px-4 py-4">
-                      {item.image ? (
-                        <img
-                          src={item.image}
-                          alt="Item"
-                          className="w-12 h-12 object-cover rounded cursor-pointer hover:scale-150 transition-transform"
-                          onClick={() => item.image && handleImageClick(item.id, item.image!)}
-                        />
-                      ) : (
-                        <span className="text-gray-400 text-xs">No image</span>
-                      )}
+                      <div className="flex gap-2 items-center flex-wrap">
+                        <button
+                          onClick={() => onUploadImage(item.id)}
+                          className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+                          title="Upload image"
+                        >
+                          📷
+                        </button>
+                        {item.images && item.images.length > 0 ? (
+                          <div className="flex gap-1">
+                            {item.images.slice(0, 3).map((imgUrl, idx) => (
+                              <img
+                                key={idx}
+                                src={imgUrl}
+                                alt={`Item ${idx + 1}`}
+                                className="w-12 h-12 object-cover rounded cursor-pointer hover:scale-150 transition-transform"
+                                onClick={() => handleImageClick(item.id, imgUrl)}
+                              />
+                            ))}
+                            {item.images.length > 3 && (
+                              <div className="w-12 h-12 bg-gray-200 rounded flex items-center justify-center text-xs">
+                                +{item.images.length - 3}
+                              </div>
+                            )}
+                          </div>
+                        ) : item.image ? (
+                          <img
+                            src={item.image}
+                            alt="Item"
+                            className="w-12 h-12 object-cover rounded cursor-pointer hover:scale-150 transition-transform"
+                            onClick={() => item.image && handleImageClick(item.id, item.image!)}
+                          />
+                        ) : null}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => onReturn(item.id)}
+                          className="px-3 py-1 bg-orange-500 text-white rounded text-xs hover:bg-orange-600 font-medium"
+                          title="Return item"
+                        >
+                          ↩️ Return
+                        </button>
+                        <button
+                          onClick={() => onDelete(item.id)}
+                          className="px-3 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600 font-medium"
+                          title="Delete item"
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )

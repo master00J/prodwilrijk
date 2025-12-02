@@ -8,6 +8,7 @@ export interface ItemToPack {
   measurement: boolean
   packed: boolean
   image?: string | null
+  images?: string[] // Multiple images
   created_at?: string
   updated_at?: string
 }

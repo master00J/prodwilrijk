@@ -8,6 +8,8 @@ import FiltersBar from '@/components/items-to-pack/FiltersBar'
 import ActionsBar from '@/components/items-to-pack/ActionsBar'
 import BarcodeScanner from '@/components/items-to-pack/BarcodeScanner'
 import DailyReportModal from '@/components/items-to-pack/DailyReportModal'
+import ReturnItemModal from '@/components/items-to-pack/ReturnItemModal'
+import ImageUploadModal from '@/components/items-to-pack/ImageUploadModal'
 
 export default function ItemsToPackPage() {
   const [items, setItems] = useState<ItemToPack[]>([])
@@ -19,6 +21,9 @@ export default function ItemsToPackPage() {
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set())
   const [showScanner, setShowScanner] = useState(false)
   const [showReport, setShowReport] = useState(false)
+  const [showReturnModal, setShowReturnModal] = useState(false)
+  const [showImageUploadModal, setShowImageUploadModal] = useState(false)
+  const [selectedItemForAction, setSelectedItemForAction] = useState<number | null>(null)
   const [sortColumn, setSortColumn] = useState<keyof ItemToPack | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
@@ -209,6 +214,90 @@ export default function ItemsToPackPage() {
     }
   }
 
+  const handleDelete = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this item?')) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/items-to-pack/${id}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) throw new Error('Failed to delete item')
+
+      await fetchItems()
+      alert('Item deleted successfully')
+    } catch (error) {
+      console.error('Error deleting item:', error)
+      alert('Failed to delete item')
+    }
+  }
+
+  const handleReturn = (id: number) => {
+    setSelectedItemForAction(id)
+    setShowReturnModal(true)
+  }
+
+  const handleReturnConfirm = async (reason: string, imageFiles: File[]) => {
+    if (!selectedItemForAction) return
+
+    try {
+      // First upload images if any
+      let imageUrls: string[] = []
+      if (imageFiles.length > 0) {
+        const formData = new FormData()
+        imageFiles.forEach((file) => {
+          formData.append('images', file)
+        })
+        formData.append('itemId', selectedItemForAction.toString())
+        formData.append('itemType', 'returned_items')
+
+        const imageResponse = await fetch('/api/items-to-pack/upload-image', {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (imageResponse.ok) {
+          const imageData = await imageResponse.json()
+          imageUrls = imageData.urls || []
+        }
+      }
+
+      // Then return the item
+      const response = await fetch('/api/items-to-pack/return', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          id: selectedItemForAction, 
+          reason,
+          imageUrls,
+        }),
+      })
+
+      if (!response.ok) throw new Error('Failed to return item')
+
+      await fetchItems()
+      setShowReturnModal(false)
+      setSelectedItemForAction(null)
+      alert('Item returned successfully')
+    } catch (error) {
+      console.error('Error returning item:', error)
+      alert('Failed to return item')
+    }
+  }
+
+  const handleUploadImage = (id: number) => {
+    setSelectedItemForAction(id)
+    setShowImageUploadModal(true)
+  }
+
+  const handleImageUploaded = async () => {
+    await fetchItems()
+    setShowImageUploadModal(false)
+    setSelectedItemForAction(null)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -253,6 +342,9 @@ export default function ItemsToPackPage() {
         sortDirection={sortDirection}
         onSort={handleSort}
         onRefresh={fetchItems}
+        onDelete={handleDelete}
+        onReturn={handleReturn}
+        onUploadImage={handleUploadImage}
       />
 
       {showScanner && (
@@ -269,6 +361,30 @@ export default function ItemsToPackPage() {
       {showReport && (
         <DailyReportModal
           onClose={() => setShowReport(false)}
+        />
+      )}
+
+      {showReturnModal && selectedItemForAction && (
+        <ReturnItemModal
+          itemId={selectedItemForAction}
+          item={items.find(item => item.id === selectedItemForAction)}
+          onClose={() => {
+            setShowReturnModal(false)
+            setSelectedItemForAction(null)
+          }}
+          onConfirm={handleReturnConfirm}
+        />
+      )}
+
+      {showImageUploadModal && selectedItemForAction && (
+        <ImageUploadModal
+          itemId={selectedItemForAction}
+          itemType="items_to_pack"
+          onClose={() => {
+            setShowImageUploadModal(false)
+            setSelectedItemForAction(null)
+          }}
+          onUploaded={handleImageUploaded}
         />
       )}
     </div>
