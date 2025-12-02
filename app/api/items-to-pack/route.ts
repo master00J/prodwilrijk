@@ -3,10 +3,13 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
   try {
+    // Only fetch items that have wms_line_id (from WMS Status 30 import)
+    // Items from view-prepack confirmation no longer go here
     const { data: items, error } = await supabaseAdmin
       .from('items_to_pack')
       .select('*')
       .eq('packed', false)
+      .not('wms_line_id', 'is', null) // Only items with WMS line ID
       .order('date_added', { ascending: true })
 
     if (error) {

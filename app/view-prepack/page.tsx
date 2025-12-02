@@ -111,7 +111,7 @@ export default function ViewPrepackPage() {
       return
     }
 
-    if (!confirm(`Confirm ${selectedItems.size} item(s) and move to Items to Pack?`)) {
+    if (!confirm(`Confirm ${selectedItems.size} item(s)? These items will appear in Items to Pack after WMS Status 30 import.`)) {
       return
     }
 
@@ -126,7 +126,7 @@ export default function ViewPrepackPage() {
 
       await fetchItems()
       setSelectedItems(new Set())
-      alert('Items confirmed and moved to Items to Pack successfully')
+      alert('Items confirmed successfully. They will appear in Items to Pack after WMS Status 30 import.')
     } catch (error) {
       console.error('Error confirming items:', error)
       alert('Failed to confirm items')

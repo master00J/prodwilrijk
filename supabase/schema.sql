@@ -8,6 +8,18 @@ CREATE TABLE IF NOT EXISTS incoming_goods (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Confirmed Incoming Goods Table (history of confirmed items from view-prepack)
+CREATE TABLE IF NOT EXISTS confirmed_incoming_goods (
+  id BIGSERIAL PRIMARY KEY,
+  item_number VARCHAR(255) NOT NULL,
+  po_number VARCHAR(255) NOT NULL,
+  amount INTEGER NOT NULL DEFAULT 1,
+  date_added TIMESTAMP WITH TIME ZONE NOT NULL,
+  date_confirmed TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  original_id BIGINT, -- Reference to incoming_goods id
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Items to Pack Table
 CREATE TABLE IF NOT EXISTS items_to_pack (
   id BIGSERIAL PRIMARY KEY,
@@ -85,6 +97,9 @@ CREATE TABLE IF NOT EXISTS time_logs (
 CREATE INDEX IF NOT EXISTS idx_incoming_goods_item_number ON incoming_goods(item_number);
 CREATE INDEX IF NOT EXISTS idx_incoming_goods_po_number ON incoming_goods(po_number);
 CREATE INDEX IF NOT EXISTS idx_incoming_goods_date_added ON incoming_goods(date_added);
+CREATE INDEX IF NOT EXISTS idx_confirmed_incoming_item_number ON confirmed_incoming_goods(item_number);
+CREATE INDEX IF NOT EXISTS idx_confirmed_incoming_po_number ON confirmed_incoming_goods(po_number);
+CREATE INDEX IF NOT EXISTS idx_confirmed_incoming_date_confirmed ON confirmed_incoming_goods(date_confirmed);
 CREATE INDEX IF NOT EXISTS idx_items_to_pack_item_number ON items_to_pack(item_number);
 CREATE INDEX IF NOT EXISTS idx_items_to_pack_po_number ON items_to_pack(po_number);
 CREATE INDEX IF NOT EXISTS idx_items_to_pack_date_added ON items_to_pack(date_added);
@@ -121,6 +136,7 @@ CREATE TRIGGER update_items_to_pack_updated_at
 
 -- Row Level Security (RLS) policies
 ALTER TABLE incoming_goods ENABLE ROW LEVEL SECURITY;
+ALTER TABLE confirmed_incoming_goods ENABLE ROW LEVEL SECURITY;
 ALTER TABLE items_to_pack ENABLE ROW LEVEL SECURITY;
 ALTER TABLE packed_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE returned_items ENABLE ROW LEVEL SECURITY;
@@ -131,6 +147,12 @@ ALTER TABLE time_logs ENABLE ROW LEVEL SECURITY;
 -- Policy: Allow all operations for authenticated users (adjust as needed)
 DROP POLICY IF EXISTS "Allow all for authenticated users" ON incoming_goods;
 CREATE POLICY "Allow all for authenticated users" ON incoming_goods
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all for authenticated users" ON confirmed_incoming_goods;
+CREATE POLICY "Allow all for authenticated users" ON confirmed_incoming_goods
   FOR ALL
   USING (true)
   WITH CHECK (true);

@@ -41,7 +41,7 @@ export default function ViewPrepackFilters({
             disabled={selectedCount === 0}
             className="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium text-lg"
           >
-            ✓ Confirm & Move to Items to Pack
+            ✓ Confirm Items
           </button>
         </div>
       </div>

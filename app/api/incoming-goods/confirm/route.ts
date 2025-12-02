@@ -26,23 +26,25 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Prepare items for items_to_pack
-    const itemsToPack = items.map(item => ({
+    // Prepare items for confirmed_incoming_goods (history tracking)
+    // These items will later come back via WMS Status 30 import
+    const confirmedItems = items.map(item => ({
       item_number: item.item_number,
       po_number: item.po_number,
       amount: item.amount,
       date_added: item.date_added || new Date().toISOString(),
+      original_id: item.id,
     }))
 
-    // Insert into items_to_pack
+    // Insert into confirmed_incoming_goods (for history)
     const { error: insertError } = await supabaseAdmin
-      .from('items_to_pack')
-      .insert(itemsToPack)
+      .from('confirmed_incoming_goods')
+      .insert(confirmedItems)
 
     if (insertError) {
-      console.error('Error inserting items to pack:', insertError)
+      console.error('Error inserting confirmed items:', insertError)
       return NextResponse.json(
-        { error: 'Failed to move items to pack' },
+        { error: 'Failed to save confirmed items' },
         { status: 500 }
       )
     }
@@ -63,7 +65,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Items confirmed and moved to Items to Pack',
+      message: 'Items confirmed. They will appear in Items to Pack after WMS Status 30 import.',
       movedCount: items.length,
     })
   } catch (error) {
