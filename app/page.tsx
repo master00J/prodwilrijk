@@ -11,6 +11,12 @@ export default function Home() {
         >
           Items to Pack
         </Link>
+        <Link
+          href="/prepack"
+          className="block px-6 py-4 bg-green-500 text-white rounded-lg hover:bg-green-600 text-xl font-medium"
+        >
+          Prepack - Excel Upload
+        </Link>
       </div>
     </div>
   )
