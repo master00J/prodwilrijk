@@ -15,19 +15,26 @@ export async function POST(
       )
     }
 
-    // Check if log exists and is active
+    // Check if log exists (don't require it to be active, in case of race condition)
     const { data: log, error: fetchError } = await supabaseAdmin
       .from('time_logs')
       .select('*')
       .eq('id', id)
-      .is('end_time', null)
       .single()
 
     if (fetchError || !log) {
       return NextResponse.json(
-        { error: 'Active time log not found' },
+        { error: 'Time log not found' },
         { status: 404 }
       )
+    }
+
+    // Check if already stopped
+    if (log.end_time) {
+      return NextResponse.json({
+        success: true,
+        message: 'Time log was already stopped',
+      })
     }
 
     // Update end_time
@@ -35,6 +42,7 @@ export async function POST(
       .from('time_logs')
       .update({ end_time: new Date().toISOString() })
       .eq('id', id)
+      .is('end_time', null) // Only update if end_time is still null (prevent race conditions)
 
     if (updateError) {
       console.error('Error stopping time log:', updateError)
