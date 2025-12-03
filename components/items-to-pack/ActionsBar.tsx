@@ -6,6 +6,7 @@ interface ActionsBarProps {
   onMarkAsPacked: () => void
   onSetPriority: () => void
   onSetMeasurement: () => void
+  onDeleteSelected: () => void
   onShowScanner: () => void
   onShowTimer: () => void
   activeTimerCount?: number
@@ -17,6 +18,7 @@ export default function ActionsBar({
   onMarkAsPacked,
   onSetPriority,
   onSetMeasurement,
+  onDeleteSelected,
   onShowScanner,
   onShowTimer,
   activeTimerCount = 0,
@@ -71,6 +73,13 @@ export default function ActionsBar({
           className="px-6 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium text-lg"
         >
           📏 Set Measurement
+        </button>
+        <button
+          onClick={onDeleteSelected}
+          disabled={selectedCount === 0}
+          className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium text-lg"
+        >
+          🗑️ Delete Selected
         </button>
       </div>
     </div>

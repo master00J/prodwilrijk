@@ -242,6 +242,34 @@ export default function ItemsToPackPage() {
     }
   }
 
+  const handleDeleteSelected = async () => {
+    if (selectedItems.size === 0) {
+      alert('Please select items to delete')
+      return
+    }
+
+    if (!confirm(`Are you sure you want to delete ${selectedItems.size} item(s)? This action cannot be undone.`)) {
+      return
+    }
+
+    try {
+      const response = await fetch('/api/items-to-pack', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedItems) }),
+      })
+
+      if (!response.ok) throw new Error('Failed to delete items')
+
+      await fetchItems()
+      setSelectedItems(new Set())
+      alert(`${selectedItems.size} item(s) deleted successfully`)
+    } catch (error) {
+      console.error('Error deleting items:', error)
+      alert('Failed to delete items')
+    }
+  }
+
   const handleReturn = (id: number) => {
     setSelectedItemForAction(id)
     setShowReturnModal(true)
@@ -413,6 +441,7 @@ export default function ItemsToPackPage() {
         onMarkAsPacked={handleMarkAsPacked}
         onSetPriority={handleSetPriority}
         onSetMeasurement={handleSetMeasurement}
+        onDeleteSelected={handleDeleteSelected}
         onShowScanner={() => setShowScanner(true)}
         onShowTimer={() => setShowTimeModal(true)}
         activeTimerCount={activeTimeLogs.length}

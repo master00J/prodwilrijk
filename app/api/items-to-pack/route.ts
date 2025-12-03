@@ -3,13 +3,11 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
   try {
-    // Only fetch items that have wms_line_id (from WMS Status 30 import)
-    // Items from view-prepack confirmation no longer go here
+    // Fetch all items that are not packed (including WMS import items)
     const { data: items, error } = await supabaseAdmin
       .from('items_to_pack')
       .select('*')
       .eq('packed', false)
-      .not('wms_line_id', 'is', null) // Only items with WMS line ID
       .order('date_added', { ascending: true })
 
     if (error) {
@@ -121,6 +119,45 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'Items successfully packed',
+    })
+  } catch (error) {
+    console.error('Unexpected error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { ids } = body
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json(
+        { error: 'Invalid input. Expected array of IDs.' },
+        { status: 400 }
+      )
+    }
+
+    // Delete from items_to_pack (without moving to packed_items)
+    const { error: deleteError } = await supabaseAdmin
+      .from('items_to_pack')
+      .delete()
+      .in('id', ids)
+
+    if (deleteError) {
+      console.error('Error deleting items:', deleteError)
+      return NextResponse.json(
+        { error: 'Failed to delete items' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `${ids.length} item(s) deleted successfully`,
     })
   } catch (error) {
     console.error('Unexpected error:', error)
