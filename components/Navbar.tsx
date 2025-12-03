@@ -7,7 +7,9 @@ import { useState, useEffect, useRef } from 'react'
 export default function Navbar() {
   const pathname = usePathname()
   const [isPrepackOpen, setIsPrepackOpen] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
+  const [isAdminOpen, setIsAdminOpen] = useState(false)
+  const prepackDropdownRef = useRef<HTMLDivElement>(null)
+  const adminDropdownRef = useRef<HTMLDivElement>(null)
 
   const isActive = (path: string) => pathname === path
 
@@ -19,22 +21,29 @@ export default function Navbar() {
     pathname.startsWith('/items-to-pack') || 
     pathname.startsWith('/packed-items')
 
-  // Close dropdown when clicking outside
+  const isAdminPage = 
+    pathname.startsWith('/admin') || 
+    pathname.startsWith('/employees')
+
+  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (prepackDropdownRef.current && !prepackDropdownRef.current.contains(event.target as Node)) {
         setIsPrepackOpen(false)
+      }
+      if (adminDropdownRef.current && !adminDropdownRef.current.contains(event.target as Node)) {
+        setIsAdminOpen(false)
       }
     }
 
-    if (isPrepackOpen) {
+    if (isPrepackOpen || isAdminOpen) {
       document.addEventListener('mousedown', handleClickOutside)
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [isPrepackOpen])
+  }, [isPrepackOpen, isAdminOpen])
 
   return (
     <nav className="bg-white shadow-lg border-b border-gray-200 sticky top-0 z-50">
@@ -48,7 +57,7 @@ export default function Navbar() {
           {/* Navigation Links */}
           <div className="flex items-center space-x-4">
             {/* Prepack Dropdown */}
-            <div className="relative" ref={dropdownRef}>
+            <div className="relative" ref={prepackDropdownRef}>
               <button
                 onClick={() => setIsPrepackOpen(!isPrepackOpen)}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center ${
@@ -125,6 +134,54 @@ export default function Navbar() {
                       }`}
                     >
                       Packed Items
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Admin Dropdown */}
+            <div className="relative" ref={adminDropdownRef}>
+              <button
+                onClick={() => setIsAdminOpen(!isAdminOpen)}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center ${
+                  isAdminPage
+                    ? 'bg-purple-500 text-white hover:bg-purple-600'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Admin
+                <svg
+                  className={`ml-2 w-4 h-4 transition-transform ${isAdminOpen ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {/* Dropdown Menu */}
+              {isAdminOpen && (
+                <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-20">
+                  <div className="py-2">
+                    <Link
+                      href="/admin"
+                      onClick={() => setIsAdminOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/admin') ? 'bg-purple-50 text-purple-600 font-medium border-l-4 border-purple-500' : 'text-gray-700'
+                      }`}
+                    >
+                      Admin Dashboard
+                    </Link>
+                    <Link
+                      href="/employees"
+                      onClick={() => setIsAdminOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/employees') ? 'bg-purple-50 text-purple-600 font-medium border-l-4 border-purple-500' : 'text-gray-700'
+                      }`}
+                    >
+                      Employees
                     </Link>
                   </div>
                 </div>
