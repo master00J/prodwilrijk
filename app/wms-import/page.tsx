@@ -14,6 +14,15 @@ export default function WMSImportPage() {
     errors: number
   } | null>(null)
 
+  const readFileAsText = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = (e) => resolve(e.target?.result as string)
+      reader.onerror = reject
+      reader.readAsText(file)
+    })
+  }
+
   const readFileAsArrayBuffer = (file: File): Promise<ArrayBuffer> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
@@ -21,6 +30,58 @@ export default function WMSImportPage() {
       reader.onerror = reject
       reader.readAsArrayBuffer(file)
     })
+  }
+
+  // Custom parser for .do files with multiline HTML content
+  const parseDoFile = (content: string): Record<string, any>[] => {
+    const results: Record<string, any>[] = []
+    
+    // Split by lines that start with "30" followed by a tab (data rows)
+    // The pattern is: "30"\t"ItemNumber"\t... at the start of a real data line
+    const lines = content.split('\n')
+    
+    // Get header from first line
+    const headerLine = lines[0]
+    const headers = headerLine.split('\t').map(h => h.replace(/^"|"$/g, '').trim())
+    
+    console.log('Parsed headers:', headers)
+    
+    // Find all lines that start with "30" (status 30 records)
+    // These are the actual data rows - everything else is HTML continuation
+    let currentRecord: string[] | null = null
+    
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i]
+      
+      // Check if this line starts a new record (starts with "30" followed by tab)
+      if (line.match(/^"30"\t/)) {
+        // Save previous record if exists
+        if (currentRecord) {
+          const record: Record<string, any> = {}
+          for (let j = 0; j < headers.length && j < currentRecord.length; j++) {
+            record[headers[j]] = currentRecord[j]
+          }
+          results.push(record)
+        }
+        
+        // Start new record - split by tab and clean up quotes
+        currentRecord = line.split('\t').map(cell => cell.replace(/^"|"$/g, '').trim())
+      }
+      // If line doesn't start a new record, it's part of the HTML in "Acties" column
+      // We can ignore it since we don't need the Acties column
+    }
+    
+    // Don't forget the last record
+    if (currentRecord) {
+      const record: Record<string, any> = {}
+      for (let j = 0; j < headers.length && j < currentRecord.length; j++) {
+        record[headers[j]] = currentRecord[j]
+      }
+      results.push(record)
+    }
+    
+    console.log(`Parsed ${results.length} records from .do file`)
+    return results
   }
 
   const handleFileUpload = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -39,94 +100,57 @@ export default function WMSImportPage() {
     setImportStats(null)
 
     try {
-      // Read file as array buffer (same as old code)
-      const data = await readFileAsArrayBuffer(file)
+      let jsonData: Record<string, any>[]
       
-      // Parse file with XLSX - it automatically detects format (Excel, CSV, TSV, etc.)
-      // This is the same approach as the old code
-      const workbook = XLSX.read(data, { type: 'array' })
-      const sheetName = workbook.SheetNames[0]
-      const worksheet = workbook.Sheets[sheetName]
-      const jsonData = XLSX.utils.sheet_to_json(worksheet)
+      // Check if it's a .do file - use custom parser
+      if (file.name.toLowerCase().endsWith('.do')) {
+        console.log('Detected .do file, using custom parser')
+        const textContent = await readFileAsText(file)
+        jsonData = parseDoFile(textContent)
+      } else {
+        // For Excel/CSV files, use XLSX library
+        const data = await readFileAsArrayBuffer(file)
+        const workbook = XLSX.read(data, { type: 'array' })
+        const sheetName = workbook.SheetNames[0]
+        const worksheet = workbook.Sheets[sheetName]
+        jsonData = XLSX.utils.sheet_to_json(worksheet)
+      }
 
       if (jsonData.length === 0) {
         throw new Error('No data found in the file. Please check that the file contains data rows.')
       }
 
-      // Detect column names from first row - same approach as prepack page
+      // Detect column names from first row
       const firstRow = jsonData[0] as Record<string, any>
       const allKeys = Object.keys(firstRow)
       
-      // Debug: log available columns
       console.log('Available columns:', allKeys)
+      console.log('First row sample:', firstRow)
       
-      // Pre-compile regex for date parsing (needed for fallback column detection)
-      const dateRegex = /^(\d{4})-(\d{2})-(\d{2})/
-      
-      // Find the date column name efficiently
+      // Find the date column name - "Laatste status verandering"
       let dateColumnName: string | null = null
       
-      // Try exact match first
       for (const key of allKeys) {
-        if (key === 'Laatste status verandering' || key === 'laatste status verandering' || key === 'LAATSTE STATUS VERANDERING') {
+        const lowerKey = key.toLowerCase().trim()
+        if (lowerKey === 'laatste status verandering' || 
+            (lowerKey.includes('laatste') && lowerKey.includes('status'))) {
           dateColumnName = key
-          console.log('Found date column (exact match):', dateColumnName)
+          console.log('Found date column:', dateColumnName)
           break
-        }
-      }
-      
-      // Try partial match
-      if (!dateColumnName) {
-        for (const key of allKeys) {
-          const lowerKey = key.toLowerCase().trim()
-          if (lowerKey.includes('laatste') && lowerKey.includes('status') && lowerKey.includes('verandering')) {
-            dateColumnName = key
-            console.log('Found date column (partial match):', dateColumnName)
-            break
-          }
-        }
-      }
-      
-      // Fallback: try other variations
-      if (!dateColumnName) {
-        for (const key of allKeys) {
-          const lowerKey = key.toLowerCase().trim()
-          if ((lowerKey.includes('status') && lowerKey.includes('verandering')) || 
-              lowerKey === 'laatste status verandering') {
-            dateColumnName = key
-            console.log('Found date column (fallback):', dateColumnName)
-            break
-          }
-        }
-      }
-      
-      // Fallback: if column name not found, try to use column by index (column I = 9th column, index 8)
-      if (!dateColumnName && allKeys.length >= 9) {
-        // Try the 9th column (index 8) as fallback since "Laatste status verandering" is typically column I
-        const potentialDateColumn = allKeys[8]
-        console.log('Trying column by index (9th column) as fallback:', potentialDateColumn)
-        // Check if it looks like a date column by checking if it contains date-like values
-        if (jsonData.length > 0) {
-          const firstRow = jsonData[0] as Record<string, any>
-          const firstRowValue = String(firstRow[potentialDateColumn] || '').trim()
-          // If it looks like a date (contains YYYY-MM-DD pattern), use it
-          if (dateRegex.test(firstRowValue)) {
-            dateColumnName = potentialDateColumn
-            console.log('Using column by index as date column:', dateColumnName)
-          }
         }
       }
       
       if (!dateColumnName) {
         console.warn('Date column not found! Available columns:', allKeys)
-        console.warn('Looking for column containing: "laatste", "status", "verandering"')
-      } else {
-        console.log('Using date column:', dateColumnName)
+        throw new Error(`Date column "Laatste status verandering" not found. Available columns: ${allKeys.join(', ')}`)
       }
 
-      // Map and validate the data - looking for WMS status 30 format
-      // Expected columns: Item, Pallet, Qty, and "Laatste status verandering" (column I) for date filtering
-      const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD format
+      // Today's date in YYYY-MM-DD format
+      const today = new Date().toISOString().split('T')[0]
+      console.log('Filtering for today:', today)
+      
+      // Pre-compile regex for date parsing
+      const dateRegex = /^(\d{4})-(\d{2})-(\d{2})/
       
       const mappedData: Array<{
         item_number: string
@@ -134,109 +158,74 @@ export default function WMSImportPage() {
         amount: number
         wms_line_id: string
         status_date: string | null
-        raw_date?: string
       }> = []
       
-      // Process rows efficiently - single pass
+      let totalStatus30 = 0
+      
+      // Process rows
       for (let i = 0; i < jsonData.length; i++) {
         const row = jsonData[i] as Record<string, any>
         
-        // Filter: only process items with status 30
+        // All rows from .do parser should be status 30, but double-check for other formats
         const status = row['Status'] || row['status'] || row['STATUS']
         const statusValue = status ? String(status).trim() : ''
         if (statusValue !== '30') {
-          console.log('Skipping row - not status 30:', { status: statusValue, row })
           continue
         }
         
-        // Get basic fields - same approach as prepack page
-        const itemNumber = row['Item'] || row['Item Number'] || row['Itemnumber'] || row['Artikelnummer']
-        const poNumber = row['Pallet'] || row['PO Number'] || row['PO'] || row['Palletnummer']
-        const amountRaw = row['Qty'] || row['Quantity'] || row['Amount'] || row['Aantal']
+        totalStatus30++
+        
+        // Get basic fields
+        const itemNumber = row['Item'] || row['Item Number'] || row['Itemnumber']
+        const poNumber = row['Pallet'] || row['PO Number'] || row['Palletnummer']
+        const amountRaw = row['Qty'] || row['Quantity'] || row['Amount']
         const amount = amountRaw ? Number(amountRaw) : 0
         
         // Validate required fields
         if (!itemNumber || !poNumber || !amount || isNaN(amount) || amount <= 0) {
-          console.log('Skipping row - missing or invalid fields:', { itemNumber, poNumber, amount, amountRaw, row })
+          console.log('Skipping row - missing fields:', { itemNumber, poNumber, amount })
           continue
         }
         
-        // Get date from detected column
+        // Get date from "Laatste status verandering" column
         let statusDate: string | null = null
-        let rawDate: string | undefined
-        if (dateColumnName) {
-          const dateValue = row[dateColumnName]
-          if (dateValue) {
-            try {
-              const dateStr = String(dateValue).trim()
-              rawDate = dateStr
-              
-              // WMS format: "2025-11-28 10:18:48.0" - extract date part (before space)
-              const datePart = dateStr.split(' ')[0]
-              
-              // Match YYYY-MM-DD format
-              const match = datePart.match(dateRegex)
-              if (match) {
-                statusDate = match[0] // Already in YYYY-MM-DD format
-              } else {
-                // Try to parse as date
-                const parsedDate = new Date(datePart + 'T00:00:00')
-                if (!isNaN(parsedDate.getTime())) {
-                  const year = parsedDate.getFullYear()
-                  const month = String(parsedDate.getMonth() + 1).padStart(2, '0')
-                  const day = String(parsedDate.getDate()).padStart(2, '0')
-                  statusDate = `${year}-${month}-${day}`
-                }
-              }
-            } catch (e) {
-              console.warn('Date parsing failed for row:', { dateValue, error: e, row })
-            }
+        const dateValue = row[dateColumnName]
+        
+        if (dateValue) {
+          const dateStr = String(dateValue).trim()
+          // Format: "2025-12-03 08:52:45.0" - extract YYYY-MM-DD
+          const match = dateStr.match(dateRegex)
+          if (match) {
+            statusDate = match[0]
           }
-        } else {
-          console.warn('No date column found, cannot filter by date. Row:', row)
         }
         
-        // Filter: only import items with today's date in "Laatste status verandering"
-        // Skip items without a valid date or with a date that's not today
+        // Filter: only import items with today's date
         if (!statusDate || statusDate !== today) {
-          console.log('Skipping row - date filter:', { statusDate, today, dateColumnName, rowDate: row[dateColumnName || ''] })
-          continue // Skip items not from today or without valid date
+          console.log('Skipping - not today:', { statusDate, today, item: itemNumber })
+          continue
         }
         
-        // Generate unique line identifier
-        const wmsLineId = row['Line ID'] || row['Line_ID'] || row['ID'] || row['WMS_ID'] || 
-                         row['Status30_ID'] || row['LineId'] || row['wms_line_id'] ||
-                         String(poNumber).trim() || // Use Pallet as fallback
-                         `${itemNumber}_${poNumber}_${amount}_${i}`
+        // Use Pallet as unique identifier
+        const wmsLineId = String(poNumber).trim()
 
         mappedData.push({
           item_number: String(itemNumber).trim(),
           po_number: String(poNumber).trim(),
           amount: Number(amount),
-          wms_line_id: String(wmsLineId).trim(),
+          wms_line_id: wmsLineId,
           status_date: statusDate,
-          raw_date: rawDate,
         })
       }
 
+      console.log(`Found ${mappedData.length} items from today out of ${totalStatus30} status 30 items`)
+
       if (mappedData.length === 0) {
-        const availableColumns = allKeys.join(', ')
-        const totalRows = jsonData.length
-        let errorMessage = `No valid data found in the file after filtering. ` +
-          `Total rows in file: ${totalRows}. ` +
-          `Please check that the file contains: ` +
-          `1) Status column with value "30", ` +
-          `2) Item, Pallet, and Qty columns, ` +
-          `3) Items with today's date (${today}) in "Laatste status verandering". ` +
-          `Available columns: ${availableColumns}. `
-        
-        if (!dateColumnName) {
-          errorMessage += `ERROR: Date column "Laatste status verandering" was not found in the file! `
-        }
-        
-        errorMessage += `Check browser console for detailed filtering information.`
-        
-        throw new Error(errorMessage)
+        throw new Error(
+          `No items found with today's date (${today}) in "Laatste status verandering". ` +
+          `Total status 30 items in file: ${totalStatus30}. ` +
+          `Please check that the file contains items with today's date.`
+        )
       }
 
       // Send to API
@@ -254,26 +243,17 @@ export default function WMSImportPage() {
         throw new Error(result.error || 'Failed to import data')
       }
 
-      const totalRows = jsonData.length
-      const fromToday = mappedData.length
-      const filteredByDate = totalRows - fromToday
-      
       setImportStats({
-        total: totalRows,
-        fromToday: fromToday,
+        total: totalStatus30,
+        fromToday: mappedData.length,
         inserted: result.inserted || 0,
         skipped: result.skipped || 0,
         errors: result.errors || 0,
       })
 
-      let messageText = `Import completed! ${result.inserted || 0} new items added, ${result.skipped || 0} duplicates skipped.`
-      if (filteredByDate > 0) {
-        messageText += ` ${filteredByDate} items skipped (not from today).`
-      }
-      
       setMessage({
         type: 'success',
-        text: messageText,
+        text: `Import completed! ${result.inserted || 0} new items added, ${result.skipped || 0} duplicates skipped.`,
       })
       
       // Reset file input
@@ -293,14 +273,15 @@ export default function WMSImportPage() {
     <div className="container mx-auto px-4 py-6 max-w-4xl">
       <h1 className="text-3xl font-bold mb-6">WMS Status 30 Import</h1>
       <p className="text-gray-600 mb-6">
-        Import items from WMS status 30. Duplicate lines (based on WMS Line ID) will be automatically skipped.
+        Import items from WMS status 30. Only items with today&apos;s date in &quot;Laatste status verandering&quot; will be imported.
+        Duplicate lines (based on Pallet number) will be automatically skipped.
       </p>
 
       <div className="bg-white rounded-lg shadow p-6">
         <form onSubmit={handleFileUpload}>
           <div className="mb-4">
             <label className="block mb-2 font-medium text-lg">
-              Select Excel File (Status 30)
+              Select File (Status 30)
             </label>
             <input
               type="file"
@@ -335,8 +316,8 @@ export default function WMSImportPage() {
           <div className="mt-4 p-4 bg-gray-50 rounded-lg">
             <h3 className="font-semibold mb-2">Import Statistics:</h3>
             <ul className="space-y-1 text-sm">
-              <li>Total rows in file: <strong>{importStats.total}</strong></li>
-              <li>Rows from today: <strong className="text-blue-600">{importStats.fromToday}</strong></li>
+              <li>Total status 30 items in file: <strong>{importStats.total}</strong></li>
+              <li>Items from today: <strong className="text-blue-600">{importStats.fromToday}</strong></li>
               <li>New items inserted: <strong className="text-green-600">{importStats.inserted}</strong></li>
               <li>Duplicates skipped: <strong className="text-orange-600">{importStats.skipped}</strong></li>
               {importStats.errors > 0 && (
@@ -350,20 +331,15 @@ export default function WMSImportPage() {
         )}
 
         <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-          <h3 className="font-semibold mb-2">Excel File Format:</h3>
+          <h3 className="font-semibold mb-2">File Format:</h3>
           <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
-            <li><strong>Required columns:</strong> Status (must be &quot;30&quot;), Item (or Item Number), Pallet (or PO Number), Qty (or Quantity/Amount)</li>
-            <li><strong>Status filter:</strong> Only items with Status = &quot;30&quot; will be processed</li>
-            <li><strong>Date column:</strong> &quot;Laatste status verandering&quot; (column I) - only items with today&apos;s date will be imported</li>
-            <li><strong>Optional column:</strong> Line ID (or Line_ID, ID, WMS_ID) - if not present, Pallet number will be used as unique ID</li>
-            <li>First row should contain column headers</li>
-            <li>Each row represents one item from WMS status 30</li>
-            <li>Only items with Status = &quot;30&quot; AND today&apos;s date in &quot;Laatste status verandering&quot; will be imported</li>
-            <li>Duplicate lines (same WMS Line ID) will be automatically skipped</li>
+            <li><strong>Supported formats:</strong> .do (WMS export), .xlsx, .xls, .csv, .tsv</li>
+            <li><strong>Required columns:</strong> Status, Item, Pallet, Qty</li>
+            <li><strong>Date filter:</strong> &quot;Laatste status verandering&quot; - only items with today&apos;s date are imported</li>
+            <li>Duplicate pallets will be automatically skipped</li>
           </ul>
         </div>
       </div>
     </div>
   )
 }
-
