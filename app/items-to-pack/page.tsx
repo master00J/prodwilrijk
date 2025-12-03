@@ -345,6 +345,7 @@ export default function ItemsToPackPage() {
       })
       if (!response.ok) throw new Error('Failed to fetch active time logs')
       const data = await response.json()
+      console.log('Fetched active time logs:', data)
       setActiveTimeLogs(data || [])
     } catch (error) {
       console.error('Error fetching active time logs:', error)
@@ -361,14 +362,30 @@ export default function ItemsToPackPage() {
         body: JSON.stringify({ employeeIds, type: 'items_to_pack' }),
       })
 
-      if (!response.ok) throw new Error('Failed to start timer')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Failed to start timer')
+      }
 
-      await fetchActiveTimeLogs()
+      const result = await response.json()
+      console.log('Timer start result:', result)
+      
       setShowTimeModal(false)
+      
+      // Wait a bit to ensure database is updated, then refresh
+      setTimeout(async () => {
+        await fetchActiveTimeLogs()
+      }, 300)
+      
+      // Also refresh after a longer delay to be sure
+      setTimeout(async () => {
+        await fetchActiveTimeLogs()
+      }, 1000)
+      
       alert('Time registration started successfully')
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error starting timer:', error)
-      alert('Failed to start time registration')
+      alert(`Failed to start time registration: ${error.message || 'Unknown error'}`)
     }
   }
 
