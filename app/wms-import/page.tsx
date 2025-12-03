@@ -104,7 +104,8 @@ export default function WMSImportPage() {
         console.log('Trying column by index (9th column) as fallback:', potentialDateColumn)
         // Check if it looks like a date column by checking if it contains date-like values
         if (jsonData.length > 0) {
-          const firstRowValue = String(jsonData[0][potentialDateColumn] || '').trim()
+          const firstRow = jsonData[0] as Record<string, any>
+          const firstRowValue = String(firstRow[potentialDateColumn] || '').trim()
           // If it looks like a date (contains YYYY-MM-DD pattern), use it
           if (dateRegex.test(firstRowValue)) {
             dateColumnName = potentialDateColumn
