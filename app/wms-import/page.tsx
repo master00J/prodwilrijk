@@ -102,6 +102,14 @@ export default function WMSImportPage() {
       for (let i = 0; i < jsonData.length; i++) {
         const row = jsonData[i] as Record<string, any>
         
+        // Filter: only process items with status 30
+        const status = row['Status'] || row['status'] || row['STATUS']
+        const statusValue = status ? String(status).trim() : ''
+        if (statusValue !== '30') {
+          console.log('Skipping row - not status 30:', { status: statusValue, row })
+          continue
+        }
+        
         // Get basic fields - same approach as prepack page
         const itemNumber = row['Item'] || row['Item Number'] || row['Itemnumber'] || row['Artikelnummer']
         const poNumber = row['Pallet'] || row['PO Number'] || row['PO'] || row['Palletnummer']
@@ -173,8 +181,10 @@ export default function WMSImportPage() {
         throw new Error(
           `No valid data found in the file after filtering. ` +
           `Total rows in file: ${totalRows}. ` +
-          `Please check that the file contains Item, Pallet, and Qty columns, ` +
-          `and that items have today's date (${today}) in "Laatste status verandering". ` +
+          `Please check that the file contains: ` +
+          `1) Status column with value "30", ` +
+          `2) Item, Pallet, and Qty columns, ` +
+          `3) Items with today's date (${today}) in "Laatste status verandering". ` +
           `Available columns: ${availableColumns}. ` +
           `Check browser console for detailed filtering information.`
         )
@@ -293,12 +303,13 @@ export default function WMSImportPage() {
         <div className="mt-6 p-4 bg-gray-50 rounded-lg">
           <h3 className="font-semibold mb-2">Excel File Format:</h3>
           <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
-            <li><strong>Required columns:</strong> Item (or Item Number), Pallet (or PO Number), Qty (or Quantity/Amount)</li>
+            <li><strong>Required columns:</strong> Status (must be &quot;30&quot;), Item (or Item Number), Pallet (or PO Number), Qty (or Quantity/Amount)</li>
+            <li><strong>Status filter:</strong> Only items with Status = &quot;30&quot; will be processed</li>
             <li><strong>Date column:</strong> &quot;Laatste status verandering&quot; (column I) - only items with today&apos;s date will be imported</li>
             <li><strong>Optional column:</strong> Line ID (or Line_ID, ID, WMS_ID) - if not present, Pallet number will be used as unique ID</li>
             <li>First row should contain column headers</li>
             <li>Each row represents one item from WMS status 30</li>
-            <li>Only items with today&apos;s date in &quot;Laatste status verandering&quot; will be imported</li>
+            <li>Only items with Status = &quot;30&quot; AND today&apos;s date in &quot;Laatste status verandering&quot; will be imported</li>
             <li>Duplicate lines (same WMS Line ID) will be automatically skipped</li>
           </ul>
         </div>
