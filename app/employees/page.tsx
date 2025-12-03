@@ -1,5 +1,6 @@
 'use client'
 
+import AdminGuard from '@/components/AdminGuard'
 import { useState, useEffect } from 'react'
 import { Employee } from '@/types/database'
 
@@ -149,7 +150,8 @@ export default function EmployeesPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-7xl">
+    <AdminGuard>
+      <div className="container mx-auto px-4 py-6 max-w-7xl">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Employees</h1>
         <button
@@ -296,6 +298,7 @@ export default function EmployeesPage() {
         </div>
       </div>
     </div>
+    </AdminGuard>
   )
 }
 

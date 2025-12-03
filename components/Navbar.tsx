@@ -7,7 +7,7 @@ import { useAuth } from './AuthProvider'
 
 export default function Navbar() {
   const pathname = usePathname()
-  const { user, signOut } = useAuth()
+  const { user, signOut, isAdmin } = useAuth()
   const [isPrepackOpen, setIsPrepackOpen] = useState(false)
   const [isAdminOpen, setIsAdminOpen] = useState(false)
   const prepackDropdownRef = useRef<HTMLDivElement>(null)
@@ -144,7 +144,8 @@ export default function Navbar() {
               )}
             </div>
 
-            {/* Admin Dropdown */}
+            {/* Admin Dropdown - Only show if user is admin */}
+            {isAdmin && (
             <div className="relative" ref={adminDropdownRef}>
               <button
                 onClick={() => setIsAdminOpen(!isAdminOpen)}
@@ -191,6 +192,7 @@ export default function Navbar() {
                 </div>
               )}
             </div>
+            )}
               </>
             )}
 

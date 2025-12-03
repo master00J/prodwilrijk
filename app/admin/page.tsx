@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import AdminGuard from '@/components/AdminGuard'
 
 interface DailyStat {
   date: string
@@ -63,7 +64,8 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-7xl">
+    <AdminGuard>
+      <div className="container mx-auto px-4 py-6 max-w-7xl">
       <h1 className="text-3xl font-bold mb-6">Admin Dashboard</h1>
 
       {/* Prepack Flow Monitoring Section */}
@@ -171,6 +173,7 @@ export default function AdminPage() {
         <p className="text-gray-500">More monitoring flows will be added here in the future.</p>
       </div>
     </div>
+    </AdminGuard>
   )
 }
 
