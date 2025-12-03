@@ -60,6 +60,9 @@ export default function WMSImportPage() {
       // Debug: log available columns
       console.log('Available columns:', allKeys)
       
+      // Pre-compile regex for date parsing (needed for fallback column detection)
+      const dateRegex = /^(\d{4})-(\d{2})-(\d{2})/
+      
       // Find the date column name efficiently
       let dateColumnName: string | null = null
       
@@ -124,9 +127,6 @@ export default function WMSImportPage() {
       // Map and validate the data - looking for WMS status 30 format
       // Expected columns: Item, Pallet, Qty, and "Laatste status verandering" (column I) for date filtering
       const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD format
-      
-      // Pre-compile regex for date parsing
-      const dateRegex = /^(\d{4})-(\d{2})-(\d{2})/
       
       const mappedData: Array<{
         item_number: string
