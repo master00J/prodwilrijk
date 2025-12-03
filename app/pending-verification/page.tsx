@@ -1,12 +1,13 @@
 'use client'
 
 import { useAuth } from '@/components/AuthProvider'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 export default function PendingVerificationPage() {
   const { user, isVerified } = useAuth()
   const router = useRouter()
+  const [username, setUsername] = useState<string>('')
 
   useEffect(() => {
     // If user becomes verified, redirect to home
@@ -14,6 +15,23 @@ export default function PendingVerificationPage() {
       router.push('/')
     }
   }, [isVerified, router])
+
+  useEffect(() => {
+    if (user) {
+      const fetchUsername = async () => {
+        try {
+          const response = await fetch(`/api/auth/current-user?userId=${encodeURIComponent(user.id)}`)
+          if (response.ok) {
+            const data = await response.json()
+            setUsername(data.username || 'Unknown')
+          }
+        } catch (error) {
+          console.error('Error fetching username:', error)
+        }
+      }
+      fetchUsername()
+    }
+  }, [user])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -26,9 +44,9 @@ export default function PendingVerificationPage() {
         <p className="text-gray-600">
           Please contact an administrator to verify your account.
         </p>
-        {user && (
+        {username && (
           <p className="text-sm text-gray-500 mt-4">
-            Account: {user.email}
+            Username: {username}
           </p>
         )}
         <div className="mt-6">

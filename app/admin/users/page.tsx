@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase/client'
 
 interface User {
   id: string
-  email: string
+  username: string
   role: string
   verified: boolean
   created_at: string
@@ -117,7 +117,7 @@ export default function UsersManagementPage() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Email</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Username</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Role</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Status</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Created</th>
@@ -134,7 +134,7 @@ export default function UsersManagementPage() {
                 ) : (
                   users.map((user) => (
                     <tr key={user.id} className={!user.verified ? 'bg-yellow-50' : ''}>
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{user.email}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{user.username}</td>
                       <td className="px-4 py-3 text-sm">
                         <select
                           value={user.role}

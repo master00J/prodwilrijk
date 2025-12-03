@@ -4,6 +4,39 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from './AuthProvider'
+import type { User } from '@supabase/supabase-js'
+
+function UserInfo({ user, signOut }: { user: User; signOut: () => Promise<void> }) {
+  const [username, setUsername] = useState<string>('Loading...')
+
+  useEffect(() => {
+    const fetchUsername = async () => {
+      try {
+        const response = await fetch(`/api/auth/current-user?userId=${encodeURIComponent(user.id)}`)
+        if (response.ok) {
+          const data = await response.json()
+          setUsername(data.username || 'Unknown')
+        }
+      } catch (error) {
+        console.error('Error fetching username:', error)
+        setUsername('Unknown')
+      }
+    }
+    fetchUsername()
+  }, [user.id])
+
+  return (
+    <div className="flex items-center gap-4">
+      <span className="text-sm text-gray-600">{username}</span>
+      <button
+        onClick={signOut}
+        className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium text-sm"
+      >
+        Logout
+      </button>
+    </div>
+  )
+}
 
 export default function Navbar() {
   const pathname = usePathname()
@@ -206,17 +239,7 @@ export default function Navbar() {
             )}
 
             {/* User Info and Logout */}
-            {user && (
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-gray-600">{user.email}</span>
-                <button
-                  onClick={signOut}
-                  className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium text-sm"
-                >
-                  Logout
-                </button>
-              </div>
-            )}
+            {user && <UserInfo user={user} signOut={signOut} />}
           </div>
         </div>
       </div>

@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase/client'
 import Link from 'next/link'
 
 export default function SignupPage() {
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -31,6 +31,18 @@ export default function SignupPage() {
     setError('')
 
     // Validation
+    if (username.length < 3) {
+      setError('Username must be at least 3 characters long')
+      setLoading(false)
+      return
+    }
+
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+      setError('Username can only contain letters, numbers, and underscores')
+      setLoading(false)
+      return
+    }
+
     if (password.length < 6) {
       setError('Password must be at least 6 characters long')
       setLoading(false)
@@ -44,41 +56,26 @@ export default function SignupPage() {
     }
 
     try {
-      // Sign up user
-      const { data, error: signupError } = await supabase.auth.signUp({
-        email,
-        password,
+      // Sign up user via API
+      const signupResponse = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username,
+          password,
+        }),
       })
 
-      if (signupError) throw signupError
-
-      if (data.user) {
-        // Create user role entry via API (default: 'user')
-        try {
-          const roleResponse = await fetch('/api/auth/create-user-role', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userId: data.user.id,
-              role: 'user',
-            }),
-          })
-
-          if (!roleResponse.ok) {
-            console.error('Error creating user role')
-            // Continue anyway, role can be set later by admin
-          }
-        } catch (roleError) {
-          console.error('Error creating user role:', roleError)
-          // Continue anyway, role can be set later by admin
-        }
-
-        setSuccess(true)
-        // Redirect to login after 2 seconds
-        setTimeout(() => {
-          router.push('/login?message=Account created successfully. Please sign in.')
-        }, 2000)
+      if (!signupResponse.ok) {
+        const errorData = await signupResponse.json()
+        throw new Error(errorData.error || 'Failed to create account')
       }
+
+      setSuccess(true)
+      // Redirect to login after 2 seconds
+      setTimeout(() => {
+        router.push('/login?message=Account created successfully. Please sign in.')
+      }, 2000)
     } catch (error: any) {
       console.error('Signup error:', error)
       setError(error.message || 'Failed to create account. Please try again.')
@@ -121,19 +118,19 @@ export default function SignupPage() {
           )}
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
-              <label htmlFor="email" className="sr-only">
-                Email address
+              <label htmlFor="username" className="sr-only">
+                Username
               </label>
               <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
+                id="username"
+                name="username"
+                type="text"
+                autoComplete="username"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder="Email address"
+                placeholder="Username (min. 3 characters)"
               />
             </div>
             <div>
