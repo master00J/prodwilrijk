@@ -53,48 +53,30 @@ export default function WMSImportPage() {
         throw new Error('No data found in the file. Please check that the file contains data rows.')
       }
 
-      // Detect column names from first row - do this once for performance
+      // Detect column names from first row - same approach as prepack page
       const firstRow = jsonData[0] as Record<string, any>
-      let allKeys = Object.keys(firstRow)
-      
-      // Clean column names (remove quotes)
-      const cleanKeys = allKeys.map(key => {
-        let cleaned = key.trim()
-        if ((cleaned.startsWith('"') && cleaned.endsWith('"')) || (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
-          cleaned = cleaned.slice(1, -1).trim()
-        }
-        return cleaned
-      })
-      
-      // Create a mapping from cleaned keys to original keys
-      const keyMapping: Record<string, string> = {}
-      allKeys.forEach((origKey, idx) => {
-        keyMapping[cleanKeys[idx]] = origKey
-      })
+      const allKeys = Object.keys(firstRow)
       
       // Debug: log available columns
-      console.log('Available columns (original):', allKeys)
-      console.log('Available columns (cleaned):', cleanKeys)
+      console.log('Available columns:', allKeys)
       
-      // Find the date column name efficiently (check both original and cleaned keys)
+      // Find the date column name efficiently
       let dateColumnName: string | null = null
-      const dateKeyVariations = ['laatste status verandering', 'laatste status', 'status verandering']
-      
-      for (const cleanKey of cleanKeys) {
-        const lowerKey = cleanKey.toLowerCase()
+      for (const key of allKeys) {
+        const lowerKey = key.toLowerCase()
         if (lowerKey.includes('laatste') && lowerKey.includes('status') && lowerKey.includes('verandering')) {
-          dateColumnName = keyMapping[cleanKey] || cleanKey
+          dateColumnName = key
           break
         }
       }
       
       // Fallback: try other variations
       if (!dateColumnName) {
-        for (const cleanKey of cleanKeys) {
-          const lowerKey = cleanKey.toLowerCase()
+        for (const key of allKeys) {
+          const lowerKey = key.toLowerCase()
           if ((lowerKey.includes('status') && lowerKey.includes('verandering')) || 
-              dateKeyVariations.some(v => lowerKey.includes(v))) {
-            dateColumnName = keyMapping[cleanKey] || cleanKey
+              lowerKey === 'laatste status verandering') {
+            dateColumnName = key
             break
           }
         }
@@ -120,39 +102,15 @@ export default function WMSImportPage() {
       for (let i = 0; i < jsonData.length; i++) {
         const row = jsonData[i] as Record<string, any>
         
-        // Get basic fields - handle quoted strings and empty values
-        const getFieldValue = (key: string): string | null => {
-          // Try various key formats: original key, quoted key, cleaned key from mapping
-          const possibleKeys = [
-            key,
-            `"${key}"`,
-            `'${key}'`,
-            keyMapping?.[key],
-            ...allKeys.filter(k => k.toLowerCase().includes(key.toLowerCase()))
-          ].filter(Boolean)
-          
-          for (const possibleKey of possibleKeys) {
-            let value = row[possibleKey]
-            if (value !== null && value !== undefined && value !== '') {
-              const str = String(value).trim()
-              // Remove surrounding quotes if present
-              if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
-                return str.slice(1, -1).trim()
-              }
-              return str || null
-            }
-          }
-          return null
-        }
-        
-        // Try both original and cleaned column names
-        const itemNumber = getFieldValue('Item') || getFieldValue('Item Number') || getFieldValue('Itemnumber') || getFieldValue('Artikelnummer')
-        const poNumber = getFieldValue('Pallet') || getFieldValue('PO Number') || getFieldValue('PO') || getFieldValue('Palletnummer')
-        const amountStr = getFieldValue('Qty') || getFieldValue('Quantity') || getFieldValue('Amount') || getFieldValue('Aantal')
-        const amount = amountStr ? Number(String(amountStr).replace(/"/g, '')) : 0
+        // Get basic fields - same approach as prepack page
+        const itemNumber = row['Item'] || row['Item Number'] || row['Itemnumber'] || row['Artikelnummer']
+        const poNumber = row['Pallet'] || row['PO Number'] || row['PO'] || row['Palletnummer']
+        const amountRaw = row['Qty'] || row['Quantity'] || row['Amount'] || row['Aantal']
+        const amount = amountRaw ? Number(amountRaw) : 0
         
         // Validate required fields
         if (!itemNumber || !poNumber || !amount || isNaN(amount) || amount <= 0) {
+          console.log('Skipping row - missing or invalid fields:', { itemNumber, poNumber, amount, amountRaw, row })
           continue
         }
         
@@ -161,11 +119,7 @@ export default function WMSImportPage() {
         let rawDate: string | undefined
         if (dateColumnName && row[dateColumnName]) {
           try {
-            let dateStr = String(row[dateColumnName]).trim()
-            // Remove surrounding quotes if present
-            if ((dateStr.startsWith('"') && dateStr.endsWith('"')) || (dateStr.startsWith("'") && dateStr.endsWith("'"))) {
-              dateStr = dateStr.slice(1, -1).trim()
-            }
+            const dateStr = String(row[dateColumnName]).trim()
             rawDate = dateStr
             
             // WMS format: "2025-11-28 10:18:48.0" - extract date part (before space)
@@ -193,26 +147,21 @@ export default function WMSImportPage() {
         // Filter: only import items with today's date in "Laatste status verandering"
         // Skip items without a valid date or with a date that's not today
         if (!statusDate || statusDate !== today) {
+          console.log('Skipping row - date filter:', { statusDate, today, dateColumnName, rowDate: row[dateColumnName || ''] })
           continue // Skip items not from today or without valid date
         }
         
         // Generate unique line identifier
-        const wmsLineIdRaw = row['Line ID'] || row['Line_ID'] || row['ID'] || row['WMS_ID'] || 
-                            row['Status30_ID'] || row['LineId'] || row['wms_line_id'] ||
-                            poNumber || // Use Pallet as fallback
-                            `${itemNumber}_${poNumber}_${amount}_${i}`
-        
-        // Clean wms_line_id (remove quotes)
-        let wmsLineId = String(wmsLineIdRaw).trim()
-        if ((wmsLineId.startsWith('"') && wmsLineId.endsWith('"')) || (wmsLineId.startsWith("'") && wmsLineId.endsWith("'"))) {
-          wmsLineId = wmsLineId.slice(1, -1).trim()
-        }
+        const wmsLineId = row['Line ID'] || row['Line_ID'] || row['ID'] || row['WMS_ID'] || 
+                         row['Status30_ID'] || row['LineId'] || row['wms_line_id'] ||
+                         String(poNumber).trim() || // Use Pallet as fallback
+                         `${itemNumber}_${poNumber}_${amount}_${i}`
 
         mappedData.push({
           item_number: String(itemNumber).trim(),
           po_number: String(poNumber).trim(),
           amount: Number(amount),
-          wms_line_id: wmsLineId,
+          wms_line_id: String(wmsLineId).trim(),
           status_date: statusDate,
           raw_date: rawDate,
         })
@@ -220,10 +169,14 @@ export default function WMSImportPage() {
 
       if (mappedData.length === 0) {
         const availableColumns = allKeys.join(', ')
+        const totalRows = jsonData.length
         throw new Error(
-          `No valid data found in the file. ` +
-          `Please check that the file contains Item, Pallet, and Qty columns. ` +
-          `Available columns: ${availableColumns}`
+          `No valid data found in the file after filtering. ` +
+          `Total rows in file: ${totalRows}. ` +
+          `Please check that the file contains Item, Pallet, and Qty columns, ` +
+          `and that items have today's date (${today}) in "Laatste status verandering". ` +
+          `Available columns: ${availableColumns}. ` +
+          `Check browser console for detailed filtering information.`
         )
       }
 
