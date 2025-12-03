@@ -8,6 +8,7 @@ export default function ConfirmedItemsPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [dateFilter, setDateFilter] = useState('')
+  const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set())
   const [sortColumn, setSortColumn] = useState<keyof ConfirmedIncomingGood | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
@@ -92,6 +93,53 @@ export default function ConfirmedItemsPage() {
     }
   }
 
+  const handleSelectItem = (id: number, checked: boolean) => {
+    const newSelected = new Set(selectedItems)
+    if (checked) {
+      newSelected.add(id)
+    } else {
+      newSelected.delete(id)
+    }
+    setSelectedItems(newSelected)
+  }
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedItems(new Set(filteredAndSortedItems.map(item => item.id)))
+    } else {
+      setSelectedItems(new Set())
+    }
+  }
+
+  const handleDeleteSelected = async () => {
+    if (selectedItems.size === 0) {
+      alert('Please select items to delete')
+      return
+    }
+
+    const count = selectedItems.size
+    if (!confirm(`Are you sure you want to delete ${count} item(s)? This action cannot be undone.`)) {
+      return
+    }
+
+    try {
+      const response = await fetch('/api/confirmed-incoming-goods', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedItems) }),
+      })
+
+      if (!response.ok) throw new Error('Failed to delete items')
+
+      await fetchItems()
+      setSelectedItems(new Set())
+      alert(`${count} item(s) deleted successfully`)
+    } catch (error) {
+      console.error('Error deleting items:', error)
+      alert('Failed to delete items')
+    }
+  }
+
   const totalAmount = useMemo(() => {
     return filteredAndSortedItems.reduce((sum, item) => sum + (item.amount || 0), 0)
   }, [filteredAndSortedItems])
@@ -140,6 +188,18 @@ export default function ConfirmedItemsPage() {
             <div className="text-lg font-medium">
               Total Amount: <span className="font-bold text-blue-600">{totalAmount}</span>
             </div>
+            {selectedItems.size > 0 && (
+              <div className="text-lg font-medium text-green-600">
+                Selected: {selectedItems.size}
+              </div>
+            )}
+            <button
+              onClick={handleDeleteSelected}
+              disabled={selectedItems.size === 0}
+              className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium text-lg"
+            >
+              🗑️ Delete Selected
+            </button>
           </div>
         </div>
       </div>
@@ -149,6 +209,20 @@ export default function ConfirmedItemsPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th className="px-4 py-4 text-left">
+                  <input
+                    type="checkbox"
+                    checked={filteredAndSortedItems.length > 0 && filteredAndSortedItems.every(item => selectedItems.has(item.id))}
+                    ref={(input) => {
+                      if (input) {
+                        const someSelected = filteredAndSortedItems.some(item => selectedItems.has(item.id))
+                        input.indeterminate = someSelected && !filteredAndSortedItems.every(item => selectedItems.has(item.id))
+                      }
+                    }}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
+                    className="w-5 h-5 cursor-pointer"
+                  />
+                </th>
                 <th
                   className="px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('id')}
@@ -184,13 +258,21 @@ export default function ConfirmedItemsPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredAndSortedItems.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                     No confirmed items found
                   </td>
                 </tr>
               ) : (
                 filteredAndSortedItems.map((item) => (
                   <tr key={item.id}>
+                    <td className="px-4 py-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedItems.has(item.id)}
+                        onChange={(e) => handleSelectItem(item.id, e.target.checked)}
+                        className="w-5 h-5 cursor-pointer"
+                      />
+                    </td>
                     <td className="px-4 py-4 text-sm text-gray-900">{item.id}</td>
                     <td className="px-4 py-4 text-sm font-medium text-gray-900">
                       {item.item_number}
@@ -210,4 +292,5 @@ export default function ConfirmedItemsPage() {
     </div>
   )
 }
+
 
