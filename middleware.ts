@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 
 export async function middleware(req: NextRequest) {
   // Public routes that don't require authentication
-  const publicRoutes = ['/login', '/signup']
+  const publicRoutes = ['/login', '/signup', '/pending-verification']
   const isPublicRoute = publicRoutes.some(route => req.nextUrl.pathname.startsWith(route))
 
   // Skip middleware for public routes, API routes, and static files

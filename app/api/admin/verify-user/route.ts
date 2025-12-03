@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { userId, role = 'user' } = body
+    const { userId, verified = true } = body
 
     if (!userId) {
       return NextResponse.json(
@@ -13,35 +13,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if role already exists
-    const { data: existing } = await supabaseAdmin
-      .from('user_roles')
-      .select('id')
-      .eq('user_id', userId)
-      .maybeSingle()
-
-    if (existing) {
-      return NextResponse.json(
-        { error: 'User role already exists' },
-        { status: 400 }
-      )
-    }
-
-    // Create user role (new users are not verified by default)
+    // Update user verification status
     const { data, error } = await supabaseAdmin
       .from('user_roles')
-      .insert({
-        user_id: userId,
-        role: role,
-        verified: false, // New accounts need manual verification
-      })
+      .update({ verified })
+      .eq('user_id', userId)
       .select()
       .single()
 
     if (error) {
-      console.error('Error creating user role:', error)
+      console.error('Error updating verification status:', error)
       return NextResponse.json(
-        { error: 'Failed to create user role' },
+        { error: 'Failed to update verification status' },
         { status: 500 }
       )
     }

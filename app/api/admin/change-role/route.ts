@@ -4,44 +4,42 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { userId, role = 'user' } = body
+    const { userId, role } = body
 
-    if (!userId) {
+    if (!userId || !role) {
       return NextResponse.json(
-        { error: 'User ID is required' },
+        { error: 'User ID and role are required' },
         { status: 400 }
       )
     }
 
-    // Check if role already exists
-    const { data: existing } = await supabaseAdmin
-      .from('user_roles')
-      .select('id')
-      .eq('user_id', userId)
-      .maybeSingle()
-
-    if (existing) {
+    if (!['user', 'admin'].includes(role)) {
       return NextResponse.json(
-        { error: 'User role already exists' },
+        { error: 'Invalid role. Must be "user" or "admin"' },
         { status: 400 }
       )
     }
 
-    // Create user role (new users are not verified by default)
+    // Update or insert user role
     const { data, error } = await supabaseAdmin
       .from('user_roles')
-      .insert({
-        user_id: userId,
-        role: role,
-        verified: false, // New accounts need manual verification
-      })
+      .upsert(
+        {
+          user_id: userId,
+          role: role,
+          verified: true, // When changing role, also verify the user
+        },
+        {
+          onConflict: 'user_id',
+        }
+      )
       .select()
       .single()
 
     if (error) {
-      console.error('Error creating user role:', error)
+      console.error('Error updating role:', error)
       return NextResponse.json(
-        { error: 'Failed to create user role' },
+        { error: 'Failed to update role' },
         { status: 500 }
       )
     }
