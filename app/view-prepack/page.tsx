@@ -153,6 +153,35 @@ export default function ViewPrepackPage() {
     }
   }
 
+  const handleDeleteSelected = async () => {
+    if (selectedItems.size === 0) {
+      alert('Please select items to delete')
+      return
+    }
+
+    const count = selectedItems.size
+    if (!confirm(`Are you sure you want to delete ${count} item(s)? This action cannot be undone.`)) {
+      return
+    }
+
+    try {
+      const response = await fetch('/api/incoming-goods', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedItems) }),
+      })
+
+      if (!response.ok) throw new Error('Failed to delete items')
+
+      await fetchItems()
+      setSelectedItems(new Set())
+      alert(`${count} item(s) deleted successfully`)
+    } catch (error) {
+      console.error('Error deleting items:', error)
+      alert('Failed to delete items')
+    }
+  }
+
   const totalAmount = useMemo(() => {
     return filteredAndSortedItems.reduce((sum, item) => sum + (item.amount || 0), 0)
   }, [filteredAndSortedItems])
@@ -167,6 +196,7 @@ export default function ViewPrepackPage() {
         selectedCount={selectedItems.size}
         totalAmount={totalAmount}
         onConfirm={handleConfirm}
+        onDeleteSelected={handleDeleteSelected}
       />
 
       <ViewPrepackTable

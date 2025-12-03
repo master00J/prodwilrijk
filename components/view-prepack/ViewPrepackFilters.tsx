@@ -6,6 +6,7 @@ interface ViewPrepackFiltersProps {
   selectedCount: number
   totalAmount: number
   onConfirm: () => void
+  onDeleteSelected: () => void
 }
 
 export default function ViewPrepackFilters({
@@ -14,6 +15,7 @@ export default function ViewPrepackFilters({
   selectedCount,
   totalAmount,
   onConfirm,
+  onDeleteSelected,
 }: ViewPrepackFiltersProps) {
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-6">
@@ -42,6 +44,13 @@ export default function ViewPrepackFilters({
             className="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium text-lg"
           >
             ✓ Confirm Items
+          </button>
+          <button
+            onClick={onDeleteSelected}
+            disabled={selectedCount === 0}
+            className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium text-lg"
+          >
+            🗑️ Delete Selected
           </button>
         </div>
       </div>
