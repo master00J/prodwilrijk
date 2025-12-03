@@ -13,10 +13,6 @@ export default function EmployeesPage() {
   const [formActive, setFormActive] = useState(true)
   const [includeInactive, setIncludeInactive] = useState(false)
 
-  useEffect(() => {
-    fetchEmployees()
-  }, [includeInactive])
-
   const fetchEmployees = async () => {
     setLoading(true)
     try {
@@ -32,6 +28,11 @@ export default function EmployeesPage() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    fetchEmployees()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [includeInactive])
 
   const handleAdd = () => {
     setEditingEmployee(null)

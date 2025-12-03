@@ -57,7 +57,7 @@ export default function LoginPage() {
             Sign in to Prodwilrijk V2
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <Link href="/signup" className="font-medium text-blue-600 hover:text-blue-500">
               Create one here
             </Link>

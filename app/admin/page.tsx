@@ -35,12 +35,6 @@ export default function AdminPage() {
     setDateFrom(lastWeek.toISOString().split('T')[0])
   }, [])
 
-  useEffect(() => {
-    if (dateFrom && dateTo) {
-      fetchStats()
-    }
-  }, [dateFrom, dateTo])
-
   const fetchStats = async () => {
     setLoading(true)
     try {
@@ -62,6 +56,13 @@ export default function AdminPage() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (dateFrom && dateTo) {
+      fetchStats()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateFrom, dateTo])
 
   return (
     <AdminGuard>
