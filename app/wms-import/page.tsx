@@ -62,24 +62,62 @@ export default function WMSImportPage() {
       
       // Find the date column name efficiently
       let dateColumnName: string | null = null
+      
+      // Try exact match first
       for (const key of allKeys) {
-        const lowerKey = key.toLowerCase()
-        if (lowerKey.includes('laatste') && lowerKey.includes('status') && lowerKey.includes('verandering')) {
+        if (key === 'Laatste status verandering' || key === 'laatste status verandering' || key === 'LAATSTE STATUS VERANDERING') {
           dateColumnName = key
+          console.log('Found date column (exact match):', dateColumnName)
           break
+        }
+      }
+      
+      // Try partial match
+      if (!dateColumnName) {
+        for (const key of allKeys) {
+          const lowerKey = key.toLowerCase().trim()
+          if (lowerKey.includes('laatste') && lowerKey.includes('status') && lowerKey.includes('verandering')) {
+            dateColumnName = key
+            console.log('Found date column (partial match):', dateColumnName)
+            break
+          }
         }
       }
       
       // Fallback: try other variations
       if (!dateColumnName) {
         for (const key of allKeys) {
-          const lowerKey = key.toLowerCase()
+          const lowerKey = key.toLowerCase().trim()
           if ((lowerKey.includes('status') && lowerKey.includes('verandering')) || 
               lowerKey === 'laatste status verandering') {
             dateColumnName = key
+            console.log('Found date column (fallback):', dateColumnName)
             break
           }
         }
+      }
+      
+      // Fallback: if column name not found, try to use column by index (column I = 9th column, index 8)
+      if (!dateColumnName && allKeys.length >= 9) {
+        // Try the 9th column (index 8) as fallback since "Laatste status verandering" is typically column I
+        const potentialDateColumn = allKeys[8]
+        console.log('Trying column by index (9th column) as fallback:', potentialDateColumn)
+        // Check if it looks like a date column by checking if it contains date-like values
+        if (jsonData.length > 0) {
+          const firstRowValue = String(jsonData[0][potentialDateColumn] || '').trim()
+          // If it looks like a date (contains YYYY-MM-DD pattern), use it
+          if (dateRegex.test(firstRowValue)) {
+            dateColumnName = potentialDateColumn
+            console.log('Using column by index as date column:', dateColumnName)
+          }
+        }
+      }
+      
+      if (!dateColumnName) {
+        console.warn('Date column not found! Available columns:', allKeys)
+        console.warn('Looking for column containing: "laatste", "status", "verandering"')
+      } else {
+        console.log('Using date column:', dateColumnName)
       }
 
       // Map and validate the data - looking for WMS status 30 format
@@ -125,31 +163,36 @@ export default function WMSImportPage() {
         // Get date from detected column
         let statusDate: string | null = null
         let rawDate: string | undefined
-        if (dateColumnName && row[dateColumnName]) {
-          try {
-            const dateStr = String(row[dateColumnName]).trim()
-            rawDate = dateStr
-            
-            // WMS format: "2025-11-28 10:18:48.0" - extract date part (before space)
-            const datePart = dateStr.split(' ')[0]
-            
-            // Match YYYY-MM-DD format
-            const match = datePart.match(dateRegex)
-            if (match) {
-              statusDate = match[0] // Already in YYYY-MM-DD format
-            } else {
-              // Try to parse as date
-              const parsedDate = new Date(datePart + 'T00:00:00')
-              if (!isNaN(parsedDate.getTime())) {
-                const year = parsedDate.getFullYear()
-                const month = String(parsedDate.getMonth() + 1).padStart(2, '0')
-                const day = String(parsedDate.getDate()).padStart(2, '0')
-                statusDate = `${year}-${month}-${day}`
+        if (dateColumnName) {
+          const dateValue = row[dateColumnName]
+          if (dateValue) {
+            try {
+              const dateStr = String(dateValue).trim()
+              rawDate = dateStr
+              
+              // WMS format: "2025-11-28 10:18:48.0" - extract date part (before space)
+              const datePart = dateStr.split(' ')[0]
+              
+              // Match YYYY-MM-DD format
+              const match = datePart.match(dateRegex)
+              if (match) {
+                statusDate = match[0] // Already in YYYY-MM-DD format
+              } else {
+                // Try to parse as date
+                const parsedDate = new Date(datePart + 'T00:00:00')
+                if (!isNaN(parsedDate.getTime())) {
+                  const year = parsedDate.getFullYear()
+                  const month = String(parsedDate.getMonth() + 1).padStart(2, '0')
+                  const day = String(parsedDate.getDate()).padStart(2, '0')
+                  statusDate = `${year}-${month}-${day}`
+                }
               }
+            } catch (e) {
+              console.warn('Date parsing failed for row:', { dateValue, error: e, row })
             }
-          } catch (e) {
-            // Date parsing failed, continue without date
           }
+        } else {
+          console.warn('No date column found, cannot filter by date. Row:', row)
         }
         
         // Filter: only import items with today's date in "Laatste status verandering"
@@ -178,16 +221,21 @@ export default function WMSImportPage() {
       if (mappedData.length === 0) {
         const availableColumns = allKeys.join(', ')
         const totalRows = jsonData.length
-        throw new Error(
-          `No valid data found in the file after filtering. ` +
+        let errorMessage = `No valid data found in the file after filtering. ` +
           `Total rows in file: ${totalRows}. ` +
           `Please check that the file contains: ` +
           `1) Status column with value "30", ` +
           `2) Item, Pallet, and Qty columns, ` +
           `3) Items with today's date (${today}) in "Laatste status verandering". ` +
-          `Available columns: ${availableColumns}. ` +
-          `Check browser console for detailed filtering information.`
-        )
+          `Available columns: ${availableColumns}. `
+        
+        if (!dateColumnName) {
+          errorMessage += `ERROR: Date column "Laatste status verandering" was not found in the file! `
+        }
+        
+        errorMessage += `Check browser console for detailed filtering information.`
+        
+        throw new Error(errorMessage)
       }
 
       // Send to API
