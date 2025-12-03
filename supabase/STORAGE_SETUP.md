@@ -52,3 +52,4 @@ TO public
 USING (bucket_id = 'item-images');
 ```
 
+

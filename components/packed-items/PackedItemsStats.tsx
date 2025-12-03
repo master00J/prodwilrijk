@@ -31,3 +31,4 @@ export default function PackedItemsStats({ stats }: PackedItemsStatsProps) {
   )
 }
 
+

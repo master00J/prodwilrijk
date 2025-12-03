@@ -3,9 +3,11 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
+import { useAuth } from './AuthProvider'
 
 export default function Navbar() {
   const pathname = usePathname()
+  const { user, signOut } = useAuth()
   const [isPrepackOpen, setIsPrepackOpen] = useState(false)
   const [isAdminOpen, setIsAdminOpen] = useState(false)
   const prepackDropdownRef = useRef<HTMLDivElement>(null)
@@ -56,7 +58,9 @@ export default function Navbar() {
 
           {/* Navigation Links */}
           <div className="flex items-center space-x-4">
-            {/* Prepack Dropdown */}
+            {user && (
+              <>
+                {/* Prepack Dropdown */}
             <div className="relative" ref={prepackDropdownRef}>
               <button
                 onClick={() => setIsPrepackOpen(!isPrepackOpen)}
@@ -187,6 +191,21 @@ export default function Navbar() {
                 </div>
               )}
             </div>
+              </>
+            )}
+
+            {/* User Info and Logout */}
+            {user && (
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-gray-600">{user.email}</span>
+                <button
+                  onClick={signOut}
+                  className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium text-sm"
+                >
+                  Logout
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

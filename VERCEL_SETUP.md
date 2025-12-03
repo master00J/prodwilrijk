@@ -74,3 +74,4 @@ Als automatische deploy niet werkt, kun je handmatig deployen:
 - Zorg ervoor dat variabelen zijn ingesteld voor de juiste environment (Production/Preview/Development)
 - Herstart de deployment na het toevoegen van nieuwe variabelen
 
+

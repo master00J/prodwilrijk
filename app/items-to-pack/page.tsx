@@ -364,7 +364,12 @@ export default function ItemsToPackPage() {
     }
   }
 
-  const handleStopTimer = async (logId: number) => {
+  const handleStopTimer = async (logId: number, employeeName?: string) => {
+    const employeeText = employeeName ? ` for ${employeeName}` : ''
+    if (!confirm(`Are you sure you want to stop the time registration${employeeText}?`)) {
+      return
+    }
+
     try {
       const response = await fetch(`/api/time-logs/${logId}/stop`, {
         method: 'POST',
@@ -373,7 +378,7 @@ export default function ItemsToPackPage() {
       if (!response.ok) throw new Error('Failed to stop timer')
 
       await fetchActiveTimeLogs()
-      alert('Time registration stopped successfully')
+      alert(`Time registration${employeeText} stopped successfully`)
     } catch (error) {
       console.error('Error stopping timer:', error)
       alert('Failed to stop time registration')
