@@ -64,6 +64,18 @@ CREATE TABLE IF NOT EXISTS packed_items_airtec (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Airtec Prices Table
+CREATE TABLE IF NOT EXISTS airtec_prices (
+  kistnummer VARCHAR(50) PRIMARY KEY,
+  erp_code VARCHAR(100),
+  price DECIMAL(10,2) NOT NULL,
+  assembly_cost DECIMAL(10,2) NOT NULL DEFAULT 0,
+  material_cost DECIMAL(10,2) NOT NULL DEFAULT 0,
+  transport_cost DECIMAL(10,2) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_incoming_goods_airtec_item_number ON incoming_goods_airtec(item_number);
 CREATE INDEX IF NOT EXISTS idx_incoming_goods_airtec_kistnummer ON incoming_goods_airtec(kistnummer);
@@ -77,6 +89,7 @@ CREATE INDEX IF NOT EXISTS idx_items_to_pack_airtec_priority ON items_to_pack_ai
 CREATE INDEX IF NOT EXISTS idx_packed_items_airtec_date_packed ON packed_items_airtec(date_packed);
 CREATE INDEX IF NOT EXISTS idx_packed_items_airtec_item_number ON packed_items_airtec(item_number);
 CREATE INDEX IF NOT EXISTS idx_packed_items_airtec_kistnummer ON packed_items_airtec(kistnummer);
+CREATE INDEX IF NOT EXISTS idx_airtec_prices_kistnummer ON airtec_prices(kistnummer);
 
 -- Trigger to automatically update updated_at for items_to_pack_airtec
 DROP TRIGGER IF EXISTS update_items_to_pack_airtec_updated_at ON items_to_pack_airtec;
@@ -90,6 +103,7 @@ ALTER TABLE incoming_goods_airtec ENABLE ROW LEVEL SECURITY;
 ALTER TABLE confirmed_items_airtec ENABLE ROW LEVEL SECURITY;
 ALTER TABLE items_to_pack_airtec ENABLE ROW LEVEL SECURITY;
 ALTER TABLE packed_items_airtec ENABLE ROW LEVEL SECURITY;
+ALTER TABLE airtec_prices ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Allow all operations for authenticated users
 DROP POLICY IF EXISTS "Allow all for authenticated users" ON incoming_goods_airtec;
@@ -112,6 +126,12 @@ CREATE POLICY "Allow all for authenticated users" ON items_to_pack_airtec
 
 DROP POLICY IF EXISTS "Allow all for authenticated users" ON packed_items_airtec;
 CREATE POLICY "Allow all for authenticated users" ON packed_items_airtec
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all for authenticated users" ON airtec_prices;
+CREATE POLICY "Allow all for authenticated users" ON airtec_prices
   FOR ALL
   USING (true)
   WITH CHECK (true);
