@@ -307,6 +307,15 @@ export default function Navbar() {
                     >
                       User Management
                     </Link>
+                    <Link
+                      href="/admin/airtec-prices"
+                      onClick={() => setIsAdminOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/admin/airtec-prices') ? 'bg-purple-50 text-purple-600 font-medium border-l-4 border-purple-500' : 'text-gray-700'
+                      }`}
+                    >
+                      Airtec Prices & ERP Codes
+                    </Link>
                   </div>
                 </div>
               )}
