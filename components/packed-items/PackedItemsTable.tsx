@@ -20,6 +20,7 @@ interface PackedItemsTableProps {
   onPageChange: (page: number) => void
   onPrint: () => void
   onDownload: () => void
+  onSendEmail?: () => void
 }
 
 export default function PackedItemsTable({
@@ -31,6 +32,7 @@ export default function PackedItemsTable({
   onPageChange,
   onPrint,
   onDownload,
+  onSendEmail,
 }: PackedItemsTableProps) {
   const paginationButtons = useMemo(() => {
     const buttons = []
@@ -126,6 +128,14 @@ export default function PackedItemsTable({
           {Math.min(currentPage * 100, total)} of {total} items
         </div>
         <div className="flex gap-2">
+          {onSendEmail && (
+            <button
+              onClick={onSendEmail}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-medium no-print"
+            >
+              📧 Send Email
+            </button>
+          )}
           <button
             onClick={onPrint}
             className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 font-medium no-print"
@@ -136,7 +146,7 @@ export default function PackedItemsTable({
             onClick={onDownload}
             className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 font-medium no-print"
           >
-            ⬇️ Download CSV
+            ⬇️ Download Excel
           </button>
         </div>
       </div>

@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import * as XLSX from 'xlsx'
 import PackedItemsTable from '@/components/packed-items/PackedItemsTable'
 import PackedItemsFilters from '@/components/packed-items/PackedItemsFilters'
 import PackedItemsStats from '@/components/packed-items/PackedItemsStats'
+import EmailModal from '@/components/packed-items/EmailModal'
 
 interface PackedItem {
   id: number
@@ -36,6 +38,9 @@ export default function PackedItemsPage() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [showOverdue, setShowOverdue] = useState(false)
+  
+  // Email modal
+  const [showEmailModal, setShowEmailModal] = useState(false)
 
   // Stats
   const [stats, setStats] = useState({
@@ -118,27 +123,47 @@ export default function PackedItemsPage() {
   }
 
   const handleDownload = () => {
-    // Create CSV content
-    const headers = ['ID', 'Item Number', 'Pallet Number', 'Amount', 'Date Added', 'Date Packed']
-    const rows = items.map(item => [
-      item.id,
-      item.item_number,
-      item.po_number,
-      item.amount,
-      new Date(item.date_added).toLocaleDateString(),
-      new Date(item.date_packed).toLocaleDateString(),
-    ])
+    // Create Excel workbook
+    const worksheet = XLSX.utils.json_to_sheet(
+      items.map(item => ({
+        'ID': item.id,
+        'Item Number': item.item_number,
+        'Pallet Number': item.po_number,
+        'Amount': item.amount,
+        'Date Added': new Date(item.date_added).toLocaleDateString(),
+        'Date Packed': new Date(item.date_packed).toLocaleDateString(),
+      }))
+    )
 
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-    ].join('\n')
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Packed Items')
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    // Generate Excel file and download
+    const excelBuffer = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' })
+    const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
     const link = document.createElement('a')
     link.href = URL.createObjectURL(blob)
-    link.download = `packed_items_${new Date().toISOString().split('T')[0]}.csv`
+    link.download = `packed_items_${new Date().toISOString().split('T')[0]}.xlsx`
     link.click()
+  }
+
+  const handleSendEmail = async (email: string) => {
+    const response = await fetch('/api/packed-items/send-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        date_from: dateFrom || null,
+        date_to: dateTo || null,
+      }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to send email')
+    }
+
+    return response.json()
   }
 
   return (
@@ -166,6 +191,15 @@ export default function PackedItemsPage() {
         onPageChange={handlePageChange}
         onPrint={handlePrint}
         onDownload={handleDownload}
+        onSendEmail={() => setShowEmailModal(true)}
+      />
+
+      <EmailModal
+        isOpen={showEmailModal}
+        onClose={() => setShowEmailModal(false)}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        onSend={handleSendEmail}
       />
     </div>
   )
