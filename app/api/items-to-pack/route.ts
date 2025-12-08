@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET(request: NextRequest) {
   try {
     // Fetch all items that are not packed (including WMS import items)
@@ -9,6 +12,7 @@ export async function GET(request: NextRequest) {
       .select('*')
       .eq('packed', false)
       .order('date_added', { ascending: true })
+      .limit(1000) // Add reasonable limit to prevent huge queries
 
     if (error) {
       console.error('Error fetching items:', error)
@@ -18,35 +22,45 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Fetch images for each item
+    // Fetch images for items in a single optimized query
     if (items && items.length > 0) {
       const itemIds = items.map(item => item.id)
       const { data: images } = await supabaseAdmin
         .from('item_images')
-        .select('*')
+        .select('item_id, image_url')
         .eq('item_type', 'items_to_pack')
         .in('item_id', itemIds)
 
-      // Group images by item_id
+      // Group images by item_id using Map for O(1) lookup
       const imagesByItemId = new Map<number, string[]>()
       images?.forEach(img => {
-        if (!imagesByItemId.has(img.item_id)) {
-          imagesByItemId.set(img.item_id, [])
+        if (img.item_id && img.image_url) {
+          if (!imagesByItemId.has(img.item_id)) {
+            imagesByItemId.set(img.item_id, [])
+          }
+          imagesByItemId.get(img.item_id)!.push(img.image_url)
         }
-        imagesByItemId.get(img.item_id)?.push(img.image_url)
       })
 
       // Add images to items
-      const itemsWithImages = items.map(item => ({
-        ...item,
-        images: imagesByItemId.get(item.id) || [],
-        image: imagesByItemId.get(item.id)?.[0] || item.image, // Keep first image for backward compatibility
-      }))
+      const itemsWithImages = items.map(item => {
+        const itemImages = imagesByItemId.get(item.id) || []
+        return {
+          ...item,
+          images: itemImages,
+          image: itemImages[0] || item.image, // Keep first image for backward compatibility
+        }
+      })
 
-      return NextResponse.json(itemsWithImages)
+      const response = NextResponse.json(itemsWithImages)
+      // Add cache headers for better performance
+      response.headers.set('Cache-Control', 'no-store, must-revalidate')
+      return response
     }
 
-    return NextResponse.json(items || [])
+    const response = NextResponse.json(items || [])
+    response.headers.set('Cache-Control', 'no-store, must-revalidate')
+    return response
   } catch (error) {
     console.error('Unexpected error:', error)
     return NextResponse.json(

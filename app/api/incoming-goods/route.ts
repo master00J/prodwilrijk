@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET(request: NextRequest) {
   try {
     const { data, error } = await supabaseAdmin
@@ -16,7 +19,9 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    return NextResponse.json(data || [])
+    const response = NextResponse.json(data || [])
+    response.headers.set('Cache-Control', 'no-store, must-revalidate')
+    return response
   } catch (error) {
     console.error('Unexpected error:', error)
     return NextResponse.json(

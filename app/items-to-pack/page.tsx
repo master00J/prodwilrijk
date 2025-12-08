@@ -35,11 +35,14 @@ export default function ItemsToPackPage() {
   useEffect(() => {
     fetchItems()
     fetchActiveTimeLogs()
-    // Auto-refresh every 30 seconds
+    // Auto-refresh every 60 seconds (reduced from 30 to improve performance)
+    // Only refresh if page is visible
     const interval = setInterval(() => {
-      fetchItems()
-      fetchActiveTimeLogs()
-    }, 30000)
+      if (!document.hidden) {
+        fetchItems()
+        fetchActiveTimeLogs()
+      }
+    }, 60000)
     return () => clearInterval(interval)
   }, [])
 

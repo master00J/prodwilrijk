@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET(request: NextRequest) {
   try {
     // First, get active time logs
@@ -66,7 +69,10 @@ export async function GET(request: NextRequest) {
 
     console.log('Transformed active time logs:', transformed.length, 'logs')
 
-    return NextResponse.json(transformed)
+    const response = NextResponse.json(transformed)
+    // Don't cache active timers - they need to be real-time
+    response.headers.set('Cache-Control', 'no-store, must-revalidate')
+    return response
   } catch (error) {
     console.error('Unexpected error:', error)
     return NextResponse.json(
