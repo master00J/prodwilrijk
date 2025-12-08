@@ -7,12 +7,24 @@ export const revalidate = 0
 export async function GET(request: NextRequest) {
   try {
     // First, get active time logs
-    const { data: timeLogs, error: logsError } = await supabaseAdmin
+    const searchParams = request.nextUrl.searchParams
+    const typeFilter = searchParams.get('type') // Optional type filter
+    
+    let query = supabaseAdmin
       .from('time_logs')
-      .select('id, employee_id, start_time, end_time')
+      .select('id, employee_id, start_time, end_time, type')
       .is('end_time', null)
-      .eq('type', 'items_to_pack')
       .order('start_time', { ascending: false })
+    
+    // Filter by type if specified, otherwise get all types
+    if (typeFilter) {
+      query = query.eq('type', typeFilter)
+    } else {
+      // Default: get items_to_pack and items_to_pack_airtec
+      query = query.in('type', ['items_to_pack', 'items_to_pack_airtec'])
+    }
+
+    const { data: timeLogs, error: logsError } = await query
 
     if (logsError) {
       console.error('Error fetching active time logs:', logsError)

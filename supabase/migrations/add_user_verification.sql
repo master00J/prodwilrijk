@@ -10,3 +10,4 @@ UPDATE user_roles
 SET verified = TRUE 
 WHERE role = 'admin';
 
+

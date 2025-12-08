@@ -78,3 +78,47 @@ export interface TimeLog {
   created_at?: string
   updated_at?: string
 }
+
+export interface IncomingGoodAirtec {
+  id: number
+  beschrijving?: string | null
+  item_number?: string | null
+  lot_number?: string | null
+  datum_opgestuurd?: string | null
+  kistnummer?: string | null
+  divisie?: string | null
+  quantity: number
+  datum_ontvangen: string
+  created_at?: string
+}
+
+export interface ItemToPackAirtec {
+  id: number
+  beschrijving?: string | null
+  item_number?: string | null
+  lot_number?: string | null
+  datum_opgestuurd?: string | null
+  kistnummer?: string | null
+  divisie?: string | null
+  quantity: number
+  priority: boolean
+  packed: boolean
+  datum_ontvangen: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface PackedItemAirtec {
+  id: number
+  beschrijving?: string | null
+  item_number?: string | null
+  lot_number?: string | null
+  datum_opgestuurd?: string | null
+  kistnummer?: string | null
+  divisie?: string | null
+  quantity: number
+  datum_ontvangen: string
+  date_packed: string
+  original_id?: number | null
+  created_at?: string
+}

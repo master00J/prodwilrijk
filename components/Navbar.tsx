@@ -42,8 +42,10 @@ export default function Navbar() {
   const pathname = usePathname()
   const { user, signOut, isAdmin } = useAuth()
   const [isPrepackOpen, setIsPrepackOpen] = useState(false)
+  const [isAirtecOpen, setIsAirtecOpen] = useState(false)
   const [isAdminOpen, setIsAdminOpen] = useState(false)
   const prepackDropdownRef = useRef<HTMLDivElement>(null)
+  const airtecDropdownRef = useRef<HTMLDivElement>(null)
   const adminDropdownRef = useRef<HTMLDivElement>(null)
 
   const isActive = (path: string) => pathname === path
@@ -56,6 +58,11 @@ export default function Navbar() {
     pathname.startsWith('/items-to-pack') || 
     pathname.startsWith('/packed-items')
 
+  const isAirtecPage = 
+    pathname.startsWith('/view-airtec') || 
+    pathname.startsWith('/items-to-pack-airtec') || 
+    pathname.startsWith('/packed-items-airtec')
+
   const isAdminPage = 
     pathname.startsWith('/admin') || 
     pathname.startsWith('/employees')
@@ -66,19 +73,22 @@ export default function Navbar() {
       if (prepackDropdownRef.current && !prepackDropdownRef.current.contains(event.target as Node)) {
         setIsPrepackOpen(false)
       }
+      if (airtecDropdownRef.current && !airtecDropdownRef.current.contains(event.target as Node)) {
+        setIsAirtecOpen(false)
+      }
       if (adminDropdownRef.current && !adminDropdownRef.current.contains(event.target as Node)) {
         setIsAdminOpen(false)
       }
     }
 
-    if (isPrepackOpen || isAdminOpen) {
+    if (isPrepackOpen || isAirtecOpen || isAdminOpen) {
       document.addEventListener('mousedown', handleClickOutside)
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [isPrepackOpen, isAdminOpen])
+  }, [isPrepackOpen, isAirtecOpen, isAdminOpen])
 
   return (
     <nav className="bg-white shadow-lg border-b border-gray-200 sticky top-0 z-50">
@@ -171,6 +181,63 @@ export default function Navbar() {
                       }`}
                     >
                       Packed Items
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Airtec Dropdown */}
+            <div className="relative" ref={airtecDropdownRef}>
+              <button
+                onClick={() => setIsAirtecOpen(!isAirtecOpen)}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center ${
+                  isAirtecPage
+                    ? 'bg-orange-500 text-white hover:bg-orange-600'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Airtec
+                <svg
+                  className={`ml-2 w-4 h-4 transition-transform ${isAirtecOpen ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {/* Dropdown Menu */}
+              {isAirtecOpen && (
+                <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-xl border border-gray-200 z-20">
+                  <div className="py-2">
+                    <Link
+                      href="/view-airtec"
+                      onClick={() => setIsAirtecOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/view-airtec') ? 'bg-orange-50 text-orange-600 font-medium border-l-4 border-orange-500' : 'text-gray-700'
+                      }`}
+                    >
+                      View Airtec - Confirm Items
+                    </Link>
+                    <Link
+                      href="/items-to-pack-airtec"
+                      onClick={() => setIsAirtecOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/items-to-pack-airtec') ? 'bg-orange-50 text-orange-600 font-medium border-l-4 border-orange-500' : 'text-gray-700'
+                      }`}
+                    >
+                      Items to Pack Airtec
+                    </Link>
+                    <Link
+                      href="/packed-items-airtec"
+                      onClick={() => setIsAirtecOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/packed-items-airtec') ? 'bg-orange-50 text-orange-600 font-medium border-l-4 border-orange-500' : 'text-gray-700'
+                      }`}
+                    >
+                      Packed Items Airtec
                     </Link>
                   </div>
                 </div>
