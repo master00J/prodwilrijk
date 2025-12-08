@@ -6,13 +6,54 @@ export const revalidate = 0
 
 export async function GET(request: NextRequest) {
   try {
-    // Fetch all items that are not packed (including WMS import items)
-    const { data: items, error } = await supabaseAdmin
+    const searchParams = request.nextUrl.searchParams
+    const page = parseInt(searchParams.get('page') || '1')
+    const pageSize = parseInt(searchParams.get('pageSize') || '100')
+    const search = searchParams.get('search') || ''
+    const dateFilter = searchParams.get('date') || ''
+    const priorityOnly = searchParams.get('priority') === 'true'
+    const measurementOnly = searchParams.get('measurement') === 'true'
+
+    // Build query with filters
+    let query = supabaseAdmin
       .from('items_to_pack')
-      .select('*')
+      .select('*', { count: 'exact' })
       .eq('packed', false)
-      .order('date_added', { ascending: true })
-      .limit(1000) // Add reasonable limit to prevent huge queries
+
+    // Apply search filter
+    if (search) {
+      query = query.or(`item_number.ilike.%${search}%,po_number.ilike.%${search}%`)
+    }
+
+    // Apply date filter
+    if (dateFilter) {
+      const filterDate = new Date(dateFilter)
+      filterDate.setHours(0, 0, 0, 0)
+      const nextDay = new Date(filterDate)
+      nextDay.setDate(nextDay.getDate() + 1)
+      query = query.gte('date_added', filterDate.toISOString())
+      query = query.lt('date_added', nextDay.toISOString())
+    }
+
+    // Apply priority filter
+    if (priorityOnly) {
+      query = query.eq('priority', true)
+    }
+
+    // Apply measurement filter
+    if (measurementOnly) {
+      query = query.eq('measurement', true)
+    }
+
+    // Order and paginate
+    query = query.order('date_added', { ascending: true })
+    
+    // Apply pagination
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
+    query = query.range(from, to)
+
+    const { data: items, error, count } = await query
 
     if (error) {
       console.error('Error fetching items:', error)
@@ -52,13 +93,27 @@ export async function GET(request: NextRequest) {
         }
       })
 
-      const response = NextResponse.json(itemsWithImages)
+      const totalPages = count ? Math.ceil(count / pageSize) : 0
+      const response = NextResponse.json({
+        items: itemsWithImages,
+        total: count || 0,
+        page,
+        pageSize,
+        totalPages,
+      })
       // Add cache headers for better performance
       response.headers.set('Cache-Control', 'no-store, must-revalidate')
       return response
     }
 
-    const response = NextResponse.json(items || [])
+    const totalPages = count ? Math.ceil(count / pageSize) : 0
+    const response = NextResponse.json({
+      items: items || [],
+      total: count || 0,
+      page,
+      pageSize,
+      totalPages,
+    })
     response.headers.set('Cache-Control', 'no-store, must-revalidate')
     return response
   } catch (error) {

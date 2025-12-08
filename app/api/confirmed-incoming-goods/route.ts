@@ -1,12 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET(request: NextRequest) {
   try {
-    const { data, error } = await supabaseAdmin
+    const searchParams = request.nextUrl.searchParams
+    const page = parseInt(searchParams.get('page') || '1')
+    const pageSize = parseInt(searchParams.get('pageSize') || '100')
+    const search = searchParams.get('search') || ''
+    const dateFilter = searchParams.get('date') || ''
+
+    // Build query with filters
+    let query = supabaseAdmin
       .from('confirmed_incoming_goods')
-      .select('*')
-      .order('date_confirmed', { ascending: false })
+      .select('*', { count: 'exact' })
+
+    // Apply search filter
+    if (search) {
+      query = query.or(`item_number.ilike.%${search}%,po_number.ilike.%${search}%`)
+    }
+
+    // Apply date filter
+    if (dateFilter) {
+      const filterDate = new Date(dateFilter)
+      filterDate.setHours(0, 0, 0, 0)
+      const nextDay = new Date(filterDate)
+      nextDay.setDate(nextDay.getDate() + 1)
+      query = query.gte('date_confirmed', filterDate.toISOString())
+      query = query.lt('date_confirmed', nextDay.toISOString())
+    }
+
+    // Order and paginate
+    query = query.order('date_confirmed', { ascending: false })
+    
+    // Apply pagination
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
+    query = query.range(from, to)
+
+    const { data, error, count } = await query
 
     if (error) {
       console.error('Error fetching confirmed incoming goods:', error)
@@ -16,7 +50,16 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    return NextResponse.json(data || [])
+    const totalPages = count ? Math.ceil(count / pageSize) : 0
+    const response = NextResponse.json({
+      items: data || [],
+      total: count || 0,
+      page,
+      pageSize,
+      totalPages,
+    })
+    response.headers.set('Cache-Control', 'no-store, must-revalidate')
+    return response
   } catch (error) {
     console.error('Unexpected error:', error)
     return NextResponse.json(

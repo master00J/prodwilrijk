@@ -2,10 +2,23 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { ConfirmedIncomingGood } from '@/types/database'
+import Pagination from '@/components/common/Pagination'
+
+interface ConfirmedItemsResponse {
+  items: ConfirmedIncomingGood[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
 
 export default function ConfirmedItemsPage() {
   const [items, setItems] = useState<ConfirmedIncomingGood[]>([])
   const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize] = useState(100)
+  const [total, setTotal] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
   const [searchTerm, setSearchTerm] = useState('')
   const [dateFilter, setDateFilter] = useState('')
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set())
@@ -15,74 +28,67 @@ export default function ConfirmedItemsPage() {
   const fetchItems = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/confirmed-incoming-goods')
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        pageSize: pageSize.toString(),
+      })
+
+      if (searchTerm) params.append('search', searchTerm)
+      if (dateFilter) params.append('date', dateFilter)
+
+      const response = await fetch(`/api/confirmed-incoming-goods?${params.toString()}`)
       if (!response.ok) throw new Error('Failed to fetch items')
-      const data = await response.json()
-      setItems(data)
+      const data: ConfirmedItemsResponse = await response.json()
+      setItems(data.items)
+      setTotal(data.total)
+      setTotalPages(data.totalPages)
     } catch (error) {
       console.error('Error fetching confirmed items:', error)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [currentPage, pageSize, searchTerm, dateFilter])
 
   useEffect(() => {
     fetchItems()
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(fetchItems, 30000)
+    // Auto-refresh every 60 seconds
+    const interval = setInterval(() => {
+      if (!document.hidden) {
+        fetchItems()
+      }
+    }, 60000)
     return () => clearInterval(interval)
   }, [fetchItems])
 
-  // Filter and sort items
-  const filteredAndSortedItems = useMemo(() => {
-    let filtered = [...items]
+  // Sort items (filtering is now done server-side)
+  const sortedItems = useMemo(() => {
+    if (!sortColumn) return items
 
-    // Apply search filter
-    if (searchTerm) {
-      const search = searchTerm.toLowerCase()
-      filtered = filtered.filter(
-        item =>
-          item.item_number?.toLowerCase().includes(search) ||
-          item.po_number?.toLowerCase().includes(search) ||
-          item.id.toString().includes(search)
-      )
-    }
+    const sorted = [...items]
+    sorted.sort((a, b) => {
+      let aVal: any = a[sortColumn]
+      let bVal: any = b[sortColumn]
 
-    // Apply date filter
-    if (dateFilter) {
-      filtered = filtered.filter(item => {
-        const itemDate = new Date(item.date_confirmed).toISOString().split('T')[0]
-        return itemDate === dateFilter
-      })
-    }
+      // Handle null/undefined values
+      if (aVal == null && bVal == null) return 0
+      if (aVal == null) return sortDirection === 'asc' ? 1 : -1
+      if (bVal == null) return sortDirection === 'asc' ? -1 : 1
 
-    // Apply sorting
-    if (sortColumn) {
-      filtered.sort((a, b) => {
-        let aVal: any = a[sortColumn]
-        let bVal: any = b[sortColumn]
+      if (sortColumn === 'date_confirmed' || sortColumn === 'date_added') {
+        aVal = new Date(aVal as string).getTime()
+        bVal = new Date(bVal as string).getTime()
+      } else if (typeof aVal === 'string') {
+        aVal = aVal.toLowerCase()
+        bVal = (bVal as string).toLowerCase()
+      }
 
-        // Handle null/undefined values
-        if (aVal == null && bVal == null) return 0
-        if (aVal == null) return sortDirection === 'asc' ? 1 : -1
-        if (bVal == null) return sortDirection === 'asc' ? -1 : 1
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
+      return 0
+    })
 
-        if (sortColumn === 'date_confirmed' || sortColumn === 'date_added') {
-          aVal = new Date(aVal as string).getTime()
-          bVal = new Date(bVal as string).getTime()
-        } else if (typeof aVal === 'string') {
-          aVal = aVal.toLowerCase()
-          bVal = (bVal as string).toLowerCase()
-        }
-
-        if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
-        if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
-        return 0
-      })
-    }
-
-    return filtered
-  }, [items, searchTerm, dateFilter, sortColumn, sortDirection])
+    return sorted
+  }, [items, sortColumn, sortDirection])
 
   const handleSort = (column: keyof ConfirmedIncomingGood) => {
     if (sortColumn === column) {
@@ -105,10 +111,25 @@ export default function ConfirmedItemsPage() {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedItems(new Set(filteredAndSortedItems.map(item => item.id)))
+      setSelectedItems(new Set(sortedItems.map(item => item.id)))
     } else {
       setSelectedItems(new Set())
     }
+  }
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value)
+    setCurrentPage(1)
+  }
+
+  const handleDateFilterChange = (value: string) => {
+    setDateFilter(value)
+    setCurrentPage(1)
   }
 
   const handleDeleteSelected = async () => {
@@ -141,8 +162,8 @@ export default function ConfirmedItemsPage() {
   }
 
   const totalAmount = useMemo(() => {
-    return filteredAndSortedItems.reduce((sum, item) => sum + (item.amount || 0), 0)
-  }, [filteredAndSortedItems])
+    return sortedItems.reduce((sum, item) => sum + (item.amount || 0), 0)
+  }, [sortedItems])
 
   if (loading) {
     return (
@@ -166,7 +187,7 @@ export default function ConfirmedItemsPage() {
               type="text"
               placeholder="Search by item number or pallet number..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
             />
           </div>
@@ -174,12 +195,12 @@ export default function ConfirmedItemsPage() {
             <input
               type="date"
               value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
+              onChange={(e) => handleDateFilterChange(e.target.value)}
               className="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
             />
             {dateFilter && (
               <button
-                onClick={() => setDateFilter('')}
+                onClick={() => handleDateFilterChange('')}
                 className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300"
               >
                 Clear
@@ -212,11 +233,11 @@ export default function ConfirmedItemsPage() {
                 <th className="px-4 py-4 text-left">
                   <input
                     type="checkbox"
-                    checked={filteredAndSortedItems.length > 0 && filteredAndSortedItems.every(item => selectedItems.has(item.id))}
+                    checked={sortedItems.length > 0 && sortedItems.every(item => selectedItems.has(item.id))}
                     ref={(input) => {
                       if (input) {
-                        const someSelected = filteredAndSortedItems.some(item => selectedItems.has(item.id))
-                        input.indeterminate = someSelected && !filteredAndSortedItems.every(item => selectedItems.has(item.id))
+                        const someSelected = sortedItems.some(item => selectedItems.has(item.id))
+                        input.indeterminate = someSelected && !sortedItems.every(item => selectedItems.has(item.id))
                       }
                     }}
                     onChange={(e) => handleSelectAll(e.target.checked)}
@@ -256,14 +277,14 @@ export default function ConfirmedItemsPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredAndSortedItems.length === 0 ? (
+              {sortedItems.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                     No confirmed items found
                   </td>
                 </tr>
               ) : (
-                filteredAndSortedItems.map((item) => (
+                sortedItems.map((item) => (
                   <tr key={item.id}>
                     <td className="px-4 py-4">
                       <input
@@ -289,6 +310,20 @@ export default function ConfirmedItemsPage() {
           </table>
         </div>
       </div>
+
+      {totalPages > 1 && (
+        <div className="mt-6">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+          />
+          <div className="text-center text-sm text-gray-600 mt-2">
+            Showing {items.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} -{' '}
+            {Math.min(currentPage * pageSize, total)} of {total} items
+          </div>
+        </div>
+      )}
     </div>
   )
 }

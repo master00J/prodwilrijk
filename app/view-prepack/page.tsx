@@ -5,10 +5,23 @@ import { IncomingGood } from '@/types/database'
 import ViewPrepackTable from '@/components/view-prepack/ViewPrepackTable'
 import ViewPrepackFilters from '@/components/view-prepack/ViewPrepackFilters'
 import AddItemForm from '@/components/view-prepack/AddItemForm'
+import Pagination from '@/components/common/Pagination'
+
+interface IncomingGoodsResponse {
+  items: IncomingGood[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
 
 export default function ViewPrepackPage() {
   const [items, setItems] = useState<IncomingGood[]>([])
   const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize] = useState(100)
+  const [total, setTotal] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set())
   const [sortColumn, setSortColumn] = useState<keyof IncomingGood | null>(null)
@@ -17,66 +30,66 @@ export default function ViewPrepackPage() {
   const fetchItems = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/incoming-goods')
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        pageSize: pageSize.toString(),
+      })
+
+      if (searchTerm) params.append('search', searchTerm)
+
+      const response = await fetch(`/api/incoming-goods?${params.toString()}`)
       if (!response.ok) throw new Error('Failed to fetch items')
-      const data = await response.json()
-      setItems(data)
+      const data: IncomingGoodsResponse = await response.json()
+      setItems(data.items)
+      setTotal(data.total)
+      setTotalPages(data.totalPages)
     } catch (error) {
       console.error('Error fetching incoming goods:', error)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [currentPage, pageSize, searchTerm])
 
   useEffect(() => {
     fetchItems()
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(fetchItems, 30000)
+    // Auto-refresh every 60 seconds
+    const interval = setInterval(() => {
+      if (!document.hidden) {
+        fetchItems()
+      }
+    }, 60000)
     return () => clearInterval(interval)
   }, [fetchItems])
 
-  // Filter and sort items
-  const filteredAndSortedItems = useMemo(() => {
-    let filtered = [...items]
+  // Sort items (filtering is now done server-side)
+  const sortedItems = useMemo(() => {
+    if (!sortColumn) return items
 
-    // Apply search filter
-    if (searchTerm) {
-      const search = searchTerm.toLowerCase()
-      filtered = filtered.filter(
-        item =>
-          item.item_number?.toLowerCase().includes(search) ||
-          item.po_number?.toLowerCase().includes(search) ||
-          item.id.toString().includes(search)
-      )
-    }
+    const sorted = [...items]
+    sorted.sort((a, b) => {
+      let aVal: any = a[sortColumn]
+      let bVal: any = b[sortColumn]
 
-    // Apply sorting
-    if (sortColumn) {
-      filtered.sort((a, b) => {
-        let aVal: any = a[sortColumn]
-        let bVal: any = b[sortColumn]
+      // Handle null/undefined values
+      if (aVal == null && bVal == null) return 0
+      if (aVal == null) return sortDirection === 'asc' ? 1 : -1
+      if (bVal == null) return sortDirection === 'asc' ? -1 : 1
 
-        // Handle null/undefined values
-        if (aVal == null && bVal == null) return 0
-        if (aVal == null) return sortDirection === 'asc' ? 1 : -1
-        if (bVal == null) return sortDirection === 'asc' ? -1 : 1
+      if (sortColumn === 'date_added') {
+        aVal = new Date(aVal as string).getTime()
+        bVal = new Date(bVal as string).getTime()
+      } else if (typeof aVal === 'string') {
+        aVal = aVal.toLowerCase()
+        bVal = (bVal as string).toLowerCase()
+      }
 
-        if (sortColumn === 'date_added') {
-          aVal = new Date(aVal as string).getTime()
-          bVal = new Date(bVal as string).getTime()
-        } else if (typeof aVal === 'string') {
-          aVal = aVal.toLowerCase()
-          bVal = (bVal as string).toLowerCase()
-        }
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
+      return 0
+    })
 
-        if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
-        if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
-        return 0
-      })
-    }
-
-    return filtered
-  }, [items, searchTerm, sortColumn, sortDirection])
+    return sorted
+  }, [items, sortColumn, sortDirection])
 
   const handleSort = (column: keyof IncomingGood) => {
     if (sortColumn === column) {
@@ -99,10 +112,20 @@ export default function ViewPrepackPage() {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedItems(new Set(filteredAndSortedItems.map(item => item.id)))
+      setSelectedItems(new Set(sortedItems.map(item => item.id)))
     } else {
       setSelectedItems(new Set())
     }
+  }
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value)
+    setCurrentPage(1)
   }
 
   const handleConfirm = async () => {
@@ -183,8 +206,8 @@ export default function ViewPrepackPage() {
   }
 
   const totalAmount = useMemo(() => {
-    return filteredAndSortedItems.reduce((sum, item) => sum + (item.amount || 0), 0)
-  }, [filteredAndSortedItems])
+    return sortedItems.reduce((sum, item) => sum + (item.amount || 0), 0)
+  }, [sortedItems])
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-7xl">
@@ -192,7 +215,7 @@ export default function ViewPrepackPage() {
 
       <ViewPrepackFilters
         searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
+        onSearchChange={handleSearchChange}
         selectedCount={selectedItems.size}
         totalAmount={totalAmount}
         onConfirm={handleConfirm}
@@ -200,7 +223,7 @@ export default function ViewPrepackPage() {
       />
 
       <ViewPrepackTable
-        items={filteredAndSortedItems}
+        items={sortedItems}
         selectedItems={selectedItems}
         onSelectItem={handleSelectItem}
         onSelectAll={handleSelectAll}
@@ -210,6 +233,20 @@ export default function ViewPrepackPage() {
         onDelete={handleDelete}
         loading={loading}
       />
+
+      {totalPages > 1 && (
+        <div className="mt-6">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+          />
+          <div className="text-center text-sm text-gray-600 mt-2">
+            Showing {items.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} -{' '}
+            {Math.min(currentPage * pageSize, total)} of {total} items
+          </div>
+        </div>
+      )}
 
       <AddItemForm onItemAdded={fetchItems} />
     </div>

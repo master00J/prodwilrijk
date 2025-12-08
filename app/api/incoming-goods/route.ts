@@ -6,10 +6,30 @@ export const revalidate = 0
 
 export async function GET(request: NextRequest) {
   try {
-    const { data, error } = await supabaseAdmin
+    const searchParams = request.nextUrl.searchParams
+    const page = parseInt(searchParams.get('page') || '1')
+    const pageSize = parseInt(searchParams.get('pageSize') || '100')
+    const search = searchParams.get('search') || ''
+
+    // Build query with filters
+    let query = supabaseAdmin
       .from('incoming_goods')
-      .select('*')
-      .order('date_added', { ascending: false })
+      .select('*', { count: 'exact' })
+
+    // Apply search filter
+    if (search) {
+      query = query.or(`item_number.ilike.%${search}%,po_number.ilike.%${search}%`)
+    }
+
+    // Order and paginate
+    query = query.order('date_added', { ascending: false })
+    
+    // Apply pagination
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
+    query = query.range(from, to)
+
+    const { data, error, count } = await query
 
     if (error) {
       console.error('Error fetching incoming goods:', error)
@@ -19,7 +39,14 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const response = NextResponse.json(data || [])
+    const totalPages = count ? Math.ceil(count / pageSize) : 0
+    const response = NextResponse.json({
+      items: data || [],
+      total: count || 0,
+      page,
+      pageSize,
+      totalPages,
+    })
     response.headers.set('Cache-Control', 'no-store, must-revalidate')
     return response
   } catch (error) {

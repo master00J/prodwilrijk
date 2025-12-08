@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { ItemToPack } from '@/types/database'
 import ItemsTable from '@/components/items-to-pack/ItemsTable'
 import StatsBanner from '@/components/items-to-pack/StatsBanner'
@@ -12,10 +12,23 @@ import ReturnItemModal from '@/components/items-to-pack/ReturnItemModal'
 import ImageUploadModal from '@/components/items-to-pack/ImageUploadModal'
 import TimeRegistrationModal from '@/components/items-to-pack/TimeRegistrationModal'
 import ActiveTimersCard from '@/components/items-to-pack/ActiveTimersCard'
+import Pagination from '@/components/common/Pagination'
+
+interface ItemsResponse {
+  items: ItemToPack[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
 
 export default function ItemsToPackPage() {
   const [items, setItems] = useState<ItemToPack[]>([])
   const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize] = useState(100)
+  const [total, setTotal] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
   const [searchTerm, setSearchTerm] = useState('')
   const [dateFilter, setDateFilter] = useState('')
   const [priorityOnly, setPriorityOnly] = useState(false)
@@ -32,6 +45,32 @@ export default function ItemsToPackPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
   // Fetch items
+  const fetchItems = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        pageSize: pageSize.toString(),
+      })
+
+      if (searchTerm) params.append('search', searchTerm)
+      if (dateFilter) params.append('date', dateFilter)
+      if (priorityOnly) params.append('priority', 'true')
+      if (measurementOnly) params.append('measurement', 'true')
+
+      const response = await fetch(`/api/items-to-pack?${params.toString()}`)
+      if (!response.ok) throw new Error('Failed to fetch items')
+      const data: ItemsResponse = await response.json()
+      setItems(data.items)
+      setTotal(data.total)
+      setTotalPages(data.totalPages)
+    } catch (error) {
+      console.error('Error fetching items:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [currentPage, pageSize, searchTerm, dateFilter, priorityOnly, measurementOnly])
+
   useEffect(() => {
     fetchItems()
     fetchActiveTimeLogs()
@@ -44,81 +83,37 @@ export default function ItemsToPackPage() {
       }
     }, 60000)
     return () => clearInterval(interval)
-  }, [])
+  }, [fetchItems])
 
-  const fetchItems = async () => {
-    try {
-      const response = await fetch('/api/items-to-pack')
-      if (!response.ok) throw new Error('Failed to fetch items')
-      const data = await response.json()
-      setItems(data)
-    } catch (error) {
-      console.error('Error fetching items:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+  // Sort items (filtering is now done server-side)
+  const sortedItems = useMemo(() => {
+    if (!sortColumn) return items
 
-  // Filter and sort items
-  const filteredAndSortedItems = useMemo(() => {
-    let filtered = [...items]
+    const sorted = [...items]
+    sorted.sort((a, b) => {
+      let aVal: any = a[sortColumn]
+      let bVal: any = b[sortColumn]
 
-    // Apply search filter
-    if (searchTerm) {
-      const search = searchTerm.toLowerCase()
-      filtered = filtered.filter(
-        item =>
-          item.item_number?.toLowerCase().includes(search) ||
-          item.po_number?.toLowerCase().includes(search) ||
-          item.id.toString().includes(search)
-      )
-    }
+      // Handle null/undefined values
+      if (aVal == null && bVal == null) return 0
+      if (aVal == null) return sortDirection === 'asc' ? 1 : -1
+      if (bVal == null) return sortDirection === 'asc' ? -1 : 1
 
-    // Apply date filter
-    if (dateFilter) {
-      filtered = filtered.filter(item => {
-        const itemDate = new Date(item.date_added).toISOString().split('T')[0]
-        return itemDate === dateFilter
-      })
-    }
+      if (sortColumn === 'date_added') {
+        aVal = new Date(aVal as string).getTime()
+        bVal = new Date(bVal as string).getTime()
+      } else if (typeof aVal === 'string') {
+        aVal = aVal.toLowerCase()
+        bVal = (bVal as string).toLowerCase()
+      }
 
-    // Apply priority filter
-    if (priorityOnly) {
-      filtered = filtered.filter(item => item.priority)
-    }
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
+      return 0
+    })
 
-    // Apply measurement filter
-    if (measurementOnly) {
-      filtered = filtered.filter(item => item.measurement)
-    }
-
-    // Apply sorting
-    if (sortColumn) {
-      filtered.sort((a, b) => {
-        let aVal: any = a[sortColumn]
-        let bVal: any = b[sortColumn]
-
-        // Handle null/undefined values
-        if (aVal == null && bVal == null) return 0
-        if (aVal == null) return sortDirection === 'asc' ? 1 : -1
-        if (bVal == null) return sortDirection === 'asc' ? -1 : 1
-
-        if (sortColumn === 'date_added') {
-          aVal = new Date(aVal as string).getTime()
-          bVal = new Date(bVal as string).getTime()
-        } else if (typeof aVal === 'string') {
-          aVal = aVal.toLowerCase()
-          bVal = (bVal as string).toLowerCase()
-        }
-
-        if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
-        if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
-        return 0
-      })
-    }
-
-    return filtered
-  }, [items, searchTerm, dateFilter, priorityOnly, measurementOnly, sortColumn, sortDirection])
+    return sorted
+  }, [items, sortColumn, sortDirection])
 
   const handleSort = (column: keyof ItemToPack) => {
     if (sortColumn === column) {
@@ -141,10 +136,35 @@ export default function ItemsToPackPage() {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedItems(new Set(filteredAndSortedItems.map(item => item.id)))
+      setSelectedItems(new Set(sortedItems.map(item => item.id)))
     } else {
       setSelectedItems(new Set())
     }
+  }
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value)
+    setCurrentPage(1) // Reset to first page on new search
+  }
+
+  const handleDateFilterChange = (value: string) => {
+    setDateFilter(value)
+    setCurrentPage(1) // Reset to first page on new filter
+  }
+
+  const handlePriorityToggle = () => {
+    setPriorityOnly(!priorityOnly)
+    setCurrentPage(1) // Reset to first page
+  }
+
+  const handleMeasurementToggle = () => {
+    setMeasurementOnly(!measurementOnly)
+    setCurrentPage(1) // Reset to first page
   }
 
   const handleMarkAsPacked = async () => {
@@ -541,19 +561,19 @@ export default function ItemsToPackPage() {
 
       <FiltersBar
         searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
+        onSearchChange={handleSearchChange}
         dateFilter={dateFilter}
-        onDateFilterChange={setDateFilter}
+        onDateFilterChange={handleDateFilterChange}
         priorityOnly={priorityOnly}
-        onPriorityToggle={() => setPriorityOnly(!priorityOnly)}
+        onPriorityToggle={handlePriorityToggle}
         measurementOnly={measurementOnly}
-        onMeasurementToggle={() => setMeasurementOnly(!measurementOnly)}
+        onMeasurementToggle={handleMeasurementToggle}
         onShowReport={() => setShowReport(true)}
       />
 
       <ActionsBar
         selectedCount={selectedItems.size}
-        totalCount={filteredAndSortedItems.length}
+        totalCount={total}
         onMarkAsPacked={handleMarkAsPacked}
         onSetPriority={handleSetPriority}
         onSetMeasurement={handleSetMeasurement}
@@ -564,7 +584,7 @@ export default function ItemsToPackPage() {
       />
 
       <ItemsTable
-        items={filteredAndSortedItems}
+        items={sortedItems}
         selectedItems={selectedItems}
         onSelectItem={handleSelectItem}
         onSelectAll={handleSelectAll}
@@ -577,9 +597,23 @@ export default function ItemsToPackPage() {
         onUploadImage={handleUploadImage}
       />
 
+      {totalPages > 1 && (
+        <div className="mt-6">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+          />
+          <div className="text-center text-sm text-gray-600 mt-2">
+            Showing {items.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} -{' '}
+            {Math.min(currentPage * pageSize, total)} of {total} items
+          </div>
+        </div>
+      )}
+
       {showScanner && (
         <BarcodeScanner
-          items={filteredAndSortedItems}
+          items={sortedItems}
           onClose={() => setShowScanner(false)}
           onItemsScanned={async (scannedIds) => {
             setSelectedItems(new Set(scannedIds))
