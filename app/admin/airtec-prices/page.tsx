@@ -180,7 +180,7 @@ export default function AirtecPricesPage() {
               onChange={(e) => setNewPrice({ ...newPrice, kistnummer: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
-              maxLength={3}
+              maxLength={50}
               placeholder="001"
             />
           </div>

@@ -42,10 +42,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate kistnummer length (max 3 characters)
-    if (kistnummer.length > 3) {
+    // Validate kistnummer length (max 50 characters)
+    if (kistnummer.length > 50) {
       return NextResponse.json(
-        { error: 'Kistnummer must be 3 characters or less' },
+        { error: 'Kistnummer must be 50 characters or less' },
         { status: 400 }
       )
     }
