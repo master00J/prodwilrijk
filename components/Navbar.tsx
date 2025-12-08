@@ -59,6 +59,7 @@ export default function Navbar() {
     pathname.startsWith('/packed-items')
 
   const isAirtecPage = 
+    pathname.startsWith('/airtec') ||
     pathname.startsWith('/view-airtec') || 
     pathname.startsWith('/items-to-pack-airtec') || 
     pathname.startsWith('/packed-items-airtec')
@@ -212,6 +213,15 @@ export default function Navbar() {
               {isAirtecOpen && (
                 <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-xl border border-gray-200 z-20">
                   <div className="py-2">
+                    <Link
+                      href="/airtec"
+                      onClick={() => setIsAirtecOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/airtec') ? 'bg-orange-50 text-orange-600 font-medium border-l-4 border-orange-500' : 'text-gray-700'
+                      }`}
+                    >
+                      Airtec - Excel Upload
+                    </Link>
                     <Link
                       href="/view-airtec"
                       onClick={() => setIsAirtecOpen(false)}
