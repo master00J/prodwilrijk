@@ -14,6 +14,7 @@ interface PackedItemsTableAirtecProps {
   onPrint: () => void
   onDownload: () => void
   onSendEmail?: () => void
+  onShowReport?: () => void
 }
 
 export default function PackedItemsTableAirtec({
@@ -26,6 +27,7 @@ export default function PackedItemsTableAirtec({
   onPrint,
   onDownload,
   onSendEmail,
+  onShowReport,
 }: PackedItemsTableAirtecProps) {
   if (loading) {
     return (
@@ -50,6 +52,14 @@ export default function PackedItemsTableAirtec({
               className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 font-medium no-print"
             >
               📧 Send Email
+            </button>
+          )}
+          {onShowReport && (
+            <button
+              onClick={onShowReport}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-medium no-print"
+            >
+              📊 Box Report
             </button>
           )}
           <button

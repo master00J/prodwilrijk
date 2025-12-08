@@ -6,6 +6,7 @@ import { PackedItemAirtec } from '@/types/database'
 import PackedItemsTableAirtec from '@/components/packed-items-airtec/PackedItemsTableAirtec'
 import PackedItemsFiltersAirtec from '@/components/packed-items-airtec/PackedItemsFiltersAirtec'
 import EmailModal from '@/components/packed-items/EmailModal'
+import BoxReportModal from '@/components/packed-items-airtec/BoxReportModal'
 import Pagination from '@/components/common/Pagination'
 
 interface PackedItemsAirtecResponse {
@@ -32,6 +33,9 @@ export default function PackedItemsAirtecPage() {
   
   // Email modal
   const [showEmailModal, setShowEmailModal] = useState(false)
+  
+  // Box report modal
+  const [showBoxReportModal, setShowBoxReportModal] = useState(false)
 
   const fetchItems = useCallback(async () => {
     setLoading(true)
@@ -161,6 +165,7 @@ export default function PackedItemsAirtecPage() {
         onPrint={handlePrint}
         onDownload={handleDownload}
         onSendEmail={() => setShowEmailModal(true)}
+        onShowReport={() => setShowBoxReportModal(true)}
       />
 
       <EmailModal
@@ -169,6 +174,13 @@ export default function PackedItemsAirtecPage() {
         dateFrom={dateFrom}
         dateTo={dateTo}
         onSend={handleSendEmail}
+      />
+
+      <BoxReportModal
+        isOpen={showBoxReportModal}
+        onClose={() => setShowBoxReportModal(false)}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
       />
     </div>
   )
