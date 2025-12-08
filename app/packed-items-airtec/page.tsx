@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import * as XLSX from 'xlsx'
 import { PackedItemAirtec } from '@/types/database'
 import PackedItemsTableAirtec from '@/components/packed-items-airtec/PackedItemsTableAirtec'
 import PackedItemsFiltersAirtec from '@/components/packed-items-airtec/PackedItemsFiltersAirtec'
+import EmailModal from '@/components/packed-items/EmailModal'
 import Pagination from '@/components/common/Pagination'
 
 interface PackedItemsAirtecResponse {
@@ -27,6 +29,9 @@ export default function PackedItemsAirtecPage() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [kistnummerFilter, setKistnummerFilter] = useState('')
+  
+  // Email modal
+  const [showEmailModal, setShowEmailModal] = useState(false)
 
   const fetchItems = useCallback(async () => {
     setLoading(true)
@@ -85,31 +90,51 @@ export default function PackedItemsAirtecPage() {
   }
 
   const handleDownload = () => {
-    // Create CSV content
-    const headers = ['ID', 'Description', 'Item Number', 'Lot Number', 'Date Sent', 'Box Number', 'Division', 'Quantity', 'Date Received', 'Date Packed']
-    const rows = items.map(item => [
-      item.id,
-      item.beschrijving || '',
-      item.item_number || '',
-      item.lot_number || '',
-      item.datum_opgestuurd ? new Date(item.datum_opgestuurd).toLocaleDateString() : '',
-      item.kistnummer || '',
-      item.divisie || '',
-      item.quantity,
-      new Date(item.datum_ontvangen).toLocaleDateString(),
-      new Date(item.date_packed).toLocaleDateString(),
-    ])
+    // Create Excel workbook
+    const worksheet = XLSX.utils.json_to_sheet(
+      items.map(item => ({
+        'ID': item.id,
+        'Description': item.beschrijving || '',
+        'Item Number': item.item_number || '',
+        'Lot Number': item.lot_number || '',
+        'Date Sent': item.datum_opgestuurd ? new Date(item.datum_opgestuurd).toLocaleDateString() : '',
+        'Box Number': item.kistnummer || '',
+        'Division': item.divisie || '',
+        'Quantity': item.quantity,
+        'Date Received': new Date(item.datum_ontvangen).toLocaleDateString(),
+        'Date Packed': new Date(item.date_packed).toLocaleDateString(),
+      }))
+    )
 
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-    ].join('\n')
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Packed Items Airtec')
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    // Generate Excel file and download
+    const excelBuffer = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' })
+    const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
     const link = document.createElement('a')
     link.href = URL.createObjectURL(blob)
-    link.download = `packed_items_airtec_${new Date().toISOString().split('T')[0]}.csv`
+    link.download = `packed_items_airtec_${new Date().toISOString().split('T')[0]}.xlsx`
     link.click()
+  }
+
+  const handleSendEmail = async (email: string) => {
+    const response = await fetch('/api/packed-items-airtec/send-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        date_from: dateFrom || null,
+        date_to: dateTo || null,
+      }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to send email')
+    }
+
+    return response.json()
   }
 
   return (
@@ -135,6 +160,15 @@ export default function PackedItemsAirtecPage() {
         onPageChange={handlePageChange}
         onPrint={handlePrint}
         onDownload={handleDownload}
+        onSendEmail={() => setShowEmailModal(true)}
+      />
+
+      <EmailModal
+        isOpen={showEmailModal}
+        onClose={() => setShowEmailModal(false)}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        onSend={handleSendEmail}
       />
     </div>
   )
