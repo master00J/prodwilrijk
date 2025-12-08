@@ -343,14 +343,30 @@ export default function ItemsToPackPage() {
           'Cache-Control': 'no-cache',
         },
       })
-      if (!response.ok) throw new Error('Failed to fetch active time logs')
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        console.error('Failed to fetch active time logs:', response.status, errorData)
+        throw new Error(errorData.error || `HTTP ${response.status}: Failed to fetch active time logs`)
+      }
+      
       const data = await response.json()
       console.log('Fetched active time logs:', data)
-      setActiveTimeLogs(data || [])
+      console.log('Number of active logs:', data?.length || 0)
+      
+      if (Array.isArray(data)) {
+        setActiveTimeLogs(data)
+      } else {
+        console.warn('Expected array but got:', typeof data, data)
+        setActiveTimeLogs([])
+      }
     } catch (error) {
       console.error('Error fetching active time logs:', error)
-      // Set empty array on error to clear stale data
-      setActiveTimeLogs([])
+      // Don't clear on error - keep existing data to avoid flickering
+      // Only clear if it's a clear error that indicates no data
+      if (error instanceof Error && error.message.includes('404')) {
+        setActiveTimeLogs([])
+      }
     }
   }
 
@@ -364,7 +380,28 @@ export default function ItemsToPackPage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Failed to start timer')
+        const errorMessage = errorData.error || 'Failed to start timer'
+        
+        // If there are active logs, refresh the list and show a helpful message
+        if (errorMessage.includes('already have active time logs')) {
+          // Refresh active logs to show them
+          await fetchActiveTimeLogs()
+          
+          // Show helpful message with option to view/stop existing timers
+          const shouldContinue = confirm(
+            `${errorMessage}\n\n` +
+            `There are already active time registrations. ` +
+            `Would you like to refresh the page to see them? ` +
+            `(Click OK to refresh, Cancel to stay)`
+          )
+          
+          if (shouldContinue) {
+            window.location.reload()
+          }
+          return
+        }
+        
+        throw new Error(errorMessage)
       }
 
       const result = await response.json()
@@ -395,6 +432,9 @@ export default function ItemsToPackPage() {
       return
     }
 
+    // Optimistically remove from UI immediately
+    setActiveTimeLogs(prev => prev.filter(log => log.id !== logId))
+
     try {
       const response = await fetch(`/api/time-logs/${logId}/stop`, {
         method: 'POST',
@@ -402,24 +442,31 @@ export default function ItemsToPackPage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
+        // If it failed, refresh to get correct state
+        await fetchActiveTimeLogs()
         throw new Error(errorData.error || 'Failed to stop timer')
       }
 
-      // Wait a bit to ensure database is updated
-      await new Promise(resolve => setTimeout(resolve, 100))
+      // Wait a bit to ensure database is updated, then refresh to be sure
+      setTimeout(async () => {
+        await fetchActiveTimeLogs()
+      }, 200)
       
-      // Refresh the active time logs
-      await fetchActiveTimeLogs()
+      // Also refresh after longer delay
+      setTimeout(async () => {
+        await fetchActiveTimeLogs()
+      }, 1000)
       
       // Show success message
       alert(`Time registration${employeeText} stopped successfully`)
     } catch (error: any) {
       console.error('Error stopping timer:', error)
+      // Refresh to get correct state
+      await fetchActiveTimeLogs()
+      
       // Check if timer was already stopped
-      if (error.message?.includes('not found') || error.message?.includes('Active time log')) {
-        // Timer might already be stopped, refresh anyway
-        await fetchActiveTimeLogs()
-        alert('Timer was already stopped or not found. Refreshing list...')
+      if (error.message?.includes('not found') || error.message?.includes('Active time log') || error.message?.includes('already stopped')) {
+        alert('Timer was already stopped. List refreshed.')
       } else {
         alert(`Failed to stop time registration: ${error.message || 'Unknown error'}`)
       }
@@ -433,6 +480,9 @@ export default function ItemsToPackPage() {
       return
     }
 
+    // Optimistically clear all timers from UI immediately
+    setActiveTimeLogs([])
+
     try {
       const promises = activeTimeLogs.map(async (log) => {
         const response = await fetch(`/api/time-logs/${log.id}/stop`, { method: 'POST' })
@@ -445,11 +495,16 @@ export default function ItemsToPackPage() {
 
       await Promise.all(promises)
       
-      // Wait a bit to ensure database is updated
-      await new Promise(resolve => setTimeout(resolve, 200))
+      // Wait a bit to ensure database is updated, then refresh
+      setTimeout(async () => {
+        await fetchActiveTimeLogs()
+      }, 200)
       
-      // Refresh the active time logs
-      await fetchActiveTimeLogs()
+      // Also refresh after longer delay
+      setTimeout(async () => {
+        await fetchActiveTimeLogs()
+      }, 1000)
+      
       alert('All time registrations stopped successfully')
     } catch (error) {
       console.error('Error stopping all timers:', error)
