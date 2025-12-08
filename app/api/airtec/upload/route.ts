@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
         item_number: item.item_number?.toString().trim() || null,
         lot_number: item.lot_number?.toString().trim() || null,
         datum_opgestuurd: item.datum_opgestuurd || null,
-        kistnummer: item.kistnummer ? String(item.kistnummer).trim().substring(0, 3) : null, // Max 3 characters
+        kistnummer: item.kistnummer ? String(item.kistnummer).trim().slice(-3) : null, // Last 3 characters
         divisie: item.divisie?.toString().trim() || null,
         quantity: item.quantity ? Number(item.quantity) : 1,
       }))

@@ -51,7 +51,7 @@ export default function AirtecPage() {
             item_number: itemNumber ? String(itemNumber).trim() : null,
             lot_number: lotNumber ? String(lotNumber).trim() : null,
             datum_opgestuurd: datumOpgestuurd ? parseDate(datumOpgestuurd) : null,
-            kistnummer: kistnummer ? String(kistnummer).trim().substring(0, 3) : null, // Max 3 characters
+            kistnummer: kistnummer ? String(kistnummer).trim().slice(-3) : null, // Last 3 characters
             divisie: divisie ? String(divisie).trim() : null,
             quantity: quantity ? Number(quantity) || 1 : 1,
           })
@@ -194,7 +194,7 @@ export default function AirtecPage() {
             <li><strong>Optional:</strong> <strong>Lot Number</strong> (or Lot/Lotnumber/Lotnummer), <strong>Date Sent</strong> (or Datum Opgestuurd/Datum), <strong>Box Number</strong> (or Kistnummer/Kist/Box), <strong>Division</strong> (or Divisie/Afdeling), <strong>Quantity</strong> (or Qty/Aantal/Amount)</li>
             <li>First row should contain column headers</li>
             <li>Each row represents one item to add</li>
-            <li>Box Number (Kistnummer) will be limited to 3 characters</li>
+            <li>Box Number (Kistnummer) will use the last 3 characters</li>
           </ul>
         </div>
       </div>
