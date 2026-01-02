@@ -13,6 +13,12 @@ import {
   ArrowRight
 } from 'lucide-react'
 
+type FeatureLink = {
+  href: string
+  label: string
+  step?: string
+}
+
 export default function Home() {
   const features = [
     {
@@ -25,7 +31,7 @@ export default function Home() {
         { href: '/view-prepack', label: 'View & Confirm Items', step: '2' },
         { href: '/confirmed-items', label: 'Confirmed Items (WMS)', step: '2a' },
         { href: '/wms-import', label: 'WMS Import (Status 30)', step: '2b' },
-      ]
+      ] as FeatureLink[]
     },
     {
       title: 'Packing Workflow',
@@ -35,7 +41,7 @@ export default function Home() {
       links: [
         { href: '/items-to-pack', label: 'Items to Pack', step: '3' },
         { href: '/packed-items', label: 'Packed Items', step: '4' },
-      ]
+      ] as FeatureLink[]
     },
     {
       title: 'Airtec Management',
@@ -47,7 +53,7 @@ export default function Home() {
         { href: '/view-airtec', label: 'View Airtec' },
         { href: '/items-to-pack-airtec', label: 'Items to Pack Airtec' },
         { href: '/packed-items-airtec', label: 'Packed Items Airtec' },
-      ]
+      ] as FeatureLink[]
     },
   ]
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 interface BoxReportModalProps {
   isOpen: boolean
@@ -26,13 +26,7 @@ export default function BoxReportModal({
   const [reportData, setReportData] = useState<BoxReportItem[]>([])
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchReport()
-    }
-  }, [isOpen, dateFrom, dateTo])
-
-  const fetchReport = async () => {
+  const fetchReport = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -54,7 +48,13 @@ export default function BoxReportModal({
     } finally {
       setLoading(false)
     }
-  }
+  }, [dateFrom, dateTo])
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchReport()
+    }
+  }, [isOpen, fetchReport])
 
   const totalQuantity = reportData.reduce((sum, item) => sum + item.total_quantity, 0)
 
