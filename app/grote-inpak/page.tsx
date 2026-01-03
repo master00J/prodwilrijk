@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useRef } from 'react'
-import { Upload, FileSpreadsheet, Database, RefreshCw, AlertCircle } from 'lucide-react'
+import { useState, useRef, useCallback } from 'react'
+import { Upload, Database, RefreshCw, AlertCircle } from 'lucide-react'
 import OverviewTab from '@/components/grote-inpak/OverviewTab'
 import ExecutiveDashboardTab from '@/components/grote-inpak/ExecutiveDashboardTab'
 import TransportTab from '@/components/grote-inpak/TransportTab'
@@ -16,14 +16,12 @@ export default function GroteInpakPage() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [dataLoaded, setDataLoaded] = useState(false)
   const [pilsFile, setPilsFile] = useState<File | null>(null)
-  const [erpFile, setErpFile] = useState<File | null>(null)
+  const [stockFiles, setStockFiles] = useState<File[]>([])
   const [error, setError] = useState<string | null>(null)
   const [overviewData, setOverviewData] = useState<any[]>([])
   const [transportData, setTransportData] = useState<any[]>([])
   const [dragActivePils, setDragActivePils] = useState(false)
-  const [dragActiveErp, setDragActiveErp] = useState(false)
   const pilsInputRef = useRef<HTMLInputElement>(null)
-  const erpInputRef = useRef<HTMLInputElement>(null)
 
   const tabs = [
     { id: 0, label: '📊 Executive Dashboard', icon: '📊' },
@@ -36,33 +34,35 @@ export default function GroteInpakPage() {
     { id: 7, label: '⏰ Backlog', icon: '⏰' },
   ]
 
-  const handleFileSelect = (type: 'pils' | 'erp', file: File | null) => {
+  const handleFileSelect = (type: 'pils', file: File | null) => {
     if (type === 'pils') {
       setPilsFile(file)
-    } else {
-      setErpFile(file)
     }
     setError(null)
   }
 
-  const handleDrag = (e: React.DragEvent, type: 'pils' | 'erp') => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (type === 'pils') {
-      setDragActivePils(e.type === 'dragenter' || e.type === 'dragover')
-    } else {
-      setDragActiveErp(e.type === 'dragenter' || e.type === 'dragover')
+  const handleStockFilesSelect = (files: FileList | null) => {
+    if (files) {
+      const fileArray = Array.from(files)
+      setStockFiles(fileArray)
+      setError(null)
     }
   }
 
-  const handleDrop = (e: React.DragEvent, type: 'pils' | 'erp') => {
+  const handleDrag = useCallback((e: React.DragEvent, type: 'pils') => {
     e.preventDefault()
     e.stopPropagation()
-    
+    const isActive = e.type === 'dragenter' || e.type === 'dragover'
+    if (type === 'pils') {
+      setDragActivePils(isActive)
+    }
+  }, [])
+
+  const handleDrop = useCallback((e: React.DragEvent, type: 'pils') => {
+    e.preventDefault()
+    e.stopPropagation()
     if (type === 'pils') {
       setDragActivePils(false)
-    } else {
-      setDragActiveErp(false)
     }
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
@@ -70,28 +70,22 @@ export default function GroteInpakPage() {
       const fileName = file.name.toLowerCase()
       
       // More flexible file type checking - accept files with .csv/.CSV in name
-      const isValidType = type === 'pils' 
-        ? fileName.includes('.csv') || fileName.endsWith('.csv')
-        : fileName.includes('.xlsx') || fileName.includes('.xls') || fileName.endsWith('.xlsx') || fileName.endsWith('.xls')
+      const isValidType = fileName.includes('.csv') || fileName.endsWith('.csv')
       
       // Also check MIME type as fallback (empty type is common for dragged files)
-      const isValidMimeType = type === 'pils'
-        ? file.type === 'text/csv' || file.type === 'application/vnd.ms-excel' || file.type === '' || !file.type
-        : file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
-          file.type === 'application/vnd.ms-excel' ||
-          file.type === '' || !file.type
+      const isValidMimeType = file.type === 'text/csv' || file.type === 'application/vnd.ms-excel' || file.type === '' || !file.type
       
       if (isValidType || isValidMimeType) {
         handleFileSelect(type, file)
       } else {
-        setError(`Ongeldig bestandstype. ${type === 'pils' ? 'Verwacht: .csv' : 'Verwacht: .xlsx of .xls'}. Bestand: ${file.name}`)
+        setError(`Ongeldig bestandstype. Verwacht: .csv. Bestand: ${file.name}`)
       }
     }
-  }
+  }, [handleFileSelect])
 
   const handleProcess = async () => {
-    if (!pilsFile || !erpFile) {
-      setError('Please upload both PILS CSV and ERP Excel files')
+    if (!pilsFile) {
+      setError('Please upload PILS CSV file')
       return
     }
 
@@ -116,22 +110,25 @@ export default function GroteInpakPage() {
 
       const pilsResult = await pilsResponse.json()
 
-      // Upload ERP file
-      const erpFormData = new FormData()
-      erpFormData.append('file', erpFile)
-      erpFormData.append('fileType', 'erp')
+      // Upload stock files if provided
+      let stockData: any[] = []
+      if (stockFiles.length > 0) {
+        const stockFormData = new FormData()
+        stockFiles.forEach(file => {
+          stockFormData.append('files', file)
+        })
+        stockFormData.append('fileType', 'stock')
 
-      const erpResponse = await fetch('/api/grote-inpak/upload', {
-        method: 'POST',
-        body: erpFormData,
-      })
+        const stockResponse = await fetch('/api/grote-inpak/upload-multiple', {
+          method: 'POST',
+          body: stockFormData,
+        })
 
-      if (!erpResponse.ok) {
-        const erpError = await erpResponse.json()
-        throw new Error(erpError.error || 'Error uploading ERP file')
+        if (stockResponse.ok) {
+          const stockResult = await stockResponse.json()
+          stockData = stockResult.data || []
+        }
       }
-
-      const erpResult = await erpResponse.json()
 
       // Process data
       const processResponse = await fetch('/api/grote-inpak/process', {
@@ -141,7 +138,7 @@ export default function GroteInpakPage() {
         },
         body: JSON.stringify({
           pilsData: pilsResult.data,
-          erpData: erpResult.data,
+          stockData: stockData,
         }),
       })
 
@@ -167,7 +164,7 @@ export default function GroteInpakPage() {
     setOverviewData([])
     setTransportData([])
     setPilsFile(null)
-    setErpFile(null)
+    setStockFiles([])
     setError(null)
   }
 
@@ -193,7 +190,7 @@ export default function GroteInpakPage() {
           </div>
         )}
 
-        <div className="grid md:grid-cols-2 gap-4 mb-4">
+        <div className="mb-4">
           <div
             className={`border-2 border-dashed rounded-lg p-6 text-center transition-all ${
               dragActivePils
@@ -234,63 +231,41 @@ export default function GroteInpakPage() {
               {pilsFile ? 'Wijzig Bestand' : 'Selecteer Bestand'}
             </label>
           </div>
-          <div
-            className={`border-2 border-dashed rounded-lg p-6 text-center transition-all ${
-              dragActiveErp
-                ? 'border-blue-500 bg-blue-50 scale-105'
-                : erpFile
-                ? 'border-green-400 bg-green-50'
-                : 'border-gray-300 hover:border-blue-400'
-            }`}
-            onDragEnter={(e) => handleDrag(e, 'erp')}
-            onDragLeave={(e) => handleDrag(e, 'erp')}
-            onDragOver={(e) => handleDrag(e, 'erp')}
-            onDrop={(e) => handleDrop(e, 'erp')}
-          >
-            <FileSpreadsheet className={`w-12 h-12 mx-auto mb-2 ${dragActiveErp ? 'text-blue-500' : 'text-gray-400'}`} />
-            <p className="font-medium mb-1">ERP Excel</p>
-            <p className="text-sm text-gray-500 mb-3">
-              {erpFile ? (
-                <span className="text-green-700 font-semibold">{erpFile.name}</span>
-              ) : (
-                <>
-                  Sleep bestand hierheen of<br />
-                  klik om te selecteren
-                </>
-              )}
-            </p>
+        </div>
+
+        {/* Stock Files Upload - Multiple files */}
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            📦 Stock Bestanden (Optioneel - Meerdere bestanden mogelijk)
+          </label>
+          <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
             <input
-              ref={erpInputRef}
               type="file"
-              accept=".xlsx,.xls,.XLSX,.XLS,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
-              className="hidden"
-              id="erp-upload"
-              onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file) {
-                  // More flexible validation - accept files with .xlsx/.xls in name
-                  const fileName = file.name.toLowerCase()
-                  if (fileName.includes('.xlsx') || fileName.includes('.xls') ||
-                      file.type.includes('spreadsheet') || file.type.includes('excel') || file.type === '' || !file.type) {
-                    handleFileSelect('erp', file)
-                  } else {
-                    setError(`Ongeldig bestandstype. Verwacht: .xlsx of .xls. Bestand: ${file.name}`)
-                  }
-                }
-              }}
+              accept=".xlsx,.xls"
+              multiple
+              className="w-full"
+              onChange={(e) => handleStockFilesSelect(e.target.files)}
             />
-            <label
-              htmlFor="erp-upload"
-              className="inline-block px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 cursor-pointer transition-colors"
-            >
-              {erpFile ? 'Wijzig Bestand' : 'Selecteer Bestand'}
-            </label>
+            {stockFiles.length > 0 && (
+              <div className="mt-3 space-y-1">
+                <p className="text-sm font-medium text-gray-700">Geselecteerde bestanden:</p>
+                <ul className="list-disc list-inside text-sm text-gray-600">
+                  {stockFiles.map((file, idx) => (
+                    <li key={idx}>{file.name}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <p className="text-xs text-gray-500 mt-2">
+              Upload meerdere Excel bestanden (bijv. Stock Genk.xlsx, Stock Willebroek.xlsx, Stock Wilrijk.xlsx)
+            </p>
           </div>
         </div>
+
         <div className="flex gap-4">
           <button
             onClick={handleProcess}
-            disabled={isProcessing || !pilsFile || !erpFile}
+            disabled={isProcessing || !pilsFile}
             className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg font-semibold hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
             {isProcessing ? (

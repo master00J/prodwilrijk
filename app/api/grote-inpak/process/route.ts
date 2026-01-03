@@ -6,15 +6,15 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { pilsData, erpData, stockData } = body
 
-    if (!pilsData || !erpData) {
+    if (!pilsData) {
       return NextResponse.json(
-        { error: 'PILS and ERP data are required' },
+        { error: 'PILS data is required' },
         { status: 400 }
       )
     }
 
-    // Process and build overview
-    const overview = await buildOverview(pilsData, erpData, stockData || [])
+    // Process and build overview (ERP is optional)
+    const overview = await buildOverview(pilsData, erpData || [], stockData || [])
     const transport = await buildTransport(overview)
 
     // Save to database
@@ -215,12 +215,17 @@ async function saveTransportToDatabase(transport: any[]) {
 }
 
 async function saveStockToDatabase(stockData: any[]) {
-  // Upsert stock data
+  // Upsert stock data - use item_number + location as unique key
   for (const item of stockData) {
     await supabaseAdmin
       .from('grote_inpak_stock')
-      .upsert(item, {
-        onConflict: 'item_number',
+      .upsert({
+        item_number: item.item_number,
+        location: item.location,
+        quantity: item.quantity || 0,
+        erp_code: item.erp_code || null,
+      }, {
+        onConflict: 'item_number,location',
         ignoreDuplicates: false,
       })
   }

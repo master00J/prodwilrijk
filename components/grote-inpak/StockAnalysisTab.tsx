@@ -37,16 +37,18 @@ export default function StockAnalysisTab() {
   }, [loadStock])
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
+    const files = event.target.files
+    if (!files || files.length === 0) return
 
     setLoading(true)
     try {
       const formData = new FormData()
-      formData.append('file', file)
+      Array.from(files).forEach(file => {
+        formData.append('files', file)
+      })
       formData.append('fileType', 'stock')
 
-      const uploadResponse = await fetch('/api/grote-inpak/upload', {
+      const uploadResponse = await fetch('/api/grote-inpak/upload-multiple', {
         method: 'POST',
         body: formData,
       })
@@ -54,14 +56,33 @@ export default function StockAnalysisTab() {
       if (uploadResponse.ok) {
         const result = await uploadResponse.json()
         
-        // Save to database via process endpoint or direct API
-        // For now, reload to show updated data
-        await loadStock()
-        alert('Stock data successfully uploaded!')
+        // Save to database
+        if (result.data && result.data.length > 0) {
+          const saveResponse = await fetch('/api/grote-inpak/stock', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ stockData: result.data }),
+          })
+
+          if (saveResponse.ok) {
+            await loadStock()
+            alert(`Successfully uploaded ${result.filesProcessed || files.length} stock file(s)!`)
+          } else {
+            throw new Error('Failed to save stock data')
+          }
+        } else {
+          await loadStock()
+          alert('Stock files processed, but no data found')
+        }
+      } else {
+        const error = await uploadResponse.json()
+        throw new Error(error.error || 'Failed to upload stock files')
       }
-    } catch (error) {
-      console.error('Error uploading stock file:', error)
-      alert('Error uploading stock file')
+    } catch (error: any) {
+      console.error('Error uploading stock files:', error)
+      alert(`Error uploading stock files: ${error.message || 'Unknown error'}`)
     } finally {
       setLoading(false)
     }
@@ -129,7 +150,9 @@ export default function StockAnalysisTab() {
               <input
                 type="file"
                 accept=".csv,.xlsx,.xls"
+                multiple
                 className="hidden"
+                id="stock-upload"
                 onChange={handleFileUpload}
               />
             </label>
