@@ -114,16 +114,22 @@ async function buildOverview(
       arrivalDate = formatDate(arrivalDate)
     }
     
-    const productielocatie = pilsRow['Productielocatie'] || pilsRow['productielocatie'] || pilsRow['Location'] || pilsRow['PRODUCTIELOCATIE'] || ''
+    // Get ERP data first - this contains the productielocatie
+    const erpInfo = erpMap.get(itemNumber) || {}
+    
+    // Productielocatie comes from ERP LINK file, fallback to PILS if not available
+    const productielocatie = erpInfo.productielocatie || 
+                             pilsRow['Productielocatie'] || 
+                             pilsRow['productielocatie'] || 
+                             pilsRow['Location'] || 
+                             pilsRow['PRODUCTIELOCATIE'] || ''
+    
     const locatie = pilsRow['Locatie'] || pilsRow['locatie'] || pilsRow['LOCATIE'] || ''
     const stockLocation = pilsRow['Stock Location'] || pilsRow['stock_location'] || pilsRow['STOCK LOCATION'] || pilsRow['STOCK_LOCATION'] || ''
 
     // IN WB is only "Ja" if the case (kist) has stock in Willebroek according to stock files
     // We only check the stock files, not the PILS file location
     const inWillebroek = itemNumber ? hasStockInWillebroek(itemNumber) : false
-
-    // Get ERP data
-    const erpInfo = erpMap.get(itemNumber) || {}
 
     // Get stock data for this item (all locations)
     const stockEntries = stockMapByItem.get(itemNumber) || []

@@ -236,9 +236,10 @@ async function parseERPExcel(workbook: XLSX.WorkBook): Promise<any[]> {
 
   return data.map((row: any) => {
     return {
-      item_number: findValue(row, ['Item Number', 'item_number', 'Item', 'Artikel', 'ARTIKEL', 'ItemNr']),
+      item_number: findValue(row, ['Item Number', 'item_number', 'Item', 'Artikel', 'ARTIKEL', 'ItemNr', 'ItemNr.', 'Item Nr']),
       erp_code: findValue(row, ['ERP Code', 'erp_code', 'ERP', 'ERPCode', 'ERP_CODE']),
       description: findValue(row, ['Description', 'description', 'Omschrijving', 'DESCRIPTION', 'Desc']),
+      productielocatie: findValue(row, ['Productielocatie', 'productielocatie', 'Productie Locatie', 'ProductieLocatie', 'PRODUCTIELOCATIE', 'Location', 'location', 'Locatie', 'locatie', 'LOCATIE', 'Production Location', 'production_location']),
       // Store all original data for flexibility
       ...row,
     }

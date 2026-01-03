@@ -16,13 +16,16 @@ export default function GroteInpakPage() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [dataLoaded, setDataLoaded] = useState(false)
   const [pilsFile, setPilsFile] = useState<File | null>(null)
+  const [erpLinkFile, setErpLinkFile] = useState<File | null>(null)
   const [stockFiles, setStockFiles] = useState<File[]>([])
   const [error, setError] = useState<string | null>(null)
   const [overviewData, setOverviewData] = useState<any[]>([])
   const [transportData, setTransportData] = useState<any[]>([])
   const [dragActivePils, setDragActivePils] = useState(false)
+  const [dragActiveErpLink, setDragActiveErpLink] = useState(false)
   const [dragActiveStock, setDragActiveStock] = useState(false)
   const pilsInputRef = useRef<HTMLInputElement>(null)
+  const erpLinkInputRef = useRef<HTMLInputElement>(null)
   const stockInputRef = useRef<HTMLInputElement>(null)
 
   const tabs = [
@@ -36,12 +39,14 @@ export default function GroteInpakPage() {
     { id: 7, label: '⏰ Backlog', icon: '⏰' },
   ]
 
-  const handleFileSelect = (type: 'pils', file: File | null) => {
+  const handleFileSelect = useCallback((type: 'pils' | 'erplink', file: File | null) => {
     if (type === 'pils') {
       setPilsFile(file)
+    } else if (type === 'erplink') {
+      setErpLinkFile(file)
     }
     setError(null)
-  }
+  }, [])
 
   const handleStockFilesSelect = (files: FileList | null) => {
     if (files) {
@@ -96,36 +101,54 @@ export default function GroteInpakPage() {
     }
   }, [])
 
-  const handleDrag = useCallback((e: React.DragEvent, type: 'pils') => {
+  const handleDrag = useCallback((e: React.DragEvent, type: 'pils' | 'erplink') => {
     e.preventDefault()
     e.stopPropagation()
     const isActive = e.type === 'dragenter' || e.type === 'dragover'
     if (type === 'pils') {
       setDragActivePils(isActive)
+    } else if (type === 'erplink') {
+      setDragActiveErpLink(isActive)
     }
   }, [])
 
-  const handleDrop = useCallback((e: React.DragEvent, type: 'pils') => {
+  const handleDrop = useCallback((e: React.DragEvent, type: 'pils' | 'erplink') => {
     e.preventDefault()
     e.stopPropagation()
     if (type === 'pils') {
       setDragActivePils(false)
+    } else if (type === 'erplink') {
+      setDragActiveErpLink(false)
     }
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const file = e.dataTransfer.files[0]
       const fileName = file.name.toLowerCase()
       
-      // More flexible file type checking - accept files with .csv/.CSV in name
-      const isValidType = fileName.includes('.csv') || fileName.endsWith('.csv')
-      
-      // Also check MIME type as fallback (empty type is common for dragged files)
-      const isValidMimeType = file.type === 'text/csv' || file.type === 'application/vnd.ms-excel' || file.type === '' || !file.type
-      
-      if (isValidType || isValidMimeType) {
-        handleFileSelect(type, file)
-      } else {
-        setError(`Ongeldig bestandstype. Verwacht: .csv. Bestand: ${file.name}`)
+      if (type === 'pils') {
+        // More flexible file type checking - accept files with .csv/.CSV in name
+        const isValidType = fileName.includes('.csv') || fileName.endsWith('.csv')
+        
+        // Also check MIME type as fallback (empty type is common for dragged files)
+        const isValidMimeType = file.type === 'text/csv' || file.type === 'application/vnd.ms-excel' || file.type === '' || !file.type
+        
+        if (isValidType || isValidMimeType) {
+          handleFileSelect(type, file)
+        } else {
+          setError(`Ongeldig bestandstype. Verwacht: .csv. Bestand: ${file.name}`)
+        }
+      } else if (type === 'erplink') {
+        // Validate Excel files for ERP LINK
+        const isValidType = fileName.includes('.xlsx') || fileName.includes('.xls') || 
+                           fileName.endsWith('.xlsx') || fileName.endsWith('.xls')
+        const isValidMimeType = file.type.includes('spreadsheet') || file.type.includes('excel') || 
+                               file.type === '' || !file.type
+        
+        if (isValidType || isValidMimeType) {
+          handleFileSelect(type, file)
+        } else {
+          setError(`Ongeldig bestandstype. Verwacht: .xlsx of .xls. Bestand: ${file.name}`)
+        }
       }
     }
   }, [handleFileSelect])
@@ -157,6 +180,24 @@ export default function GroteInpakPage() {
 
       const pilsResult = await pilsResponse.json()
 
+      // Upload ERP LINK file if provided
+      let erpData: any[] = []
+      if (erpLinkFile) {
+        const erpFormData = new FormData()
+        erpFormData.append('file', erpLinkFile)
+        erpFormData.append('fileType', 'erp')
+
+        const erpResponse = await fetch('/api/grote-inpak/upload', {
+          method: 'POST',
+          body: erpFormData,
+        })
+
+        if (erpResponse.ok) {
+          const erpResult = await erpResponse.json()
+          erpData = erpResult.data || []
+        }
+      }
+
       // Upload stock files if provided
       let stockData: any[] = []
       if (stockFiles.length > 0) {
@@ -185,6 +226,7 @@ export default function GroteInpakPage() {
         },
         body: JSON.stringify({
           pilsData: pilsResult.data,
+          erpData: erpData,
           stockData: stockData,
         }),
       })
@@ -240,6 +282,7 @@ export default function GroteInpakPage() {
     setOverviewData([])
     setTransportData([])
     setPilsFile(null)
+    setErpLinkFile(null)
     setStockFiles([])
     setError(null)
     // Reload from database
@@ -308,6 +351,65 @@ export default function GroteInpakPage() {
             >
               {pilsFile ? 'Wijzig Bestand' : 'Selecteer Bestand'}
             </label>
+          </div>
+        </div>
+
+        {/* ERP LINK Upload */}
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            🔗 ERP LINK Excel (Optioneel - Productielocatie)
+          </label>
+          <div
+            className={`border-2 border-dashed rounded-lg p-6 text-center transition-all ${
+              dragActiveErpLink
+                ? 'border-purple-500 bg-purple-50 scale-105'
+                : erpLinkFile
+                ? 'border-green-400 bg-green-50'
+                : 'border-gray-300 hover:border-purple-400'
+            }`}
+            onDragEnter={(e) => handleDrag(e, 'erplink')}
+            onDragLeave={(e) => handleDrag(e, 'erplink')}
+            onDragOver={(e) => handleDrag(e, 'erplink')}
+            onDrop={(e) => handleDrop(e, 'erplink')}
+          >
+            <Upload className={`w-12 h-12 mx-auto mb-2 ${dragActiveErpLink ? 'text-purple-500' : 'text-gray-400'}`} />
+            <p className="font-medium mb-1">ERP LINK Excel</p>
+            {erpLinkFile ? (
+              <div className="mt-3">
+                <p className="text-sm font-medium text-gray-700 mb-2">Geselecteerd bestand:</p>
+                <p className="text-sm text-green-700 font-semibold">{erpLinkFile.name}</p>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 mb-3">
+                Sleep bestand hierheen of<br />
+                klik om te selecteren
+              </p>
+            )}
+            <input
+              ref={erpLinkInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              id="erplink-upload"
+              onChange={(e) => handleFileSelect('erplink', e.target.files?.[0] || null)}
+            />
+            <label
+              htmlFor="erplink-upload"
+              className="inline-block px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 cursor-pointer transition-colors"
+            >
+              {erpLinkFile ? 'Wijzig Bestand' : 'Selecteer Bestand'}
+            </label>
+            {erpLinkFile && (
+              <button
+                onClick={() => handleFileSelect('erplink', null)}
+                className="ml-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+              >
+                Verwijder
+              </button>
+            )}
+            <p className="text-xs text-gray-500 mt-2">
+              Upload ERP LINK Excel bestand om productielocatie te bepalen
+            </p>
           </div>
         </div>
 
