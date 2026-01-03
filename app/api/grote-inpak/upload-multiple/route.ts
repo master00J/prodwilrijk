@@ -31,13 +31,13 @@ export async function POST(request: NextRequest) {
 
     // For stock files, save directly to database instead of returning all data
     // This avoids 413 errors with large files
+    // Process each file individually and overwrite stock for that specific location
     if (fileType === 'stock') {
       let totalProcessed = 0
       let filesProcessed = 0
       const errors: string[] = []
-      const allProcessedData: any[] = []
 
-      // First, process all files to collect all stock data
+      // Process each file individually to avoid 413 errors
       for (const file of files) {
         try {
           // Log file upload
@@ -58,9 +58,36 @@ export async function POST(request: NextRequest) {
           const processedData = await parseStockExcel(workbook, location)
 
           if (processedData.length > 0) {
-            allProcessedData.push(...processedData)
-            totalProcessed += processedData.length
-            filesProcessed++
+            // Delete existing stock for this specific location first
+            const { error: deleteError } = await supabaseAdmin
+              .from('grote_inpak_stock')
+              .delete()
+              .eq('location', location)
+
+            if (deleteError) {
+              console.error(`Error deleting existing stock for ${location}:`, deleteError)
+              errors.push(`${file.name}: Error deleting existing stock for ${location}: ${deleteError.message}`)
+            } else {
+              // Insert new stock data for this location
+              const { error: insertError } = await supabaseAdmin
+                .from('grote_inpak_stock')
+                .insert(
+                  processedData.map(item => ({
+                    item_number: item.item_number,
+                    location: item.location,
+                    quantity: item.quantity,
+                    erp_code: item.erp_code || null,
+                  }))
+                )
+
+              if (insertError) {
+                console.error(`Error saving stock data for ${file.name}:`, insertError)
+                errors.push(`${file.name}: ${insertError.message}`)
+              } else {
+                totalProcessed += processedData.length
+                filesProcessed++
+              }
+            }
           }
 
           // Update upload log
@@ -76,42 +103,6 @@ export async function POST(request: NextRequest) {
         } catch (fileError: any) {
           console.error(`Error processing file ${file.name}:`, fileError)
           errors.push(`${file.name}: ${fileError.message}`)
-        }
-      }
-
-      // After processing all files, delete all existing stock and insert new data
-      if (allProcessedData.length > 0) {
-        try {
-          // Delete all existing stock data to completely overwrite
-          const { error: deleteError } = await supabaseAdmin
-            .from('grote_inpak_stock')
-            .delete()
-            .neq('id', 0) // Delete all records
-
-          if (deleteError) {
-            console.error('Error deleting existing stock:', deleteError)
-            errors.push(`Error deleting existing stock: ${deleteError.message}`)
-          } else {
-            // Insert all new stock data
-            const { error: insertError } = await supabaseAdmin
-              .from('grote_inpak_stock')
-              .insert(
-                allProcessedData.map(item => ({
-                  item_number: item.item_number,
-                  location: item.location,
-                  quantity: item.quantity,
-                  erp_code: item.erp_code || null,
-                }))
-              )
-
-            if (insertError) {
-              console.error('Error saving new stock data:', insertError)
-              errors.push(`Error saving stock data: ${insertError.message}`)
-            }
-          }
-        } catch (dbError: any) {
-          console.error('Error replacing stock data:', dbError)
-          errors.push(`Error replacing stock data: ${dbError.message}`)
         }
       }
 
