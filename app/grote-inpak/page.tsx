@@ -197,23 +197,30 @@ export default function GroteInpakPage() {
         }
       }
 
-      // Upload stock files if provided
-      // Stock files are now saved directly to database, so we don't need to return the data
+      // Upload stock files if provided - upload one by one to avoid 413 errors
       if (stockFiles.length > 0) {
-        const stockFormData = new FormData()
-        stockFiles.forEach(file => {
+        for (const file of stockFiles) {
+          const stockFormData = new FormData()
           stockFormData.append('files', file)
-        })
-        stockFormData.append('fileType', 'stock')
+          stockFormData.append('fileType', 'stock')
 
-        const stockResponse = await fetch('/api/grote-inpak/upload-multiple', {
-          method: 'POST',
-          body: stockFormData,
-        })
+          const stockResponse = await fetch('/api/grote-inpak/upload-multiple', {
+            method: 'POST',
+            body: stockFormData,
+          })
 
-        if (!stockResponse.ok) {
-          const stockError = await stockResponse.json()
-          throw new Error(stockError.error || 'Error uploading stock files')
+          if (!stockResponse.ok) {
+            // Try to parse error, but handle non-JSON responses
+            let errorMessage = 'Error uploading stock file'
+            try {
+              const stockError = await stockResponse.json()
+              errorMessage = stockError.error || errorMessage
+            } catch {
+              // If response is not JSON (e.g., HTML error page), use status text
+              errorMessage = `Error uploading ${file.name}: ${stockResponse.status} ${stockResponse.statusText}`
+            }
+            throw new Error(errorMessage)
+          }
         }
       }
 
@@ -243,8 +250,15 @@ export default function GroteInpakPage() {
       })
 
       if (!processResponse.ok) {
-        const processError = await processResponse.json()
-        throw new Error(processError.error || 'Error processing data')
+        let errorMessage = 'Error processing data'
+        try {
+          const processError = await processResponse.json()
+          errorMessage = processError.error || errorMessage
+        } catch {
+          // If response is not JSON (e.g., HTML error page), use status text
+          errorMessage = `Error processing data: ${processResponse.status} ${processResponse.statusText}`
+        }
+        throw new Error(errorMessage)
       }
 
       const processResult = await processResponse.json()

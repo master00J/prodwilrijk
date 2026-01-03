@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import * as XLSX from 'xlsx'
 
+// Increase body size limit for Vercel
+export const maxDuration = 60
+export const runtime = 'nodejs'
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
@@ -12,6 +16,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'No files provided' },
         { status: 400 }
+      )
+    }
+
+    // Check total size to prevent 413 errors
+    const totalSize = files.reduce((sum, file) => sum + file.size, 0)
+    const MAX_SIZE = 4 * 1024 * 1024 // 4MB limit per request
+    if (totalSize > MAX_SIZE && files.length > 1) {
+      return NextResponse.json(
+        { error: `Total file size too large (${Math.round(totalSize / 1024 / 1024)}MB). Please upload files one at a time.` },
+        { status: 413 }
       )
     }
 
