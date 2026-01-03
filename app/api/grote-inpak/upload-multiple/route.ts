@@ -59,20 +59,40 @@ export async function POST(request: NextRequest) {
 
           if (processedData.length > 0) {
             // Delete existing stock for this specific location first
-            const { error: deleteError } = await supabaseAdmin
+            const { error: deleteError, count: deleteCount } = await supabaseAdmin
               .from('grote_inpak_stock')
               .delete()
               .eq('location', location)
+              .select('*', { count: 'exact', head: true })
 
             if (deleteError) {
               console.error(`Error deleting existing stock for ${location}:`, deleteError)
               errors.push(`${file.name}: Error deleting existing stock for ${location}: ${deleteError.message}`)
             } else {
+              console.log(`Deleted ${deleteCount || 0} existing stock records for location ${location}`)
+              
+              // Remove duplicates by item_number before inserting (in case Excel has duplicate rows)
+              const uniqueData = new Map<string, any>()
+              for (const item of processedData) {
+                const key = `${item.item_number}_${item.location}`
+                if (uniqueData.has(key)) {
+                  // If duplicate, sum the quantities
+                  const existing = uniqueData.get(key)
+                  existing.quantity += item.quantity
+                  console.log(`Found duplicate item ${item.item_number} in ${location}, summing quantities: ${existing.quantity - item.quantity} + ${item.quantity} = ${existing.quantity}`)
+                } else {
+                  uniqueData.set(key, { ...item })
+                }
+              }
+              
+              const uniqueDataArray = Array.from(uniqueData.values())
+              console.log(`Inserting ${uniqueDataArray.length} unique stock items for location ${location} (${processedData.length} total rows parsed)`)
+              
               // Insert new stock data for this location
               const { error: insertError } = await supabaseAdmin
                 .from('grote_inpak_stock')
                 .insert(
-                  processedData.map(item => ({
+                  uniqueDataArray.map(item => ({
                     item_number: item.item_number,
                     location: item.location,
                     quantity: item.quantity,
@@ -84,8 +104,9 @@ export async function POST(request: NextRequest) {
                 console.error(`Error saving stock data for ${file.name}:`, insertError)
                 errors.push(`${file.name}: ${insertError.message}`)
               } else {
-                totalProcessed += processedData.length
+                totalProcessed += uniqueDataArray.length
                 filesProcessed++
+                console.log(`Successfully saved ${uniqueDataArray.length} stock items for location ${location}`)
               }
             }
           }
