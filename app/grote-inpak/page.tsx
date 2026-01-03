@@ -67,14 +67,24 @@ export default function GroteInpakPage() {
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const file = e.dataTransfer.files[0]
-      const isValidType = type === 'pils' 
-        ? file.name.endsWith('.csv')
-        : file.name.endsWith('.xlsx') || file.name.endsWith('.xls')
+      const fileName = file.name.toLowerCase()
       
-      if (isValidType) {
+      // More flexible file type checking - accept files with .csv/.CSV in name
+      const isValidType = type === 'pils' 
+        ? fileName.includes('.csv') || fileName.endsWith('.csv')
+        : fileName.includes('.xlsx') || fileName.includes('.xls') || fileName.endsWith('.xlsx') || fileName.endsWith('.xls')
+      
+      // Also check MIME type as fallback (empty type is common for dragged files)
+      const isValidMimeType = type === 'pils'
+        ? file.type === 'text/csv' || file.type === 'application/vnd.ms-excel' || file.type === '' || !file.type
+        : file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+          file.type === 'application/vnd.ms-excel' ||
+          file.type === '' || !file.type
+      
+      if (isValidType || isValidMimeType) {
         handleFileSelect(type, file)
       } else {
-        setError(`Ongeldig bestandstype. ${type === 'pils' ? 'Verwacht: .csv' : 'Verwacht: .xlsx of .xls'}`)
+        setError(`Ongeldig bestandstype. ${type === 'pils' ? 'Verwacht: .csv' : 'Verwacht: .xlsx of .xls'}. Bestand: ${file.name}`)
       }
     }
   }
@@ -252,10 +262,22 @@ export default function GroteInpakPage() {
             <input
               ref={erpInputRef}
               type="file"
-              accept=".xlsx,.xls"
+              accept=".xlsx,.xls,.XLSX,.XLS,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
               className="hidden"
               id="erp-upload"
-              onChange={(e) => handleFileSelect('erp', e.target.files?.[0] || null)}
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) {
+                  // More flexible validation - accept files with .xlsx/.xls in name
+                  const fileName = file.name.toLowerCase()
+                  if (fileName.includes('.xlsx') || fileName.includes('.xls') ||
+                      file.type.includes('spreadsheet') || file.type.includes('excel') || file.type === '' || !file.type) {
+                    handleFileSelect('erp', file)
+                  } else {
+                    setError(`Ongeldig bestandstype. Verwacht: .xlsx of .xls. Bestand: ${file.name}`)
+                  }
+                }
+              }}
             />
             <label
               htmlFor="erp-upload"
