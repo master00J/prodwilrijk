@@ -251,8 +251,7 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string): Promi
   const sheetName = workbook.SheetNames[0]
   const worksheet = workbook.Sheets[sheetName]
   
-  // Read data with header row to get column structure
-  // Then read by Excel column letters (A, B, C, etc.)
+  // Read by Excel column letters: A = item_number, C = quantity
   const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
   
   const results: any[] = []
@@ -269,18 +268,16 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string): Promi
       continue
     }
     
-    // Column C (index 2) = quantity
+    // Column C (index 2) = quantity - ONLY look at column C
     const colC = XLSX.utils.encode_cell({ r: rowNum, c: 2 })
     const quantityCell = worksheet[colC]
     let quantity = 0
     
     if (quantityCell) {
-      // Handle different cell types (number, string, etc.)
       const cellValue = quantityCell.v
       if (typeof cellValue === 'number') {
-        quantity = Math.floor(cellValue) // Use floor to handle decimals
+        quantity = Math.floor(cellValue)
       } else if (typeof cellValue === 'string') {
-        // Remove commas and parse
         const cleanStr = cellValue.replace(/,/g, '').trim()
         quantity = parseInt(cleanStr, 10) || 0
       } else {
@@ -292,14 +289,13 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string): Promi
     if (itemNumber && quantity > 0) {
       results.push({
         item_number: itemNumber,
-        location: location, // Use extracted location from filename
+        location: location,
         quantity: quantity,
-        erp_code: itemNumber, // Use item_number as erp_code (they're the same in column A)
+        erp_code: itemNumber,
       })
     }
   }
   
-  // Log for debugging
   console.log(`Parsed ${results.length} stock items for location ${location}`)
   if (results.length > 0) {
     console.log(`Sample items:`, results.slice(0, 3).map(r => `${r.item_number}: ${r.quantity}`))
