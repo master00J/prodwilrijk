@@ -54,13 +54,27 @@ async function buildOverview(
     }
   })
 
-  // Create stock lookup map
-  const stockMap = new Map()
+  // Create stock lookup map - group by item_number and location
+  // We need to check if there's stock in Willebroek for each item
+  const stockMapByItem = new Map<string, any[]>() // item_number -> array of stock entries
   stockData.forEach((item: any) => {
     if (item.item_number) {
-      stockMap.set(item.item_number, item)
+      if (!stockMapByItem.has(item.item_number)) {
+        stockMapByItem.set(item.item_number, [])
+      }
+      stockMapByItem.get(item.item_number)!.push(item)
     }
   })
+  
+  // Helper function to check if item has stock in Willebroek
+  const hasStockInWillebroek = (itemNumber: string): boolean => {
+    const stockEntries = stockMapByItem.get(itemNumber) || []
+    // Check if any stock entry has location "Willebroek" (case-insensitive)
+    return stockEntries.some((entry: any) => {
+      const location = String(entry.location || '').toLowerCase()
+      return location.includes('willebroek') || location === 'wlb' || location === 'pac3pl'
+    })
+  }
 
   // Process PILS data
   const overview: any[] = []
@@ -104,14 +118,16 @@ async function buildOverview(
     const locatie = pilsRow['Locatie'] || pilsRow['locatie'] || pilsRow['LOCATIE'] || ''
     const stockLocation = pilsRow['Stock Location'] || pilsRow['stock_location'] || pilsRow['STOCK LOCATION'] || pilsRow['STOCK_LOCATION'] || ''
 
-    // Check if in Willebroek (PAC3PL)
-    const inWillebroek = locatie?.toUpperCase() === 'PAC3PL' || stockLocation?.toUpperCase() === 'PAC3PL'
+    // Check if in Willebroek - ONLY if there's stock in Willebroek according to stock files
+    // This is the key change: we check the stock data, not just the PILS location
+    const inWillebroek = itemNumber ? hasStockInWillebroek(itemNumber) : false
 
     // Get ERP data
     const erpInfo = erpMap.get(itemNumber) || {}
 
-    // Get stock data
-    const stockInfo = stockMap.get(itemNumber) || {}
+    // Get stock data for this item (all locations)
+    const stockEntries = stockMapByItem.get(itemNumber) || []
+    const stockInfo = stockEntries.length > 0 ? stockEntries[0] : {} // Use first entry as reference
 
     // Calculate term based on case type
     const termWerkdagen = calculateTerm(caseType)
@@ -148,7 +164,14 @@ async function buildOverview(
       item_number: itemNumber || null,
       productielocatie: productielocatie || null,
       in_willebroek: inWillebroek,
-      stock_location: stockLocation || stockInfo.location || null,
+      stock_location: (() => {
+        // Get stock location from stock data if available
+        const willebroekStock = stockEntries.find((e: any) => {
+          const loc = String(e.location || '').toLowerCase()
+          return loc.includes('willebroek') || loc === 'wlb' || loc === 'pac3pl'
+        })
+        return willebroekStock?.location || stockLocation || stockEntries[0]?.location || null
+      })(),
       locatie: locatie || null,
       status: null,
       priority: false,
