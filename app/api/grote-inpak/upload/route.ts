@@ -181,9 +181,15 @@ async function parsePILSCSV(csvText: string): Promise<any[]> {
       if (stockLocationIdx >= 0) row.stock_location = values[stockLocationIdx] || ''
       
       // Also store all original columns for flexibility
+      // This ensures we can access columns by their original names or by index
       headers.forEach((header, index) => {
         if (!row[header]) {
           row[header] = values[index] || ''
+        }
+        // Also store by column letter (A, B, C, etc.) for Excel-like access
+        const columnLetter = String.fromCharCode(65 + index) // A=0, B=1, etc.
+        if (index < 26) {
+          row[columnLetter] = values[index] || ''
         }
       })
       

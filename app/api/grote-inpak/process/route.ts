@@ -73,11 +73,29 @@ async function buildOverview(
     const itemNumber = pilsRow['Item Number'] || pilsRow['item_number'] || pilsRow['Item'] || pilsRow['ITEM NUMBER'] || pilsRow['ITEM_NUMBER'] || ''
     
     // Extract arrival_date - try all possible variations and format it properly
+    // First try known column names
     let arrivalDate = pilsRow['Arrival Date'] || pilsRow['arrival_date'] || pilsRow['Date'] || 
                       pilsRow['ARRIVAL DATE'] || pilsRow['ARRIVAL_DATE'] || pilsRow['Datum'] || 
                       pilsRow['datum'] || pilsRow['DATUM'] || ''
     
-    // Format date if it exists - handle various date formats
+    // If not found, try column I (9th column, index 8) - common location for dates in PILS files
+    if (!arrivalDate && pilsRow['I']) {
+      arrivalDate = pilsRow['I']
+    }
+    
+    // If still not found, try to find any column with YYYYMMDD format (8 digits like 20251218)
+    if (!arrivalDate) {
+      for (const key in pilsRow) {
+        const value = String(pilsRow[key] || '').trim()
+        // Check if it's an 8-digit number (YYYYMMDD format)
+        if (/^\d{8}$/.test(value)) {
+          arrivalDate = value
+          break
+        }
+      }
+    }
+    
+    // Format date if it exists - handle various date formats (including YYYYMMDD)
     if (arrivalDate) {
       arrivalDate = formatDate(arrivalDate)
     }
@@ -193,12 +211,28 @@ function formatDate(dateString: string): string {
       date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`)
     }
   }
-  // Try YYYYMMDD
-  else if (/^\d{8}$/.test(dateString)) {
-    const year = dateString.substring(0, 4)
-    const month = dateString.substring(4, 6)
-    const day = dateString.substring(6, 8)
-    date = new Date(`${year}-${month}-${day}`)
+  // Try YYYYMMDD (8 digits, e.g., 20251218)
+  else if (/^\d{8}$/.test(dateString.trim())) {
+    const cleanDate = dateString.trim()
+    const year = cleanDate.substring(0, 4)
+    const month = cleanDate.substring(4, 6)
+    const day = cleanDate.substring(6, 8)
+    // Validate month and day ranges
+    const monthNum = parseInt(month, 10)
+    const dayNum = parseInt(day, 10)
+    if (monthNum >= 1 && monthNum <= 12 && dayNum >= 1 && dayNum <= 31) {
+      date = new Date(`${year}-${month}-${day}`)
+      // Double check the date is valid (handles invalid dates like Feb 30)
+      if (date.getFullYear() !== parseInt(year, 10) || 
+          date.getMonth() + 1 !== monthNum || 
+          date.getDate() !== dayNum) {
+        console.warn(`Invalid date: ${dateString} (parsed as ${year}-${month}-${day})`)
+        return ''
+      }
+    } else {
+      console.warn(`Invalid date range: ${dateString}`)
+      return ''
+    }
   }
   // Try default Date parsing
   else {
