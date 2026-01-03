@@ -9,6 +9,7 @@ export default function StockAnalysisTab() {
   const [loading, setLoading] = useState(false)
   const [locationFilter, setLocationFilter] = useState('Alle')
   const [searchQuery, setSearchQuery] = useState('')
+  const [dragActive, setDragActive] = useState(false)
 
   const loadStock = useCallback(async () => {
     setLoading(true)
@@ -101,16 +102,38 @@ export default function StockAnalysisTab() {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">📊 Stock Analyse</h2>
         <div className="flex gap-2">
-          <label className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 cursor-pointer transition-colors">
+          <div
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer transition-all ${
+              dragActive
+                ? 'bg-blue-600 scale-105'
+                : 'bg-blue-500 hover:bg-blue-600'
+            } text-white`}
+            onDragEnter={(e) => { e.preventDefault(); setDragActive(true) }}
+            onDragLeave={(e) => { e.preventDefault(); setDragActive(false) }}
+            onDragOver={(e) => { e.preventDefault() }}
+            onDrop={(e) => {
+              e.preventDefault()
+              setDragActive(false)
+              if (e.dataTransfer.files?.[0]) {
+                const file = e.dataTransfer.files[0]
+                if (file.name.endsWith('.csv') || file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+                  const event = { target: { files: [file] } } as any
+                  handleFileUpload(event)
+                }
+              }
+            }}
+          >
             <Upload className="w-4 h-4" />
-            Upload Stock File
-            <input
-              type="file"
-              accept=".csv,.xlsx,.xls"
-              className="hidden"
-              onChange={handleFileUpload}
-            />
-          </label>
+            <label className="cursor-pointer">
+              {dragActive ? 'Drop hier!' : 'Upload Stock File'}
+              <input
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                className="hidden"
+                onChange={handleFileUpload}
+              />
+            </label>
+          </div>
           <button
             onClick={handleExport}
             className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"

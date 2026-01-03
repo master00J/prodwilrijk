@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Upload, FileSpreadsheet, Database, RefreshCw, AlertCircle } from 'lucide-react'
 import OverviewTab from '@/components/grote-inpak/OverviewTab'
 import ExecutiveDashboardTab from '@/components/grote-inpak/ExecutiveDashboardTab'
@@ -20,6 +20,10 @@ export default function GroteInpakPage() {
   const [error, setError] = useState<string | null>(null)
   const [overviewData, setOverviewData] = useState<any[]>([])
   const [transportData, setTransportData] = useState<any[]>([])
+  const [dragActivePils, setDragActivePils] = useState(false)
+  const [dragActiveErp, setDragActiveErp] = useState(false)
+  const pilsInputRef = useRef<HTMLInputElement>(null)
+  const erpInputRef = useRef<HTMLInputElement>(null)
 
   const tabs = [
     { id: 0, label: '📊 Executive Dashboard', icon: '📊' },
@@ -39,6 +43,40 @@ export default function GroteInpakPage() {
       setErpFile(file)
     }
     setError(null)
+  }
+
+  const handleDrag = (e: React.DragEvent, type: 'pils' | 'erp') => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (type === 'pils') {
+      setDragActivePils(e.type === 'dragenter' || e.type === 'dragover')
+    } else {
+      setDragActiveErp(e.type === 'dragenter' || e.type === 'dragover')
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent, type: 'pils' | 'erp') => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    if (type === 'pils') {
+      setDragActivePils(false)
+    } else {
+      setDragActiveErp(false)
+    }
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0]
+      const isValidType = type === 'pils' 
+        ? file.name.endsWith('.csv')
+        : file.name.endsWith('.xlsx') || file.name.endsWith('.xls')
+      
+      if (isValidType) {
+        handleFileSelect(type, file)
+      } else {
+        setError(`Ongeldig bestandstype. ${type === 'pils' ? 'Verwacht: .csv' : 'Verwacht: .xlsx of .xls'}`)
+      }
+    }
   }
 
   const handleProcess = async () => {
@@ -146,13 +184,33 @@ export default function GroteInpakPage() {
         )}
 
         <div className="grid md:grid-cols-2 gap-4 mb-4">
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition-colors">
-            <Upload className="w-12 h-12 mx-auto mb-2 text-gray-400" />
+          <div
+            className={`border-2 border-dashed rounded-lg p-6 text-center transition-all ${
+              dragActivePils
+                ? 'border-blue-500 bg-blue-50 scale-105'
+                : pilsFile
+                ? 'border-green-400 bg-green-50'
+                : 'border-gray-300 hover:border-blue-400'
+            }`}
+            onDragEnter={(e) => handleDrag(e, 'pils')}
+            onDragLeave={(e) => handleDrag(e, 'pils')}
+            onDragOver={(e) => handleDrag(e, 'pils')}
+            onDrop={(e) => handleDrop(e, 'pils')}
+          >
+            <Upload className={`w-12 h-12 mx-auto mb-2 ${dragActivePils ? 'text-blue-500' : 'text-gray-400'}`} />
             <p className="font-medium mb-1">PILS CSV</p>
             <p className="text-sm text-gray-500 mb-3">
-              {pilsFile ? pilsFile.name : 'Upload PILS CSV bestand'}
+              {pilsFile ? (
+                <span className="text-green-700 font-semibold">{pilsFile.name}</span>
+              ) : (
+                <>
+                  Sleep bestand hierheen of<br />
+                  klik om te selecteren
+                </>
+              )}
             </p>
             <input
+              ref={pilsInputRef}
               type="file"
               accept=".csv"
               className="hidden"
@@ -166,13 +224,33 @@ export default function GroteInpakPage() {
               {pilsFile ? 'Wijzig Bestand' : 'Selecteer Bestand'}
             </label>
           </div>
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition-colors">
-            <FileSpreadsheet className="w-12 h-12 mx-auto mb-2 text-gray-400" />
+          <div
+            className={`border-2 border-dashed rounded-lg p-6 text-center transition-all ${
+              dragActiveErp
+                ? 'border-blue-500 bg-blue-50 scale-105'
+                : erpFile
+                ? 'border-green-400 bg-green-50'
+                : 'border-gray-300 hover:border-blue-400'
+            }`}
+            onDragEnter={(e) => handleDrag(e, 'erp')}
+            onDragLeave={(e) => handleDrag(e, 'erp')}
+            onDragOver={(e) => handleDrag(e, 'erp')}
+            onDrop={(e) => handleDrop(e, 'erp')}
+          >
+            <FileSpreadsheet className={`w-12 h-12 mx-auto mb-2 ${dragActiveErp ? 'text-blue-500' : 'text-gray-400'}`} />
             <p className="font-medium mb-1">ERP Excel</p>
             <p className="text-sm text-gray-500 mb-3">
-              {erpFile ? erpFile.name : 'Upload ERP Excel bestand'}
+              {erpFile ? (
+                <span className="text-green-700 font-semibold">{erpFile.name}</span>
+              ) : (
+                <>
+                  Sleep bestand hierheen of<br />
+                  klik om te selecteren
+                </>
+              )}
             </p>
             <input
+              ref={erpInputRef}
               type="file"
               accept=".xlsx,.xls"
               className="hidden"

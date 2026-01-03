@@ -15,6 +15,8 @@ export default function PackedTab() {
     vendorCode: '77774',
     deliveryDate: new Date().toISOString().split('T')[0],
   })
+  const [dragActive, setDragActive] = useState(false)
+  const [dragActiveXML, setDragActiveXML] = useState(false)
 
   const loadPacked = useCallback(async () => {
     setLoading(true)
@@ -160,27 +162,71 @@ export default function PackedTab() {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">📦 Packed Items</h2>
         <div className="flex gap-2">
-          <label className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 cursor-pointer transition-colors">
+          <div
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer transition-all ${
+              dragActive
+                ? 'bg-blue-600 scale-105'
+                : 'bg-blue-500 hover:bg-blue-600'
+            } text-white`}
+            onDragEnter={(e) => { e.preventDefault(); setDragActive(true) }}
+            onDragLeave={(e) => { e.preventDefault(); setDragActive(false) }}
+            onDragOver={(e) => { e.preventDefault() }}
+            onDrop={(e) => {
+              e.preventDefault()
+              setDragActive(false)
+              if (e.dataTransfer.files?.[0]) {
+                const file = e.dataTransfer.files[0]
+                if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+                  const event = { target: { files: [file] } } as any
+                  handleFileUpload(event)
+                }
+              }
+            }}
+          >
             <Upload className="w-4 h-4" />
-            Upload Packed File
-            <input
-              type="file"
-              accept=".xlsx,.xls"
-              className="hidden"
-              onChange={handleFileUpload}
-            />
-          </label>
-          <label className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            <label className="cursor-pointer">
+              {dragActive ? 'Drop hier!' : 'Upload Packed File'}
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={handleFileUpload}
+              />
+            </label>
+          </div>
+          <div
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer transition-all ${
+              dragActiveXML
+                ? 'bg-green-600 scale-105'
+                : 'bg-green-500 hover:bg-green-600'
+            } text-white ${convertingToXML ? 'opacity-50 cursor-not-allowed' : ''}`}
+            onDragEnter={(e) => { if (!convertingToXML) { e.preventDefault(); setDragActiveXML(true) } }}
+            onDragLeave={(e) => { e.preventDefault(); setDragActiveXML(false) }}
+            onDragOver={(e) => { e.preventDefault() }}
+            onDrop={(e) => {
+              e.preventDefault()
+              setDragActiveXML(false)
+              if (!convertingToXML && e.dataTransfer.files?.[0]) {
+                const file = e.dataTransfer.files[0]
+                if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+                  const event = { target: { files: [file] } } as any
+                  handleConvertToXML(event)
+                }
+              }
+            }}
+          >
             <FileCode className="w-4 h-4" />
-            {convertingToXML ? 'Converting...' : 'Convert to XML'}
-            <input
-              type="file"
-              accept=".xlsx,.xls"
-              className="hidden"
-              onChange={handleConvertToXML}
-              disabled={convertingToXML}
-            />
-          </label>
+            <label className={`cursor-pointer ${convertingToXML ? 'cursor-not-allowed' : ''}`}>
+              {convertingToXML ? 'Converting...' : dragActiveXML ? 'Drop hier!' : 'Convert to XML'}
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={handleConvertToXML}
+                disabled={convertingToXML}
+              />
+            </label>
+          </div>
           <button
             onClick={handleExport}
             className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
