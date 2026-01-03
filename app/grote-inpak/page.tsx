@@ -273,23 +273,6 @@ export default function GroteInpakPage() {
         // The stock data is already saved to the database
         setDataLoaded(true)
       }
-
-      if (!processResponse.ok) {
-        let errorMessage = 'Error processing data'
-        try {
-          const processError = await processResponse.json()
-          errorMessage = processError.error || errorMessage
-        } catch {
-          // If response is not JSON (e.g., HTML error page), use status text
-          errorMessage = `Error processing data: ${processResponse.status} ${processResponse.statusText}`
-        }
-        throw new Error(errorMessage)
-      }
-
-      const processResult = await processResponse.json()
-      setOverviewData(processResult.overview || [])
-      setTransportData(processResult.transport || [])
-      setDataLoaded(true)
     } catch (err: any) {
       console.error('Process error:', err)
       setError(err.message || 'Error processing files')
