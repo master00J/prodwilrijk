@@ -3,7 +3,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { Upload, Database, RefreshCw, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import OverviewTab from '@/components/grote-inpak/OverviewTab'
-import ExecutiveDashboardTab from '@/components/grote-inpak/ExecutiveDashboardTab'
 import TransportTab from '@/components/grote-inpak/TransportTab'
 import ForecastTab from '@/components/grote-inpak/ForecastTab'
 import PackedTab from '@/components/grote-inpak/PackedTab'
@@ -31,15 +30,14 @@ export default function GroteInpakPage() {
   const stockInputRef = useRef<HTMLInputElement>(null)
 
   const tabs = [
-    { id: 0, label: '📊 Executive Dashboard', icon: '📊' },
-    { id: 1, label: '📋 Overzicht', icon: '📋' },
-    { id: 2, label: '🚚 Transport', icon: '🚚' },
-    { id: 3, label: '📈 Forecast', icon: '📈' },
-    { id: 4, label: '📦 Packed', icon: '📦' },
-    { id: 5, label: '📊 Stock Analyse', icon: '📊' },
-    { id: 6, label: '📦 Kanban Rekken', icon: '📦' },
-    { id: 7, label: '⏰ Backlog', icon: '⏰' },
-    { id: 8, label: '🔗 ERP LINK', icon: '🔗' },
+    { id: 0, label: '📋 Overzicht', icon: '📋' },
+    { id: 1, label: '🚚 Transport', icon: '🚚' },
+    { id: 2, label: '📈 Forecast', icon: '📈' },
+    { id: 3, label: '📦 Packed', icon: '📦' },
+    { id: 4, label: '📊 Stock Analyse', icon: '📊' },
+    { id: 5, label: '📦 Kanban Rekken', icon: '📦' },
+    { id: 6, label: '⏰ Backlog', icon: '⏰' },
+    { id: 7, label: '🔗 ERP LINK', icon: '🔗' },
   ]
 
   const handleFileSelect = useCallback((type: 'pils' | 'erplink', file: File | null) => {
