@@ -7,7 +7,6 @@ import TransportTab from '@/components/grote-inpak/TransportTab'
 import ForecastTab from '@/components/grote-inpak/ForecastTab'
 import PackedTab from '@/components/grote-inpak/PackedTab'
 import StockAnalysisTab from '@/components/grote-inpak/StockAnalysisTab'
-import KanbanTab from '@/components/grote-inpak/KanbanTab'
 import BacklogTab from '@/components/grote-inpak/BacklogTab'
 import ErpLinkTab from '@/components/grote-inpak/ErpLinkTab'
 
@@ -34,10 +33,9 @@ export default function GroteInpakPage() {
     { id: 1, label: '🚚 Transport', icon: '🚚' },
     { id: 2, label: '📈 Forecast', icon: '📈' },
     { id: 3, label: '📦 Packed', icon: '📦' },
-    { id: 4, label: '📊 Stock Analyse', icon: '📊' },
-    { id: 5, label: '📦 Kanban Rekken', icon: '📦' },
-    { id: 6, label: '⏰ Backlog', icon: '⏰' },
-    { id: 7, label: '🔗 ERP LINK', icon: '🔗' },
+    { id: 4, label: '📊 Stock', icon: '📊' },
+    { id: 5, label: '⏰ Backlog', icon: '⏰' },
+    { id: 6, label: '🔗 ERP LINK', icon: '🔗' },
   ]
 
   const handleFileSelect = useCallback((type: 'pils' | 'erplink', file: File | null) => {
@@ -560,11 +558,10 @@ export default function GroteInpakPage() {
           {activeTab === 1 && dataLoaded && <TransportTab transport={transportData} overview={overviewData} />}
           {activeTab === 2 && dataLoaded && <ForecastTab />}
           {activeTab === 3 && dataLoaded && <PackedTab />}
-          {activeTab === 4 && dataLoaded && <StockAnalysisTab />}
-          {activeTab === 5 && dataLoaded && <KanbanTab />}
-          {activeTab === 6 && dataLoaded && <BacklogTab overview={overviewData} />}
-          {activeTab === 7 && <ErpLinkTab />}
-          {activeTab !== 7 && !dataLoaded && (
+          {activeTab === 4 && <StockAnalysisTab />}
+          {activeTab === 5 && dataLoaded && <BacklogTab overview={overviewData} />}
+          {activeTab === 6 && <ErpLinkTab />}
+          {activeTab !== 4 && activeTab !== 6 && !dataLoaded && (
             <div className="text-center py-12 text-gray-500">
               Upload bestanden en klik op &apos;Verwerken&apos; om deze tab te gebruiken.
             </div>

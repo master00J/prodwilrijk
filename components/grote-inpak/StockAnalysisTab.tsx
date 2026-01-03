@@ -56,26 +56,10 @@ export default function StockAnalysisTab() {
       if (uploadResponse.ok) {
         const result = await uploadResponse.json()
         
-        // Save to database
-        if (result.data && result.data.length > 0) {
-          const saveResponse = await fetch('/api/grote-inpak/stock', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ stockData: result.data }),
-          })
-
-          if (saveResponse.ok) {
-            await loadStock()
-            alert(`Successfully uploaded ${result.filesProcessed || files.length} stock file(s)!`)
-          } else {
-            throw new Error('Failed to save stock data')
-          }
-        } else {
-          await loadStock()
-          alert('Stock files processed, but no data found')
-        }
+        // Stock files are now saved directly to database by upload-multiple route
+        // Just reload the stock data
+        await loadStock()
+        alert(`Successfully uploaded ${result.filesProcessed || files.length} stock file(s)! ${result.count || 0} items processed.`)
       } else {
         const error = await uploadResponse.json()
         throw new Error(error.error || 'Failed to upload stock files')
@@ -121,7 +105,7 @@ export default function StockAnalysisTab() {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">📊 Stock Analyse</h2>
+        <h2 className="text-2xl font-bold">📊 Stock</h2>
         <div className="flex gap-2">
           <div
             className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer transition-all ${
