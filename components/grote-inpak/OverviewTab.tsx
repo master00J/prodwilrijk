@@ -21,12 +21,12 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
 
   // Get unique values for filters
   const locations = useMemo(() => {
-    const locs = new Set(overview.map(item => item.productielocatie).filter(Boolean))
+    const locs = new Set(overview.map(item => item.productielocatie).filter((loc): loc is string => Boolean(loc)))
     return ['Alle', ...Array.from(locs).sort()]
   }, [overview])
 
   const statuses = useMemo(() => {
-    const stats = new Set(overview.map(item => item.status).filter(Boolean))
+    const stats = new Set(overview.map(item => item.status).filter((stat): stat is string => Boolean(stat)))
     return ['Alle', ...Array.from(stats).sort()]
   }, [overview])
 
@@ -428,7 +428,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                   </td>
                   <td className="px-4 py-3">
                     <select
-                      value={displayItem.status || ''}
+                      value={displayItem.status ?? ''}
                       onChange={(e) => handleFieldChange(item.case_label, 'status', e.target.value)}
                       className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >

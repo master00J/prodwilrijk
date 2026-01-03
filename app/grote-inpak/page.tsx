@@ -263,7 +263,7 @@ export default function GroteInpakPage() {
       {!dataLoaded && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
           <p className="text-blue-800 text-lg mb-2">
-            🚀 <strong>Welkom!</strong> Upload bestanden en klik op 'Verwerken' om te beginnen.
+            🚀 <strong>Welkom!</strong> Upload bestanden en klik op &apos;Verwerken&apos; om te beginnen.
           </p>
           <p className="text-blue-600 text-sm">
             💡 De eerste keer laden kan 15-20 seconden duren.

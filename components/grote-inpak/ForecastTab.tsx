@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Upload, Download, TrendingUp } from 'lucide-react'
 
 export default function ForecastTab() {
@@ -9,11 +9,7 @@ export default function ForecastTab() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
 
-  useEffect(() => {
-    loadForecast()
-  }, [dateFrom, dateTo])
-
-  const loadForecast = async () => {
+  const loadForecast = useCallback(async () => {
     setLoading(true)
     try {
       const params = new URLSearchParams()
@@ -30,7 +26,11 @@ export default function ForecastTab() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [dateFrom, dateTo])
+
+  useEffect(() => {
+    loadForecast()
+  }, [loadForecast])
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]

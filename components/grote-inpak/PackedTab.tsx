@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Upload, Download, Calendar, Package, FileCode } from 'lucide-react'
 
 export default function PackedTab() {
@@ -16,11 +16,7 @@ export default function PackedTab() {
     deliveryDate: new Date().toISOString().split('T')[0],
   })
 
-  useEffect(() => {
-    loadPacked()
-  }, [dateFrom, dateTo])
-
-  const loadPacked = async () => {
+  const loadPacked = useCallback(async () => {
     setLoading(true)
     try {
       const params = new URLSearchParams()
@@ -37,7 +33,11 @@ export default function PackedTab() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [dateFrom, dateTo])
+
+  useEffect(() => {
+    loadPacked()
+  }, [loadPacked])
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -226,7 +226,7 @@ export default function PackedTab() {
           </div>
         </div>
         <p className="text-xs text-gray-600 mt-2">
-          💡 Upload een packed Excel bestand en klik op "Convert to XML" om het te converteren naar BE2NET_PO_INBOX XML formaat.
+          💡 Upload een packed Excel bestand en klik op &quot;Convert to XML&quot; om het te converteren naar BE2NET_PO_INBOX XML formaat.
         </p>
       </div>
 

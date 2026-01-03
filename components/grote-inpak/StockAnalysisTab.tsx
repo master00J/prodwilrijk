@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Upload, Download, Warehouse, TrendingUp } from 'lucide-react'
 
 export default function StockAnalysisTab() {
@@ -10,11 +10,7 @@ export default function StockAnalysisTab() {
   const [locationFilter, setLocationFilter] = useState('Alle')
   const [searchQuery, setSearchQuery] = useState('')
 
-  useEffect(() => {
-    loadStock()
-  }, [locationFilter])
-
-  const loadStock = async () => {
+  const loadStock = useCallback(async () => {
     setLoading(true)
     try {
       const params = new URLSearchParams()
@@ -33,7 +29,11 @@ export default function StockAnalysisTab() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [locationFilter])
+
+  useEffect(() => {
+    loadStock()
+  }, [loadStock])
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
