@@ -67,13 +67,24 @@ async function buildOverview(
   
   for (const pilsRow of pilsData) {
     // Extract case_label - adjust based on actual PILS structure
-    const caseLabel = pilsRow['Case Label'] || pilsRow['case_label'] || pilsRow['Case'] || ''
-    const caseType = pilsRow['Case Type'] || pilsRow['case_type'] || pilsRow['Type'] || ''
-    const itemNumber = pilsRow['Item Number'] || pilsRow['item_number'] || pilsRow['Item'] || ''
-    const arrivalDate = pilsRow['Arrival Date'] || pilsRow['arrival_date'] || pilsRow['Date'] || ''
-    const productielocatie = pilsRow['Productielocatie'] || pilsRow['productielocatie'] || pilsRow['Location'] || ''
-    const locatie = pilsRow['Locatie'] || pilsRow['locatie'] || ''
-    const stockLocation = pilsRow['Stock Location'] || pilsRow['stock_location'] || ''
+    // Try multiple possible column name variations
+    const caseLabel = pilsRow['Case Label'] || pilsRow['case_label'] || pilsRow['Case'] || pilsRow['CASE LABEL'] || pilsRow['CASE_LABEL'] || ''
+    const caseType = pilsRow['Case Type'] || pilsRow['case_type'] || pilsRow['Type'] || pilsRow['CASE TYPE'] || pilsRow['CASE_TYPE'] || ''
+    const itemNumber = pilsRow['Item Number'] || pilsRow['item_number'] || pilsRow['Item'] || pilsRow['ITEM NUMBER'] || pilsRow['ITEM_NUMBER'] || ''
+    
+    // Extract arrival_date - try all possible variations and format it properly
+    let arrivalDate = pilsRow['Arrival Date'] || pilsRow['arrival_date'] || pilsRow['Date'] || 
+                      pilsRow['ARRIVAL DATE'] || pilsRow['ARRIVAL_DATE'] || pilsRow['Datum'] || 
+                      pilsRow['datum'] || pilsRow['DATUM'] || ''
+    
+    // Format date if it exists - handle various date formats
+    if (arrivalDate) {
+      arrivalDate = formatDate(arrivalDate)
+    }
+    
+    const productielocatie = pilsRow['Productielocatie'] || pilsRow['productielocatie'] || pilsRow['Location'] || pilsRow['PRODUCTIELOCATIE'] || ''
+    const locatie = pilsRow['Locatie'] || pilsRow['locatie'] || pilsRow['LOCATIE'] || ''
+    const stockLocation = pilsRow['Stock Location'] || pilsRow['stock_location'] || pilsRow['STOCK LOCATION'] || pilsRow['STOCK_LOCATION'] || ''
 
     // Check if in Willebroek (PAC3PL)
     const inWillebroek = locatie?.toUpperCase() === 'PAC3PL' || stockLocation?.toUpperCase() === 'PAC3PL'
@@ -164,8 +175,55 @@ function calculateTerm(caseType: string): number {
   return 0
 }
 
+function formatDate(dateString: string): string {
+  if (!dateString || dateString.trim() === '') return ''
+  
+  // Try to parse various date formats
+  // Handle formats like: YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY, YYYYMMDD, etc.
+  let date: Date | null = null
+  
+  // Try ISO format first (YYYY-MM-DD)
+  if (/^\d{4}-\d{2}-\d{2}/.test(dateString)) {
+    date = new Date(dateString)
+  }
+  // Try DD/MM/YYYY or DD-MM-YYYY
+  else if (/^\d{2}[\/\-]\d{2}[\/\-]\d{4}/.test(dateString)) {
+    const parts = dateString.split(/[\/\-]/)
+    if (parts.length === 3) {
+      date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`)
+    }
+  }
+  // Try YYYYMMDD
+  else if (/^\d{8}$/.test(dateString)) {
+    const year = dateString.substring(0, 4)
+    const month = dateString.substring(4, 6)
+    const day = dateString.substring(6, 8)
+    date = new Date(`${year}-${month}-${day}`)
+  }
+  // Try default Date parsing
+  else {
+    date = new Date(dateString)
+  }
+  
+  // Check if date is valid
+  if (!date || isNaN(date.getTime())) {
+    console.warn(`Invalid date format: ${dateString}`)
+    return ''
+  }
+  
+  // Return in YYYY-MM-DD format
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 function addBusinessDays(startDate: string, days: number): string {
+  if (!startDate) return ''
+  
   const date = new Date(startDate)
+  if (isNaN(date.getTime())) return ''
+  
   let count = 0
   
   while (count < days) {

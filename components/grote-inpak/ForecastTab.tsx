@@ -9,6 +9,7 @@ export default function ForecastTab() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [dragActive, setDragActive] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
   const loadForecast = useCallback(async () => {
     setLoading(true)
@@ -33,8 +34,19 @@ export default function ForecastTab() {
     loadForecast()
   }, [loadForecast])
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
+  const handleFileSelect = (file: File | null) => {
+    if (file) {
+      const fileName = file.name.toLowerCase()
+      // Validate file type - accept CSV files
+      if (!fileName.includes('.csv') && !fileName.endsWith('.csv')) {
+        alert('Ongeldig bestandstype. Verwacht: .csv')
+        return
+      }
+      setSelectedFile(file)
+    }
+  }
+
+  const handleFileUpload = async (file: File) => {
     if (!file) return
 
     setLoading(true)
@@ -60,16 +72,38 @@ export default function ForecastTab() {
 
         if (saveResponse.ok) {
           await loadForecast()
+          setSelectedFile(null)
           alert('Forecast data successfully uploaded!')
         }
+      } else {
+        const error = await uploadResponse.json()
+        throw new Error(error.error || 'Failed to upload forecast file')
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error uploading forecast:', error)
-      alert('Error uploading forecast file')
+      alert(`Error uploading forecast file: ${error.message || 'Unknown error'}`)
     } finally {
       setLoading(false)
     }
   }
+
+  const handleDrag = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const isActive = e.type === 'dragenter' || e.type === 'dragover'
+    setDragActive(isActive)
+  }, [])
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0]
+      handleFileSelect(file)
+    }
+  }, [])
 
   const handleExport = () => {
     const csv = [
@@ -103,48 +137,72 @@ export default function ForecastTab() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">📈 Forecast</h2>
-        <div className="flex gap-2">
-          <div
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer transition-all ${
-              dragActive
-                ? 'bg-blue-600 scale-105'
-                : 'bg-blue-500 hover:bg-blue-600'
-            } text-white`}
-            onDragEnter={(e) => { e.preventDefault(); setDragActive(true) }}
-            onDragLeave={(e) => { e.preventDefault(); setDragActive(false) }}
-            onDragOver={(e) => { e.preventDefault() }}
-            onDrop={(e) => {
-              e.preventDefault()
-              setDragActive(false)
-              if (e.dataTransfer.files?.[0]) {
-                const file = e.dataTransfer.files[0]
-                if (file.name.endsWith('.csv')) {
-                  const event = { target: { files: [file] } } as any
-                  handleFileUpload(event)
-                }
-              }
-            }}
-          >
-            <Upload className="w-4 h-4" />
-            <label className="cursor-pointer">
-              {dragActive ? 'Drop hier!' : 'Upload Forecast'}
-              <input
-                type="file"
-                accept=".csv"
-                className="hidden"
-                onChange={handleFileUpload}
-              />
-            </label>
-          </div>
+      <div className="mb-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold">📈 Forecast</h2>
           <button
             onClick={handleExport}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+            disabled={forecastData.length === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Download className="w-4 h-4" />
             Export
           </button>
+        </div>
+
+        {/* Forecast File Upload with Drag and Drop */}
+        <div
+          className={`border-2 border-dashed rounded-lg p-6 text-center transition-all ${
+            dragActive
+              ? 'border-blue-500 bg-blue-50 scale-105'
+              : selectedFile
+              ? 'border-green-400 bg-green-50'
+              : 'border-gray-300 hover:border-blue-400'
+          }`}
+          onDragEnter={handleDrag}
+          onDragLeave={handleDrag}
+          onDragOver={handleDrag}
+          onDrop={handleDrop}
+        >
+          <Upload className={`w-12 h-12 mx-auto mb-2 ${dragActive ? 'text-blue-500' : 'text-gray-400'}`} />
+          <p className="font-medium mb-1">Forecast CSV</p>
+          {selectedFile ? (
+            <p className="text-sm text-gray-500 mb-3">
+              <span className="text-green-700 font-semibold">{selectedFile.name}</span>
+            </p>
+          ) : (
+            <p className="text-sm text-gray-500 mb-3">
+              Sleep bestand hierheen of<br />
+              klik om te selecteren
+            </p>
+          )}
+          <input
+            type="file"
+            accept=".csv"
+            className="hidden"
+            id="forecast-upload"
+            onChange={(e) => handleFileSelect(e.target.files?.[0] || null)}
+          />
+          <div className="flex gap-2 justify-center">
+            <label
+              htmlFor="forecast-upload"
+              className="inline-block px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 cursor-pointer transition-colors"
+            >
+              {selectedFile ? 'Wijzig Bestand' : 'Selecteer Bestand'}
+            </label>
+            {selectedFile && (
+              <button
+                onClick={() => handleFileUpload(selectedFile)}
+                disabled={loading}
+                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {loading ? 'Uploaden...' : 'Upload'}
+              </button>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 mt-2">
+            Upload een forecast CSV bestand
+          </p>
         </div>
       </div>
 

@@ -21,7 +21,9 @@ export default function GroteInpakPage() {
   const [overviewData, setOverviewData] = useState<any[]>([])
   const [transportData, setTransportData] = useState<any[]>([])
   const [dragActivePils, setDragActivePils] = useState(false)
+  const [dragActiveStock, setDragActiveStock] = useState(false)
   const pilsInputRef = useRef<HTMLInputElement>(null)
+  const stockInputRef = useRef<HTMLInputElement>(null)
 
   const tabs = [
     { id: 0, label: '📊 Executive Dashboard', icon: '📊' },
@@ -44,10 +46,55 @@ export default function GroteInpakPage() {
   const handleStockFilesSelect = (files: FileList | null) => {
     if (files) {
       const fileArray = Array.from(files)
-      setStockFiles(fileArray)
+      // Validate file types
+      const validFiles = fileArray.filter(file => {
+        const fileName = file.name.toLowerCase()
+        return fileName.includes('.xlsx') || fileName.includes('.xls') || 
+               fileName.endsWith('.xlsx') || fileName.endsWith('.xls') ||
+               file.type.includes('spreadsheet') || file.type.includes('excel') || 
+               file.type === '' || !file.type
+      })
+      
+      if (validFiles.length !== fileArray.length) {
+        setError('Sommige bestanden zijn geen Excel bestanden (.xlsx of .xls)')
+      }
+      
+      setStockFiles(validFiles)
       setError(null)
     }
   }
+
+  const handleStockDrag = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const isActive = e.type === 'dragenter' || e.type === 'dragover'
+    setDragActiveStock(isActive)
+  }, [])
+
+  const handleStockDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActiveStock(false)
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const fileArray = Array.from(e.dataTransfer.files)
+      // Validate file types
+      const validFiles = fileArray.filter(file => {
+        const fileName = file.name.toLowerCase()
+        return fileName.includes('.xlsx') || fileName.includes('.xls') || 
+               fileName.endsWith('.xlsx') || fileName.endsWith('.xls') ||
+               file.type.includes('spreadsheet') || file.type.includes('excel') || 
+               file.type === '' || !file.type
+      })
+      
+      if (validFiles.length !== fileArray.length) {
+        setError('Sommige bestanden zijn geen Excel bestanden (.xlsx of .xls)')
+      }
+      
+      setStockFiles(validFiles)
+      setError(null)
+    }
+  }, [])
 
   const handleDrag = useCallback((e: React.DragEvent, type: 'pils') => {
     e.preventDefault()
@@ -233,29 +280,56 @@ export default function GroteInpakPage() {
           </div>
         </div>
 
-        {/* Stock Files Upload - Multiple files */}
+        {/* Stock Files Upload - Multiple files with drag and drop */}
         <div className="mt-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             📦 Stock Bestanden (Optioneel - Meerdere bestanden mogelijk)
           </label>
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
-            <input
-              type="file"
-              accept=".xlsx,.xls"
-              multiple
-              className="w-full"
-              onChange={(e) => handleStockFilesSelect(e.target.files)}
-            />
-            {stockFiles.length > 0 && (
+          <div
+            className={`border-2 border-dashed rounded-lg p-6 text-center transition-all ${
+              dragActiveStock
+                ? 'border-blue-500 bg-blue-50 scale-105'
+                : stockFiles.length > 0
+                ? 'border-green-400 bg-green-50'
+                : 'border-gray-300 hover:border-blue-400'
+            }`}
+            onDragEnter={handleStockDrag}
+            onDragLeave={handleStockDrag}
+            onDragOver={handleStockDrag}
+            onDrop={handleStockDrop}
+          >
+            <Upload className={`w-12 h-12 mx-auto mb-2 ${dragActiveStock ? 'text-blue-500' : 'text-gray-400'}`} />
+            <p className="font-medium mb-1">Stock Excel Bestanden</p>
+            {stockFiles.length > 0 ? (
               <div className="mt-3 space-y-1">
-                <p className="text-sm font-medium text-gray-700">Geselecteerde bestanden:</p>
-                <ul className="list-disc list-inside text-sm text-gray-600">
+                <p className="text-sm font-medium text-gray-700 mb-2">Geselecteerde bestanden:</p>
+                <ul className="list-disc list-inside text-sm text-gray-600 max-h-32 overflow-y-auto">
                   {stockFiles.map((file, idx) => (
-                    <li key={idx}>{file.name}</li>
+                    <li key={idx} className="text-green-700 font-semibold">{file.name}</li>
                   ))}
                 </ul>
               </div>
+            ) : (
+              <p className="text-sm text-gray-500 mb-3">
+                Sleep bestanden hierheen of<br />
+                klik om te selecteren
+              </p>
             )}
+            <input
+              ref={stockInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              multiple
+              className="hidden"
+              id="stock-upload"
+              onChange={(e) => handleStockFilesSelect(e.target.files)}
+            />
+            <label
+              htmlFor="stock-upload"
+              className="inline-block px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 cursor-pointer transition-colors"
+            >
+              {stockFiles.length > 0 ? 'Wijzig Bestanden' : 'Selecteer Bestanden'}
+            </label>
             <p className="text-xs text-gray-500 mt-2">
               Upload meerdere Excel bestanden (bijv. Stock Genk.xlsx, Stock Willebroek.xlsx, Stock Wilrijk.xlsx)
             </p>

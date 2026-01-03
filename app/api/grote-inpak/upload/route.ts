@@ -158,12 +158,12 @@ async function parsePILSCSV(csvText: string): Promise<any[]> {
     return -1
   }
 
-  const caseLabelIdx = findColumnIndex(['case', 'label', 'case_label', 'case label'])
-  const caseTypeIdx = findColumnIndex(['type', 'case_type', 'case type'])
-  const itemNumberIdx = findColumnIndex(['item', 'item_number', 'item number', 'artikel'])
-  const arrivalDateIdx = findColumnIndex(['arrival', 'date', 'arrival_date', 'datum'])
-  const locationIdx = findColumnIndex(['location', 'locatie', 'productielocatie', 'productie'])
-  const stockLocationIdx = findColumnIndex(['stock', 'stock_location', 'voorraad'])
+  const caseLabelIdx = findColumnIndex(['case', 'label', 'case_label', 'case label', 'case_label', 'CASE LABEL', 'CASE_LABEL'])
+  const caseTypeIdx = findColumnIndex(['type', 'case_type', 'case type', 'CASE TYPE', 'CASE_TYPE'])
+  const itemNumberIdx = findColumnIndex(['item', 'item_number', 'item number', 'artikel', 'ITEM NUMBER', 'ITEM_NUMBER'])
+  const arrivalDateIdx = findColumnIndex(['arrival', 'date', 'arrival_date', 'datum', 'arrival date', 'ARRIVAL DATE', 'ARRIVAL_DATE', 'DATUM', 'Datum'])
+  const locationIdx = findColumnIndex(['location', 'locatie', 'productielocatie', 'productie', 'LOCATIE', 'PRODUCTIELOCATIE'])
+  const stockLocationIdx = findColumnIndex(['stock', 'stock_location', 'voorraad', 'stock location', 'STOCK LOCATION', 'STOCK_LOCATION'])
 
   const data: any[] = []
   for (let i = 1; i < lines.length; i++) {
