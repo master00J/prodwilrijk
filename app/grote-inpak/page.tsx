@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { Upload, Database, RefreshCw, AlertCircle } from 'lucide-react'
 import OverviewTab from '@/components/grote-inpak/OverviewTab'
 import ExecutiveDashboardTab from '@/components/grote-inpak/ExecutiveDashboardTab'
@@ -206,6 +206,35 @@ export default function GroteInpakPage() {
     }
   }
 
+  const loadDataFromDatabase = useCallback(async () => {
+    try {
+      // Load cases from database
+      const casesResponse = await fetch('/api/grote-inpak/cases')
+      if (casesResponse.ok) {
+        const casesResult = await casesResponse.json()
+        const cases = casesResult.data || []
+        setOverviewData(cases)
+        
+        // If we have cases, also load transport and mark as loaded
+        if (cases.length > 0) {
+          const transportResponse = await fetch('/api/grote-inpak/transport')
+          if (transportResponse.ok) {
+            const transportResult = await transportResponse.json()
+            setTransportData(transportResult.data || [])
+          }
+          setDataLoaded(true)
+        }
+      }
+    } catch (error) {
+      console.error('Error loading data from database:', error)
+    }
+  }, [])
+
+  useEffect(() => {
+    // Load data from database when page loads
+    loadDataFromDatabase()
+  }, [loadDataFromDatabase])
+
   const handleRefresh = async () => {
     setDataLoaded(false)
     setOverviewData([])
@@ -213,6 +242,8 @@ export default function GroteInpakPage() {
     setPilsFile(null)
     setStockFiles([])
     setError(null)
+    // Reload from database
+    await loadDataFromDatabase()
   }
 
   return (
