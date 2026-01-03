@@ -230,59 +230,37 @@ function extractLocationFromFilename(filename: string): string {
 async function parseStockExcel(workbook: XLSX.WorkBook, location: string): Promise<any[]> {
   const sheetName = workbook.SheetNames[0]
   const worksheet = workbook.Sheets[sheetName]
-  const data = XLSX.utils.sheet_to_json(worksheet, { raw: false, defval: '' })
   
-  // Get all possible column name variations
-  const findValue = (row: any, possibleNames: string[]): string => {
-    for (const name of possibleNames) {
-      // Try exact match first
-      if (row[name] !== undefined && row[name] !== '') {
-        return String(row[name])
-      }
-      // Try case-insensitive match
-      const key = Object.keys(row).find(k => 
-        k.toLowerCase() === name.toLowerCase() || 
-        k.toLowerCase().includes(name.toLowerCase()) ||
-        name.toLowerCase().includes(k.toLowerCase())
-      )
-      if (key && row[key]) {
-        return String(row[key])
-      }
+  // Read data with header row to get column structure
+  // Then read by Excel column letters (A, B, C, etc.)
+  const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
+  
+  const results: any[] = []
+  
+  // Start from row 2 (skip header row 1)
+  for (let rowNum = 1; rowNum <= range.e.r; rowNum++) {
+    // Column A (index 0) = item_number/ERP Code
+    const colA = XLSX.utils.encode_cell({ r: rowNum, c: 0 })
+    const itemNumberCell = worksheet[colA]
+    const itemNumber = itemNumberCell ? String(itemNumberCell.v || '').trim() : ''
+    
+    // Column C (index 2) = quantity
+    const colC = XLSX.utils.encode_cell({ r: rowNum, c: 2 })
+    const quantityCell = worksheet[colC]
+    const quantityStr = quantityCell ? String(quantityCell.v || '').trim() : ''
+    const quantity = parseInt(quantityStr, 10) || 0
+    
+    // Only process rows with item_number and quantity > 0
+    if (itemNumber && quantity > 0) {
+      results.push({
+        item_number: itemNumber,
+        location: location, // Use extracted location from filename
+        quantity: quantity,
+        erp_code: itemNumber, // Use item_number as erp_code (they're the same in column A)
+      })
     }
-    return ''
   }
-
-  return data.map((row: any) => {
-    // Stock files use "No." for item_number and "Inventory" for quantity
-    // Also check "Consumption Item No." which might be the ERP code or related item
-    const itemNumber = findValue(row, [
-      'No.', 'no.', 'NO.', 'No', 'no', 'NO',
-      'Item Number', 'item_number', 'Item', 'Artikel', 'ARTIKEL', 'ItemNr', 
-      'Kistnummer', 'kistnummer', 'KISTNUMMER'
-    ])
-    
-    const quantity = parseInt(findValue(row, [
-      'Inventory', 'inventory', 'INVENTORY',
-      'Quantity', 'quantity', 'Qty', 'Aantal', 'Stock', 'Voorraad', 'qty'
-    ]) || '0', 10)
-    
-    // Consumption Item No. might be the ERP code or related item number
-    const consumptionItemNo = findValue(row, [
-      'Consumption Item No.', 'consumption_item_no', 'Consumption Item No',
-      'Consumption Item', 'consumption_item', 'CONSUMPTION ITEM NO.'
-    ])
-    
-    const erpCode = findValue(row, [
-      'ERP Code', 'erp_code', 'ERP', 'ERPCode', 'ERP_CODE',
-      'ERP code', 'erp code'
-    ]) || consumptionItemNo // Use Consumption Item No. as fallback for erp_code
-    
-    return {
-      item_number: itemNumber,
-      location: location, // Use extracted location from filename
-      quantity: quantity,
-      erp_code: erpCode || null,
-    }
-  }).filter(item => item.item_number && item.quantity > 0) // Only include rows with item_number and quantity > 0
+  
+  return results
 }
 
