@@ -253,8 +253,15 @@ export default function GroteInpakPage() {
         })
 
         if (!processResponse.ok) {
-          const processError = await processResponse.json()
-          throw new Error(processError.error || 'Error processing data')
+          let errorMessage = 'Error processing data'
+          try {
+            const processError = await processResponse.json()
+            errorMessage = processError.error || errorMessage
+          } catch {
+            // If response is not JSON (e.g., HTML error page), use status text
+            errorMessage = `Error processing data: ${processResponse.status} ${processResponse.statusText}`
+          }
+          throw new Error(errorMessage)
         }
 
         const processResult = await processResponse.json()
