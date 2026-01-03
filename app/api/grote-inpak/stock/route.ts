@@ -72,12 +72,44 @@ export async function GET(request: NextRequest) {
       .from('grote_inpak_erp_link')
       .select('*')
 
-    // Create maps for matching
+    // Create maps for matching - match item_number from stock with kistnummer from ERP LINK
+    // In stock files, "No." is the item_number (e.g., 100003, 100005)
+    // In ERP LINK, we have kistnummer (e.g., K003, K004) and erp_code (e.g., GP006311)
+    // We need to match stock item_number with kistnummer
+    // Strategy: 
+    // 1. Match via erp_code (if stock has erp_code or Consumption Item No.)
+    // 2. Match item_number directly with kistnummer (e.g., 100003 -> K003, by extracting last 3 digits)
+    // 3. Match item_number with kistnummer number part (e.g., 100003 -> 003 -> K003)
+    
     const erpCodeToKistnummer = new Map<string, string>()
+    const itemNumberToKistnummer = new Map<string, string>() // For direct item_number -> kistnummer matching
+    
     if (erpLinkData) {
       erpLinkData.forEach((erp: any) => {
         if (erp.erp_code) {
-          erpCodeToKistnummer.set(String(erp.erp_code).toUpperCase(), erp.kistnummer)
+          erpCodeToKistnummer.set(String(erp.erp_code).toUpperCase().trim(), erp.kistnummer)
+        }
+        
+        if (erp.kistnummer) {
+          const normalizedKistnummer = String(erp.kistnummer).toUpperCase().trim()
+          // Store kistnummer as-is (e.g., "K003")
+          itemNumberToKistnummer.set(normalizedKistnummer, erp.kistnummer)
+          
+          // Extract number part from kistnummer (e.g., "003" from "K003")
+          const kistnummerNumber = normalizedKistnummer.replace(/^[KCV]/, '')
+          if (kistnummerNumber) {
+            // Store number part (e.g., "003")
+            itemNumberToKistnummer.set(kistnummerNumber, erp.kistnummer)
+            // Store with leading zeros removed (e.g., "3")
+            const kistnummerNumberNoZeros = String(parseInt(kistnummerNumber, 10))
+            if (kistnummerNumberNoZeros !== kistnummerNumber) {
+              itemNumberToKistnummer.set(kistnummerNumberNoZeros, erp.kistnummer)
+            }
+            // Store with "100" prefix (e.g., "100003" for "K003")
+            itemNumberToKistnummer.set(`100${kistnummerNumber}`, erp.kistnummer)
+            // Store with "100" prefix and no leading zeros (e.g., "1003" for "K003")
+            itemNumberToKistnummer.set(`100${kistnummerNumberNoZeros}`, erp.kistnummer)
+          }
         }
       })
     }
@@ -85,15 +117,43 @@ export async function GET(request: NextRequest) {
     // Aggregate by kistnummer (from ERP LINK) instead of item_number
     // If no kistnummer found, use item_number as fallback
     const aggregated = stockData?.reduce((acc: any, item: any) => {
-      // Try to find kistnummer via erp_code
+      // Try to find kistnummer via erp_code first
       let kistnummer = null
       if (item.erp_code) {
-        kistnummer = erpCodeToKistnummer.get(String(item.erp_code).toUpperCase())
+        kistnummer = erpCodeToKistnummer.get(String(item.erp_code).toUpperCase().trim())
       }
       
-      // If no kistnummer found, try to match item_number directly (in case item_number is the same as erp_code)
+      // If no kistnummer found, try to match item_number directly with kistnummer
+      // Stock files have "No." which is item_number (e.g., 100003, 100005)
+      // We need to extract the last 3 digits and match with kistnummer (e.g., 100003 -> 003 -> K003)
       if (!kistnummer && item.item_number) {
-        kistnummer = erpCodeToKistnummer.get(String(item.item_number).toUpperCase())
+        const normalizedItemNumber = String(item.item_number).trim()
+        
+        // Try exact match first
+        kistnummer = itemNumberToKistnummer.get(normalizedItemNumber.toUpperCase())
+        
+        // Try extracting last 3 digits (e.g., "100003" -> "003")
+        if (!kistnummer && normalizedItemNumber.length >= 3) {
+          const last3Digits = normalizedItemNumber.slice(-3)
+          kistnummer = itemNumberToKistnummer.get(last3Digits)
+          
+          // Try with leading zeros removed (e.g., "003" -> "3")
+          if (!kistnummer) {
+            const last3DigitsNoZeros = String(parseInt(last3Digits, 10))
+            kistnummer = itemNumberToKistnummer.get(last3DigitsNoZeros)
+          }
+        }
+        
+        // Try extracting last 2 digits (e.g., "10013" -> "13")
+        if (!kistnummer && normalizedItemNumber.length >= 2) {
+          const last2Digits = normalizedItemNumber.slice(-2)
+          kistnummer = itemNumberToKistnummer.get(last2Digits)
+        }
+        
+        // Try via erp_code map as fallback
+        if (!kistnummer) {
+          kistnummer = erpCodeToKistnummer.get(normalizedItemNumber.toUpperCase())
+        }
       }
 
       // Use kistnummer if found, otherwise use item_number as fallback

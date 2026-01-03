@@ -209,11 +209,37 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string): Promi
     return ''
   }
 
-  return data.map((row: any) => ({
-    item_number: findValue(row, ['Item Number', 'item_number', 'Item', 'Artikel', 'ARTIKEL', 'ItemNr', 'Kistnummer', 'kistnummer']),
-    location: location, // Use extracted location from filename
-    quantity: parseInt(findValue(row, ['Quantity', 'quantity', 'Qty', 'Aantal', 'Stock', 'Voorraad']) || '0', 10),
-    erp_code: findValue(row, ['ERP Code', 'erp_code', 'ERP', 'ERPCode', 'ERP_CODE']),
-  })).filter(item => item.item_number) // Only include rows with item_number
+  return data.map((row: any) => {
+    // Stock files use "No." for item_number and "Inventory" for quantity
+    // Also check "Consumption Item No." which might be the ERP code or related item
+    const itemNumber = findValue(row, [
+      'No.', 'no.', 'NO.', 'No', 'no', 'NO',
+      'Item Number', 'item_number', 'Item', 'Artikel', 'ARTIKEL', 'ItemNr', 
+      'Kistnummer', 'kistnummer', 'KISTNUMMER'
+    ])
+    
+    const quantity = parseInt(findValue(row, [
+      'Inventory', 'inventory', 'INVENTORY',
+      'Quantity', 'quantity', 'Qty', 'Aantal', 'Stock', 'Voorraad', 'qty'
+    ]) || '0', 10)
+    
+    // Consumption Item No. might be the ERP code or related item number
+    const consumptionItemNo = findValue(row, [
+      'Consumption Item No.', 'consumption_item_no', 'Consumption Item No',
+      'Consumption Item', 'consumption_item', 'CONSUMPTION ITEM NO.'
+    ])
+    
+    const erpCode = findValue(row, [
+      'ERP Code', 'erp_code', 'ERP', 'ERPCode', 'ERP_CODE',
+      'ERP code', 'erp code'
+    ]) || consumptionItemNo // Use Consumption Item No. as fallback for erp_code
+    
+    return {
+      item_number: itemNumber,
+      location: location, // Use extracted location from filename
+      quantity: quantity,
+      erp_code: erpCode || null,
+    }
+  }).filter(item => item.item_number && item.quantity > 0) // Only include rows with item_number and quantity > 0
 }
 
