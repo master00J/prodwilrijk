@@ -163,22 +163,26 @@ export default function GroteInpakPage() {
     setError(null)
 
     try {
-      // Upload PILS file
-      const pilsFormData = new FormData()
-      pilsFormData.append('file', pilsFile)
-      pilsFormData.append('fileType', 'pils')
+      let pilsResult: any = null
+      
+      // Upload PILS CSV if provided
+      if (pilsFile) {
+        const pilsFormData = new FormData()
+        pilsFormData.append('file', pilsFile)
+        pilsFormData.append('fileType', 'pils')
 
-      const pilsResponse = await fetch('/api/grote-inpak/upload', {
-        method: 'POST',
-        body: pilsFormData,
-      })
+        const pilsResponse = await fetch('/api/grote-inpak/upload', {
+          method: 'POST',
+          body: pilsFormData,
+        })
 
-      if (!pilsResponse.ok) {
-        const pilsError = await pilsResponse.json()
-        throw new Error(pilsError.error || 'Error uploading PILS file')
+        if (!pilsResponse.ok) {
+          const pilsError = await pilsResponse.json()
+          throw new Error(pilsError.error || 'Error uploading PILS file')
+        }
+
+        pilsResult = await pilsResponse.json()
       }
-
-      const pilsResult = await pilsResponse.json()
 
       // Upload ERP LINK file if provided
       let erpData: any[] = []
