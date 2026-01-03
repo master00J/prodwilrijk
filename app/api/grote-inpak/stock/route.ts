@@ -176,21 +176,36 @@ export async function GET(request: NextRequest) {
         acc[key] = {
           kistnummer: kistnummer,
           erp_code: erpCodeFromLink, // Use erp_code from ERP LINK, not from stock file
-          locations: [],
+          locations: [], // Will store { location: string, quantity: number } objects
+          locationMap: new Map<string, number>(), // Temporary map to aggregate quantities per location
           total_quantity: 0,
         }
       }
-      acc[key].locations.push({
-        location: item.location,
-        quantity: item.quantity || 0,
-      })
+      
+      // Aggregate quantities per location using a map to avoid duplicates
+      const currentQty = acc[key].locationMap.get(item.location) || 0
+      acc[key].locationMap.set(item.location, currentQty + (item.quantity || 0))
       acc[key].total_quantity += item.quantity || 0
       return acc
     }, {})
 
-    // Sort aggregated data by kistnummer (or item_number if no kistnummer)
-    // Filter: only show items that have a kistnummer (matched with ERP LINK)
+    // Convert locationMap to locations array for each aggregated item
     const aggregatedArray = aggregated ? Object.values(aggregated) : []
+    aggregatedArray.forEach((item: any) => {
+      if (item.locationMap) {
+        // Convert map to array of { location, quantity } objects
+        item.locations = Array.from(item.locationMap.entries()).map(([location, quantity]) => ({
+          location,
+          quantity,
+        }))
+        // Sort locations alphabetically
+        item.locations.sort((a: any, b: any) => a.location.localeCompare(b.location))
+        // Remove temporary locationMap
+        delete item.locationMap
+      }
+    })
+    
+    // Filter: only show items that have a kistnummer (matched with ERP LINK)
     const filteredAggregated = aggregatedArray.filter((item: any) => item.kistnummer !== null && item.kistnummer !== undefined)
     
     filteredAggregated.sort((a: any, b: any) => {

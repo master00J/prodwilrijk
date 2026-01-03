@@ -192,16 +192,44 @@ export async function POST(request: NextRequest) {
 function extractLocationFromFilename(filename: string): string {
   // Extract location from filename like "Stock Genk.xlsx" -> "Genk"
   // Or "Stock Willebroek.xlsx" -> "Willebroek"
-  const name = filename.replace(/\.(xlsx|xls)$/i, '')
-  if (name.toLowerCase().includes('stock')) {
+  // Or "Stock in Willebroek.xlsx" -> "Willebroek"
+  // Or "Stock_Willebroek.xlsx" -> "Willebroek"
+  const name = filename.replace(/\.(xlsx|xls)$/i, '').trim()
+  
+  // Normalize common location names
+  const locationMap: { [key: string]: string } = {
+    'willebroek': 'Willebroek',
+    'wlb': 'Willebroek',
+    'pac3pl': 'Willebroek',
+    'genk': 'Genk',
+  }
+  
+  // Try to find location in filename (case-insensitive)
+  const lowerName = name.toLowerCase()
+  
+  // Check for common patterns
+  if (lowerName.includes('willebroek') || lowerName.includes('wlb') || lowerName.includes('pac3pl')) {
+    return 'Willebroek'
+  }
+  if (lowerName.includes('genk')) {
+    return 'Genk'
+  }
+  
+  // Try to extract after "Stock" or "Stock in"
+  if (lowerName.includes('stock')) {
     const parts = name.split(/\s+/)
     const stockIndex = parts.findIndex(p => p.toLowerCase() === 'stock')
     if (stockIndex >= 0 && stockIndex < parts.length - 1) {
-      return parts.slice(stockIndex + 1).join(' ')
+      const locationPart = parts.slice(stockIndex + 1).join(' ').trim()
+      // Normalize location name
+      const normalized = locationMap[locationPart.toLowerCase()] || locationPart
+      if (normalized) return normalized
     }
   }
-  // Fallback: return filename without extension
-  return name.replace(/^stock\s*/i, '').trim() || 'Unknown'
+  
+  // Fallback: return filename without extension and "Stock" prefix
+  const fallback = name.replace(/^stock\s*(in\s*)?/i, '').trim()
+  return locationMap[fallback.toLowerCase()] || fallback || 'Unknown'
 }
 
 async function parseStockExcel(workbook: XLSX.WorkBook, location: string): Promise<any[]> {
