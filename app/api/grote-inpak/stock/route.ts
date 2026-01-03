@@ -177,17 +177,47 @@ export async function GET(request: NextRequest) {
     }, {})
 
     // Sort aggregated data by kistnummer (or item_number if no kistnummer)
+    // Filter: only show items that have a kistnummer (matched with ERP LINK)
     const aggregatedArray = aggregated ? Object.values(aggregated) : []
-    aggregatedArray.sort((a: any, b: any) => {
-      const keyA = a.kistnummer || a.item_number || ''
-      const keyB = b.kistnummer || b.item_number || ''
+    const filteredAggregated = aggregatedArray.filter((item: any) => item.kistnummer !== null && item.kistnummer !== undefined)
+    
+    filteredAggregated.sort((a: any, b: any) => {
+      const keyA = a.kistnummer || ''
+      const keyB = b.kistnummer || ''
       return keyA.localeCompare(keyB)
     })
 
+    // Also filter raw stock data to only include items with kistnummer
+    const filteredStockData = stockData?.filter((item: any) => {
+      // Check if this item has a matching kistnummer
+      let hasKistnummer = false
+      if (item.erp_code) {
+        hasKistnummer = erpCodeToKistnummer.has(String(item.erp_code).toUpperCase().trim())
+      }
+      if (!hasKistnummer && item.item_number) {
+        const normalizedItemNumber = String(item.item_number).trim()
+        // Check various matching strategies
+        if (normalizedItemNumber.length >= 3) {
+          const last3Digits = normalizedItemNumber.slice(-3)
+          hasKistnummer = itemNumberToKistnummer.has(last3Digits) || 
+                         itemNumberToKistnummer.has(String(parseInt(last3Digits, 10)))
+        }
+        if (!hasKistnummer && normalizedItemNumber.length >= 2) {
+          const last2Digits = normalizedItemNumber.slice(-2)
+          hasKistnummer = itemNumberToKistnummer.has(last2Digits)
+        }
+        if (!hasKistnummer) {
+          hasKistnummer = itemNumberToKistnummer.has(normalizedItemNumber.toUpperCase()) ||
+                          erpCodeToKistnummer.has(normalizedItemNumber.toUpperCase())
+        }
+      }
+      return hasKistnummer
+    }) || []
+
     return NextResponse.json({ 
-      data: stockData || [], 
-      aggregated: aggregatedArray,
-      count: stockData?.length || 0 
+      data: filteredStockData, 
+      aggregated: filteredAggregated,
+      count: filteredStockData.length 
     })
   } catch (error: any) {
     console.error('Error fetching stock:', error)
