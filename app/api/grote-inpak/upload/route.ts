@@ -235,11 +235,33 @@ async function parseERPExcel(workbook: XLSX.WorkBook): Promise<any[]> {
   }
 
   return data.map((row: any) => {
+    // Find productielocatie - prioritize columns that likely contain "Wilrijk" or "Genk"
+    let productielocatie = findValue(row, [
+      'Productielocatie', 'productielocatie', 'Productie Locatie', 'ProductieLocatie', 'PRODUCTIELOCATIE',
+      'Production Location', 'production_location', 'ProductionLocation',
+      'Locatie', 'locatie', 'LOCATIE', 'Location', 'location',
+      'Fabriek', 'fabriek', 'FABRIEK', 'Factory', 'factory',
+      'Plant', 'plant', 'PLANT'
+    ])
+    
+    // Normalize productielocatie - only accept Wilrijk or Genk
+    if (productielocatie) {
+      const normalized = productielocatie.toLowerCase().trim()
+      if (normalized.includes('wilrijk')) {
+        productielocatie = 'Wilrijk'
+      } else if (normalized.includes('genk')) {
+        productielocatie = 'Genk'
+      } else {
+        // If it's not Wilrijk or Genk (e.g., PAC3PL), set to empty
+        productielocatie = ''
+      }
+    }
+    
     return {
       item_number: findValue(row, ['Item Number', 'item_number', 'Item', 'Artikel', 'ARTIKEL', 'ItemNr', 'ItemNr.', 'Item Nr']),
       erp_code: findValue(row, ['ERP Code', 'erp_code', 'ERP', 'ERPCode', 'ERP_CODE']),
       description: findValue(row, ['Description', 'description', 'Omschrijving', 'DESCRIPTION', 'Desc']),
-      productielocatie: findValue(row, ['Productielocatie', 'productielocatie', 'Productie Locatie', 'ProductieLocatie', 'PRODUCTIELOCATIE', 'Location', 'location', 'Locatie', 'locatie', 'LOCATIE', 'Production Location', 'production_location']),
+      productielocatie: productielocatie,
       // Store all original data for flexibility
       ...row,
     }

@@ -117,12 +117,23 @@ async function buildOverview(
     // Get ERP data first - this contains the productielocatie
     const erpInfo = erpMap.get(itemNumber) || {}
     
-    // Productielocatie comes from ERP LINK file, fallback to PILS if not available
-    const productielocatie = erpInfo.productielocatie || 
-                             pilsRow['Productielocatie'] || 
-                             pilsRow['productielocatie'] || 
-                             pilsRow['Location'] || 
-                             pilsRow['PRODUCTIELOCATIE'] || ''
+    // Productielocatie comes ONLY from ERP LINK file (Wilrijk or Genk)
+    // PAC3PL is NOT a productielocatie - it's just a code indicating unit is in Willebroek
+    // If no ERP LINK data, productielocatie should be empty
+    let productielocatie = erpInfo.productielocatie || ''
+    
+    // Normalize productielocatie values - only accept Wilrijk or Genk
+    if (productielocatie) {
+      const normalized = productielocatie.toLowerCase().trim()
+      if (normalized.includes('wilrijk')) {
+        productielocatie = 'Wilrijk'
+      } else if (normalized.includes('genk')) {
+        productielocatie = 'Genk'
+      } else {
+        // If it's not Wilrijk or Genk, set to empty (could be PAC3PL or other invalid value)
+        productielocatie = ''
+      }
+    }
     
     const locatie = pilsRow['Locatie'] || pilsRow['locatie'] || pilsRow['LOCATIE'] || ''
     const stockLocation = pilsRow['Stock Location'] || pilsRow['stock_location'] || pilsRow['STOCK LOCATION'] || pilsRow['STOCK_LOCATION'] || ''
