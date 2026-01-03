@@ -482,8 +482,8 @@ export default function GroteInpakPage() {
               </div>
             ) : (
               <p className="text-sm text-gray-500 mb-3">
-                Sleep bestanden hierheen of<br />
-                klik om te selecteren
+                Sleep meerdere bestanden hierheen of<br />
+                klik om meerdere bestanden te selecteren
               </p>
             )}
             <input
