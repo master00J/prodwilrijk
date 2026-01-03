@@ -199,6 +199,7 @@ function extractLocationFromFilename(filename: string): string {
   // Normalize common location names
   const locationMap: { [key: string]: string } = {
     'willebroek': 'Willebroek',
+    'wilrijk': 'Willebroek', // Wilrijk is the same as Willebroek
     'wlb': 'Willebroek',
     'pac3pl': 'Willebroek',
     'genk': 'Genk',
@@ -207,7 +208,10 @@ function extractLocationFromFilename(filename: string): string {
   // Try to find location in filename (case-insensitive)
   const lowerName = name.toLowerCase()
   
-  // Check for common patterns
+  // Check for common patterns (order matters - check Wilrijk before Willebroek to avoid partial matches)
+  if (lowerName.includes('wilrijk')) {
+    return 'Willebroek' // Wilrijk = Willebroek
+  }
   if (lowerName.includes('willebroek') || lowerName.includes('wlb') || lowerName.includes('pac3pl')) {
     return 'Willebroek'
   }

@@ -197,30 +197,30 @@ export default function GroteInpakPage() {
         }
       }
 
-      // Upload stock files if provided - upload one by one to avoid 413 errors
+      // Upload stock files if provided - upload all at once so they're all processed together
       if (stockFiles.length > 0) {
-        for (const file of stockFiles) {
-          const stockFormData = new FormData()
+        const stockFormData = new FormData()
+        stockFiles.forEach(file => {
           stockFormData.append('files', file)
-          stockFormData.append('fileType', 'stock')
+        })
+        stockFormData.append('fileType', 'stock')
 
-          const stockResponse = await fetch('/api/grote-inpak/upload-multiple', {
-            method: 'POST',
-            body: stockFormData,
-          })
+        const stockResponse = await fetch('/api/grote-inpak/upload-multiple', {
+          method: 'POST',
+          body: stockFormData,
+        })
 
-          if (!stockResponse.ok) {
-            // Try to parse error, but handle non-JSON responses
-            let errorMessage = 'Error uploading stock file'
-            try {
-              const stockError = await stockResponse.json()
-              errorMessage = stockError.error || errorMessage
-            } catch {
-              // If response is not JSON (e.g., HTML error page), use status text
-              errorMessage = `Error uploading ${file.name}: ${stockResponse.status} ${stockResponse.statusText}`
-            }
-            throw new Error(errorMessage)
+        if (!stockResponse.ok) {
+          // Try to parse error, but handle non-JSON responses
+          let errorMessage = 'Error uploading stock files'
+          try {
+            const stockError = await stockResponse.json()
+            errorMessage = stockError.error || errorMessage
+          } catch {
+            // If response is not JSON (e.g., HTML error page), use status text
+            errorMessage = `Error uploading stock files: ${stockResponse.status} ${stockResponse.statusText}`
           }
+          throw new Error(errorMessage)
         }
       }
 
