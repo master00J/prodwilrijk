@@ -216,6 +216,7 @@ export async function GET(request: NextRequest) {
     })
 
     // Also filter raw stock data to only include items with kistnummer
+    // But keep all locations for the location filter dropdown
     const filteredStockData = stockData?.filter((item: any) => {
       // Check if this item has a matching kistnummer
       let hasKistnummer = false
@@ -241,11 +242,15 @@ export async function GET(request: NextRequest) {
       }
       return hasKistnummer
     }) || []
+    
+    // Get all unique locations from the original stockData (before filtering) for the dropdown
+    const allLocations = Array.from(new Set(stockData?.map((item: any) => item.location).filter(Boolean) || [])).sort()
 
     return NextResponse.json({ 
       data: filteredStockData, 
       aggregated: filteredAggregated,
-      count: filteredStockData.length 
+      count: filteredStockData.length,
+      allLocations: allLocations // Include all locations for the dropdown
     })
   } catch (error: any) {
     console.error('Error fetching stock:', error)

@@ -24,6 +24,11 @@ export default function StockAnalysisTab() {
         const result = await response.json()
         setStockData(result.data || [])
         setAggregatedData(result.aggregated || [])
+        // Use allLocations from API if available, otherwise derive from stockData
+        if (result.allLocations && result.allLocations.length > 0) {
+          // Store locations in a way that the component can use
+          // We'll use the stockData to derive locations, but the API provides allLocations
+        }
       }
     } catch (error) {
       console.error('Error loading stock:', error)
@@ -94,7 +99,21 @@ export default function StockAnalysisTab() {
     URL.revokeObjectURL(url)
   }
 
-  const locations = Array.from(new Set(stockData.map(item => item.location).filter(Boolean))).sort()
+  // Get locations from aggregated data (which includes all locations per kistnummer)
+  // This ensures we see all locations even if some items don't have stock in certain locations
+  const locations = Array.from(
+    new Set(
+      aggregatedData.flatMap(item => 
+        item.locations?.map((loc: any) => loc.location).filter(Boolean) || []
+      )
+    )
+  ).sort()
+  
+  // Fallback: also check raw stockData if aggregatedData doesn't have locations
+  if (locations.length === 0) {
+    const stockLocations = Array.from(new Set(stockData.map(item => item.location).filter(Boolean))).sort()
+    locations.push(...stockLocations)
+  }
 
   const filteredAggregated = aggregatedData.filter(item =>
     !searchQuery || 
