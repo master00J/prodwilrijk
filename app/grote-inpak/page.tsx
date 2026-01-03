@@ -10,6 +10,7 @@ import PackedTab from '@/components/grote-inpak/PackedTab'
 import StockAnalysisTab from '@/components/grote-inpak/StockAnalysisTab'
 import KanbanTab from '@/components/grote-inpak/KanbanTab'
 import BacklogTab from '@/components/grote-inpak/BacklogTab'
+import ErpLinkTab from '@/components/grote-inpak/ErpLinkTab'
 
 export default function GroteInpakPage() {
   const [activeTab, setActiveTab] = useState(0)
@@ -38,6 +39,7 @@ export default function GroteInpakPage() {
     { id: 5, label: '📊 Stock Analyse', icon: '📊' },
     { id: 6, label: '📦 Kanban Rekken', icon: '📦' },
     { id: 7, label: '⏰ Backlog', icon: '⏰' },
+    { id: 8, label: '🔗 ERP LINK', icon: '🔗' },
   ]
 
   const handleFileSelect = useCallback((type: 'pils' | 'erplink', file: File | null) => {
@@ -524,38 +526,42 @@ export default function GroteInpakPage() {
       )}
 
       {/* Tabs */}
-      {dataLoaded && (
-        <div className="bg-white rounded-lg shadow-lg">
-          <div className="border-b border-gray-200">
-            <nav className="flex overflow-x-auto">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`px-6 py-4 font-medium whitespace-nowrap border-b-2 transition-colors ${
-                    activeTab === tab.id
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </nav>
-          </div>
-
-          <div className="p-6">
-            {activeTab === 0 && <ExecutiveDashboardTab overview={overviewData} transport={transportData} />}
-            {activeTab === 1 && <OverviewTab overview={overviewData} />}
-            {activeTab === 2 && <TransportTab transport={transportData} overview={overviewData} />}
-            {activeTab === 3 && <ForecastTab />}
-            {activeTab === 4 && <PackedTab />}
-            {activeTab === 5 && <StockAnalysisTab />}
-            {activeTab === 6 && <KanbanTab />}
-            {activeTab === 7 && <BacklogTab overview={overviewData} />}
-          </div>
+      <div className="bg-white rounded-lg shadow-lg">
+        <div className="border-b border-gray-200">
+          <nav className="flex overflow-x-auto">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-6 py-4 font-medium whitespace-nowrap border-b-2 transition-colors ${
+                  activeTab === tab.id
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
         </div>
-      )}
+
+        <div className="p-6">
+          {activeTab === 0 && dataLoaded && <ExecutiveDashboardTab overview={overviewData} transport={transportData} />}
+          {activeTab === 1 && dataLoaded && <OverviewTab overview={overviewData} />}
+          {activeTab === 2 && dataLoaded && <TransportTab transport={transportData} overview={overviewData} />}
+          {activeTab === 3 && dataLoaded && <ForecastTab />}
+          {activeTab === 4 && dataLoaded && <PackedTab />}
+          {activeTab === 5 && dataLoaded && <StockAnalysisTab />}
+          {activeTab === 6 && dataLoaded && <KanbanTab />}
+          {activeTab === 7 && dataLoaded && <BacklogTab overview={overviewData} />}
+          {activeTab === 8 && <ErpLinkTab />}
+          {activeTab !== 8 && !dataLoaded && (
+            <div className="text-center py-12 text-gray-500">
+              Upload bestanden en klik op &apos;Verwerken&apos; om deze tab te gebruiken.
+            </div>
+          )}
+        </div>
+      </div>
 
       {!dataLoaded && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">

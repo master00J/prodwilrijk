@@ -13,8 +13,30 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // If no ERP data provided, try to load from database
+    let finalErpData = erpData || []
+    if (!finalErpData || finalErpData.length === 0) {
+      try {
+        const { data: dbErpData, error: dbError } = await supabaseAdmin
+          .from('grote_inpak_erp_link')
+          .select('*')
+        
+        if (!dbError && dbErpData) {
+          // Convert database format to expected format
+          finalErpData = dbErpData.map((item: any) => ({
+            kistnummer: item.kistnummer,
+            erp_code: item.erp_code,
+            productielocatie: item.productielocatie,
+            description: item.description,
+          }))
+        }
+      } catch (err) {
+        console.warn('Could not load ERP LINK from database:', err)
+      }
+    }
+
     // Process and build overview (ERP is optional)
-    const overview = await buildOverview(pilsData, erpData || [], stockData || [])
+    const overview = await buildOverview(pilsData, finalErpData, stockData || [])
     const transport = await buildTransport(overview)
 
     // Save to database
