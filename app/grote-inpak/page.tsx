@@ -153,8 +153,9 @@ export default function GroteInpakPage() {
   }, [handleFileSelect])
 
   const handleProcess = async () => {
-    if (!pilsFile) {
-      setError('Please upload PILS CSV file')
+    // Allow processing if at least one file type is uploaded
+    if (!pilsFile && stockFiles.length === 0 && !erpLinkFile) {
+      setError('Upload ten minste één bestand (PILS, Stock, of ERP LINK)')
       return
     }
 
@@ -237,18 +238,34 @@ export default function GroteInpakPage() {
         console.warn('Could not load stock data from database:', err)
       }
 
-      // Process data
-      const processResponse = await fetch('/api/grote-inpak/process', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          pilsData: pilsResult.data,
-          erpData: erpData,
-          stockData: stockData,
-        }),
-      })
+      // Process data (only if we have PILS data, otherwise just update stock)
+      if (pilsResult && pilsResult.data) {
+        const processResponse = await fetch('/api/grote-inpak/process', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            pilsData: pilsResult.data,
+            erpData: erpData,
+            stockData: stockData,
+          }),
+        })
+
+        if (!processResponse.ok) {
+          const processError = await processResponse.json()
+          throw new Error(processError.error || 'Error processing data')
+        }
+
+        const processResult = await processResponse.json()
+        setOverviewData(processResult.cases || [])
+        setTransportData(processResult.transport || [])
+        setDataLoaded(true)
+      } else if (stockFiles.length > 0) {
+        // If only stock files are uploaded, just refresh the stock tab
+        // The stock data is already saved to the database
+        setDataLoaded(true)
+      }
 
       if (!processResponse.ok) {
         let errorMessage = 'Error processing data'
@@ -510,7 +527,7 @@ export default function GroteInpakPage() {
             <div className="flex gap-4">
               <button
                 onClick={handleProcess}
-                disabled={isProcessing || !pilsFile}
+                disabled={isProcessing || (!pilsFile && stockFiles.length === 0 && !erpLinkFile)}
                 className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg font-semibold hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
                 {isProcessing ? (
