@@ -200,7 +200,7 @@ export default function GroteInpakPage() {
       }
 
       // Upload stock files if provided
-      let stockData: any[] = []
+      // Stock files are now saved directly to database, so we don't need to return the data
       if (stockFiles.length > 0) {
         const stockFormData = new FormData()
         stockFiles.forEach(file => {
@@ -213,10 +213,22 @@ export default function GroteInpakPage() {
           body: stockFormData,
         })
 
-        if (stockResponse.ok) {
-          const stockResult = await stockResponse.json()
-          stockData = stockResult.data || []
+        if (!stockResponse.ok) {
+          const stockError = await stockResponse.json()
+          throw new Error(stockError.error || 'Error uploading stock files')
         }
+      }
+
+      // Load stock data from database for processing
+      let stockData: any[] = []
+      try {
+        const stockDbResponse = await fetch('/api/grote-inpak/stock')
+        if (stockDbResponse.ok) {
+          const stockDbResult = await stockDbResponse.json()
+          stockData = stockDbResult.data || []
+        }
+      } catch (err) {
+        console.warn('Could not load stock data from database:', err)
       }
 
       // Process data

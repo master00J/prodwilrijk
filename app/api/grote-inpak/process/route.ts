@@ -325,23 +325,30 @@ function formatDate(dateString: string): string {
   // Try YYYYMMDD (8 digits, e.g., 20251218)
   else if (/^\d{8}$/.test(dateString.trim())) {
     const cleanDate = dateString.trim()
+    // Skip invalid dates like "00000000"
+    if (cleanDate === '00000000') {
+      return ''
+    }
     const year = cleanDate.substring(0, 4)
     const month = cleanDate.substring(4, 6)
     const day = cleanDate.substring(6, 8)
     // Validate month and day ranges
     const monthNum = parseInt(month, 10)
     const dayNum = parseInt(day, 10)
+    const yearNum = parseInt(year, 10)
+    // Check if year is reasonable (e.g., between 2000 and 2100)
+    if (yearNum < 2000 || yearNum > 2100) {
+      return ''
+    }
     if (monthNum >= 1 && monthNum <= 12 && dayNum >= 1 && dayNum <= 31) {
       date = new Date(`${year}-${month}-${day}`)
       // Double check the date is valid (handles invalid dates like Feb 30)
       if (date.getFullYear() !== parseInt(year, 10) || 
-          date.getMonth() + 1 !== monthNum || 
+          date.getMonth() + 1 !== monthNum ||
           date.getDate() !== dayNum) {
-        console.warn(`Invalid date: ${dateString} (parsed as ${year}-${month}-${day})`)
         return ''
       }
     } else {
-      console.warn(`Invalid date range: ${dateString}`)
       return ''
     }
   }

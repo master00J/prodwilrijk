@@ -15,10 +15,91 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // For stock files, save directly to database instead of returning all data
+    // This avoids 413 errors with large files
+    if (fileType === 'stock') {
+      let totalProcessed = 0
+      let filesProcessed = 0
+      const errors: string[] = []
+
+      for (const file of files) {
+        try {
+          // Log file upload
+          const { data: uploadLog } = await supabaseAdmin
+            .from('grote_inpak_file_uploads')
+            .insert({
+              file_type: fileType,
+              file_name: file.name,
+              file_size: file.size,
+              status: 'processing',
+            })
+            .select()
+            .single()
+
+          const buffer = Buffer.from(await file.arrayBuffer())
+          const location = extractLocationFromFilename(file.name)
+          const workbook = XLSX.read(buffer, { type: 'buffer' })
+          const processedData = await parseStockExcel(workbook, location)
+
+          // Save directly to database instead of accumulating in memory
+          if (processedData.length > 0) {
+            // Use upsert to handle duplicates (based on unique constraint)
+            const { error: insertError } = await supabaseAdmin
+              .from('grote_inpak_stock')
+              .upsert(
+                processedData.map(item => ({
+                  item_number: item.item_number,
+                  location: item.location,
+                  quantity: item.quantity,
+                  erp_code: item.erp_code || null,
+                })),
+                { onConflict: 'item_number,location' }
+              )
+
+            if (insertError) {
+              console.error(`Error saving stock data for ${file.name}:`, insertError)
+              errors.push(`${file.name}: ${insertError.message}`)
+            } else {
+              totalProcessed += processedData.length
+              filesProcessed++
+            }
+          }
+
+          // Update upload log
+          if (uploadLog) {
+            await supabaseAdmin
+              .from('grote_inpak_file_uploads')
+              .update({
+                status: 'completed',
+                processed_at: new Date().toISOString(),
+              })
+              .eq('id', uploadLog.id)
+          }
+        } catch (fileError: any) {
+          console.error(`Error processing file ${file.name}:`, fileError)
+          errors.push(`${file.name}: ${fileError.message}`)
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        count: totalProcessed,
+        filesProcessed,
+        errors: errors.length > 0 ? errors : undefined,
+      })
+    }
+
+    // For other file types, process normally (but limit response size)
     const allProcessedData: any[] = []
+    const MAX_RESPONSE_SIZE = 10000 // Limit to 10k items in response
 
     for (const file of files) {
       try {
+        if (allProcessedData.length >= MAX_RESPONSE_SIZE) {
+          console.warn(`Response size limit reached. Processed ${files.length} files but only returning first ${MAX_RESPONSE_SIZE} items.`)
+          break
+        }
+
         // Log file upload
         const { data: uploadLog } = await supabaseAdmin
           .from('grote_inpak_file_uploads')
@@ -52,7 +133,7 @@ export async function POST(request: NextRequest) {
             .eq('id', uploadLog.id)
         }
 
-        allProcessedData.push(...processedData)
+        allProcessedData.push(...processedData.slice(0, MAX_RESPONSE_SIZE - allProcessedData.length))
       } catch (fileError: any) {
         console.error(`Error processing file ${file.name}:`, fileError)
         // Continue with other files even if one fails
