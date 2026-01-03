@@ -61,17 +61,47 @@ export async function GET(request: NextRequest) {
       query = query.eq('location', location)
     }
 
-    const { data, error } = await query
+    const { data: stockData, error } = await query
 
     if (error) {
       throw error
     }
 
-    // Aggregate by item_number if needed
-    const aggregated = data?.reduce((acc: any, item: any) => {
-      const key = item.item_number
+    // Load ERP LINK data to match item_number/erp_code with kistnummer
+    const { data: erpLinkData } = await supabaseAdmin
+      .from('grote_inpak_erp_link')
+      .select('*')
+
+    // Create maps for matching
+    const erpCodeToKistnummer = new Map<string, string>()
+    if (erpLinkData) {
+      erpLinkData.forEach((erp: any) => {
+        if (erp.erp_code) {
+          erpCodeToKistnummer.set(String(erp.erp_code).toUpperCase(), erp.kistnummer)
+        }
+      })
+    }
+
+    // Aggregate by kistnummer (from ERP LINK) instead of item_number
+    // If no kistnummer found, use item_number as fallback
+    const aggregated = stockData?.reduce((acc: any, item: any) => {
+      // Try to find kistnummer via erp_code
+      let kistnummer = null
+      if (item.erp_code) {
+        kistnummer = erpCodeToKistnummer.get(String(item.erp_code).toUpperCase())
+      }
+      
+      // If no kistnummer found, try to match item_number directly (in case item_number is the same as erp_code)
+      if (!kistnummer && item.item_number) {
+        kistnummer = erpCodeToKistnummer.get(String(item.item_number).toUpperCase())
+      }
+
+      // Use kistnummer if found, otherwise use item_number as fallback
+      const key = kistnummer || item.item_number || 'UNKNOWN'
+      
       if (!acc[key]) {
         acc[key] = {
+          kistnummer: kistnummer || null,
           item_number: item.item_number,
           erp_code: item.erp_code,
           locations: [],
@@ -86,10 +116,18 @@ export async function GET(request: NextRequest) {
       return acc
     }, {})
 
+    // Sort aggregated data by kistnummer (or item_number if no kistnummer)
+    const aggregatedArray = aggregated ? Object.values(aggregated) : []
+    aggregatedArray.sort((a: any, b: any) => {
+      const keyA = a.kistnummer || a.item_number || ''
+      const keyB = b.kistnummer || b.item_number || ''
+      return keyA.localeCompare(keyB)
+    })
+
     return NextResponse.json({ 
-      data: data || [], 
-      aggregated: aggregated ? Object.values(aggregated) : [],
-      count: data?.length || 0 
+      data: stockData || [], 
+      aggregated: aggregatedArray,
+      count: stockData?.length || 0 
     })
   } catch (error: any) {
     console.error('Error fetching stock:', error)

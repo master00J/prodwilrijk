@@ -74,14 +74,17 @@ export default function StockAnalysisTab() {
 
   const handleExport = () => {
     const csv = [
-      ['Item Number', 'Location', 'Quantity', 'ERP Code'],
-      ...stockData.map(item => [
-        item.item_number || '',
-        item.location || '',
-        item.quantity || '0',
-        item.erp_code || '',
-      ]),
-    ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n')
+      ['Kistnummer', 'Item Number', 'ERP Code', 'Location', 'Quantity'],
+      ...aggregatedData.flatMap(item => 
+        item.locations?.map((loc: any) => [
+          item.kistnummer || '',
+          item.item_number || '',
+          item.erp_code || '',
+          loc.location || '',
+          loc.quantity || '0',
+        ]) || []
+      ),
+    ].map(row => row.map((cell: string) => `"${cell}"`).join(',')).join('\n')
 
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
@@ -96,6 +99,7 @@ export default function StockAnalysisTab() {
 
   const filteredAggregated = aggregatedData.filter(item =>
     !searchQuery || 
+    item.kistnummer?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     item.item_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     item.erp_code?.toLowerCase().includes(searchQuery.toLowerCase())
   )
@@ -168,7 +172,7 @@ export default function StockAnalysisTab() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Search Item/ERP Code</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Search Kistnummer/Item/ERP Code</label>
             <input
               type="text"
               value={searchQuery}
@@ -214,23 +218,31 @@ export default function StockAnalysisTab() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Kistnummer</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Item Number</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">ERP Code</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Total Quantity</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Locations</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Stock per Locatie</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredAggregated.map((item, index) => (
                 <tr key={index} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{item.item_number || '-'}</td>
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                    {item.kistnummer ? (
+                      <span className="font-bold text-blue-600">{item.kistnummer}</span>
+                    ) : (
+                      <span className="text-gray-400 italic">-</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-700">{item.item_number || '-'}</td>
                   <td className="px-4 py-3 text-sm text-gray-700">{item.erp_code || '-'}</td>
                   <td className="px-4 py-3 text-sm font-semibold text-gray-900">{item.total_quantity || 0}</td>
                   <td className="px-4 py-3 text-sm text-gray-700">
                     <div className="flex flex-wrap gap-1">
                       {item.locations?.map((loc: any, i: number) => (
-                        <span key={i} className="px-2 py-1 bg-gray-100 rounded text-xs">
-                          {loc.location} ({loc.quantity})
+                        <span key={i} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
+                          {loc.location}: {loc.quantity}
                         </span>
                       ))}
                     </div>
