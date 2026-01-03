@@ -160,7 +160,14 @@ async function buildOverview(
     
     // Match ERP data by case_type (from PILS) with kistnummer (from ERP LINK)
     // Normalize case_type for matching (remove spaces, slashes, convert to uppercase)
-    const normalizedCaseType = String(caseType || '').trim().toUpperCase().replace(/\s+/g, '')
+    let normalizedCaseType = String(caseType || '').trim().toUpperCase().replace(/\s+/g, '')
+    
+    // If case_type starts with "V" (vaszak), replace with "K" for matching
+    // V154 should match K154 in ERP LINK (same kist, but with vaszak)
+    if (normalizedCaseType.startsWith('V')) {
+      normalizedCaseType = 'K' + normalizedCaseType.substring(1)
+    }
+    
     let erpInfo = erpMapByKistnummer.get(normalizedCaseType) || {}
     
     // If no exact match, try partial matching (e.g., "K107/K109" should match "K107" or "K109")
