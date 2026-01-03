@@ -61,9 +61,8 @@ export async function POST(request: NextRequest) {
             // Delete existing stock for this specific location first
             const { error: deleteError, count: deleteCount } = await supabaseAdmin
               .from('grote_inpak_stock')
-              .delete()
+              .delete({ count: 'exact' })
               .eq('location', location)
-              .select('*', { count: 'exact', head: true })
 
             if (deleteError) {
               console.error(`Error deleting existing stock for ${location}:`, deleteError)
