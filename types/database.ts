@@ -15,6 +15,77 @@ export interface ItemToPack {
   updated_at?: string
 }
 
+// Grote Inpak Types
+export interface GroteInpakCase {
+  id: number
+  case_label: string
+  case_type?: string | null
+  arrival_date?: string | null
+  item_number?: string | null
+  productielocatie?: string | null
+  in_willebroek: boolean
+  stock_location?: string | null
+  locatie?: string | null
+  status?: string | null
+  priority: boolean
+  comment?: string | null
+  term_werkdagen?: number | null
+  deadline?: string | null
+  dagen_te_laat: number
+  dagen_in_willebroek: number
+  created_at: string
+  updated_at: string
+}
+
+export interface GroteInpakTransport {
+  id: number
+  case_label: string
+  transport_needed: boolean
+  transport_date?: string | null
+  transport_status?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface GroteInpakStock {
+  id: number
+  item_number: string
+  location?: string | null
+  quantity?: number | null
+  erp_code?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface GroteInpakForecast {
+  id: number
+  item_number: string
+  forecast_date?: string | null
+  forecast_quantity?: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface GroteInpakPacked {
+  id: number
+  case_label: string
+  packed_date: string
+  packed_file?: string | null
+  created_at: string
+}
+
+export interface GroteInpakFileUpload {
+  id: number
+  file_type: 'pils' | 'erp' | 'stock' | 'forecast' | 'packed'
+  file_name: string
+  file_size?: number | null
+  uploaded_by?: string | null
+  uploaded_at: string
+  processed_at?: string | null
+  status: 'pending' | 'processing' | 'completed' | 'error'
+  error_message?: string | null
+}
+
 export interface IncomingGood {
   id: number
   item_number: string

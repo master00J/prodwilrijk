@@ -55,6 +55,15 @@ export default function Home() {
         { href: '/packed-items-airtec', label: 'Packed Items Airtec' },
       ] as FeatureLink[]
     },
+    {
+      title: 'Grote Inpak',
+      description: 'Atlas Copco overview and transport management',
+      icon: Warehouse,
+      color: 'teal',
+      links: [
+        { href: '/grote-inpak', label: 'Grote Inpak Dashboard' },
+      ] as FeatureLink[]
+    },
   ]
 
   const quickActions = [

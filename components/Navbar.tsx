@@ -68,6 +68,8 @@ export default function Navbar() {
     pathname.startsWith('/admin') || 
     pathname.startsWith('/employees')
 
+  const isGroteInpakPage = pathname.startsWith('/grote-inpak')
+
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -253,6 +255,18 @@ export default function Navbar() {
                 </div>
               )}
             </div>
+
+            {/* Grote Inpak Link */}
+            <Link
+              href="/grote-inpak"
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                isGroteInpakPage
+                  ? 'bg-teal-500 text-white hover:bg-teal-600'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              Grote Inpak
+            </Link>
 
             {/* Admin Dropdown - Only show if user is admin */}
             {isAdmin && (
