@@ -118,8 +118,8 @@ async function buildOverview(
     const locatie = pilsRow['Locatie'] || pilsRow['locatie'] || pilsRow['LOCATIE'] || ''
     const stockLocation = pilsRow['Stock Location'] || pilsRow['stock_location'] || pilsRow['STOCK LOCATION'] || pilsRow['STOCK_LOCATION'] || ''
 
-    // Check if in Willebroek - ONLY if there's stock in Willebroek according to stock files
-    // This is the key change: we check the stock data, not just the PILS location
+    // IN WB is only "Ja" if the case (kist) has stock in Willebroek according to stock files
+    // We only check the stock files, not the PILS file location
     const inWillebroek = itemNumber ? hasStockInWillebroek(itemNumber) : false
 
     // Get ERP data
