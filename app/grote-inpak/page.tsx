@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { Upload, Database, RefreshCw, AlertCircle } from 'lucide-react'
+import { Upload, Database, RefreshCw, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import OverviewTab from '@/components/grote-inpak/OverviewTab'
 import ExecutiveDashboardTab from '@/components/grote-inpak/ExecutiveDashboardTab'
 import TransportTab from '@/components/grote-inpak/TransportTab'
@@ -24,6 +24,7 @@ export default function GroteInpakPage() {
   const [dragActivePils, setDragActivePils] = useState(false)
   const [dragActiveErpLink, setDragActiveErpLink] = useState(false)
   const [dragActiveStock, setDragActiveStock] = useState(false)
+  const [uploadSectionExpanded, setUploadSectionExpanded] = useState(false)
   const pilsInputRef = useRef<HTMLInputElement>(null)
   const erpLinkInputRef = useRef<HTMLInputElement>(null)
   const stockInputRef = useRef<HTMLInputElement>(null)
@@ -302,16 +303,28 @@ export default function GroteInpakPage() {
 
       {/* File Upload Section */}
       <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-        <h2 className="text-2xl font-semibold mb-4">📁 Bestanden Uploaden</h2>
+        <div 
+          className="flex items-center justify-between cursor-pointer mb-4 hover:bg-gray-50 -m-2 p-2 rounded transition-colors"
+          onClick={() => setUploadSectionExpanded(!uploadSectionExpanded)}
+        >
+          <h2 className="text-2xl font-semibold">📁 Bestanden Uploaden</h2>
+          {uploadSectionExpanded ? (
+            <ChevronUp className="w-6 h-6 text-gray-500" />
+          ) : (
+            <ChevronDown className="w-6 h-6 text-gray-500" />
+          )}
+        </div>
         
-        {error && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-800">
-            <AlertCircle className="w-5 h-5" />
-            <span>{error}</span>
-          </div>
-        )}
+        {uploadSectionExpanded && (
+          <div>
+            {error && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-800">
+                <AlertCircle className="w-5 h-5" />
+                <span>{error}</span>
+              </div>
+            )}
 
-        <div className="mb-4">
+            <div className="mb-4">
           <div
             className={`border-2 border-dashed rounded-lg p-6 text-center transition-all ${
               dragActivePils
@@ -469,34 +482,36 @@ export default function GroteInpakPage() {
           </div>
         </div>
 
-        <div className="flex gap-4">
-          <button
-            onClick={handleProcess}
-            disabled={isProcessing || !pilsFile}
-            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg font-semibold hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-          >
-            {isProcessing ? (
-              <>
-                <RefreshCw className="w-5 h-5 animate-spin" />
-                Verwerken...
-              </>
-            ) : (
-              <>
-                <Database className="w-5 h-5" />
-                Verwerken
-              </>
-            )}
-          </button>
-          {dataLoaded && (
-            <button
-              onClick={handleRefresh}
-              className="flex items-center gap-2 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
-            >
-              <RefreshCw className="w-5 h-5" />
-              Vernieuwen
-            </button>
-          )}
-        </div>
+            <div className="flex gap-4">
+              <button
+                onClick={handleProcess}
+                disabled={isProcessing || !pilsFile}
+                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg font-semibold hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                {isProcessing ? (
+                  <>
+                    <RefreshCw className="w-5 h-5 animate-spin" />
+                    Verwerken...
+                  </>
+                ) : (
+                  <>
+                    <Database className="w-5 h-5" />
+                    Verwerken
+                  </>
+                )}
+              </button>
+              {dataLoaded && (
+                <button
+                  onClick={handleRefresh}
+                  className="flex items-center gap-2 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                >
+                  <RefreshCw className="w-5 h-5" />
+                  Vernieuwen
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Status Message */}
