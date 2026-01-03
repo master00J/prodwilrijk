@@ -244,11 +244,29 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string): Promi
     const itemNumberCell = worksheet[colA]
     const itemNumber = itemNumberCell ? String(itemNumberCell.v || '').trim() : ''
     
+    // Skip empty rows
+    if (!itemNumber) {
+      continue
+    }
+    
     // Column C (index 2) = quantity
     const colC = XLSX.utils.encode_cell({ r: rowNum, c: 2 })
     const quantityCell = worksheet[colC]
-    const quantityStr = quantityCell ? String(quantityCell.v || '').trim() : ''
-    const quantity = parseInt(quantityStr, 10) || 0
+    let quantity = 0
+    
+    if (quantityCell) {
+      // Handle different cell types (number, string, etc.)
+      const cellValue = quantityCell.v
+      if (typeof cellValue === 'number') {
+        quantity = Math.floor(cellValue) // Use floor to handle decimals
+      } else if (typeof cellValue === 'string') {
+        // Remove commas and parse
+        const cleanStr = cellValue.replace(/,/g, '').trim()
+        quantity = parseInt(cleanStr, 10) || 0
+      } else {
+        quantity = parseInt(String(cellValue || ''), 10) || 0
+      }
+    }
     
     // Only process rows with item_number and quantity > 0
     if (itemNumber && quantity > 0) {
@@ -259,6 +277,12 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string): Promi
         erp_code: itemNumber, // Use item_number as erp_code (they're the same in column A)
       })
     }
+  }
+  
+  // Log for debugging
+  console.log(`Parsed ${results.length} stock items for location ${location}`)
+  if (results.length > 0) {
+    console.log(`Sample items:`, results.slice(0, 3).map(r => `${r.item_number}: ${r.quantity}`))
   }
   
   return results
