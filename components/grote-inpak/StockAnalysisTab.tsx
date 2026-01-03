@@ -74,11 +74,10 @@ export default function StockAnalysisTab() {
 
   const handleExport = () => {
     const csv = [
-      ['Kistnummer', 'Item Number', 'ERP Code', 'Location', 'Quantity'],
+      ['Kistnummer', 'ERP Code', 'Location', 'Quantity'],
       ...aggregatedData.flatMap(item => 
         item.locations?.map((loc: any) => [
           item.kistnummer || '',
-          item.item_number || '',
           item.erp_code || '',
           loc.location || '',
           loc.quantity || '0',
@@ -100,7 +99,6 @@ export default function StockAnalysisTab() {
   const filteredAggregated = aggregatedData.filter(item =>
     !searchQuery || 
     item.kistnummer?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.item_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     item.erp_code?.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
@@ -172,7 +170,7 @@ export default function StockAnalysisTab() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Search Kistnummer/Item/ERP Code</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Search Kistnummer/ERP Code</label>
             <input
               type="text"
               value={searchQuery}
@@ -219,7 +217,6 @@ export default function StockAnalysisTab() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Kistnummer</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Item Number</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">ERP Code</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Total Quantity</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Stock per Locatie</th>
@@ -235,7 +232,6 @@ export default function StockAnalysisTab() {
                       <span className="text-gray-400 italic">-</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{item.item_number || '-'}</td>
                   <td className="px-4 py-3 text-sm text-gray-700">{item.erp_code || '-'}</td>
                   <td className="px-4 py-3 text-sm font-semibold text-gray-900">{item.total_quantity || 0}</td>
                   <td className="px-4 py-3 text-sm text-gray-700">

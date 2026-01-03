@@ -82,6 +82,7 @@ export async function GET(request: NextRequest) {
     // 3. Match item_number with kistnummer number part (e.g., 100003 -> 003 -> K003)
     
     const erpCodeToKistnummer = new Map<string, string>()
+    const kistnummerToErpCode = new Map<string, string>() // Map kistnummer -> erp_code from ERP LINK
     const itemNumberToKistnummer = new Map<string, string>() // For direct item_number -> kistnummer matching
     
     if (erpLinkData) {
@@ -92,6 +93,11 @@ export async function GET(request: NextRequest) {
         
         if (erp.kistnummer) {
           const normalizedKistnummer = String(erp.kistnummer).toUpperCase().trim()
+          // Store kistnummer -> erp_code mapping
+          if (erp.erp_code) {
+            kistnummerToErpCode.set(normalizedKistnummer, erp.erp_code)
+          }
+          
           // Store kistnummer as-is (e.g., "K003")
           itemNumberToKistnummer.set(normalizedKistnummer, erp.kistnummer)
           
@@ -156,14 +162,20 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Use kistnummer if found, otherwise use item_number as fallback
-      const key = kistnummer || item.item_number || 'UNKNOWN'
+      // Only process items that have a kistnummer (matched with ERP LINK)
+      if (!kistnummer) {
+        return acc // Skip items without kistnummer
+      }
+      
+      const key = kistnummer
       
       if (!acc[key]) {
+        // Get erp_code from ERP LINK based on kistnummer
+        const erpCodeFromLink = kistnummerToErpCode.get(kistnummer.toUpperCase().trim()) || null
+        
         acc[key] = {
-          kistnummer: kistnummer || null,
-          item_number: item.item_number,
-          erp_code: item.erp_code,
+          kistnummer: kistnummer,
+          erp_code: erpCodeFromLink, // Use erp_code from ERP LINK, not from stock file
           locations: [],
           total_quantity: 0,
         }
