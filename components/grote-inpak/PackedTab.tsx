@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Upload, Download, Calendar, Package } from 'lucide-react'
+import { Upload, Download, Calendar, Package, FileCode } from 'lucide-react'
 
 export default function PackedTab() {
   const [packedData, setPackedData] = useState<any[]>([])
@@ -9,6 +9,12 @@ export default function PackedTab() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [convertingToXML, setConvertingToXML] = useState(false)
+  const [xmlConversionSettings, setXmlConversionSettings] = useState({
+    division: 'AIF',
+    vendorCode: '77774',
+    deliveryDate: new Date().toISOString().split('T')[0],
+  })
 
   useEffect(() => {
     loadPacked()
@@ -96,6 +102,48 @@ export default function PackedTab() {
     URL.revokeObjectURL(url)
   }
 
+  const handleConvertToXML = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setConvertingToXML(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('division', xmlConversionSettings.division)
+      formData.append('vendorCode', xmlConversionSettings.vendorCode)
+      formData.append('deliveryDate', xmlConversionSettings.deliveryDate)
+
+      const response = await fetch('/api/grote-inpak/convert-to-xml', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        
+        // Download XML file
+        const blob = new Blob([result.xml], { type: 'application/xml' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = result.filename || `packed_${xmlConversionSettings.deliveryDate}.xml`
+        a.click()
+        URL.revokeObjectURL(url)
+        
+        alert(`Successfully converted ${result.count} items to XML!`)
+      } else {
+        const error = await response.json()
+        alert(`Error: ${error.error || 'Failed to convert to XML'}`)
+      }
+    } catch (error) {
+      console.error('Error converting to XML:', error)
+      alert('Error converting file to XML')
+    } finally {
+      setConvertingToXML(false)
+    }
+  }
+
   const filteredData = packedData.filter(item =>
     !searchQuery || item.case_label?.toLowerCase().includes(searchQuery.toLowerCase())
   )
@@ -122,14 +170,64 @@ export default function PackedTab() {
               onChange={handleFileUpload}
             />
           </label>
+          <label className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            <FileCode className="w-4 h-4" />
+            {convertingToXML ? 'Converting...' : 'Convert to XML'}
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={handleConvertToXML}
+              disabled={convertingToXML}
+            />
+          </label>
           <button
             onClick={handleExport}
             className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
           >
             <Download className="w-4 h-4" />
-            Export
+            Export CSV
           </button>
         </div>
+      </div>
+
+      {/* XML Conversion Settings */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <h3 className="text-sm font-semibold text-blue-900 mb-3">XML Conversion Settings</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Division</label>
+            <input
+              type="text"
+              value={xmlConversionSettings.division}
+              onChange={(e) => setXmlConversionSettings({ ...xmlConversionSettings, division: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="AIF"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Vendor Code</label>
+            <input
+              type="text"
+              value={xmlConversionSettings.vendorCode}
+              onChange={(e) => setXmlConversionSettings({ ...xmlConversionSettings, vendorCode: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="77774"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Date</label>
+            <input
+              type="date"
+              value={xmlConversionSettings.deliveryDate}
+              onChange={(e) => setXmlConversionSettings({ ...xmlConversionSettings, deliveryDate: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+        </div>
+        <p className="text-xs text-gray-600 mt-2">
+          💡 Upload een packed Excel bestand en klik op "Convert to XML" om het te converteren naar BE2NET_PO_INBOX XML formaat.
+        </p>
       </div>
 
       {/* Filters */}
