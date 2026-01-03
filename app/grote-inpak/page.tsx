@@ -544,16 +544,15 @@ export default function GroteInpakPage() {
         </div>
 
         <div className="p-6">
-          {activeTab === 0 && dataLoaded && <ExecutiveDashboardTab overview={overviewData} transport={transportData} />}
-          {activeTab === 1 && dataLoaded && <OverviewTab overview={overviewData} />}
-          {activeTab === 2 && dataLoaded && <TransportTab transport={transportData} overview={overviewData} />}
-          {activeTab === 3 && dataLoaded && <ForecastTab />}
-          {activeTab === 4 && dataLoaded && <PackedTab />}
-          {activeTab === 5 && dataLoaded && <StockAnalysisTab />}
-          {activeTab === 6 && dataLoaded && <KanbanTab />}
-          {activeTab === 7 && dataLoaded && <BacklogTab overview={overviewData} />}
-          {activeTab === 8 && <ErpLinkTab />}
-          {activeTab !== 8 && !dataLoaded && (
+          {activeTab === 0 && dataLoaded && <OverviewTab overview={overviewData} />}
+          {activeTab === 1 && dataLoaded && <TransportTab transport={transportData} overview={overviewData} />}
+          {activeTab === 2 && dataLoaded && <ForecastTab />}
+          {activeTab === 3 && dataLoaded && <PackedTab />}
+          {activeTab === 4 && dataLoaded && <StockAnalysisTab />}
+          {activeTab === 5 && dataLoaded && <KanbanTab />}
+          {activeTab === 6 && dataLoaded && <BacklogTab overview={overviewData} />}
+          {activeTab === 7 && <ErpLinkTab />}
+          {activeTab !== 7 && !dataLoaded && (
             <div className="text-center py-12 text-gray-500">
               Upload bestanden en klik op &apos;Verwerken&apos; om deze tab te gebruiken.
             </div>
