@@ -192,9 +192,10 @@ export async function GET(request: NextRequest) {
     // Convert locationMap to locations array for each aggregated item
     const aggregatedArray = aggregated ? Object.values(aggregated) : []
     aggregatedArray.forEach((item: any) => {
-      if (item.locationMap) {
+      if (item.locationMap && item.locationMap instanceof Map) {
         // Convert map to array of { location, quantity } objects
-        item.locations = Array.from(item.locationMap.entries()).map(([location, quantity]) => ({
+        const locationEntries = Array.from(item.locationMap.entries()) as [string, number][]
+        item.locations = locationEntries.map(([location, quantity]) => ({
           location,
           quantity,
         }))
