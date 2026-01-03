@@ -208,7 +208,16 @@ async function parsePILSCSV(csvText: string): Promise<any[]> {
 async function parseERPExcel(workbook: XLSX.WorkBook): Promise<any[]> {
   const sheetName = workbook.SheetNames[0]
   const worksheet = workbook.Sheets[sheetName]
+  
+  // First, get headers to identify column positions
+  const headerRow = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' })[0] as any[]
+  const headers = headerRow || []
+  
+  // Convert to JSON with headers
   const data = XLSX.utils.sheet_to_json(worksheet, { raw: false, defval: '' })
+  
+  // Also get raw data to access by column index (for column C)
+  const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as any[][]
   
   if (data.length === 0) {
     throw new Error('Excel file appears to be empty or has no data rows')
@@ -234,8 +243,16 @@ async function parseERPExcel(workbook: XLSX.WorkBook): Promise<any[]> {
     return ''
   }
 
-  return data.map((row: any) => {
-    // Find productielocatie - prioritize columns that likely contain "Wilrijk" or "Genk"
+  return data.map((row: any, index: number) => {
+    // Find kistnummer - this is the key to match with case_type from PILS
+    const kistnummer = findValue(row, [
+      'kistnummer', 'Kistnummer', 'KISTNUMMER', 'Kist Nummer', 'Kist_Nummer',
+      'Case Number', 'case_number', 'CaseNumber', 'CASE_NUMBER',
+      'Case', 'case', 'CASE'
+    ])
+    
+    // Find productielocatie - this is typically in column C (3rd column, index 2)
+    // Try to find it by column name first
     let productielocatie = findValue(row, [
       'Productielocatie', 'productielocatie', 'Productie Locatie', 'ProductieLocatie', 'PRODUCTIELOCATIE',
       'Production Location', 'production_location', 'ProductionLocation',
@@ -243,6 +260,20 @@ async function parseERPExcel(workbook: XLSX.WorkBook): Promise<any[]> {
       'Fabriek', 'fabriek', 'FABRIEK', 'Factory', 'factory',
       'Plant', 'plant', 'PLANT'
     ])
+    
+    // If not found by name, try to get column C from raw data (3rd column, index 2)
+    if (!productielocatie && rawData && rawData[index + 1]) {
+      // rawData[0] is header row, so data starts at index 1
+      const rowData = rawData[index + 1]
+      if (rowData && rowData.length > 2) {
+        productielocatie = String(rowData[2] || '').trim() // Column C is index 2
+      }
+    }
+    
+    // Also try direct access by column letter C
+    if (!productielocatie && row['C']) {
+      productielocatie = String(row['C'] || '').trim()
+    }
     
     // Normalize productielocatie - only accept Wilrijk or Genk
     if (productielocatie) {
@@ -252,12 +283,13 @@ async function parseERPExcel(workbook: XLSX.WorkBook): Promise<any[]> {
       } else if (normalized.includes('genk')) {
         productielocatie = 'Genk'
       } else {
-        // If it's not Wilrijk or Genk (e.g., PAC3PL), set to empty
+        // If it's not Wilrijk or Genk (e.g., PAC3PL, BouwPakket), set to empty
         productielocatie = ''
       }
     }
     
     return {
+      kistnummer: kistnummer,
       item_number: findValue(row, ['Item Number', 'item_number', 'Item', 'Artikel', 'ARTIKEL', 'ItemNr', 'ItemNr.', 'Item Nr']),
       erp_code: findValue(row, ['ERP Code', 'erp_code', 'ERP', 'ERPCode', 'ERP_CODE']),
       description: findValue(row, ['Description', 'description', 'Omschrijving', 'DESCRIPTION', 'Desc']),
@@ -265,7 +297,7 @@ async function parseERPExcel(workbook: XLSX.WorkBook): Promise<any[]> {
       // Store all original data for flexibility
       ...row,
     }
-  }).filter(row => row.item_number || row.erp_code) // Only include rows with at least item_number or erp_code
+  }).filter(row => row.kistnummer || row.item_number || row.erp_code) // Include rows with kistnummer, item_number, or erp_code
 }
 
 // Stock CSV Parser

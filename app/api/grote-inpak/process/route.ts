@@ -47,10 +47,32 @@ async function buildOverview(
   stockData: any[]
 ): Promise<any[]> {
   // Create ERP lookup map
-  const erpMap = new Map()
+  // Create ERP map - match on kistnummer (which matches case_type from PILS)
+  const erpMapByKistnummer = new Map()
+  erpData.forEach((item: any) => {
+    if (item.kistnummer) {
+      // Normalize kistnummer for matching (remove slashes, spaces, convert to uppercase)
+      const normalizedKistnummer = String(item.kistnummer).trim().toUpperCase().replace(/\s+/g, '').replace(/\//g, '')
+      // Store both the normalized version and the original item
+      erpMapByKistnummer.set(normalizedKistnummer, item)
+      
+      // Also store individual parts if kistnummer contains "/" (e.g., "K107/K109")
+      if (String(item.kistnummer).includes('/')) {
+        const parts = String(item.kistnummer).split('/').map(p => p.trim().toUpperCase())
+        parts.forEach(part => {
+          if (part && !erpMapByKistnummer.has(part)) {
+            erpMapByKistnummer.set(part, item)
+          }
+        })
+      }
+    }
+  })
+  
+  // Also create a map by item_number as fallback (for backwards compatibility)
+  const erpMapByItemNumber = new Map()
   erpData.forEach((item: any) => {
     if (item.item_number) {
-      erpMap.set(item.item_number, item)
+      erpMapByItemNumber.set(item.item_number, item)
     }
   })
 
@@ -114,12 +136,32 @@ async function buildOverview(
       arrivalDate = formatDate(arrivalDate)
     }
     
-    // Get ERP data first - this contains the productielocatie
-    const erpInfo = erpMap.get(itemNumber) || {}
+    // Match ERP data by case_type (from PILS) with kistnummer (from ERP LINK)
+    // Normalize case_type for matching (remove spaces, slashes, convert to uppercase)
+    const normalizedCaseType = String(caseType || '').trim().toUpperCase().replace(/\s+/g, '')
+    let erpInfo = erpMapByKistnummer.get(normalizedCaseType) || {}
+    
+    // If no exact match, try partial matching (e.g., "K107/K109" should match "K107" or "K109")
+    if (!erpInfo.productielocatie && normalizedCaseType) {
+      // Try to find any kistnummer that contains the case_type or vice versa
+      for (const [kistnummer, erpItem] of erpMapByKistnummer.entries()) {
+        const normalizedKistnummer = String(kistnummer).replace(/\s+/g, '').replace(/\//g, '')
+        // Check if case_type is part of kistnummer (e.g., "K107" in "K107/K109")
+        if (normalizedKistnummer.includes(normalizedCaseType) || normalizedCaseType.includes(normalizedKistnummer)) {
+          erpInfo = erpItem
+          break
+        }
+      }
+    }
+    
+    // If still no match found, try to match on item_number as fallback
+    if (!erpInfo.productielocatie && itemNumber) {
+      erpInfo = erpMapByItemNumber.get(itemNumber) || {}
+    }
     
     // Productielocatie comes ONLY from ERP LINK file (Wilrijk or Genk)
     // PAC3PL is NOT a productielocatie - it's just a code indicating unit is in Willebroek
-    // If no ERP LINK data, productielocatie should be empty
+    // If no ERP LINK data matches, productielocatie should be empty (unknown case type)
     let productielocatie = erpInfo.productielocatie || ''
     
     // Normalize productielocatie values - only accept Wilrijk or Genk
@@ -130,7 +172,7 @@ async function buildOverview(
       } else if (normalized.includes('genk')) {
         productielocatie = 'Genk'
       } else {
-        // If it's not Wilrijk or Genk, set to empty (could be PAC3PL or other invalid value)
+        // If it's not Wilrijk or Genk, set to empty (could be PAC3PL, BouwPakket, or other invalid value)
         productielocatie = ''
       }
     }
