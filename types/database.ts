@@ -8,6 +8,7 @@ export interface ItemToPack {
   measurement: boolean
   packed: boolean
   problem: boolean
+  problem_comment?: string | null
   image?: string | null
   images?: string[] // Multiple images
   wms_line_id?: string | null // Unique identifier from WMS for status 30 lines

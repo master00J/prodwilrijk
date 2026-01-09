@@ -16,6 +16,7 @@ interface ItemsTableProps {
   onDelete: (id: number) => void
   onReturn: (id: number) => void
   onUploadImage: (id: number) => void
+  onEditProblemComment: (id: number) => void
 }
 
 export default function ItemsTable({
@@ -30,6 +31,7 @@ export default function ItemsTable({
   onDelete,
   onReturn,
   onUploadImage,
+  onEditProblemComment,
 }: ItemsTableProps) {
   const [expandedImage, setExpandedImage] = useState<number | null>(null)
 
@@ -171,9 +173,24 @@ export default function ItemsTable({
                     </td>
                     <td className="px-4 py-4">
                       {isProblem && (
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                          ⚠️ Problem
-                        </span>
+                        <div className="flex items-start gap-2">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            ⚠️ Problem
+                          </span>
+                          <button
+                            onClick={() => onEditProblemComment(item.id)}
+                            className="text-red-600 hover:text-red-800 text-sm font-medium"
+                            title={item.problem_comment ? 'Edit problem comment' : 'Add problem comment'}
+                          >
+                            💬
+                          </button>
+                        </div>
+                      )}
+                      {isProblem && item.problem_comment && (
+                        <div className="mt-2 p-2 bg-red-50 rounded text-xs text-gray-700 max-w-xs">
+                          <div className="font-medium text-red-800 mb-1">Comment:</div>
+                          <div className="whitespace-pre-wrap">{item.problem_comment}</div>
+                        </div>
                       )}
                     </td>
                     <td className="px-4 py-4">

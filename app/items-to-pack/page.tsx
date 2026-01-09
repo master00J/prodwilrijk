@@ -12,6 +12,7 @@ import ReturnItemModal from '@/components/items-to-pack/ReturnItemModal'
 import ImageUploadModal from '@/components/items-to-pack/ImageUploadModal'
 import TimeRegistrationModal from '@/components/items-to-pack/TimeRegistrationModal'
 import ActiveTimersCard from '@/components/items-to-pack/ActiveTimersCard'
+import ProblemCommentModal from '@/components/items-to-pack/ProblemCommentModal'
 import Pagination from '@/components/common/Pagination'
 
 interface ItemsResponse {
@@ -39,6 +40,7 @@ export default function ItemsToPackPage() {
   const [showReturnModal, setShowReturnModal] = useState(false)
   const [showImageUploadModal, setShowImageUploadModal] = useState(false)
   const [showTimeModal, setShowTimeModal] = useState(false)
+  const [showProblemCommentModal, setShowProblemCommentModal] = useState(false)
   const [activeTimeLogs, setActiveTimeLogs] = useState<any[]>([])
   const [selectedItemForAction, setSelectedItemForAction] = useState<number | null>(null)
   const [sortColumn, setSortColumn] = useState<keyof ItemToPack | null>(null)
@@ -424,6 +426,36 @@ export default function ItemsToPackPage() {
     setSelectedItemForAction(null)
   }
 
+  const handleEditProblemComment = (id: number) => {
+    setSelectedItemForAction(id)
+    setShowProblemCommentModal(true)
+  }
+
+  const handleSaveProblemComment = async (comment: string) => {
+    if (!selectedItemForAction) return
+
+    try {
+      const response = await fetch('/api/items-to-pack/problem', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: selectedItemForAction,
+          problem_comment: comment,
+        }),
+      })
+
+      if (!response.ok) throw new Error('Failed to save problem comment')
+
+      await fetchItems()
+      setShowProblemCommentModal(false)
+      setSelectedItemForAction(null)
+      alert('Problem comment saved successfully')
+    } catch (error) {
+      console.error('Error saving problem comment:', error)
+      alert('Failed to save problem comment')
+    }
+  }
+
   const fetchActiveTimeLogs = async () => {
     try {
       // Add timestamp to prevent caching
@@ -664,6 +696,7 @@ export default function ItemsToPackPage() {
         onDelete={handleDelete}
         onReturn={handleReturn}
         onUploadImage={handleUploadImage}
+        onEditProblemComment={handleEditProblemComment}
       />
 
       {totalPages > 1 && (
@@ -725,6 +758,18 @@ export default function ItemsToPackPage() {
         <TimeRegistrationModal
           onClose={() => setShowTimeModal(false)}
           onStart={handleStartTimer}
+        />
+      )}
+
+      {showProblemCommentModal && selectedItemForAction && (
+        <ProblemCommentModal
+          itemId={selectedItemForAction}
+          item={items.find(item => item.id === selectedItemForAction)}
+          onClose={() => {
+            setShowProblemCommentModal(false)
+            setSelectedItemForAction(null)
+          }}
+          onSave={handleSaveProblemComment}
         />
       )}
     </div>
