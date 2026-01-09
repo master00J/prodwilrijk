@@ -135,6 +135,7 @@ export default function OpenOrdersPage() {
   const [selectedOrders, setSelectedOrders] = useState<Set<number>>(new Set())
   const [sendingPdf, setSendingPdf] = useState(false)
   const [autoOrderRunning, setAutoOrderRunning] = useState(false)
+  const [deletingOrders, setDeletingOrders] = useState(false)
   const [showRegisterModal, setShowRegisterModal] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState<WoodOrder | null>(null)
   const [editingCell, setEditingCell] = useState<{ orderId: number; field: string } | null>(null)
@@ -279,6 +280,40 @@ export default function OpenOrdersPage() {
       alert(error instanceof Error ? error.message : 'Failed to run auto-order')
     } finally {
       setAutoOrderRunning(false)
+    }
+  }
+
+  const handleDeleteSelected = async () => {
+    if (selectedOrders.size === 0) {
+      alert('Please select at least one order to delete')
+      return
+    }
+
+    if (!confirm(`Are you sure you want to delete ${selectedOrders.size} order(s)? This action cannot be undone.`)) {
+      return
+    }
+
+    setDeletingOrders(true)
+    try {
+      const response = await fetch('/api/wood/orders/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedOrders) }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to delete orders')
+      }
+
+      alert(`Successfully deleted ${selectedOrders.size} order(s)`)
+      setSelectedOrders(new Set())
+      await fetchOrders()
+    } catch (error) {
+      console.error('Error deleting orders:', error)
+      alert(error instanceof Error ? error.message : 'Failed to delete orders')
+    } finally {
+      setDeletingOrders(false)
     }
   }
 
@@ -553,6 +588,13 @@ export default function OpenOrdersPage() {
             className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
             {autoOrderRunning ? 'Processing...' : '🤖 Auto-Order'}
+          </button>
+          <button
+            onClick={handleDeleteSelected}
+            disabled={deletingOrders || selectedOrders.size === 0}
+            className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+          >
+            {deletingOrders ? 'Deleting...' : '🗑️ Delete Selected'}
           </button>
         </div>
       </div>

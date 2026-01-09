@@ -9,6 +9,8 @@ export default function ReceiveWoodPage() {
   const [selectedPackage, setSelectedPackage] = useState<WoodPackage | null>(null)
   const [locatie, setLocatie] = useState('')
   const [waitingPackages, setWaitingPackages] = useState<WoodPackage[]>([])
+  const [selectedPackages, setSelectedPackages] = useState<Set<number>>(new Set())
+  const [deletingPackages, setDeletingPackages] = useState(false)
   const [showScanner, setShowScanner] = useState(false)
   const scannerRef = useRef<HTMLDivElement>(null)
 
@@ -104,6 +106,58 @@ export default function ReceiveWoodPage() {
     setPakketnummer(pkg.pakketnummer)
   }
 
+  const handleTogglePackageSelect = (id: number) => {
+    const newSelected = new Set(selectedPackages)
+    if (newSelected.has(id)) {
+      newSelected.delete(id)
+    } else {
+      newSelected.add(id)
+    }
+    setSelectedPackages(newSelected)
+  }
+
+  const handleSelectAllPackages = () => {
+    if (selectedPackages.size === waitingPackages.length) {
+      setSelectedPackages(new Set())
+    } else {
+      setSelectedPackages(new Set(waitingPackages.map(pkg => pkg.id)))
+    }
+  }
+
+  const handleDeleteSelectedPackages = async () => {
+    if (selectedPackages.size === 0) {
+      alert('Please select at least one package to delete')
+      return
+    }
+
+    if (!confirm(`Are you sure you want to delete ${selectedPackages.size} package(s)? This action cannot be undone.`)) {
+      return
+    }
+
+    setDeletingPackages(true)
+    try {
+      const response = await fetch('/api/wood/packages/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedPackages) }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to delete packages')
+      }
+
+      alert(`Successfully deleted ${selectedPackages.size} package(s)`)
+      setSelectedPackages(new Set())
+      await fetchWaitingPackages()
+    } catch (error) {
+      console.error('Error deleting packages:', error)
+      alert(error instanceof Error ? error.message : 'Failed to delete packages')
+    } finally {
+      setDeletingPackages(false)
+    }
+  }
+
   // QR Scanner would be implemented here with html5-qrcode library
   // For now, we'll use manual input
 
@@ -155,11 +209,36 @@ export default function ReceiveWoodPage() {
 
       {/* Waiting Packages List */}
       <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 className="text-xl font-bold mb-4">Packages Ready for Location</h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold">Packages Ready for Location</h2>
+          <div className="flex gap-2">
+            <button
+              onClick={handleSelectAllPackages}
+              className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 text-sm"
+            >
+              {selectedPackages.size === waitingPackages.length && waitingPackages.length > 0 ? 'Deselect All' : 'Select All'}
+            </button>
+            <button
+              onClick={handleDeleteSelectedPackages}
+              disabled={deletingPackages || selectedPackages.size === 0}
+              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm"
+            >
+              {deletingPackages ? 'Deleting...' : '🗑️ Delete Selected'}
+            </button>
+          </div>
+        </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <input
+                    type="checkbox"
+                    checked={selectedPackages.size === waitingPackages.length && waitingPackages.length > 0}
+                    onChange={handleSelectAllPackages}
+                    className="w-4 h-4"
+                  />
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Package #</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Wood Type</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dimensions (DxWxL)</th>
@@ -171,13 +250,22 @@ export default function ReceiveWoodPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {waitingPackages.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                     No packages waiting for location
                   </td>
                 </tr>
               ) : (
                 waitingPackages.map((pkg) => (
                   <tr key={pkg.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={selectedPackages.has(pkg.id)}
+                        onChange={() => handleTogglePackageSelect(pkg.id)}
+                        className="w-4 h-4"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {pkg.pakketnummer}
                     </td>
