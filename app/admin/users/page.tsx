@@ -28,7 +28,13 @@ export default function UsersManagementPage() {
   const fetchUsers = async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/admin/users')
+      // Add timestamp to prevent caching
+      const response = await fetch(`/api/admin/users?t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+      })
       if (!response.ok) throw new Error('Failed to fetch users')
       const data = await response.json()
       setUsers(data)
@@ -46,14 +52,27 @@ export default function UsersManagementPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId }),
+        cache: 'no-store',
       })
 
-      if (!response.ok) throw new Error('Failed to verify user')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Failed to verify user')
+      }
+
+      const result = await response.json()
+      console.log('Verify result:', result)
+
+      // Wait a bit to ensure database is updated
+      await new Promise(resolve => setTimeout(resolve, 300))
+      
+      // Force refresh with timestamp
       await fetchUsers()
+      
       alert('User verified successfully')
     } catch (error) {
       console.error('Error verifying user:', error)
-      alert('Failed to verify user')
+      alert(`Failed to verify user: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
@@ -67,14 +86,24 @@ export default function UsersManagementPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, verified: false }),
+        cache: 'no-store',
       })
 
-      if (!response.ok) throw new Error('Failed to unverify user')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Failed to unverify user')
+      }
+
+      // Wait a bit to ensure database is updated
+      await new Promise(resolve => setTimeout(resolve, 300))
+      
+      // Force refresh with timestamp
       await fetchUsers()
+      
       alert('User unverified successfully')
     } catch (error) {
       console.error('Error unverifying user:', error)
-      alert('Failed to unverify user')
+      alert(`Failed to unverify user: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
@@ -84,14 +113,24 @@ export default function UsersManagementPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, role: newRole }),
+        cache: 'no-store',
       })
 
-      if (!response.ok) throw new Error('Failed to change role')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Failed to change role')
+      }
+
+      // Wait a bit to ensure database is updated
+      await new Promise(resolve => setTimeout(resolve, 300))
+      
+      // Force refresh with timestamp
       await fetchUsers()
+      
       alert('Role updated successfully')
     } catch (error) {
       console.error('Error changing role:', error)
-      alert('Failed to change role')
+      alert(`Failed to change role: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 

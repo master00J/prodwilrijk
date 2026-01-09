@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET(request: NextRequest) {
   try {
     // Get all users from auth.users and join with user_roles
@@ -14,10 +17,11 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get all user roles
+    // Get all user roles (force fresh data)
     const { data: roles, error: rolesError } = await supabaseAdmin
       .from('user_roles')
       .select('user_id, username, role, verified, created_at')
+      .order('created_at', { ascending: false })
 
     if (rolesError) {
       console.error('Error fetching roles:', rolesError)
@@ -37,8 +41,8 @@ export async function GET(request: NextRequest) {
         return {
           id: user.id,
           username: roleData.username,
-          role: roleData.role,
-          verified: roleData.verified || false,
+          role: roleData.role || 'user',
+          verified: roleData.verified === true, // Explicitly check for true
           created_at: roleData.created_at || user.created_at,
         }
       })
