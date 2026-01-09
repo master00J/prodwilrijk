@@ -358,22 +358,6 @@ export default function OpenOrdersPage() {
     setSelectedOrders(newSelected)
   }
 
-  const fetchBcCodes = async (items: Array<{ breedte: number; dikte: number; houtsoort: string }>) => {
-    try {
-      const response = await fetch('/api/wood/bc-codes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items }),
-      })
-      if (!response.ok) throw new Error('Failed to fetch BC codes')
-      const data = await response.json()
-      return data.bc_codes || {}
-    } catch (error) {
-      console.error('Error fetching BC codes:', error)
-      return {}
-    }
-  }
-
   const handleSendPdf = async () => {
     if (selectedOrders.size === 0) {
       alert('Please select at least one order to send.')
