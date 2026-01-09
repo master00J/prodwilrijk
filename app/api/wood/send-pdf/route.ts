@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import nodemailer from 'nodemailer'
-import PDFDocument from 'pdfkit'
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
 import fs from 'fs'
 import path from 'path'
-import { promisify } from 'util'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -30,13 +29,22 @@ async function getBcCodes(items: Array<{ breedte: number; dikte: number; houtsoo
       }
     })
 
-    // Query BC codes from database
-    const { data: bcCodes, error } = await supabaseAdmin
-      .from('bc_codes')
-      .select('breedte, dikte, houtsoort, bc_code')
+    // Query BC codes from database (table might not exist, so catch error gracefully)
+    let bcCodes: any[] = []
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('bc_codes')
+        .select('breedte, dikte, houtsoort, bc_code')
 
-    if (error) {
-      console.error('Error fetching BC codes:', error)
+      if (error) {
+        // Table doesn't exist or other error - just log and continue without BC codes
+        console.warn('BC codes table not found or error:', error.message)
+        return {}
+      }
+      bcCodes = data || []
+    } catch (error) {
+      // Table doesn't exist - return empty object
+      console.warn('BC codes table not available')
       return {}
     }
 
@@ -58,141 +66,214 @@ async function getBcCodes(items: Array<{ breedte: number; dikte: number; houtsoo
   }
 }
 
-// Generate PDF using PDFKit (similar layout to pdfmake)
-function generateOrderPDF(orderList: any[], columnOrder: string[], columnHeaders: Record<string, string>): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    try {
-      const doc = new PDFDocument({ 
-        size: 'A4',
-        layout: 'landscape',
-        margin: 50
-      })
+// Generate PDF using pdf-lib (works better in serverless environments)
+async function generateOrderPDF(orderList: any[], columnOrder: string[], columnHeaders: Record<string, string>): Promise<Buffer> {
+  const pdfDoc = await PDFDocument.create()
+  
+  // Landscape A4: 842 x 595 points
+  const pageWidth = 842
+  const pageHeight = 595
+  const margin = 50
+  const tableWidth = pageWidth - (margin * 2)
+  
+  // Fonts
+  const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica)
+  const helveticaBoldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+  
+  let page = pdfDoc.addPage([pageWidth, pageHeight])
+  let yPosition = pageHeight - margin
+  
+  // Title
+  page.drawText('Openstaande Bestellijst voor Hout', {
+    x: margin,
+    y: yPosition,
+    size: 16,
+    font: helveticaBoldFont,
+    color: rgb(0, 0, 0),
+  })
+  
+  // Center the title
+  const titleWidth = helveticaBoldFont.widthOfTextAtSize('Openstaande Bestellijst voor Hout', 16)
+  page.drawText('Openstaande Bestellijst voor Hout', {
+    x: (pageWidth - titleWidth) / 2,
+    y: yPosition,
+    size: 16,
+    font: helveticaBoldFont,
+    color: rgb(0, 0, 0),
+  })
+  
+  yPosition -= 30
+  
+  // Date
+  const dateText = `Datum: ${new Date().toLocaleDateString('nl-NL')}`
+  const dateWidth = helveticaFont.widthOfTextAtSize(dateText, 10)
+  page.drawText(dateText, {
+    x: (pageWidth - dateWidth) / 2,
+    y: yPosition,
+    size: 10,
+    font: helveticaFont,
+    color: rgb(0, 0, 0),
+  })
+  
+  yPosition -= 30
+  
+  // Priority legend
+  page.drawRectangle({
+    x: margin,
+    y: yPosition - 10,
+    width: 12,
+    height: 12,
+    color: rgb(1, 0.93, 0.7), // #ffecb3
+    borderColor: rgb(0, 0, 0),
+    borderWidth: 1,
+  })
+  page.drawText('= Prioriteit', {
+    x: margin + 17,
+    y: yPosition - 2,
+    size: 10,
+    font: helveticaFont,
+    color: rgb(0, 0, 0),
+  })
+  
+  yPosition -= 40
+  
+  // Column widths matching pdfmake percentages
+  const columnWidths: Record<string, number> = {
+    'dikte': tableWidth * 0.08,      // 8%
+    'breedte': tableWidth * 0.08,     // 8%
+    'min_lengte': tableWidth * 0.11,  // 11%
+    'aantal_pakken': tableWidth * 0.11, // 11%
+    'bc_code': tableWidth * 0.11,     // 11%
+    'besteld_op': tableWidth * 0.11,  // 11%
+    'houtsoort': tableWidth * 0.15,   // 15%
+    'opmerkingen': tableWidth * 0.25, // 25%
+  }
 
-      const buffers: Buffer[] = []
-      doc.on('data', buffers.push.bind(buffers))
-      doc.on('end', () => {
-        const pdfBuffer = Buffer.concat(buffers)
-        resolve(pdfBuffer)
-      })
-      doc.on('error', reject)
+  const calculatedWidths = columnOrder.map(col => columnWidths[col] || tableWidth * 0.1)
+  const rowHeight = 20
+  const cellPadding = 5
+  const headerY = yPosition
 
-      // Title
-      doc.fontSize(16)
-         .font('Helvetica-Bold')
-         .text('Openstaande Bestellijst voor Hout', { align: 'center' })
-         .moveDown(0.5)
+  // Header row
+  let x = margin
+  columnOrder.forEach((col, i) => {
+    const width = calculatedWidths[i]
+    const headerText = columnHeaders[col] || col
+    
+    // Header background
+    page.drawRectangle({
+      x,
+      y: headerY - rowHeight,
+      width,
+      height: rowHeight,
+      color: rgb(0.96, 0.96, 0.96), // #f5f5f5
+      borderColor: rgb(0, 0, 0),
+      borderWidth: 1,
+    })
+    
+    // Header text
+    page.drawText(headerText, {
+      x: x + cellPadding,
+      y: headerY - rowHeight + cellPadding,
+      size: 10,
+      font: helveticaBoldFont,
+      color: rgb(0, 0, 0),
+      maxWidth: width - cellPadding * 2,
+    })
+    
+    x += width
+  })
 
-      // Date
-      doc.fontSize(10)
-         .font('Helvetica')
-         .text(`Datum: ${new Date().toLocaleDateString('nl-NL')}`, { align: 'center' })
-         .moveDown(1)
-
-      // Priority legend
-      const legendY = doc.y
-      doc.rect(50, legendY, 12, 12)
-         .fillColor('#ffecb3')
-         .fill()
-         .stroke()
+  // Data rows
+  let currentY = headerY - rowHeight
+  orderList.forEach((item) => {
+    // Check if we need a new page
+    if (currentY - rowHeight < margin) {
+      page = pdfDoc.addPage([pageWidth, pageHeight])
+      currentY = pageHeight - margin - 40
       
-      doc.fontSize(10)
-         .font('Helvetica')
-         .fillColor('black')
-         .text('= Prioriteit', 67, legendY + 1)
-         .moveDown(1.5)
-
-      // Table setup - matching pdfmake layout exactly
-      const tableTop = doc.y
-      const rowHeight = 20
-      const cellPadding = 5
-      const pageWidth = 792 // Landscape A4 width in points
-      const pageHeight = 612 // Landscape A4 height in points
-      const margin = 50
-      const tableWidth = pageWidth - (margin * 2)
-      
-      // Column widths matching pdfmake percentages
-      const columnWidths: Record<string, number> = {
-        'dikte': tableWidth * 0.08,      // 8%
-        'breedte': tableWidth * 0.08,     // 8%
-        'min_lengte': tableWidth * 0.11,  // 11%
-        'aantal_pakken': tableWidth * 0.11, // 11%
-        'bc_code': tableWidth * 0.11,     // 11%
-        'besteld_op': tableWidth * 0.11,  // 11%
-        'houtsoort': tableWidth * 0.15,   // 15%
-        'opmerkingen': tableWidth * 0.25, // 25%
-      }
-
-      const calculatedWidths = columnOrder.map(col => columnWidths[col] || tableWidth * 0.1)
-
-      // Header row
-      let x = margin
-      doc.font('Helvetica-Bold')
-         .fontSize(10)
-         .fillColor('black')
-      
+      // Redraw header on new page
+      x = margin
       columnOrder.forEach((col, i) => {
         const width = calculatedWidths[i]
-        doc.rect(x, tableTop, width, rowHeight)
-           .fillColor('#f5f5f5')
-           .fill()
-           .strokeColor('black')
-           .stroke()
+        const headerText = columnHeaders[col] || col
         
-        doc.text(columnHeaders[col] || col, x + cellPadding, tableTop + cellPadding, {
-          width: width - cellPadding * 2,
-          align: 'left'
+        page.drawRectangle({
+          x,
+          y: currentY - rowHeight,
+          width,
+          height: rowHeight,
+          color: rgb(0.96, 0.96, 0.96),
+          borderColor: rgb(0, 0, 0),
+          borderWidth: 1,
         })
+        
+        page.drawText(headerText, {
+          x: x + cellPadding,
+          y: currentY - rowHeight + cellPadding,
+          size: 10,
+          font: helveticaBoldFont,
+          color: rgb(0, 0, 0),
+          maxWidth: width - cellPadding * 2,
+        })
+        
         x += width
       })
-
-      // Data rows
-      let currentY = tableTop + rowHeight
-      orderList.forEach((item) => {
-        // Check if we need a new page
-        if (currentY + rowHeight > pageHeight - margin) {
-          doc.addPage()
-          currentY = margin
-        }
-
-        x = margin
-        const fillColor = item.priority ? '#ffecb3' : 'white'
-        
-        columnOrder.forEach((col, i) => {
-          const width = calculatedWidths[i]
-          let value = ''
-          
-          if (col === 'besteld_op' && item[col]) {
-            value = new Date(item[col]).toLocaleDateString('nl-NL')
-          } else if (item[col] !== null && item[col] !== undefined) {
-            value = item[col].toString()
-          }
-          
-          doc.rect(x, currentY, width, rowHeight)
-             .fillColor(fillColor)
-             .fill()
-             .strokeColor('black')
-             .stroke()
-          
-          doc.font('Helvetica')
-             .fontSize(9)
-             .fillColor('black')
-             .text(value, x + cellPadding, currentY + cellPadding, {
-               width: width - cellPadding * 2,
-               align: 'left',
-               ellipsis: true
-             })
-          
-          x += width
-        })
-        
-        currentY += rowHeight
-      })
-
-      doc.end()
-    } catch (error) {
-      reject(error)
+      currentY -= rowHeight
     }
+
+    x = margin
+    const fillColor = item.priority ? rgb(1, 0.93, 0.7) : rgb(1, 1, 1) // #ffecb3 or white
+    
+    columnOrder.forEach((col, i) => {
+      const width = calculatedWidths[i]
+      let value = ''
+      
+      if (col === 'besteld_op' && item[col]) {
+        value = new Date(item[col]).toLocaleDateString('nl-NL')
+      } else if (item[col] !== null && item[col] !== undefined) {
+        value = item[col].toString()
+      }
+      
+      // Cell background
+      page.drawRectangle({
+        x,
+        y: currentY - rowHeight,
+        width,
+        height: rowHeight,
+        color: fillColor,
+        borderColor: rgb(0, 0, 0),
+        borderWidth: 1,
+      })
+      
+      // Cell text (truncate if too long)
+      const maxTextWidth = width - cellPadding * 2
+      let displayValue = value
+      if (helveticaFont.widthOfTextAtSize(value, 9) > maxTextWidth) {
+        // Truncate text
+        while (helveticaFont.widthOfTextAtSize(displayValue + '...', 9) > maxTextWidth && displayValue.length > 0) {
+          displayValue = displayValue.slice(0, -1)
+        }
+        displayValue += '...'
+      }
+      
+      page.drawText(displayValue, {
+        x: x + cellPadding,
+        y: currentY - rowHeight + cellPadding,
+        size: 9,
+        font: helveticaFont,
+        color: rgb(0, 0, 0),
+        maxWidth: maxTextWidth,
+      })
+      
+      x += width
+    })
+    
+    currentY -= rowHeight
   })
+
+  const pdfBytes = await pdfDoc.save()
+  return Buffer.from(pdfBytes)
 }
 
 export async function POST(request: NextRequest) {
@@ -338,4 +419,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-
