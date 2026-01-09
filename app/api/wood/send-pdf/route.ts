@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import nodemailer from 'nodemailer'
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
-import fs from 'fs'
-import path from 'path'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -277,8 +275,6 @@ async function generateOrderPDF(orderList: any[], columnOrder: string[], columnH
 }
 
 export async function POST(request: NextRequest) {
-  let tempFilePath: string | null = null
-  
   try {
     const body = await request.json()
     const { orderList, columnOrder, columnHeaders } = body
@@ -332,17 +328,8 @@ export async function POST(request: NextRequest) {
       return lengteA - lengteB
     })
 
-    // Generate PDF
+    // Generate PDF (keep in memory, don't write to disk)
     const pdfBuffer = await generateOrderPDF(sortedData, columnOrder, columnHeaders)
-
-    // Save to temp file
-    const tempDir = path.join(process.cwd(), 'tmp')
-    if (!fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir, { recursive: true })
-    }
-    
-    tempFilePath = path.join(tempDir, `bestelling_${Date.now()}.pdf`)
-    fs.writeFileSync(tempFilePath, pdfBuffer)
 
     // Setup email transporter (using same config as airtec flow)
     const host = process.env.SMTP_HOST || 'smtp.gmail.com'
@@ -353,10 +340,6 @@ export async function POST(request: NextRequest) {
     const from = process.env.SMTP_FROM || user
 
     if (!user || !password) {
-      // Clean up temp file
-      if (tempFilePath && fs.existsSync(tempFilePath)) {
-        fs.unlinkSync(tempFilePath)
-      }
       return NextResponse.json(
         { error: 'Email configuration is missing. Please set SMTP_USER and SMTP_PASSWORD environment variables.' },
         { status: 500 }
@@ -376,7 +359,7 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // Send email
+    // Send email with PDF buffer directly (no temp file needed)
     await transporter.sendMail({
       from: `"Bestellingen" <${from}>`,
       to: process.env.ORDER_EMAIL_TO || 'prodwilrijk@foresco.eu,j.ploegaerts@foresco.eu',
@@ -390,28 +373,15 @@ export async function POST(request: NextRequest) {
       attachments: [
         {
           filename: `bestelling_${new Date().toISOString().split('T')[0]}.pdf`,
-          path: tempFilePath
+          content: pdfBuffer, // Use buffer directly instead of file path
+          contentType: 'application/pdf'
         }
       ]
     })
 
-    // Clean up temp file
-    if (tempFilePath && fs.existsSync(tempFilePath)) {
-      fs.unlinkSync(tempFilePath)
-    }
-
     return NextResponse.json({ success: true, message: 'PDF sent successfully' })
   } catch (error) {
     console.error('Error in send_order_pdf:', error)
-    
-    // Clean up temp file on error
-    if (tempFilePath && fs.existsSync(tempFilePath)) {
-      try {
-        fs.unlinkSync(tempFilePath)
-      } catch (unlinkError) {
-        console.error('Error deleting temp file:', unlinkError)
-      }
-    }
     
     return NextResponse.json(
       { error: 'Failed to send PDF', details: error instanceof Error ? error.message : 'Unknown error' },
