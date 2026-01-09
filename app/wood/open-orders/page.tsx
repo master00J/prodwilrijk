@@ -134,6 +134,7 @@ export default function OpenOrdersPage() {
   const [autoRefresh, setAutoRefresh] = useState(false)
   const [selectedOrders, setSelectedOrders] = useState<Set<number>>(new Set())
   const [sendingPdf, setSendingPdf] = useState(false)
+  const [autoOrderRunning, setAutoOrderRunning] = useState(false)
   const [showRegisterModal, setShowRegisterModal] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState<WoodOrder | null>(null)
   const [editingCell, setEditingCell] = useState<{ orderId: number; field: string } | null>(null)
@@ -251,6 +252,34 @@ export default function OpenOrdersPage() {
 
   const handleCellCancel = () => {
     setEditingCell(null)
+  }
+
+  const handleAutoOrder = async () => {
+    if (!confirm('Do you want to run automatic ordering based on target stock? This will create orders for items below target levels.')) {
+      return
+    }
+
+    setAutoOrderRunning(true)
+    try {
+      const response = await fetch('/api/wood/auto-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to run auto-order')
+      }
+
+      const result = await response.json()
+      alert(`Auto-order completed! Created ${result.orders?.length || 0} new orders.`)
+      await fetchOrders()
+    } catch (error) {
+      console.error('Error running auto-order:', error)
+      alert(error instanceof Error ? error.message : 'Failed to run auto-order')
+    } finally {
+      setAutoOrderRunning(false)
+    }
   }
 
   useEffect(() => {
@@ -533,6 +562,13 @@ export default function OpenOrdersPage() {
             className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
             {sendingPdf ? 'Sending...' : 'Send PDF'}
+          </button>
+          <button
+            onClick={handleAutoOrder}
+            disabled={autoOrderRunning}
+            className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+          >
+            {autoOrderRunning ? 'Processing...' : '🤖 Auto-Order'}
           </button>
         </div>
       </div>

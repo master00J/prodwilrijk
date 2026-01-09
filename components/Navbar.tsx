@@ -436,6 +436,15 @@ export default function Navbar() {
                     >
                       BC Codes (Wood)
                     </Link>
+                    <Link
+                      href="/admin/target-stock"
+                      onClick={() => setIsAdminOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/admin/target-stock') ? 'bg-purple-50 text-purple-600 font-medium border-l-4 border-purple-500' : 'text-gray-700'
+                      }`}
+                    >
+                      Target Stock (Wood)
+                    </Link>
                   </div>
                 </div>
               )}

@@ -275,3 +275,14 @@ export interface WoodConsumption {
   opmerking?: string | null
   created_at: string
 }
+
+export interface WoodTargetStock {
+  id: number
+  houtsoort: string
+  dikte: number
+  breedte: number
+  target_packs: number
+  desired_length?: number | null
+  created_at: string
+  updated_at: string
+}
