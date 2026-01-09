@@ -116,8 +116,11 @@ export default function ReturnedItemsTable({
                           {item.images.slice(0, 3).map((imageUrl, idx) => (
                             <div
                               key={idx}
-                              className="relative w-12 h-12 cursor-pointer"
-                              onClick={() => setExpandedImageId(expandedImageId === item.id ? null : item.id)}
+                              className="relative w-12 h-12 cursor-pointer hover:opacity-80 transition-opacity"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setExpandedImageId(item.id)
+                              }}
                             >
                               <Image
                                 src={imageUrl}
@@ -129,7 +132,13 @@ export default function ReturnedItemsTable({
                             </div>
                           ))}
                           {item.images.length > 3 && (
-                            <div className="w-12 h-12 flex items-center justify-center bg-gray-100 rounded border border-gray-300 text-xs text-gray-600">
+                            <div 
+                              className="w-12 h-12 flex items-center justify-center bg-gray-100 rounded border border-gray-300 text-xs text-gray-600 cursor-pointer hover:bg-gray-200 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setExpandedImageId(item.id)
+                              }}
+                            >
                               +{item.images.length - 3}
                             </div>
                           )}
@@ -163,30 +172,44 @@ export default function ReturnedItemsTable({
           className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4"
           onClick={() => setExpandedImageId(null)}
         >
-          <div className="max-w-4xl max-h-full relative">
+          <div 
+            className="max-w-6xl w-full max-h-[90vh] overflow-auto bg-white rounded-lg p-6 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
             <button
               onClick={() => setExpandedImageId(null)}
-              className="absolute top-4 right-4 text-white text-3xl font-bold hover:text-gray-300 z-10"
+              className="absolute top-2 right-2 text-gray-600 hover:text-gray-800 text-3xl font-bold z-10 bg-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg"
             >
               ×
             </button>
             {(() => {
               const item = items.find(i => i.id === expandedImageId)
-              if (!item || !item.images || item.images.length === 0) return null
+              if (!item || !item.images || item.images.length === 0) {
+                return (
+                  <div className="text-center py-8 text-gray-500">
+                    No images available
+                  </div>
+                )
+              }
               
               return (
-                <div className="grid grid-cols-2 gap-4">
-                  {item.images.map((imageUrl, idx) => (
-                    <div key={idx} className="relative w-full h-64">
-                      <Image
-                        src={imageUrl}
-                        alt={`Image ${idx + 1}`}
-                        fill
-                        className="object-contain rounded"
-                        unoptimized
-                      />
-                    </div>
-                  ))}
+                <div className="mt-4">
+                  <h3 className="text-lg font-semibold mb-4">
+                    Images for Item {item.item_number} (Pallet: {item.po_number})
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {item.images.map((imageUrl, idx) => (
+                      <div key={idx} className="relative w-full aspect-video bg-gray-100 rounded-lg overflow-hidden">
+                        <Image
+                          src={imageUrl}
+                          alt={`Image ${idx + 1}`}
+                          fill
+                          className="object-contain"
+                          unoptimized
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )
             })()}
