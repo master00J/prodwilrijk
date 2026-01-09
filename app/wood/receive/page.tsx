@@ -87,6 +87,9 @@ export default function ReceiveWoodPage() {
       alert('Package received successfully!')
       setSelectedPackage(null)
       setLocatie('')
+      // Remove the received package from the list immediately
+      setWaitingPackages(prev => prev.filter(pkg => pkg.id !== selectedPackage.id))
+      // Also refresh the list to ensure consistency
       await fetchWaitingPackages()
     } catch (error) {
       console.error('Error receiving package:', error)
