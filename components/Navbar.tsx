@@ -56,7 +56,8 @@ export default function Navbar() {
     pathname.startsWith('/confirmed-items') || 
     pathname.startsWith('/wms-import') || 
     pathname.startsWith('/items-to-pack') || 
-    pathname.startsWith('/packed-items')
+    pathname.startsWith('/packed-items') ||
+    pathname.startsWith('/returned-items')
 
   const isAirtecPage = 
     pathname.startsWith('/airtec') ||
@@ -184,6 +185,15 @@ export default function Navbar() {
                       }`}
                     >
                       Packed Items
+                    </Link>
+                    <Link
+                      href="/returned-items"
+                      onClick={() => setIsPrepackOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/returned-items') ? 'bg-blue-50 text-blue-600 font-medium border-l-4 border-blue-500' : 'text-gray-700'
+                      }`}
+                    >
+                      Returned Items
                     </Link>
                   </div>
                 </div>

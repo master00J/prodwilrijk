@@ -193,3 +193,16 @@ export interface PackedItemAirtec {
   original_id?: number | null
   created_at?: string
 }
+
+export interface ReturnedItem {
+  id: number
+  item_number: string
+  po_number: string
+  amount: number
+  date_added: string
+  date_returned: string
+  reason?: string | null
+  original_id?: number | null
+  images?: string[]
+  created_at?: string
+}
