@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
     const dateFilter = searchParams.get('date') || ''
     const priorityOnly = searchParams.get('priority') === 'true'
     const measurementOnly = searchParams.get('measurement') === 'true'
+    const problemOnly = searchParams.get('problem') === 'true'
 
     // Build query with filters
     let query = supabaseAdmin
@@ -43,6 +44,11 @@ export async function GET(request: NextRequest) {
     // Apply measurement filter
     if (measurementOnly) {
       query = query.eq('measurement', true)
+    }
+
+    // Apply problem filter
+    if (problemOnly) {
+      query = query.eq('problem', true)
     }
 
     // Order and paginate

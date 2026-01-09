@@ -34,6 +34,7 @@ export default function ItemsToPackPage() {
   const [dateFilter, setDateFilter] = useState('')
   const [priorityOnly, setPriorityOnly] = useState(false)
   const [measurementOnly, setMeasurementOnly] = useState(false)
+  const [problemOnly, setProblemOnly] = useState(false)
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set())
   const [showScanner, setShowScanner] = useState(false)
   const [showReport, setShowReport] = useState(false)
@@ -59,6 +60,7 @@ export default function ItemsToPackPage() {
       if (dateFilter) params.append('date', dateFilter)
       if (priorityOnly) params.append('priority', 'true')
       if (measurementOnly) params.append('measurement', 'true')
+      if (problemOnly) params.append('problem', 'true')
 
       const response = await fetch(`/api/items-to-pack?${params.toString()}`)
       if (!response.ok) throw new Error('Failed to fetch items')
@@ -71,7 +73,7 @@ export default function ItemsToPackPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentPage, pageSize, searchTerm, dateFilter, priorityOnly, measurementOnly])
+  }, [currentPage, pageSize, searchTerm, dateFilter, priorityOnly, measurementOnly, problemOnly])
 
   useEffect(() => {
     fetchItems()
@@ -166,6 +168,11 @@ export default function ItemsToPackPage() {
 
   const handleMeasurementToggle = () => {
     setMeasurementOnly(!measurementOnly)
+    setCurrentPage(1) // Reset to first page
+  }
+
+  const handleProblemToggle = () => {
+    setProblemOnly(!problemOnly)
     setCurrentPage(1) // Reset to first page
   }
 
@@ -667,6 +674,8 @@ export default function ItemsToPackPage() {
         onPriorityToggle={handlePriorityToggle}
         measurementOnly={measurementOnly}
         onMeasurementToggle={handleMeasurementToggle}
+        problemOnly={problemOnly}
+        onProblemToggle={handleProblemToggle}
         onShowReport={() => setShowReport(true)}
       />
 

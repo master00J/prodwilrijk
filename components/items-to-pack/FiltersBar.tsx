@@ -9,6 +9,8 @@ interface FiltersBarProps {
   onPriorityToggle: () => void
   measurementOnly: boolean
   onMeasurementToggle: () => void
+  problemOnly: boolean
+  onProblemToggle: () => void
   onShowReport: () => void
 }
 
@@ -21,6 +23,8 @@ export default function FiltersBar({
   onPriorityToggle,
   measurementOnly,
   onMeasurementToggle,
+  problemOnly,
+  onProblemToggle,
   onShowReport,
 }: FiltersBarProps) {
   return (
@@ -76,6 +80,16 @@ export default function FiltersBar({
             }`}
           >
             📏 Measurements
+          </button>
+          <button
+            onClick={onProblemToggle}
+            className={`flex-1 px-4 py-3 rounded-lg font-medium text-lg ${
+              problemOnly
+                ? 'bg-red-500 text-white'
+                : 'bg-gray-200 hover:bg-gray-300'
+            }`}
+          >
+            ⚠️ Problems
           </button>
         </div>
       </div>
