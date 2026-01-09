@@ -81,18 +81,10 @@ async function generateOrderPDF(orderList: any[], columnOrder: string[], columnH
   let page = pdfDoc.addPage([pageWidth, pageHeight])
   let yPosition = pageHeight - margin
   
-  // Title
-  page.drawText('Openstaande Bestellijst voor Hout', {
-    x: margin,
-    y: yPosition,
-    size: 16,
-    font: helveticaBoldFont,
-    color: rgb(0, 0, 0),
-  })
-  
-  // Center the title
-  const titleWidth = helveticaBoldFont.widthOfTextAtSize('Openstaande Bestellijst voor Hout', 16)
-  page.drawText('Openstaande Bestellijst voor Hout', {
+  // Title (centered)
+  const titleText = 'Openstaande Bestellijst voor Hout'
+  const titleWidth = helveticaBoldFont.widthOfTextAtSize(titleText, 16)
+  page.drawText(titleText, {
     x: (pageWidth - titleWidth) / 2,
     y: yPosition,
     size: 16,

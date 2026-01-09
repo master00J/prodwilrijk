@@ -1,7 +1,132 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { WoodOrder } from '@/types/database'
+
+// Editable Cell Component
+interface EditableCellProps {
+  orderId: number
+  field: string
+  value: string | number
+  editing: boolean
+  onEdit: () => void
+  onSave: (value: string) => void
+  onCancel: () => void
+  type?: 'text' | 'number'
+  suffix?: string
+  placeholder?: string
+  className?: string
+  multiline?: boolean
+}
+
+function EditableCell({
+  orderId,
+  field,
+  value,
+  editing,
+  onEdit,
+  onSave,
+  onCancel,
+  type = 'text',
+  suffix = '',
+  placeholder = '',
+  className = '',
+  multiline = false,
+}: EditableCellProps) {
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null)
+  const [editValue, setEditValue] = useState(value?.toString() || '')
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus()
+      if (inputRef.current instanceof HTMLInputElement) {
+        inputRef.current.select()
+      }
+    }
+  }, [editing])
+
+  useEffect(() => {
+    setEditValue(value?.toString() || '')
+  }, [value])
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !multiline) {
+      e.preventDefault()
+      handleSave()
+    } else if (e.key === 'Escape') {
+      handleCancel()
+    }
+  }
+
+  const handleSave = () => {
+    if (editValue !== value?.toString()) {
+      onSave(editValue)
+    } else {
+      onCancel()
+    }
+  }
+
+  const handleCancel = () => {
+    setEditValue(value?.toString() || '')
+    onCancel()
+  }
+
+  if (editing) {
+    if (multiline) {
+      return (
+        <td className={className}>
+          <textarea
+            ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={handleSave}
+            onKeyDown={handleKeyDown}
+            className="w-full px-2 py-1 border border-blue-500 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            rows={2}
+          />
+        </td>
+      )
+    }
+    return (
+      <td className={className}>
+        <div className="flex items-center gap-1">
+          {type === 'number' ? (
+            <input
+              ref={inputRef as React.RefObject<HTMLInputElement>}
+              type="number"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={handleSave}
+              onKeyDown={handleKeyDown}
+              className="w-20 px-2 py-1 border border-blue-500 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          ) : (
+            <input
+              ref={inputRef as React.RefObject<HTMLInputElement>}
+              type="text"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={handleSave}
+              onKeyDown={handleKeyDown}
+              className="w-full px-2 py-1 border border-blue-500 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          )}
+        </div>
+      </td>
+    )
+  }
+
+  const displayValue = value || placeholder || '-'
+  return (
+    <td
+      className={`${className} cursor-pointer hover:bg-blue-50 transition-colors`}
+      onDoubleClick={onEdit}
+      title="Double-click to edit"
+    >
+      {displayValue}{suffix && displayValue !== '-' ? suffix : ''}
+    </td>
+  )
+}
 
 export default function OpenOrdersPage() {
   const [orders, setOrders] = useState<WoodOrder[]>([])
@@ -11,6 +136,8 @@ export default function OpenOrdersPage() {
   const [sendingPdf, setSendingPdf] = useState(false)
   const [showRegisterModal, setShowRegisterModal] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState<WoodOrder | null>(null)
+  const [editingCell, setEditingCell] = useState<{ orderId: number; field: string } | null>(null)
+  const [bcCodes, setBcCodes] = useState<Record<string, string>>({})
   const [registerData, setRegisterData] = useState({
     pakketnummer: '',
     exacte_dikte: '',
@@ -26,12 +153,104 @@ export default function OpenOrdersPage() {
       if (!response.ok) throw new Error('Failed to fetch orders')
       const data = await response.json()
       setOrders(data)
+      
+      // Fetch BC codes for all orders and update orders with BC codes
+      if (data.length > 0) {
+        const itemsForBcCode = data.map((item: WoodOrder) => ({
+          breedte: item.breedte,
+          dikte: item.dikte,
+          houtsoort: item.houtsoort || ''
+        }))
+        const bcCodesData = await fetchBcCodes(itemsForBcCode)
+        setBcCodes(bcCodesData)
+        
+        // Update orders with BC codes
+        const updatedData = data.map((item: WoodOrder) => {
+          const houtsoort = item.houtsoort ? item.houtsoort.toLowerCase() : ''
+          const key = `${item.breedte}-${item.dikte}-${houtsoort}`
+          return {
+            ...item,
+            bc_code: bcCodesData[key] || item.bc_code || ''
+          }
+        })
+        setOrders(updatedData)
+      } else {
+        setOrders(data)
+      }
     } catch (error) {
       console.error('Error fetching orders:', error)
       alert('Failed to load orders')
     } finally {
       setLoading(false)
     }
+  }
+
+  const fetchBcCodes = async (items: Array<{ breedte: number; dikte: number; houtsoort: string }>) => {
+    try {
+      const response = await fetch('/api/wood/bc-codes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      })
+      if (!response.ok) return {}
+      const data = await response.json()
+      return data.bc_codes || {}
+    } catch (error) {
+      console.error('Error fetching BC codes:', error)
+      return {}
+    }
+  }
+
+  const handleCellEdit = (orderId: number, field: string) => {
+    setEditingCell({ orderId, field })
+  }
+
+  const handleCellSave = async (orderId: number, field: string, newValue: string) => {
+    try {
+      const response = await fetch(`/api/wood/orders/${orderId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field, value: newValue }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to update field')
+      }
+
+      // Update local state
+      const updatedOrders = orders.map(order => {
+        if (order.id === orderId) {
+          const updatedOrder = {
+            ...order,
+            [field]: ['aantal_pakken', 'dikte', 'breedte', 'min_lengte', 'planken_per_pak'].includes(field)
+              ? parseFloat(newValue) || 0
+              : newValue
+          }
+          
+          // If dimensions or houtsoort changed, update BC code
+          if (['dikte', 'breedte', 'houtsoort'].includes(field)) {
+            const houtsoort = updatedOrder.houtsoort ? updatedOrder.houtsoort.toLowerCase() : ''
+            const key = `${updatedOrder.breedte}-${updatedOrder.dikte}-${houtsoort}`
+            updatedOrder.bc_code = bcCodes[key] || ''
+          }
+          
+          return updatedOrder
+        }
+        return order
+      })
+      
+      setOrders(updatedOrders)
+      setEditingCell(null)
+    } catch (error) {
+      console.error('Error updating field:', error)
+      alert(error instanceof Error ? error.message : 'Failed to update field')
+      setEditingCell(null)
+    }
+  }
+
+  const handleCellCancel = () => {
+    setEditingCell(null)
   }
 
   useEffect(() => {
@@ -373,39 +592,114 @@ export default function OpenOrdersPage() {
                           className="w-4 h-4"
                         />
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {order.houtsoort}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {order.min_lengte} mm
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {order.dikte} mm
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {order.breedte} mm
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {order.aantal_pakken}
-                      </td>
+                      <EditableCell
+                        orderId={order.id}
+                        field="houtsoort"
+                        value={order.houtsoort}
+                        editing={editingCell?.orderId === order.id && editingCell?.field === 'houtsoort'}
+                        onEdit={() => handleCellEdit(order.id, 'houtsoort')}
+                        onSave={(value) => handleCellSave(order.id, 'houtsoort', value)}
+                        onCancel={handleCellCancel}
+                        className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"
+                      />
+                      <EditableCell
+                        orderId={order.id}
+                        field="min_lengte"
+                        value={order.min_lengte}
+                        editing={editingCell?.orderId === order.id && editingCell?.field === 'min_lengte'}
+                        onEdit={() => handleCellEdit(order.id, 'min_lengte')}
+                        onSave={(value) => handleCellSave(order.id, 'min_lengte', value)}
+                        onCancel={handleCellCancel}
+                        suffix=" mm"
+                        type="number"
+                        className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"
+                      />
+                      <EditableCell
+                        orderId={order.id}
+                        field="dikte"
+                        value={order.dikte}
+                        editing={editingCell?.orderId === order.id && editingCell?.field === 'dikte'}
+                        onEdit={() => handleCellEdit(order.id, 'dikte')}
+                        onSave={(value) => handleCellSave(order.id, 'dikte', value)}
+                        onCancel={handleCellCancel}
+                        suffix=" mm"
+                        type="number"
+                        className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"
+                      />
+                      <EditableCell
+                        orderId={order.id}
+                        field="breedte"
+                        value={order.breedte}
+                        editing={editingCell?.orderId === order.id && editingCell?.field === 'breedte'}
+                        onEdit={() => handleCellEdit(order.id, 'breedte')}
+                        onSave={(value) => handleCellSave(order.id, 'breedte', value)}
+                        onCancel={handleCellCancel}
+                        suffix=" mm"
+                        type="number"
+                        className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"
+                      />
+                      <EditableCell
+                        orderId={order.id}
+                        field="aantal_pakken"
+                        value={order.aantal_pakken}
+                        editing={editingCell?.orderId === order.id && editingCell?.field === 'aantal_pakken'}
+                        onEdit={() => handleCellEdit(order.id, 'aantal_pakken')}
+                        onSave={(value) => handleCellSave(order.id, 'aantal_pakken', value)}
+                        onCancel={handleCellCancel}
+                        type="number"
+                        className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"
+                      />
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {order.ontvangen_pakken}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {order.open_pakken}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {order.planken_per_pak}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {order.bc_code || '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {order.locatie || '-'}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
-                        {order.opmerkingen || '-'}
-                      </td>
+                      <EditableCell
+                        orderId={order.id}
+                        field="planken_per_pak"
+                        value={order.planken_per_pak}
+                        editing={editingCell?.orderId === order.id && editingCell?.field === 'planken_per_pak'}
+                        onEdit={() => handleCellEdit(order.id, 'planken_per_pak')}
+                        onSave={(value) => handleCellSave(order.id, 'planken_per_pak', value)}
+                        onCancel={handleCellCancel}
+                        type="number"
+                        className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"
+                      />
+                      <EditableCell
+                        orderId={order.id}
+                        field="bc_code"
+                        value={order.bc_code || ''}
+                        editing={editingCell?.orderId === order.id && editingCell?.field === 'bc_code'}
+                        onEdit={() => handleCellEdit(order.id, 'bc_code')}
+                        onSave={(value) => handleCellSave(order.id, 'bc_code', value)}
+                        onCancel={handleCellCancel}
+                        placeholder="-"
+                        className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"
+                      />
+                      <EditableCell
+                        orderId={order.id}
+                        field="locatie"
+                        value={order.locatie || ''}
+                        editing={editingCell?.orderId === order.id && editingCell?.field === 'locatie'}
+                        onEdit={() => handleCellEdit(order.id, 'locatie')}
+                        onSave={(value) => handleCellSave(order.id, 'locatie', value)}
+                        onCancel={handleCellCancel}
+                        placeholder="-"
+                        className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"
+                      />
+                      <EditableCell
+                        orderId={order.id}
+                        field="opmerkingen"
+                        value={order.opmerkingen || ''}
+                        editing={editingCell?.orderId === order.id && editingCell?.field === 'opmerkingen'}
+                        onEdit={() => handleCellEdit(order.id, 'opmerkingen')}
+                        onSave={(value) => handleCellSave(order.id, 'opmerkingen', value)}
+                        onCancel={handleCellCancel}
+                        placeholder="-"
+                        className="px-6 py-4 text-sm text-gray-500 max-w-xs"
+                        multiline
+                      />
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {new Date(order.besteld_op).toLocaleDateString()}
                       </td>
