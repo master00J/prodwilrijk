@@ -208,3 +208,70 @@ export interface ReturnedItem {
   images?: string[]
   created_at?: string
 }
+
+// Wood Inventory Types
+export interface WoodOrder {
+  id: number
+  houtsoort: string
+  min_lengte: number
+  dikte: number
+  breedte: number
+  aantal_pakken: number
+  planken_per_pak: number
+  opmerkingen?: string | null
+  priority: boolean
+  besteld_op: string
+  ontvangen_pakken: number
+  open_pakken: number
+  bc_code?: string | null
+  locatie?: string | null
+  gearchiveerd: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface WoodPackage {
+  id: number
+  order_id?: number | null
+  pakketnummer: string
+  houtsoort: string
+  exacte_dikte: number
+  exacte_breedte: number
+  exacte_lengte: number
+  planken_per_pak: number
+  opmerking?: string | null
+  aangemeld_op: string
+  ontvangen: boolean
+  locatie?: string | null
+  ontvangen_op?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface WoodStock {
+  id: number
+  package_id?: number | null
+  houtsoort: string
+  pakketnummer?: string | null
+  dikte: number
+  breedte: number
+  lengte: number
+  locatie: string
+  aantal: number
+  ontvangen_op: string
+  created_at: string
+  updated_at: string
+}
+
+export interface WoodConsumption {
+  id: number
+  stock_id?: number | null
+  houtsoort: string
+  lengte: number
+  breedte: number
+  dikte: number
+  aantal: number
+  datum_verbruik: string
+  opmerking?: string | null
+  created_at: string
+}

@@ -43,9 +43,11 @@ export default function Navbar() {
   const { user, signOut, isAdmin } = useAuth()
   const [isPrepackOpen, setIsPrepackOpen] = useState(false)
   const [isAirtecOpen, setIsAirtecOpen] = useState(false)
+  const [isWoodOpen, setIsWoodOpen] = useState(false)
   const [isAdminOpen, setIsAdminOpen] = useState(false)
   const prepackDropdownRef = useRef<HTMLDivElement>(null)
   const airtecDropdownRef = useRef<HTMLDivElement>(null)
+  const woodDropdownRef = useRef<HTMLDivElement>(null)
   const adminDropdownRef = useRef<HTMLDivElement>(null)
 
   const isActive = (path: string) => pathname === path
@@ -71,6 +73,13 @@ export default function Navbar() {
 
   const isGroteInpakPage = pathname.startsWith('/grote-inpak')
 
+  const isWoodPage = 
+    pathname.startsWith('/wood/order') ||
+    pathname.startsWith('/wood/open-orders') ||
+    pathname.startsWith('/wood/receive') ||
+    pathname.startsWith('/wood/picking') ||
+    pathname.startsWith('/wood/consumption')
+
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -80,19 +89,22 @@ export default function Navbar() {
       if (airtecDropdownRef.current && !airtecDropdownRef.current.contains(event.target as Node)) {
         setIsAirtecOpen(false)
       }
+      if (woodDropdownRef.current && !woodDropdownRef.current.contains(event.target as Node)) {
+        setIsWoodOpen(false)
+      }
       if (adminDropdownRef.current && !adminDropdownRef.current.contains(event.target as Node)) {
         setIsAdminOpen(false)
       }
     }
 
-    if (isPrepackOpen || isAirtecOpen || isAdminOpen) {
+    if (isPrepackOpen || isAirtecOpen || isWoodOpen || isAdminOpen) {
       document.addEventListener('mousedown', handleClickOutside)
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [isPrepackOpen, isAirtecOpen, isAdminOpen])
+  }, [isPrepackOpen, isAirtecOpen, isWoodOpen, isAdminOpen])
 
   return (
     <nav className="bg-white shadow-lg border-b border-gray-200 sticky top-0 z-50">
@@ -260,6 +272,81 @@ export default function Navbar() {
                       }`}
                     >
                       Packed Items Airtec
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Wood Inventory Dropdown */}
+            <div className="relative" ref={woodDropdownRef}>
+              <button
+                onClick={() => setIsWoodOpen(!isWoodOpen)}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center ${
+                  isWoodPage
+                    ? 'bg-amber-500 text-white hover:bg-amber-600'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Wood Inventory
+                <svg
+                  className={`ml-2 w-4 h-4 transition-transform ${isWoodOpen ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {/* Dropdown Menu */}
+              {isWoodOpen && (
+                <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-xl border border-gray-200 z-20">
+                  <div className="py-2">
+                    <Link
+                      href="/wood/order"
+                      onClick={() => setIsWoodOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/wood/order') ? 'bg-amber-50 text-amber-600 font-medium border-l-4 border-amber-500' : 'text-gray-700'
+                      }`}
+                    >
+                      Order Wood
+                    </Link>
+                    <Link
+                      href="/wood/open-orders"
+                      onClick={() => setIsWoodOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/wood/open-orders') ? 'bg-amber-50 text-amber-600 font-medium border-l-4 border-amber-500' : 'text-gray-700'
+                      }`}
+                    >
+                      Open Orders
+                    </Link>
+                    <Link
+                      href="/wood/receive"
+                      onClick={() => setIsWoodOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/wood/receive') ? 'bg-amber-50 text-amber-600 font-medium border-l-4 border-amber-500' : 'text-gray-700'
+                      }`}
+                    >
+                      Receive Wood
+                    </Link>
+                    <Link
+                      href="/wood/picking"
+                      onClick={() => setIsWoodOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/wood/picking') ? 'bg-amber-50 text-amber-600 font-medium border-l-4 border-amber-500' : 'text-gray-700'
+                      }`}
+                    >
+                      Wood Picking
+                    </Link>
+                    <Link
+                      href="/wood/consumption"
+                      onClick={() => setIsWoodOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/wood/consumption') ? 'bg-amber-50 text-amber-600 font-medium border-l-4 border-amber-500' : 'text-gray-700'
+                      }`}
+                    >
+                      Wood Consumption
                     </Link>
                   </div>
                 </div>
