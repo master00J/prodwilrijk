@@ -13,6 +13,7 @@ import ImageUploadModal from '@/components/items-to-pack/ImageUploadModal'
 import TimeRegistrationModal from '@/components/items-to-pack/TimeRegistrationModal'
 import ActiveTimersCard from '@/components/items-to-pack/ActiveTimersCard'
 import ProblemCommentModal from '@/components/items-to-pack/ProblemCommentModal'
+import MarkProblemModal from '@/components/items-to-pack/MarkProblemModal'
 import Pagination from '@/components/common/Pagination'
 
 interface ItemsResponse {
@@ -42,6 +43,7 @@ export default function ItemsToPackPage() {
   const [showImageUploadModal, setShowImageUploadModal] = useState(false)
   const [showTimeModal, setShowTimeModal] = useState(false)
   const [showProblemCommentModal, setShowProblemCommentModal] = useState(false)
+  const [showMarkProblemModal, setShowMarkProblemModal] = useState(false)
   const [activeTimeLogs, setActiveTimeLogs] = useState<any[]>([])
   const [selectedItemForAction, setSelectedItemForAction] = useState<number | null>(null)
   const [sortColumn, setSortColumn] = useState<keyof ItemToPack | null>(null)
@@ -263,28 +265,40 @@ export default function ItemsToPackPage() {
     }
   }
 
-  const handleSetProblem = async () => {
+  const handleSetProblem = () => {
     const problemItems = Array.from(selectedItems)
     if (problemItems.length === 0) {
       alert('Please select items to mark as problem')
       return
     }
 
-    if (!confirm(`Mark ${problemItems.length} item(s) as having a problem? These items cannot be packed until the problem is resolved.`)) {
+    // Open modal to add comment
+    setShowMarkProblemModal(true)
+  }
+
+  const handleMarkProblemConfirm = async (comment: string) => {
+    const problemItems = Array.from(selectedItems)
+    if (problemItems.length === 0) {
       return
     }
 
     try {
+      // Mark as problem and add comment in one call
       const response = await fetch('/api/items-to-pack/problem', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: problemItems, problem: true }),
+        body: JSON.stringify({ 
+          ids: problemItems, 
+          problem: true,
+          problem_comment: comment,
+        }),
       })
 
       if (!response.ok) throw new Error('Failed to set problem status')
 
       await fetchItems()
       setSelectedItems(new Set())
+      setShowMarkProblemModal(false)
       alert('Items marked as problem successfully')
     } catch (error) {
       console.error('Error setting problem status:', error)
@@ -779,6 +793,14 @@ export default function ItemsToPackPage() {
             setSelectedItemForAction(null)
           }}
           onSave={handleSaveProblemComment}
+        />
+      )}
+
+      {showMarkProblemModal && selectedItems.size > 0 && (
+        <MarkProblemModal
+          items={items.filter(item => selectedItems.has(item.id))}
+          onClose={() => setShowMarkProblemModal(false)}
+          onConfirm={handleMarkProblemConfirm}
         />
       )}
     </div>
