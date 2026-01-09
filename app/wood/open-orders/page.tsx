@@ -7,6 +7,8 @@ export default function OpenOrdersPage() {
   const [orders, setOrders] = useState<WoodOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [autoRefresh, setAutoRefresh] = useState(false)
+  const [selectedOrders, setSelectedOrders] = useState<Set<number>>(new Set())
+  const [sendingPdf, setSendingPdf] = useState(false)
   const [showRegisterModal, setShowRegisterModal] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState<WoodOrder | null>(null)
   const [registerData, setRegisterData] = useState({
@@ -90,6 +92,139 @@ export default function OpenOrdersPage() {
     setShowRegisterModal(true)
   }
 
+  const handleSelectAll = () => {
+    if (selectedOrders.size === orders.length) {
+      setSelectedOrders(new Set())
+    } else {
+      setSelectedOrders(new Set(orders.map(o => o.id)))
+    }
+  }
+
+  const handleToggleSelect = (id: number) => {
+    const newSelected = new Set(selectedOrders)
+    if (newSelected.has(id)) {
+      newSelected.delete(id)
+    } else {
+      newSelected.add(id)
+    }
+    setSelectedOrders(newSelected)
+  }
+
+  const fetchBcCodes = async (items: Array<{ breedte: number; dikte: number; houtsoort: string }>) => {
+    try {
+      const response = await fetch('/api/wood/bc-codes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      })
+      if (!response.ok) throw new Error('Failed to fetch BC codes')
+      const data = await response.json()
+      return data.bc_codes || {}
+    } catch (error) {
+      console.error('Error fetching BC codes:', error)
+      return {}
+    }
+  }
+
+  const handleSendPdf = async () => {
+    if (selectedOrders.size === 0) {
+      alert('Please select at least one order to send.')
+      return
+    }
+
+    setSendingPdf(true)
+    try {
+      const filteredData = orders.filter(item => selectedOrders.has(item.id))
+
+      const itemsForBcCode = filteredData.map(item => ({
+        breedte: item.breedte,
+        dikte: item.dikte,
+        houtsoort: item.houtsoort || ''
+      }))
+
+      const bcCodes = await fetchBcCodes(itemsForBcCode)
+
+      const updatedData = filteredData.map(item => {
+        const houtsoort = item.houtsoort ? item.houtsoort.toLowerCase() : ''
+        const key = `${item.breedte}-${item.dikte}-${houtsoort}`
+        return {
+          ...item,
+          bc_code: bcCodes[key] || ''
+        }
+      })
+
+      // Sort data: priority first, then by houtsoort, dikte, breedte, lengte
+      const sortedData = updatedData.sort((a, b) => {
+        if (a.priority !== b.priority) {
+          return b.priority ? 1 : -1
+        }
+        if (a.houtsoort !== b.houtsoort) {
+          return a.houtsoort.localeCompare(b.houtsoort)
+        }
+        const dikteA = parseFloat(a.dikte.toString())
+        const dikteB = parseFloat(b.dikte.toString())
+        if (dikteA !== dikteB) {
+          return dikteA - dikteB
+        }
+        const breedteA = parseFloat(a.breedte.toString())
+        const breedteB = parseFloat(b.breedte.toString())
+        if (breedteA !== breedteB) {
+          return breedteA - breedteB
+        }
+        const lengteA = parseFloat(a.min_lengte.toString() || '0')
+        const lengteB = parseFloat(b.min_lengte.toString() || '0')
+        return lengteA - lengteB
+      })
+
+      // Column order for PDF
+      const pdfColumnOrder = [
+        'dikte',
+        'breedte',
+        'min_lengte',
+        'houtsoort',
+        'aantal_pakken',
+        'bc_code',
+        'opmerkingen',
+        'besteld_op'
+      ]
+
+      // Column headers for PDF
+      const pdfColumnHeaders = {
+        'dikte': 'Dikte',
+        'breedte': 'Breedte',
+        'min_lengte': 'Lengte',
+        'houtsoort': 'Houtsoort',
+        'aantal_pakken': 'Aantal',
+        'bc_code': 'BC Code',
+        'opmerkingen': 'Opmerkingen',
+        'besteld_op': 'Besteld Op'
+      }
+
+      const response = await fetch('/api/wood/send-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderList: sortedData,
+          columnOrder: pdfColumnOrder,
+          columnHeaders: pdfColumnHeaders
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to send PDF')
+      }
+
+      alert('Order successfully sent as PDF!')
+      setSelectedOrders(new Set())
+    } catch (error) {
+      console.error('Error sending email with PDF:', error)
+      alert(error instanceof Error ? error.message : 'Failed to send order')
+    } finally {
+      setSendingPdf(false)
+    }
+  }
+
   const handleRegisterPackage = async () => {
     if (!selectedOrder || !registerData.pakketnummer || !registerData.exacte_dikte || 
         !registerData.exacte_breedte || !registerData.exacte_lengte || !registerData.planken_per_pak) {
@@ -166,6 +301,21 @@ export default function OpenOrdersPage() {
             </button>
           </div>
         </div>
+        <div className="flex gap-2">
+          <button
+            onClick={handleSelectAll}
+            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+          >
+            {selectedOrders.size === orders.length ? 'Deselect All' : 'Select All'}
+          </button>
+          <button
+            onClick={handleSendPdf}
+            disabled={sendingPdf || selectedOrders.size === 0}
+            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+          >
+            {sendingPdf ? 'Sending...' : 'Send PDF'}
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -173,6 +323,14 @@ export default function OpenOrdersPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <input
+                    type="checkbox"
+                    checked={selectedOrders.size === orders.length && orders.length > 0}
+                    onChange={handleSelectAll}
+                    className="w-4 h-4"
+                  />
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Wood Type</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Length</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Thickness</th>
@@ -192,7 +350,7 @@ export default function OpenOrdersPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {orders.length === 0 ? (
                 <tr>
-                  <td colSpan={14} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={15} className="px-6 py-4 text-center text-gray-500">
                     No open orders found
                   </td>
                 </tr>
@@ -207,6 +365,14 @@ export default function OpenOrdersPage() {
                       key={order.id}
                       className={order.priority ? 'bg-yellow-50' : ''}
                     >
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={selectedOrders.has(order.id)}
+                          onChange={() => handleToggleSelect(order.id)}
+                          className="w-4 h-4"
+                        />
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {order.houtsoort}
                       </td>
