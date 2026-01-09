@@ -99,6 +99,9 @@ export default function ItemsTable({
                 Measurement
               </th>
               <th className="px-4 py-4 text-left text-sm font-medium text-gray-700">
+                Problem
+              </th>
+              <th className="px-4 py-4 text-left text-sm font-medium text-gray-700">
                 Images
               </th>
               <th className="px-4 py-4 text-left text-sm font-medium text-gray-700">
@@ -109,7 +112,7 @@ export default function ItemsTable({
           <tbody className="bg-white divide-y divide-gray-200">
             {items.length === 0 ? (
               <tr>
-                <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={12} className="px-4 py-8 text-center text-gray-500">
                   No items found
                 </td>
               </tr>
@@ -117,13 +120,19 @@ export default function ItemsTable({
               items.map((item) => {
                 const isPriority = item.priority
                 const isMeasurement = item.measurement
-                const rowClass = [
-                  isPriority && 'bg-yellow-50',
-                  isMeasurement && 'bg-blue-50',
-                  isPriority && isMeasurement && 'bg-gradient-to-r from-yellow-50 to-blue-50',
-                ]
-                  .filter(Boolean)
-                  .join(' ')
+                const isProblem = item.problem
+                
+                // Problem items get red background, priority over other colors
+                let rowClass = ''
+                if (isProblem) {
+                  rowClass = 'bg-red-100 border-l-4 border-red-500'
+                } else if (isPriority && isMeasurement) {
+                  rowClass = 'bg-gradient-to-r from-yellow-50 to-blue-50'
+                } else if (isPriority) {
+                  rowClass = 'bg-yellow-50'
+                } else if (isMeasurement) {
+                  rowClass = 'bg-blue-50'
+                }
 
                 return (
                   <tr key={item.id} className={rowClass || undefined}>
@@ -159,6 +168,13 @@ export default function ItemsTable({
                         readOnly
                         className="w-5 h-5"
                       />
+                    </td>
+                    <td className="px-4 py-4">
+                      {isProblem && (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                          ⚠️ Problem
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex gap-2 items-center flex-wrap">

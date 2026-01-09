@@ -173,6 +173,15 @@ export default function ItemsToPackPage() {
       return
     }
 
+    // Check if any selected items have problem status
+    const selectedItemsArray = items.filter(item => selectedItems.has(item.id))
+    const problemItems = selectedItemsArray.filter(item => item.problem)
+    
+    if (problemItems.length > 0) {
+      alert(`Cannot pack items with problem status. Please remove problem status first.\n\nProblem items: ${problemItems.map(i => i.item_number).join(', ')}`)
+      return
+    }
+
     if (!confirm(`Mark ${selectedItems.size} item(s) as packed?`)) {
       return
     }
@@ -242,6 +251,64 @@ export default function ItemsToPackPage() {
     } catch (error) {
       console.error('Error setting measurement:', error)
       alert('Failed to set measurement')
+    }
+  }
+
+  const handleSetProblem = async () => {
+    const problemItems = Array.from(selectedItems)
+    if (problemItems.length === 0) {
+      alert('Please select items to mark as problem')
+      return
+    }
+
+    if (!confirm(`Mark ${problemItems.length} item(s) as having a problem? These items cannot be packed until the problem is resolved.`)) {
+      return
+    }
+
+    try {
+      const response = await fetch('/api/items-to-pack/problem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: problemItems, problem: true }),
+      })
+
+      if (!response.ok) throw new Error('Failed to set problem status')
+
+      await fetchItems()
+      setSelectedItems(new Set())
+      alert('Items marked as problem successfully')
+    } catch (error) {
+      console.error('Error setting problem status:', error)
+      alert('Failed to set problem status')
+    }
+  }
+
+  const handleRemoveProblem = async () => {
+    const problemItems = Array.from(selectedItems)
+    if (problemItems.length === 0) {
+      alert('Please select items to remove problem status')
+      return
+    }
+
+    if (!confirm(`Remove problem status from ${problemItems.length} item(s)?`)) {
+      return
+    }
+
+    try {
+      const response = await fetch('/api/items-to-pack/problem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: problemItems, problem: false }),
+      })
+
+      if (!response.ok) throw new Error('Failed to remove problem status')
+
+      await fetchItems()
+      setSelectedItems(new Set())
+      alert('Problem status removed successfully')
+    } catch (error) {
+      console.error('Error removing problem status:', error)
+      alert('Failed to remove problem status')
     }
   }
 
@@ -577,6 +644,8 @@ export default function ItemsToPackPage() {
         onMarkAsPacked={handleMarkAsPacked}
         onSetPriority={handleSetPriority}
         onSetMeasurement={handleSetMeasurement}
+        onSetProblem={handleSetProblem}
+        onRemoveProblem={handleRemoveProblem}
         onDeleteSelected={handleDeleteSelected}
         onShowScanner={() => setShowScanner(true)}
         onShowTimer={() => setShowTimeModal(true)}
