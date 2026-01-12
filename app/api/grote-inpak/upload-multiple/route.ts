@@ -259,6 +259,8 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string): Promi
   // Stock files: Kolom A = ERP code, Kolom C = quantity, Locatie uit bestandsnaam
   const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
   
+  console.log(`Parsing stock file for location ${location}: Range is ${worksheet['!ref']}, total rows: ${range.e.r + 1}`)
+  
   const results: any[] = []
   
   // First, try to detect header row by checking first few rows
@@ -306,28 +308,27 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string): Promi
     let erpCode = ''
     
     if (colAValue) {
-      // Try to find GP code pattern (GP followed by digits)
+      // Try to find GP code pattern (GP followed by digits) - this is the most common format
       const gpMatch = colAValue.match(/\b(GP\d+)\b/i)
       if (gpMatch) {
         erpCode = gpMatch[1].toUpperCase()
       } else {
-        // If no GP pattern found, try to use the last word/part (might be ERP code)
-        const parts = colAValue.split(/\s+/)
-        if (parts.length > 1) {
-          // Use last part if it looks like an ERP code (starts with letters and has digits)
-          const lastPart = parts[parts.length - 1]
-          if (lastPart.match(/^[A-Z]{2,}\d+/i)) {
-            erpCode = lastPart.toUpperCase()
-          } else {
-            // Fallback: use the whole value if it looks like an ERP code
-            if (colAValue.match(/^[A-Z]{2,}\d+/i)) {
-              erpCode = colAValue.toUpperCase()
-            }
-          }
+        // If no GP pattern found, check if the whole value is an ERP code
+        // ERP codes typically start with 2+ letters followed by digits (e.g., GP008760, BC123456)
+        if (colAValue.match(/^[A-Z]{2,}\d+/i)) {
+          erpCode = colAValue.toUpperCase().trim()
         } else {
-          // Single value - use if it looks like ERP code
-          if (colAValue.match(/^[A-Z]{2,}\d+/i)) {
-            erpCode = colAValue.toUpperCase()
+          // If it contains spaces, try the last part (e.g., "7773 GP008760" -> "GP008760")
+          const parts = colAValue.split(/\s+/)
+          if (parts.length > 1) {
+            // Check each part from the end to find an ERP code
+            for (let i = parts.length - 1; i >= 0; i--) {
+              const part = parts[i].trim()
+              if (part.match(/^[A-Z]{2,}\d+/i)) {
+                erpCode = part.toUpperCase()
+                break
+              }
+            }
           }
         }
       }
@@ -418,10 +419,16 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string): Promi
     }
   }
   
-  console.log(`Parsed ${results.length} stock items for location ${location}`)
+  console.log(`Parsed ${results.length} stock items for location ${location} (from ${range.e.r + 1} total rows, started at row ${startRow + 1})`)
   if (results.length > 0) {
     const totalQty = results.reduce((sum, r) => sum + r.quantity, 0)
     console.log(`Total quantity: ${totalQty}, Sample items:`, results.slice(0, 5).map(r => `${r.erp_code}: ${r.quantity}`))
+    
+    // Log unique ERP codes count
+    const uniqueErpCodes = new Set(results.map(r => r.erp_code))
+    console.log(`Unique ERP codes in parsed data: ${uniqueErpCodes.size}`)
+  } else {
+    console.warn(`No stock items parsed from ${range.e.r + 1} rows. Check if header detection is correct.`)
   }
   
   return results
