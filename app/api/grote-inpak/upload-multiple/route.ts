@@ -262,9 +262,9 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string): Promi
   const results: any[] = []
   
   // First, try to detect header row by checking first few rows
-  // Look for common header patterns like "ERP Code", "Quantity", "Aantal", etc.
+  // Look for common header patterns like "ERP Code", "Quantity", "Aantal", "No.", "Inventory", etc.
   let startRow = 0
-  const headerKeywords = ['erp', 'code', 'quantity', 'aantal', 'qty', 'stock', 'voorraad']
+  const headerKeywords = ['erp', 'code', 'quantity', 'aantal', 'qty', 'stock', 'voorraad', 'no.', 'inventory', 'consumption']
   
   for (let checkRow = 0; checkRow < Math.min(5, range.e.r + 1); checkRow++) {
     const rowCells: string[] = []
@@ -344,7 +344,13 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string): Promi
     }
     
     // Skip empty rows or rows that look like headers
-    if (!erpCode || erpCode.toLowerCase() === 'erp code' || erpCode.toLowerCase() === 'erp_code' || erpCode.toLowerCase() === 'no.') {
+    // Also skip if ERP code is just "NO" (from "No." header)
+    if (!erpCode || 
+        erpCode.toLowerCase() === 'erp code' || 
+        erpCode.toLowerCase() === 'erp_code' || 
+        erpCode.toLowerCase() === 'no.' ||
+        erpCode.toLowerCase() === 'no' ||
+        erpCode.length < 3) { // Skip very short codes that are likely not ERP codes
       continue
     }
     
