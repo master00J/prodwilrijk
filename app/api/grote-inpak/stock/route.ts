@@ -67,24 +67,23 @@ export async function GET(request: NextRequest) {
       throw error
     }
 
-    // Load ERP LINK data - only show stock items that have an ERP code in ERP LINK
-    // ERP LINK file: kolom B = erp_code, kolom A = kistnummer
+    // Load ERP LINK data to match ERP codes with kistnummers
+    // ERP LINK file: kolom A = kistnummer, kolom B = erp_code
     const { data: erpLinkData } = await supabaseAdmin
       .from('grote_inpak_erp_link')
       .select('*')
 
-    // Create a Set of valid ERP codes from ERP LINK (kolom B)
-    // Only stock items with these ERP codes should be shown
-    const validErpCodes = new Set<string>()
+    // Create mappings: ERP code -> kistnummer and kistnummer -> ERP code
     const erpCodeToKistnummer = new Map<string, string>()
     const kistnummerToErpCode = new Map<string, string>()
+    const validErpCodes = new Set<string>() // Only used for filtering if ERP LINK data exists
     
     if (erpLinkData && erpLinkData.length > 0) {
       erpLinkData.forEach((erp: any) => {
         // Normalize ERP code: uppercase, trim, remove spaces
         if (erp.erp_code) {
           const normalizedErpCode = String(erp.erp_code).toUpperCase().trim().replace(/\s+/g, '')
-          validErpCodes.add(normalizedErpCode) // Add to set of valid ERP codes
+          validErpCodes.add(normalizedErpCode)
           erpCodeToKistnummer.set(normalizedErpCode, erp.kistnummer)
           
           if (erp.kistnummer) {
@@ -95,18 +94,18 @@ export async function GET(request: NextRequest) {
       })
       console.log(`Loaded ${erpLinkData.length} ERP LINK entries, ${validErpCodes.size} valid ERP codes`)
     } else {
-      console.warn('No ERP LINK data found - no stock items will be shown')
-      // Return empty result if no ERP LINK data
-      return NextResponse.json({ 
-        data: [], 
-        aggregated: [],
-        count: 0,
-        allLocations: []
-      })
+      console.warn('No ERP LINK data found - showing all stock items')
     }
     
-    // Filter stock data: only include items with ERP codes that exist in ERP LINK
+    // Filter stock data: if ERP LINK data exists, only show items with matching ERP codes
+    // If no ERP LINK data, show all stock items
     const filteredStockData = stockData?.filter((item: any) => {
+      // If no ERP LINK data, show all items with ERP codes
+      if (validErpCodes.size === 0) {
+        return !!item.erp_code // Show items that have an ERP code
+      }
+      
+      // If ERP LINK data exists, only show items with matching ERP codes
       if (!item.erp_code) {
         return false // Skip items without ERP code
       }
@@ -118,36 +117,30 @@ export async function GET(request: NextRequest) {
       return validErpCodes.has(normalizedStockErpCode)
     }) || []
     
-    console.log(`Filtered stock data: ${stockData?.length || 0} total items -> ${filteredStockData.length} items with valid ERP codes`)
+    console.log(`Stock data: ${stockData?.length || 0} total items -> ${filteredStockData.length} items shown (ERP LINK filtering: ${validErpCodes.size > 0 ? 'enabled' : 'disabled'})`)
 
-    // Aggregate by kistnummer (from ERP LINK)
-    // Only process items that are already filtered (have valid ERP codes)
+    // Aggregate by kistnummer (from ERP LINK) if available, otherwise by ERP code
     const aggregated = filteredStockData.reduce((acc: any, item: any) => {
-      // Find kistnummer via erp_code (all items here have valid ERP codes from ERP LINK)
-      // Normalize ERP code: uppercase, trim, remove spaces (same as in ERP LINK mapping)
-      let kistnummer = null
-      if (item.erp_code) {
-        const normalizedErpCode = String(item.erp_code).toUpperCase().trim().replace(/\s+/g, '')
-        kistnummer = erpCodeToKistnummer.get(normalizedErpCode)
-      }
-
-      // All items should have a kistnummer since they have valid ERP codes
-      // But if somehow kistnummer is missing, skip the item
-      if (!kistnummer) {
-        console.warn(`No kistnummer found for ERP code ${item.erp_code} - skipping`)
-        return acc
+      if (!item.erp_code) {
+        return acc // Skip items without ERP code
       }
       
-      // Use kistnummer as key for aggregation
-      const key = kistnummer
+      // Normalize ERP code: uppercase, trim, remove spaces
+      const normalizedErpCode = String(item.erp_code).toUpperCase().trim().replace(/\s+/g, '')
+      
+      // Try to find kistnummer via ERP code from ERP LINK
+      let kistnummer = erpCodeToKistnummer.get(normalizedErpCode) || null
+      
+      // Use kistnummer as key if available, otherwise use ERP code
+      const key = kistnummer || `ERP_${normalizedErpCode}`
       
       if (!acc[key]) {
-        // Get erp_code from ERP LINK based on kistnummer
-        const erpCodeFromLink = kistnummerToErpCode.get(kistnummer.toUpperCase().trim()) || item.erp_code
+        // Get erp_code from ERP LINK if kistnummer exists, otherwise use item's ERP code
+        const erpCodeFromLink = kistnummer ? (kistnummerToErpCode.get(kistnummer.toUpperCase().trim()) || item.erp_code) : item.erp_code
         
         acc[key] = {
-          kistnummer: kistnummer,
-          erp_code: erpCodeFromLink, // Use erp_code from ERP LINK
+          kistnummer: kistnummer, // Can be null if not in ERP LINK
+          erp_code: erpCodeFromLink,
           locations: [], // Will store { location: string, quantity: number } objects
           locationMap: new Map<string, number>(), // Temporary map to aggregate quantities per location
           total_quantity: 0,
@@ -178,17 +171,20 @@ export async function GET(request: NextRequest) {
       }
     })
     
-    // All aggregated items should have kistnummer (they all have valid ERP codes)
-    const filteredAggregated = aggregatedArray.filter((item: any) => 
-      item.kistnummer !== null && item.kistnummer !== undefined
-    )
-    
-    filteredAggregated.sort((a: any, b: any) => {
-      // Sort by kistnummer
-      const keyA = a.kistnummer || ''
-      const keyB = b.kistnummer || ''
+    // Sort aggregated items: items with kistnummer first, then by kistnummer/ERP code
+    aggregatedArray.sort((a: any, b: any) => {
+      // Items with kistnummer come first
+      if (a.kistnummer && !b.kistnummer) return -1
+      if (!a.kistnummer && b.kistnummer) return 1
+      
+      // Sort by kistnummer if both have it, otherwise by ERP code
+      const keyA = a.kistnummer || a.erp_code || ''
+      const keyB = b.kistnummer || b.erp_code || ''
       return keyA.localeCompare(keyB)
     })
+    
+    // Use all aggregated items (no filtering)
+    const filteredAggregated = aggregatedArray
     
     // Get all unique locations from the filtered stock data for the dropdown
     const allLocations = Array.from(new Set(filteredStockData.map((item: any) => item.location).filter(Boolean) || [])).sort()
