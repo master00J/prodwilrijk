@@ -102,6 +102,7 @@ export async function GET(request: NextRequest) {
     
     // Filter stock data: if ERP LINK data exists, only show items with matching ERP codes
     // If no ERP LINK data, show all stock items
+    let nonMatchCount = 0 // Track non-matching codes for debug logging
     const filteredStockData = stockData?.filter((item: any) => {
       // If no ERP LINK data, show all items with ERP codes
       if (validErpCodes.size === 0) {
@@ -125,8 +126,9 @@ export async function GET(request: NextRequest) {
       const isMatch = validErpCodes.has(normalizedStockErpCode)
       
       // Debug: log first few non-matching codes (only for first 5 to avoid spam)
-      if (!isMatch && filteredStockData.length < 5) {
+      if (!isMatch && nonMatchCount < 5) {
         console.log(`Stock ERP code "${normalizedStockErpCode}" (original: "${item.erp_code}") not found in ERP LINK`)
+        nonMatchCount++
       }
       
       return isMatch
