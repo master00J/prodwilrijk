@@ -244,12 +244,39 @@ async function parseERPExcel(workbook: XLSX.WorkBook): Promise<any[]> {
   }
 
   return data.map((row: any, index: number) => {
-    // Find kistnummer - this is the key to match with case_type from PILS
-    const kistnummer = findValue(row, [
-      'kistnummer', 'Kistnummer', 'KISTNUMMER', 'Kist Nummer', 'Kist_Nummer',
-      'Case Number', 'case_number', 'CaseNumber', 'CASE_NUMBER',
-      'Case', 'case', 'CASE'
-    ])
+    // ERP LINK file structure: Kolom A = kistnummer, Kolom B = ERP code
+    // First try to get from raw data by column index (most reliable)
+    let kistnummer = ''
+    let erp_code = ''
+    
+    if (rawData && rawData[index + 1]) {
+      // rawData[0] is header row, so data starts at index 1
+      const rowData = rawData[index + 1]
+      // Kolom A (index 0) = kistnummer
+      if (rowData && rowData.length > 0) {
+        kistnummer = String(rowData[0] || '').trim()
+      }
+      // Kolom B (index 1) = ERP code
+      if (rowData && rowData.length > 1) {
+        erp_code = String(rowData[1] || '').trim()
+      }
+    }
+    
+    // Fallback: try to find by column names (for flexibility)
+    if (!kistnummer) {
+      kistnummer = findValue(row, [
+        'kistnummer', 'Kistnummer', 'KISTNUMMER', 'Kist Nummer', 'Kist_Nummer',
+        'Case Number', 'case_number', 'CaseNumber', 'CASE_NUMBER',
+        'Case', 'case', 'CASE', 'A' // Also try column letter A
+      ])
+    }
+    
+    if (!erp_code) {
+      erp_code = findValue(row, [
+        'ERP Code', 'erp_code', 'ERP', 'ERPCode', 'ERP_CODE',
+        'B' // Also try column letter B
+      ])
+    }
     
     // Find productielocatie - this is typically in column C (3rd column, index 2)
     // Try to find it by column name first
@@ -263,7 +290,6 @@ async function parseERPExcel(workbook: XLSX.WorkBook): Promise<any[]> {
     
     // If not found by name, try to get column C from raw data (3rd column, index 2)
     if (!productielocatie && rawData && rawData[index + 1]) {
-      // rawData[0] is header row, so data starts at index 1
       const rowData = rawData[index + 1]
       if (rowData && rowData.length > 2) {
         productielocatie = String(rowData[2] || '').trim() // Column C is index 2
@@ -290,14 +316,14 @@ async function parseERPExcel(workbook: XLSX.WorkBook): Promise<any[]> {
     
     return {
       kistnummer: kistnummer,
+      erp_code: erp_code, // Kolom B = ERP code (this matches with stock file kolom A)
       item_number: findValue(row, ['Item Number', 'item_number', 'Item', 'Artikel', 'ARTIKEL', 'ItemNr', 'ItemNr.', 'Item Nr']),
-      erp_code: findValue(row, ['ERP Code', 'erp_code', 'ERP', 'ERPCode', 'ERP_CODE']),
       description: findValue(row, ['Description', 'description', 'Omschrijving', 'DESCRIPTION', 'Desc']),
       productielocatie: productielocatie,
       // Store all original data for flexibility
       ...row,
     }
-  }).filter(row => row.kistnummer || row.item_number || row.erp_code) // Include rows with kistnummer, item_number, or erp_code
+  }).filter(row => row.kistnummer || row.erp_code) // Include rows with kistnummer or erp_code
 }
 
 // Stock CSV Parser
