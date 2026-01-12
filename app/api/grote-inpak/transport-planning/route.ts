@@ -25,7 +25,8 @@ export async function POST(request: NextRequest) {
     )
 
     // Return as Response with buffer
-    return new Response(excelBuffer, {
+    // Uint8Array is a valid BodyInit type, but TypeScript needs explicit cast
+    return new Response(excelBuffer as BodyInit, {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': `attachment; filename="Transportplanning_${formatDateForFilename(nextBusinessDay)}.xlsx"`,
@@ -291,9 +292,10 @@ async function generateTransportPlanningExcel(
   // Add worksheet to workbook
   XLSX.utils.book_append_sheet(wb, ws, 'Transportplanning')
   
-  // Generate buffer as Uint8Array
+  // Generate buffer as array (XLSX returns number[] with type: 'array')
   const buffer = XLSX.write(wb, { type: 'array', bookType: 'xlsx' })
   
+  // Convert number[] to Uint8Array
   return new Uint8Array(buffer)
 }
 
