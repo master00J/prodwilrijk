@@ -258,19 +258,46 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string): Promi
   
   const results: any[] = []
   
-  // Start from row 2 (skip header row 1)
-  for (let rowNum = 1; rowNum <= range.e.r; rowNum++) {
+  // First, try to detect header row by checking first few rows
+  // Look for common header patterns like "ERP Code", "Quantity", "Aantal", etc.
+  let startRow = 0
+  const headerKeywords = ['erp', 'code', 'quantity', 'aantal', 'qty', 'stock', 'voorraad']
+  
+  for (let checkRow = 0; checkRow < Math.min(5, range.e.r + 1); checkRow++) {
+    const rowCells: string[] = []
+    for (let c = 0; c < Math.min(5, range.e.c + 1); c++) {
+      const cell = XLSX.utils.encode_cell({ r: checkRow, c })
+      const cellValue = worksheet[cell]
+      if (cellValue) {
+        rowCells.push(String(cellValue.v || '').toLowerCase())
+      }
+    }
+    
+    // Check if this row contains header keywords
+    const isHeaderRow = rowCells.some(cell => 
+      headerKeywords.some(keyword => cell.includes(keyword))
+    )
+    
+    if (isHeaderRow) {
+      startRow = checkRow + 1 // Start data from next row
+      console.log(`Detected header row at row ${checkRow + 1}, starting data from row ${startRow + 1}`)
+      break
+    }
+  }
+  
+  // Process data rows
+  for (let rowNum = startRow; rowNum <= range.e.r; rowNum++) {
     // Column A (index 0) = ERP code
     const colA = XLSX.utils.encode_cell({ r: rowNum, c: 0 })
     const erpCodeCell = worksheet[colA]
     const erpCode = erpCodeCell ? String(erpCodeCell.v || '').trim() : ''
     
-    // Skip empty rows
-    if (!erpCode) {
+    // Skip empty rows or rows that look like headers
+    if (!erpCode || erpCode.toLowerCase() === 'erp code' || erpCode.toLowerCase() === 'erp_code') {
       continue
     }
     
-    // Column C (index 2) = quantity - ONLY look at column C
+    // Column C (index 2) = quantity
     const colC = XLSX.utils.encode_cell({ r: rowNum, c: 2 })
     const quantityCell = worksheet[colC]
     let quantity = 0
@@ -278,28 +305,53 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string): Promi
     if (quantityCell) {
       const cellValue = quantityCell.v
       if (typeof cellValue === 'number') {
-        quantity = Math.floor(cellValue)
+        quantity = Math.floor(Math.abs(cellValue)) // Use absolute value and floor
       } else if (typeof cellValue === 'string') {
-        const cleanStr = cellValue.replace(/,/g, '').trim()
-        quantity = parseInt(cleanStr, 10) || 0
+        // Remove commas, spaces, and other non-numeric characters except minus sign
+        const cleanStr = cellValue.replace(/[,\s]/g, '').trim()
+        // Try to parse as float first (in case of decimals), then floor
+        const parsed = parseFloat(cleanStr)
+        quantity = isNaN(parsed) ? 0 : Math.floor(Math.abs(parsed))
       } else {
-        quantity = parseInt(String(cellValue || ''), 10) || 0
+        quantity = Math.floor(Math.abs(parseFloat(String(cellValue || '0')) || 0))
       }
     }
     
-    // Only process rows with ERP code and quantity > 0
-    if (erpCode && quantity > 0) {
+    // Also check column B (index 1) as fallback for quantity if column C is empty
+    if (quantity === 0) {
+      const colB = XLSX.utils.encode_cell({ r: rowNum, c: 1 })
+      const quantityCellB = worksheet[colB]
+      if (quantityCellB) {
+        const cellValue = quantityCellB.v
+        if (typeof cellValue === 'number') {
+          quantity = Math.floor(Math.abs(cellValue))
+        } else if (typeof cellValue === 'string') {
+          const cleanStr = cellValue.replace(/[,\s]/g, '').trim()
+          const parsed = parseFloat(cleanStr)
+          quantity = isNaN(parsed) ? 0 : Math.floor(Math.abs(parsed))
+        }
+      }
+    }
+    
+    // Process rows with ERP code (even if quantity is 0, as it might be valid stock of 0)
+    if (erpCode) {
       results.push({
         erp_code: erpCode,
         location: location,
         quantity: quantity,
       })
+      
+      // Log first few rows for debugging
+      if (results.length <= 5) {
+        console.log(`Row ${rowNum + 1}: ERP Code="${erpCode}", Quantity=${quantity} (from col C: ${quantityCell ? quantityCell.v : 'empty'})`)
+      }
     }
   }
   
   console.log(`Parsed ${results.length} stock items for location ${location}`)
   if (results.length > 0) {
-    console.log(`Sample items:`, results.slice(0, 3).map(r => `${r.erp_code}: ${r.quantity}`))
+    const totalQty = results.reduce((sum, r) => sum + r.quantity, 0)
+    console.log(`Total quantity: ${totalQty}, Sample items:`, results.slice(0, 5).map(r => `${r.erp_code}: ${r.quantity}`))
   }
   
   return results
