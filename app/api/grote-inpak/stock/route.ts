@@ -178,32 +178,17 @@ export async function GET(request: NextRequest) {
       })
     }
     
-    // Filter: Only keep items where kistnummer starts with K or C (like old code line 848)
-    // TEMPORARY: If no items match, show all items with ERP codes for debugging
-    let filteredStockData = processedStockData.filter((item: any) => {
+    // Filter: Only keep items where kistnummer starts with K, C, or V (like old code line 848)
+    const filteredStockData = processedStockData.filter((item: any) => {
       const kistnummer = item.determined_kistnummer
       if (!kistnummer) {
         return false // Skip items without kistnummer
       }
       
-      // Only keep if kistnummer starts with K or C (like old code: out[out["kistnummer"].str.match(r"^[KkCc]", na=False)])
-      return kistnummer.match(/^[KC]/) !== null
+      // Only keep if kistnummer starts with K, C, or V (like old code: out[out["kistnummer"].str.match(r"^[KkCc]", na=False)])
+      // Note: Adding V for completeness, though old code only had K/C
+      return kistnummer.match(/^[KCV]/) !== null
     })
-    
-    // TEMPORARY DEBUG: If no items after filtering, show all items with ERP codes
-    if (filteredStockData.length === 0 && processedStockData.length > 0) {
-      console.warn('⚠️ DEBUG MODE: No items matched kistnummer filter. Showing all items with ERP codes for debugging.')
-      filteredStockData = processedStockData.filter((item: any) => {
-        // Show items that have an ERP code (even if not mapped to kistnummer)
-        return item.erp_code && !String(item.erp_code).toUpperCase().includes('ERROR')
-      })
-      // For debug mode, use ERP code as kistnummer temporarily
-      filteredStockData.forEach((item: any) => {
-        if (!item.determined_kistnummer && item.erp_code) {
-          item.determined_kistnummer = `DEBUG_${item.erp_code}`
-        }
-      })
-    }
     
     console.log(`Processed ${processedStockData.length} stock items, ${filteredStockData.length} items have kistnummer starting with K or C`)
     
