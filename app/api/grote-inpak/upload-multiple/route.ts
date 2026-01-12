@@ -413,8 +413,8 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string): Promi
       })
       
       // Log first few rows for debugging
-      if (results.length <= 5) {
-        console.log(`Row ${rowNum + 1}: ERP Code="${erpCode}", Quantity=${quantity} (from col C: ${quantityCell ? quantityCell.v : 'empty'})`)
+      if (results.length <= 10) {
+        console.log(`Row ${rowNum + 1}: ERP Code="${erpCode}", Quantity=${quantity}, Location="${location}" (from col A: "${colAValue}", col C: ${quantityCell ? quantityCell.v : 'empty'})`)
       }
     }
   }
