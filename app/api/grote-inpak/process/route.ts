@@ -98,26 +98,66 @@ async function buildOverview(
     }
   })
 
-  // Create stock lookup map - group by item_number and location
-  // We need to check if there's stock in Willebroek for each item
-  const stockMapByItem = new Map<string, any[]>() // item_number -> array of stock entries
+  // Create stock lookup maps
+  // Stock files: Kolom A = ERP code, Locatie uit bestandsnaam
+  // We need to check if kisten (not units!) are in Willebroek
+  const stockMapByErpCode = new Map<string, any[]>() // erp_code -> array of stock entries
+  const stockMapByKistnummer = new Map<string, any[]>() // kistnummer -> array of stock entries
+  
   stockData.forEach((item: any) => {
-    if (item.item_number) {
-      if (!stockMapByItem.has(item.item_number)) {
-        stockMapByItem.set(item.item_number, [])
+    // Map by ERP code (primary method)
+    if (item.erp_code) {
+      const erpCode = String(item.erp_code).trim()
+      if (!stockMapByErpCode.has(erpCode)) {
+        stockMapByErpCode.set(erpCode, [])
       }
-      stockMapByItem.get(item.item_number)!.push(item)
+      stockMapByErpCode.get(erpCode)!.push(item)
+    }
+    
+    // Also map by kistnummer if the ERP code is actually a kistnummer (starts with K or C)
+    if (item.erp_code) {
+      const code = String(item.erp_code).trim().toUpperCase()
+      // If code starts with K or C, it's a kistnummer
+      if (code.match(/^[KC]/)) {
+        // Normalize: V-kisten -> K-kisten
+        const kistnummer = code.startsWith('V') ? 'K' + code.substring(1) : code
+        if (!stockMapByKistnummer.has(kistnummer)) {
+          stockMapByKistnummer.set(kistnummer, [])
+        }
+        stockMapByKistnummer.get(kistnummer)!.push(item)
+      }
     }
   })
   
-  // Helper function to check if item has stock in Willebroek
-  const hasStockInWillebroek = (itemNumber: string): boolean => {
-    const stockEntries = stockMapByItem.get(itemNumber) || []
-    // Check if any stock entry has location "Willebroek" (case-insensitive)
-    return stockEntries.some((entry: any) => {
+  // Helper function to check if kist is in Willebroek
+  // Check via: 1) kistnummer (direct match), 2) ERP code (via ERP LINK)
+  const isKistInWillebroek = (caseType: string, erpCode: string | null): boolean => {
+    // Normalize case_type for matching
+    let normalizedCaseType = String(caseType || '').trim().toUpperCase()
+    // V-kisten -> K-kisten for matching
+    if (normalizedCaseType.startsWith('V')) {
+      normalizedCaseType = 'K' + normalizedCaseType.substring(1)
+    }
+    
+    // Method 1: Direct match via kistnummer
+    const kistStockEntries = stockMapByKistnummer.get(normalizedCaseType) || []
+    const hasKistInWB = kistStockEntries.some((entry: any) => {
       const location = String(entry.location || '').toLowerCase()
-      return location.includes('willebroek') || location === 'wlb' || location === 'pac3pl'
+      return location.includes('willebroek') || location === 'wlb'
     })
+    if (hasKistInWB) return true
+    
+    // Method 2: Match via ERP code (if available)
+    if (erpCode) {
+      const erpStockEntries = stockMapByErpCode.get(String(erpCode).trim()) || []
+      const hasErpInWB = erpStockEntries.some((entry: any) => {
+        const location = String(entry.location || '').toLowerCase()
+        return location.includes('willebroek') || location === 'wlb'
+      })
+      if (hasErpInWB) return true
+    }
+    
+    return false
   }
 
   // Process PILS data
@@ -206,16 +246,47 @@ async function buildOverview(
       }
     }
     
+    // Get ERP code from ERP LINK (for stock matching)
+    const erpCode = erpInfo.erp_code || null
+    
     const locatie = pilsRow['Locatie'] || pilsRow['locatie'] || pilsRow['LOCATIE'] || ''
     const stockLocation = pilsRow['Stock Location'] || pilsRow['stock_location'] || pilsRow['STOCK LOCATION'] || pilsRow['STOCK_LOCATION'] || ''
 
-    // IN WB is only "Ja" if the case (kist) has stock in Willebroek according to stock files
-    // We only check the stock files, not the PILS file location
-    const inWillebroek = itemNumber ? hasStockInWillebroek(itemNumber) : false
-
-    // Get stock data for this item (all locations)
-    const stockEntries = stockMapByItem.get(itemNumber) || []
-    const stockInfo = stockEntries.length > 0 ? stockEntries[0] : {} // Use first entry as reference
+    // IN WB (In Willebroek) determination for KISTEN (not units!):
+    // PAC3PL in PILS file means UNIT is in Willebroek, but says nothing about the KIST
+    // We determine in_willebroek ONLY from stock files via ERP code link:
+    // case_type → erp_code (via ERP LINK) → stock location (via stock files)
+    // OR: case_type (kistnummer) → stock location (direct match)
+    const inWillebroek = isKistInWillebroek(caseType, erpCode)
+    
+    // Get stock location from stock files (if kist is in Willebroek)
+    let stockLocationFromStock: string | null = null
+    if (inWillebroek) {
+      // Find stock entry in Willebroek
+      let normalizedCaseType = String(caseType || '').trim().toUpperCase()
+      if (normalizedCaseType.startsWith('V')) {
+        normalizedCaseType = 'K' + normalizedCaseType.substring(1)
+      }
+      
+      const kistStockEntries = stockMapByKistnummer.get(normalizedCaseType) || []
+      const wbEntry = kistStockEntries.find((entry: any) => {
+        const location = String(entry.location || '').toLowerCase()
+        return location.includes('willebroek') || location === 'wlb'
+      })
+      
+      if (wbEntry) {
+        stockLocationFromStock = wbEntry.location || 'Willebroek'
+      } else if (erpCode) {
+        const erpStockEntries = stockMapByErpCode.get(String(erpCode).trim()) || []
+        const wbErpEntry = erpStockEntries.find((entry: any) => {
+          const location = String(entry.location || '').toLowerCase()
+          return location.includes('willebroek') || location === 'wlb'
+        })
+        if (wbErpEntry) {
+          stockLocationFromStock = wbErpEntry.location || 'Willebroek'
+        }
+      }
+    }
 
     // Calculate term based on case type
     const termWerkdagen = calculateTerm(caseType)
@@ -245,6 +316,9 @@ async function buildOverview(
       dagenInWillebroek = Math.floor(diffTime / (1000 * 60 * 60 * 24))
     }
 
+    // Get stapel from ERP LINK (default 1)
+    const stapel = erpInfo.stapel ? parseInt(String(erpInfo.stapel), 10) : 1
+    
     overview.push({
       case_label: caseLabel,
       case_type: caseType,
@@ -252,18 +326,13 @@ async function buildOverview(
       item_number: itemNumber || null,
       productielocatie: productielocatie || null,
       in_willebroek: inWillebroek,
-      stock_location: (() => {
-        // Get stock location from stock data if available
-        const willebroekStock = stockEntries.find((e: any) => {
-          const loc = String(e.location || '').toLowerCase()
-          return loc.includes('willebroek') || loc === 'wlb' || loc === 'pac3pl'
-        })
-        return willebroekStock?.location || stockLocation || stockEntries[0]?.location || null
-      })(),
+      stock_location: stockLocationFromStock || stockLocation || null,
       locatie: locatie || null,
       status: null,
       priority: false,
       comment: null,
+      erp_code: erpCode || null,
+      stapel: stapel >= 1 ? stapel : 1,
       term_werkdagen: termWerkdagen,
       deadline: deadline,
       dagen_te_laat: dagenTeLaat,
@@ -390,13 +459,16 @@ function addBusinessDays(startDate: string, days: number): string {
 }
 
 async function buildTransport(overview: any[]): Promise<any[]> {
+  // Transport nodig: ALLE Genk cases (ongeacht of ze al in Willebroek zijn)
+  // Dit omdat de transportplanning ook cases toont die al in Willebroek zijn voor overzicht
   return overview
-    .filter((case_) => case_.in_willebroek === false)
+    .filter((case_) => case_.productielocatie === 'Genk')
     .map((case_) => ({
       case_label: case_.case_label,
-      transport_needed: true,
+      transport_needed: !case_.in_willebroek, // Transport nodig als niet in Willebroek
       transport_date: null,
       transport_status: null,
+      bestemming: 'Willebroek', // Alle Genk cases gaan naar Willebroek
     }))
 }
 
@@ -425,17 +497,18 @@ async function saveTransportToDatabase(transport: any[]) {
 }
 
 async function saveStockToDatabase(stockData: any[]) {
-  // Upsert stock data - use item_number + location as unique key
+  // Upsert stock data - use erp_code + location as unique key
+  // Stock files: Kolom A = ERP code, Kolom C = quantity, Locatie uit bestandsnaam
   for (const item of stockData) {
     await supabaseAdmin
       .from('grote_inpak_stock')
       .upsert({
-        item_number: item.item_number,
+        erp_code: item.erp_code,
         location: item.location,
         quantity: item.quantity || 0,
-        erp_code: item.erp_code || null,
+        item_number: null, // Stock files don't have item_number, only ERP code
       }, {
-        onConflict: 'item_number,location',
+        onConflict: 'erp_code,location',
         ignoreDuplicates: false,
       })
   }

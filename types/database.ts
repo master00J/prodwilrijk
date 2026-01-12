@@ -31,6 +31,8 @@ export interface GroteInpakCase {
   status?: string | null
   priority: boolean
   comment?: string | null
+  erp_code?: string | null
+  stapel?: number | null
   term_werkdagen?: number | null
   deadline?: string | null
   dagen_te_laat: number

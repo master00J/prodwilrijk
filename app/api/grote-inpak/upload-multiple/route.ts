@@ -70,15 +70,15 @@ export async function POST(request: NextRequest) {
             } else {
               console.log(`Deleted ${deleteCount || 0} existing stock records for location ${location}`)
               
-              // Remove duplicates by item_number before inserting (in case Excel has duplicate rows)
+              // Remove duplicates by erp_code before inserting (in case Excel has duplicate rows)
               const uniqueData = new Map<string, any>()
               for (const item of processedData) {
-                const key = `${item.item_number}_${item.location}`
+                const key = `${item.erp_code}_${item.location}`
                 if (uniqueData.has(key)) {
                   // If duplicate, sum the quantities
                   const existing = uniqueData.get(key)
                   existing.quantity += item.quantity
-                  console.log(`Found duplicate item ${item.item_number} in ${location}, summing quantities: ${existing.quantity - item.quantity} + ${item.quantity} = ${existing.quantity}`)
+                  console.log(`Found duplicate ERP code ${item.erp_code} in ${location}, summing quantities: ${existing.quantity - item.quantity} + ${item.quantity} = ${existing.quantity}`)
                 } else {
                   uniqueData.set(key, { ...item })
                 }
@@ -88,14 +88,15 @@ export async function POST(request: NextRequest) {
               console.log(`Inserting ${uniqueDataArray.length} unique stock items for location ${location} (${processedData.length} total rows parsed)`)
               
               // Insert new stock data for this location
+              // Stock files: kolom A = ERP code, kolom C = quantity
               const { error: insertError } = await supabaseAdmin
                 .from('grote_inpak_stock')
                 .insert(
                   uniqueDataArray.map(item => ({
-                    item_number: item.item_number,
+                    erp_code: item.erp_code,
                     location: item.location,
                     quantity: item.quantity,
-                    erp_code: item.erp_code || null,
+                    item_number: null, // Stock files don't have item_number, only ERP code
                   }))
                 )
 
@@ -251,20 +252,21 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string): Promi
   const sheetName = workbook.SheetNames[0]
   const worksheet = workbook.Sheets[sheetName]
   
-  // Read by Excel column letters: A = item_number, C = quantity
+  // Read by Excel column letters: A = ERP code, C = quantity
+  // Stock files: Kolom A = ERP code, Kolom C = quantity, Locatie uit bestandsnaam
   const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
   
   const results: any[] = []
   
   // Start from row 2 (skip header row 1)
   for (let rowNum = 1; rowNum <= range.e.r; rowNum++) {
-    // Column A (index 0) = item_number/ERP Code
+    // Column A (index 0) = ERP code
     const colA = XLSX.utils.encode_cell({ r: rowNum, c: 0 })
-    const itemNumberCell = worksheet[colA]
-    const itemNumber = itemNumberCell ? String(itemNumberCell.v || '').trim() : ''
+    const erpCodeCell = worksheet[colA]
+    const erpCode = erpCodeCell ? String(erpCodeCell.v || '').trim() : ''
     
     // Skip empty rows
-    if (!itemNumber) {
+    if (!erpCode) {
       continue
     }
     
@@ -285,20 +287,19 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string): Promi
       }
     }
     
-    // Only process rows with item_number and quantity > 0
-    if (itemNumber && quantity > 0) {
+    // Only process rows with ERP code and quantity > 0
+    if (erpCode && quantity > 0) {
       results.push({
-        item_number: itemNumber,
+        erp_code: erpCode,
         location: location,
         quantity: quantity,
-        erp_code: itemNumber,
       })
     }
   }
   
   console.log(`Parsed ${results.length} stock items for location ${location}`)
   if (results.length > 0) {
-    console.log(`Sample items:`, results.slice(0, 3).map(r => `${r.item_number}: ${r.quantity}`))
+    console.log(`Sample items:`, results.slice(0, 3).map(r => `${r.erp_code}: ${r.quantity}`))
   }
   
   return results

@@ -301,24 +301,30 @@ async function parseERPExcel(workbook: XLSX.WorkBook): Promise<any[]> {
 }
 
 // Stock CSV Parser
-async function parseStockCSV(csvText: string): Promise<any[]> {
+// Stock files: Kolom A = ERP code, Kolom C = quantity, Locatie uit bestandsnaam
+async function parseStockCSV(csvText: string, location?: string): Promise<any[]> {
   const lines = csvText.split('\n').filter(line => line.trim())
-  const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''))
+  if (lines.length < 2) {
+    return []
+  }
   
   const data: any[] = []
+  // Start from row 2 (skip header row 1)
   for (let i = 1; i < lines.length; i++) {
     const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''))
-    if (values.length === headers.length && values[0]) {
-      const row: any = {}
-      headers.forEach((header, index) => {
-        row[header] = values[index] || ''
-      })
-      data.push({
-        item_number: row['Item Number'] || row['item_number'] || row['Item'] || '',
-        location: row['Location'] || row['location'] || '',
-        quantity: parseInt(row['Quantity'] || row['quantity'] || '0', 10),
-        erp_code: row['ERP Code'] || row['erp_code'] || '',
-      })
+    if (values.length >= 3 && values[0]) {
+      // Kolom A (index 0) = ERP code
+      const erpCode = values[0].trim()
+      // Kolom C (index 2) = quantity
+      const quantity = parseInt(values[2] || '0', 10)
+      
+      if (erpCode && quantity > 0) {
+        data.push({
+          erp_code: erpCode,
+          location: location || '',
+          quantity: quantity,
+        })
+      }
     }
   }
   
@@ -326,17 +332,56 @@ async function parseStockCSV(csvText: string): Promise<any[]> {
 }
 
 // Stock Excel Parser
-async function parseStockExcel(workbook: XLSX.WorkBook): Promise<any[]> {
+// Stock files: Kolom A = ERP code, Kolom C = quantity, Locatie uit bestandsnaam
+async function parseStockExcel(workbook: XLSX.WorkBook, location?: string): Promise<any[]> {
   const sheetName = workbook.SheetNames[0]
   const worksheet = workbook.Sheets[sheetName]
-  const data = XLSX.utils.sheet_to_json(worksheet, { raw: false })
   
-  return data.map((row: any) => ({
-    item_number: row['Item Number'] || row['item_number'] || row['Item'] || '',
-    location: row['Location'] || row['location'] || '',
-    quantity: parseInt(row['Quantity'] || row['quantity'] || '0', 10),
-    erp_code: row['ERP Code'] || row['erp_code'] || '',
-  }))
+  // Read by Excel column letters: A = ERP code, C = quantity
+  const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
+  
+  const results: any[] = []
+  
+  // Start from row 2 (skip header row 1)
+  for (let rowNum = 1; rowNum <= range.e.r; rowNum++) {
+    // Column A (index 0) = ERP code
+    const colA = XLSX.utils.encode_cell({ r: rowNum, c: 0 })
+    const erpCodeCell = worksheet[colA]
+    const erpCode = erpCodeCell ? String(erpCodeCell.v || '').trim() : ''
+    
+    // Skip empty rows
+    if (!erpCode) {
+      continue
+    }
+    
+    // Column C (index 2) = quantity
+    const colC = XLSX.utils.encode_cell({ r: rowNum, c: 2 })
+    const quantityCell = worksheet[colC]
+    let quantity = 0
+    
+    if (quantityCell) {
+      const cellValue = quantityCell.v
+      if (typeof cellValue === 'number') {
+        quantity = Math.floor(cellValue)
+      } else if (typeof cellValue === 'string') {
+        const cleanStr = cellValue.replace(/,/g, '').trim()
+        quantity = parseInt(cleanStr, 10) || 0
+      } else {
+        quantity = parseInt(String(cellValue || ''), 10) || 0
+      }
+    }
+    
+    // Only process rows with ERP code and quantity > 0
+    if (erpCode && quantity > 0) {
+      results.push({
+        erp_code: erpCode,
+        location: location || '',
+        quantity: quantity,
+      })
+    }
+  }
+  
+  return results
 }
 
 // Forecast CSV Parser
