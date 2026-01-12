@@ -64,8 +64,11 @@ export async function GET(request: NextRequest) {
     const { data: stockData, error } = await query
 
     if (error) {
+      console.error('Error fetching stock from database:', error)
       throw error
     }
+
+    console.log(`Fetched ${stockData?.length || 0} stock items from database`)
 
     // Load ERP LINK data to match ERP codes with kistnummers
     // ERP LINK file: kolom A = kistnummer, kolom B = erp_code
@@ -118,6 +121,16 @@ export async function GET(request: NextRequest) {
     }) || []
     
     console.log(`Stock data: ${stockData?.length || 0} total items -> ${filteredStockData.length} items shown (ERP LINK filtering: ${validErpCodes.size > 0 ? 'enabled' : 'disabled'})`)
+    
+    // Debug: log some sample ERP codes
+    if (stockData && stockData.length > 0) {
+      const sampleErpCodes = stockData.slice(0, 5).map((item: any) => item.erp_code).filter(Boolean)
+      console.log(`Sample ERP codes from stock:`, sampleErpCodes)
+      if (validErpCodes.size > 0) {
+        const sampleValidCodes = Array.from(validErpCodes).slice(0, 5)
+        console.log(`Sample valid ERP codes from ERP LINK:`, sampleValidCodes)
+      }
+    }
 
     // Aggregate by kistnummer (from ERP LINK) if available, otherwise by ERP code
     const aggregated = filteredStockData.reduce((acc: any, item: any) => {

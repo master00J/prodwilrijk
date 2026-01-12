@@ -25,6 +25,11 @@ export default function StockAnalysisTab() {
       const response = await fetch(`/api/grote-inpak/stock?${params.toString()}`)
       if (response.ok) {
         const result = await response.json()
+        console.log('Stock API response:', {
+          dataCount: result.data?.length || 0,
+          aggregatedCount: result.aggregated?.length || 0,
+          allLocations: result.allLocations?.length || 0
+        })
         setStockData(result.data || [])
         setAggregatedData(result.aggregated || [])
         // Use allLocations from API if available, otherwise derive from stockData
@@ -32,9 +37,14 @@ export default function StockAnalysisTab() {
           // Store locations in a way that the component can use
           // We'll use the stockData to derive locations, but the API provides allLocations
         }
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        console.error('Stock API error:', errorData)
+        setError(errorData.error || 'Failed to load stock data')
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading stock:', error)
+      setError(error.message || 'Error loading stock data')
     } finally {
       setLoading(false)
     }
@@ -317,8 +327,20 @@ export default function StockAnalysisTab() {
           </table>
         </div>
       ) : (
-        <div className="text-center py-12 text-gray-500">
-          Geen stock data gevonden. Upload een stock bestand om te beginnen.
+        <div className="text-center py-12">
+          <div className="text-gray-500 mb-2">
+            Geen stock data gevonden. Upload een stock bestand om te beginnen.
+          </div>
+          {stockData.length > 0 && aggregatedData.length === 0 && (
+            <div className="text-sm text-gray-400 mt-2">
+              (Er zijn {stockData.length} stock items in de database, maar geen match met ERP LINK)
+            </div>
+          )}
+          {stockData.length === 0 && (
+            <div className="text-sm text-gray-400 mt-2">
+              (Geen stock items gevonden in de database)
+            </div>
+          )}
         </div>
       )}
     </div>
