@@ -178,19 +178,6 @@ export async function GET(request: NextRequest) {
         // Try exact match first (case-insensitive, but we've already normalized to uppercase)
         kistnummer = erpCodeToKistnummer.get(normalizedStockErpCode) || null
         
-        // Debug: log first few mapping attempts for troubleshooting
-        if (processedStockData.length < 5) {
-          console.log(`[DEBUG] Mapping stock ERP code "${item.erp_code}" (normalized: "${normalizedStockErpCode}") -> kistnummer: ${kistnummer || 'NOT FOUND'}`)
-          console.log(`[DEBUG] Is in validErpCodes: ${validErpCodes.has(normalizedStockErpCode)}`)
-          if (kistnummer) {
-            console.log(`[DEBUG] ✅ Successfully mapped to kistnummer: ${kistnummer}`)
-          } else if (validErpCodes.has(normalizedStockErpCode)) {
-            console.log(`[DEBUG] ⚠️ ERP code found in validErpCodes but no kistnummer mapping!`)
-          } else {
-            console.log(`[DEBUG] ❌ ERP code not found in ERP LINK`)
-          }
-        }
-        
         // If no exact match, try without leading zeros (e.g., GP000004 -> GP4, but this might not be correct)
         // Actually, let's not do this as it could cause false matches
         
@@ -211,7 +198,18 @@ export async function GET(request: NextRequest) {
     // Debug: log first few mapping attempts (after processedStockData is created)
     if (processedStockData.length > 0 && processedStockData.length <= 10) {
       processedStockData.slice(0, 5).forEach((item: any) => {
-        console.log(`Mapping result: ERP code "${item.erp_code}" -> kistnummer: ${item.determined_kistnummer || 'NOT FOUND'}`)
+        const normalized = String(item.erp_code || '').toUpperCase().trim().replace(/\s+/g, '')
+        const gpMatch = normalized.match(/\b(GP\d+)\b/i)
+        const normalizedErpCode = gpMatch ? gpMatch[1].toUpperCase() : normalized
+        const kistnummer = item.determined_kistnummer
+        console.log(`[DEBUG] Mapping result: ERP code "${item.erp_code}" (normalized: "${normalizedErpCode}") -> kistnummer: ${kistnummer || 'NOT FOUND'}`)
+        if (kistnummer) {
+          console.log(`[DEBUG] ✅ Successfully mapped to kistnummer: ${kistnummer}`)
+        } else if (validErpCodes.has(normalizedErpCode)) {
+          console.log(`[DEBUG] ⚠️ ERP code found in validErpCodes but no kistnummer mapping!`)
+        } else {
+          console.log(`[DEBUG] ❌ ERP code not found in ERP LINK`)
+        }
       })
     }
     
