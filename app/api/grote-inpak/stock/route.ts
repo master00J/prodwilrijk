@@ -87,15 +87,19 @@ export async function GET(request: NextRequest) {
     
     if (erpLinkData) {
       erpLinkData.forEach((erp: any) => {
+        // Normalize ERP code: uppercase, trim, remove spaces
         if (erp.erp_code) {
-          erpCodeToKistnummer.set(String(erp.erp_code).toUpperCase().trim(), erp.kistnummer)
+          const normalizedErpCode = String(erp.erp_code).toUpperCase().trim().replace(/\s+/g, '')
+          erpCodeToKistnummer.set(normalizedErpCode, erp.kistnummer)
+          console.log(`ERP LINK mapping: ${normalizedErpCode} -> ${erp.kistnummer}`)
         }
         
         if (erp.kistnummer) {
           const normalizedKistnummer = String(erp.kistnummer).toUpperCase().trim()
           // Store kistnummer -> erp_code mapping
           if (erp.erp_code) {
-            kistnummerToErpCode.set(normalizedKistnummer, erp.erp_code)
+            const normalizedErpCode = String(erp.erp_code).toUpperCase().trim().replace(/\s+/g, '')
+            kistnummerToErpCode.set(normalizedKistnummer, normalizedErpCode)
           }
           
           // Store kistnummer as-is (e.g., "K003")
@@ -118,15 +122,23 @@ export async function GET(request: NextRequest) {
           }
         }
       })
+      console.log(`Loaded ${erpLinkData.length} ERP LINK entries, ${erpCodeToKistnummer.size} ERP code mappings`)
+    } else {
+      console.warn('No ERP LINK data found - stock items will be shown by ERP code only')
     }
 
     // Aggregate by kistnummer (from ERP LINK) if available, otherwise by erp_code
     // This allows stock items to be shown even if they don't have a kistnummer match yet
     const aggregated = stockData?.reduce((acc: any, item: any) => {
       // Try to find kistnummer via erp_code first
+      // Normalize ERP code: uppercase, trim, remove spaces (same as in ERP LINK mapping)
       let kistnummer = null
       if (item.erp_code) {
-        kistnummer = erpCodeToKistnummer.get(String(item.erp_code).toUpperCase().trim())
+        const normalizedErpCode = String(item.erp_code).toUpperCase().trim().replace(/\s+/g, '')
+        kistnummer = erpCodeToKistnummer.get(normalizedErpCode)
+        if (kistnummer) {
+          console.log(`Matched stock ERP code ${normalizedErpCode} to kistnummer ${kistnummer}`)
+        }
       }
       
       // If no kistnummer found, try to match item_number directly with kistnummer
