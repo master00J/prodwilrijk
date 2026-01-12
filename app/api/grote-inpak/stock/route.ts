@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
 
 export async function POST(request: NextRequest) {
   try {
@@ -83,36 +84,17 @@ export async function GET(request: NextRequest) {
     
     if (erpLinkData && erpLinkData.length > 0) {
       erpLinkData.forEach((erp: any) => {
-        // Normalize ERP code: uppercase, trim, remove spaces
-        if (erp.erp_code) {
-          let normalizedErpCode = String(erp.erp_code).toUpperCase().trim().replace(/\s+/g, '')
+        // Normalize ERP code using consistent function
+        const normalizedErpCode = normalizeErpCode(erp.erp_code)
+        
+        // Only add if it's a valid ERP code format
+        if (normalizedErpCode && normalizedErpCode.match(/^[A-Z]{2,}\d+/)) {
+          validErpCodes.add(normalizedErpCode)
+          erpCodeToKistnummer.set(normalizedErpCode, erp.kistnummer)
           
-          // Extract GP code if embedded (e.g., "7773 GP008760" -> "GP008760")
-          // This should match the same logic used in stock file parsing
-          const gpMatch = normalizedErpCode.match(/\b(GP\d+)\b/i)
-          if (gpMatch) {
-            normalizedErpCode = gpMatch[1]
-          } else if (!normalizedErpCode.match(/^[A-Z]{2,}\d+/)) {
-            // If it doesn't match standard ERP code format, try to extract from parts
-            const parts = normalizedErpCode.split(/\s+/)
-            for (let i = parts.length - 1; i >= 0; i--) {
-              const part = parts[i].trim()
-              if (part.match(/^[A-Z]{2,}\d+/i)) {
-                normalizedErpCode = part
-                break
-              }
-            }
-          }
-          
-          // Only add if it's a valid ERP code format
-          if (normalizedErpCode && normalizedErpCode.match(/^[A-Z]{2,}\d+/)) {
-            validErpCodes.add(normalizedErpCode)
-            erpCodeToKistnummer.set(normalizedErpCode, erp.kistnummer)
-            
-            if (erp.kistnummer) {
-              const normalizedKistnummer = String(erp.kistnummer).toUpperCase().trim()
-              kistnummerToErpCode.set(normalizedKistnummer, normalizedErpCode)
-            }
+          if (erp.kistnummer) {
+            const normalizedKistnummer = String(erp.kistnummer).toUpperCase().trim()
+            kistnummerToErpCode.set(normalizedKistnummer, normalizedErpCode)
           }
         }
       })
@@ -159,23 +141,16 @@ export async function GET(request: NextRequest) {
       
       // If not a kistnummer yet, try to map via ERP LINK (like old code line 829-838)
       if (!kistnummer && item.erp_code && validErpCodes.size > 0) {
-        // Normalize ERP code
-        let normalizedStockErpCode = String(item.erp_code).toUpperCase().trim().replace(/\s+/g, '')
+        // Normalize ERP code using consistent function
+        const normalizedStockErpCode = normalizeErpCode(item.erp_code)
         
-        // Extract GP code if embedded (e.g., "7773 GP008760" -> "GP008760")
-        // Use case-insensitive matching to be safe
-        const gpMatch = normalizedStockErpCode.match(/\b(GP\d+)\b/i)
-        if (gpMatch) {
-          normalizedStockErpCode = gpMatch[1].toUpperCase()
-        }
-        
-        // Skip ERROR entries
-        if (normalizedStockErpCode.includes('ERROR')) {
+        // Skip if normalization failed or contains ERROR
+        if (!normalizedStockErpCode || normalizedStockErpCode.includes('ERROR')) {
           errorCount++
           return null
         }
         
-        // Try exact match first (case-insensitive, but we've already normalized to uppercase)
+        // Try exact match (both are normalized the same way)
         kistnummer = erpCodeToKistnummer.get(normalizedStockErpCode) || null
         
         // If no exact match, try without leading zeros (e.g., GP000004 -> GP4, but this might not be correct)
@@ -198,14 +173,12 @@ export async function GET(request: NextRequest) {
     // Debug: log first few mapping attempts (after processedStockData is created)
     if (processedStockData.length > 0 && processedStockData.length <= 10) {
       processedStockData.slice(0, 5).forEach((item: any) => {
-        const normalized = String(item.erp_code || '').toUpperCase().trim().replace(/\s+/g, '')
-        const gpMatch = normalized.match(/\b(GP\d+)\b/i)
-        const normalizedErpCode = gpMatch ? gpMatch[1].toUpperCase() : normalized
+        const normalizedErpCode = normalizeErpCode(item.erp_code)
         const kistnummer = item.determined_kistnummer
         console.log(`[DEBUG] Mapping result: ERP code "${item.erp_code}" (normalized: "${normalizedErpCode}") -> kistnummer: ${kistnummer || 'NOT FOUND'}`)
         if (kistnummer) {
           console.log(`[DEBUG] ✅ Successfully mapped to kistnummer: ${kistnummer}`)
-        } else if (validErpCodes.has(normalizedErpCode)) {
+        } else if (normalizedErpCode && validErpCodes.has(normalizedErpCode)) {
           console.log(`[DEBUG] ⚠️ ERP code found in validErpCodes but no kistnummer mapping!`)
         } else {
           console.log(`[DEBUG] ❌ ERP code not found in ERP LINK`)
@@ -272,15 +245,11 @@ export async function GET(request: NextRequest) {
       const nonMatchingCodes: string[] = []
       
       allStockErpCodes.forEach(code => {
-        let normalized = String(code).toUpperCase().trim().replace(/\s+/g, '')
-        // Extract GP code if embedded
-        const gpMatch = normalized.match(/\b(GP\d+)\b/)
-        if (gpMatch) {
-          normalized = gpMatch[1]
-        }
+        // Use consistent normalization function
+        const normalized = normalizeErpCode(code)
         
-        // Skip ERROR entries
-        if (normalized.includes('ERROR')) {
+        // Skip if normalization failed or contains ERROR
+        if (!normalized || normalized.includes('ERROR')) {
           return
         }
         

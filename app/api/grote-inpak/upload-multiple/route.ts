@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import * as XLSX from 'xlsx'
+import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
 
 // Increase body size limit for Vercel
 export const maxDuration = 60
@@ -302,46 +303,14 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string): Promi
     const colBCell = worksheet[colB]
     const colBValue = colBCell ? String(colBCell.v || '').trim() : ''
     
-    // Extract ERP code from column A
+    // Extract ERP code from column A using consistent normalization
     // Pattern: "7773 GP008760" -> extract "GP008760"
     // Or just "GP008760" -> use as is
-    let erpCode = ''
-    
-    if (colAValue) {
-      // Try to find GP code pattern (GP followed by digits) - this is the most common format
-      const gpMatch = colAValue.match(/\b(GP\d+)\b/i)
-      if (gpMatch) {
-        erpCode = gpMatch[1].toUpperCase()
-      } else {
-        // If no GP pattern found, check if the whole value is an ERP code
-        // ERP codes typically start with 2+ letters followed by digits (e.g., GP008760, BC123456)
-        if (colAValue.match(/^[A-Z]{2,}\d+/i)) {
-          erpCode = colAValue.toUpperCase().trim()
-        } else {
-          // If it contains spaces, try the last part (e.g., "7773 GP008760" -> "GP008760")
-          const parts = colAValue.split(/\s+/)
-          if (parts.length > 1) {
-            // Check each part from the end to find an ERP code
-            for (let i = parts.length - 1; i >= 0; i--) {
-              const part = parts[i].trim()
-              if (part.match(/^[A-Z]{2,}\d+/i)) {
-                erpCode = part.toUpperCase()
-                break
-              }
-            }
-          }
-        }
-      }
-    }
+    let erpCode = normalizeErpCode(colAValue)
     
     // Fallback to column B if column A didn't yield an ERP code
     if (!erpCode && colBValue) {
-      const gpMatchB = colBValue.match(/\b(GP\d+)\b/i)
-      if (gpMatchB) {
-        erpCode = gpMatchB[1].toUpperCase()
-      } else if (colBValue.match(/^[A-Z]{2,}\d+/i)) {
-        erpCode = colBValue.toUpperCase()
-      }
+      erpCode = normalizeErpCode(colBValue)
     }
     
     // Skip empty rows or rows that look like headers
@@ -419,17 +388,37 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string): Promi
     }
   }
   
-  console.log(`Parsed ${results.length} stock items for location ${location} (from ${range.e.r + 1} total rows, started at row ${startRow + 1})`)
+  console.log(`\n=== STOCK FILE PARSING SUMMARY for ${location} ===`)
+  console.log(`Parsed ${results.length} stock items from ${range.e.r + 1} total rows (started at row ${startRow + 1})`)
   if (results.length > 0) {
     const totalQty = results.reduce((sum, r) => sum + r.quantity, 0)
-    console.log(`Total quantity: ${totalQty}, Sample items:`, results.slice(0, 5).map(r => `${r.erp_code}: ${r.quantity}`))
+    console.log(`Total quantity: ${totalQty}`)
     
-    // Log unique ERP codes count
+    // Log unique ERP codes count and sample
     const uniqueErpCodes = new Set(results.map(r => r.erp_code))
     console.log(`Unique ERP codes in parsed data: ${uniqueErpCodes.size}`)
+    const sampleErpCodes = Array.from(uniqueErpCodes).slice(0, 20)
+    console.log(`Sample ERP codes (first 20):`, sampleErpCodes)
+    console.log(`Sample items (first 10):`, results.slice(0, 10).map(r => `${r.erp_code}: ${r.quantity}`))
   } else {
-    console.warn(`No stock items parsed from ${range.e.r + 1} rows. Check if header detection is correct.`)
+    console.warn(`⚠️ No stock items parsed from ${range.e.r + 1} rows. Check if header detection is correct.`)
+    // Log first few rows to help debug
+    console.log(`First 5 rows (for debugging):`)
+    for (let i = 0; i < Math.min(5, range.e.r + 1); i++) {
+      const rowCells: string[] = []
+      for (let c = 0; c < Math.min(5, range.e.c + 1); c++) {
+        const cell = XLSX.utils.encode_cell({ r: i, c })
+        const cellValue = worksheet[cell]
+        if (cellValue) {
+          rowCells.push(String(cellValue.v || ''))
+        } else {
+          rowCells.push('')
+        }
+      }
+      console.log(`  Row ${i + 1}:`, rowCells)
+    }
   }
+  console.log(`=== END SUMMARY ===\n`)
   
   return results
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import * as XLSX from 'xlsx'
+import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
 
 export async function POST(request: NextRequest) {
   try {
@@ -258,33 +259,8 @@ async function parseERPExcel(workbook: XLSX.WorkBook): Promise<any[]> {
       }
       // Kolom B (index 1) = ERP code
       if (rowData && rowData.length > 1) {
-        let rawErpCode = String(rowData[1] || '').trim()
-        
-        // Normalize ERP code: extract GP code if embedded (same as stock parsing)
-        // Pattern: "7773 GP008760" -> extract "GP008760"
-        if (rawErpCode) {
-          const gpMatch = rawErpCode.match(/\b(GP\d+)\b/i)
-          if (gpMatch) {
-            erp_code = gpMatch[1].toUpperCase()
-          } else if (rawErpCode.match(/^[A-Z]{2,}\d+/i)) {
-            // If it's already a valid ERP code format, use it
-            erp_code = rawErpCode.toUpperCase().trim()
-          } else {
-            // Try to extract from parts if it contains spaces
-            const parts = rawErpCode.split(/\s+/)
-            for (let i = parts.length - 1; i >= 0; i--) {
-              const part = parts[i].trim()
-              if (part.match(/^[A-Z]{2,}\d+/i)) {
-                erp_code = part.toUpperCase()
-                break
-              }
-            }
-            // If still no match, use the original value
-            if (!erp_code) {
-              erp_code = rawErpCode.toUpperCase().trim()
-            }
-          }
-        }
+        const rawErpCode = String(rowData[1] || '').trim()
+        erp_code = normalizeErpCode(rawErpCode) || ''
       }
     }
     
@@ -298,34 +274,11 @@ async function parseERPExcel(workbook: XLSX.WorkBook): Promise<any[]> {
     }
     
     if (!erp_code) {
-      let rawErpCode = findValue(row, [
+      const rawErpCode = findValue(row, [
         'ERP Code', 'erp_code', 'ERP', 'ERPCode', 'ERP_CODE',
         'B' // Also try column letter B
       ])
-      
-      // Normalize ERP code: extract GP code if embedded (same as stock parsing)
-      if (rawErpCode) {
-        const gpMatch = rawErpCode.match(/\b(GP\d+)\b/i)
-        if (gpMatch) {
-          erp_code = gpMatch[1].toUpperCase()
-        } else if (rawErpCode.match(/^[A-Z]{2,}\d+/i)) {
-          erp_code = rawErpCode.toUpperCase().trim()
-        } else {
-          // Try to extract from parts if it contains spaces
-          const parts = rawErpCode.split(/\s+/)
-          for (let i = parts.length - 1; i >= 0; i--) {
-            const part = parts[i].trim()
-            if (part.match(/^[A-Z]{2,}\d+/i)) {
-              erp_code = part.toUpperCase()
-              break
-            }
-          }
-          // If still no match, use the original value
-          if (!erp_code) {
-            erp_code = rawErpCode.toUpperCase().trim()
-          }
-        }
-      }
+      erp_code = normalizeErpCode(rawErpCode) || ''
     }
     
     // Find productielocatie - this is typically in column C (3rd column, index 2)
