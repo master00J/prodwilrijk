@@ -162,11 +162,6 @@ export async function GET(request: NextRequest) {
         
         // Map ERP code to kistnummer via ERP LINK (like old code line 835)
         kistnummer = erpCodeToKistnummer.get(normalizedStockErpCode) || null
-        
-        // Debug: log first few mapping attempts
-        if (processedStockData.length < 10) {
-          console.log(`Mapping attempt: ERP code "${item.erp_code}" (normalized: "${normalizedStockErpCode}") -> kistnummer: ${kistnummer || 'NOT FOUND'}`)
-        }
       }
       
       // Return item with determined kistnummer
@@ -175,6 +170,13 @@ export async function GET(request: NextRequest) {
         determined_kistnummer: kistnummer,
       }
     }).filter((item: any) => item !== null) || []
+    
+    // Debug: log first few mapping attempts (after processedStockData is created)
+    if (processedStockData.length > 0 && processedStockData.length <= 10) {
+      processedStockData.slice(0, 5).forEach((item: any) => {
+        console.log(`Mapping result: ERP code "${item.erp_code}" -> kistnummer: ${item.determined_kistnummer || 'NOT FOUND'}`)
+      })
+    }
     
     // Filter: Only keep items where kistnummer starts with K or C (like old code line 848)
     // TEMPORARY: If no items match, show all items with ERP codes for debugging
