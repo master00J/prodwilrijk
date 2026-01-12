@@ -116,19 +116,48 @@ export async function GET(request: NextRequest) {
       // Normalize ERP code from stock file (same normalization as in ERP LINK)
       const normalizedStockErpCode = String(item.erp_code).toUpperCase().trim().replace(/\s+/g, '')
       
+      // Skip ERROR entries
+      if (normalizedStockErpCode.includes('ERROR')) {
+        return false
+      }
+      
       // Only include if this ERP code exists in ERP LINK
-      return validErpCodes.has(normalizedStockErpCode)
+      const isMatch = validErpCodes.has(normalizedStockErpCode)
+      
+      // Debug: log first few non-matching codes (only for first 5 to avoid spam)
+      if (!isMatch && filteredStockData.length < 5) {
+        console.log(`Stock ERP code "${normalizedStockErpCode}" (original: "${item.erp_code}") not found in ERP LINK`)
+      }
+      
+      return isMatch
     }) || []
     
     console.log(`Stock data: ${stockData?.length || 0} total items -> ${filteredStockData.length} items shown (ERP LINK filtering: ${validErpCodes.size > 0 ? 'enabled' : 'disabled'})`)
     
-    // Debug: log some sample ERP codes
+    // Debug: log some sample ERP codes and check for matches
     if (stockData && stockData.length > 0) {
-      const sampleErpCodes = stockData.slice(0, 5).map((item: any) => item.erp_code).filter(Boolean)
-      console.log(`Sample ERP codes from stock:`, sampleErpCodes)
+      const sampleErpCodes = stockData.slice(0, 10).map((item: any) => item.erp_code).filter(Boolean)
+      console.log(`Sample ERP codes from stock (first 10):`, sampleErpCodes)
+      
+      // Check how many stock ERP codes match with ERP LINK
       if (validErpCodes.size > 0) {
-        const sampleValidCodes = Array.from(validErpCodes).slice(0, 5)
-        console.log(`Sample valid ERP codes from ERP LINK:`, sampleValidCodes)
+        const sampleValidCodes = Array.from(validErpCodes).slice(0, 10)
+        console.log(`Sample valid ERP codes from ERP LINK (first 10):`, sampleValidCodes)
+        
+        // Count matches
+        const matchingCodes = sampleErpCodes.filter(code => {
+          const normalized = String(code).toUpperCase().trim().replace(/\s+/g, '')
+          return validErpCodes.has(normalized)
+        })
+        console.log(`Matching codes in sample: ${matchingCodes.length} out of ${sampleErpCodes.length}`)
+        
+        // Check for ERROR1 entries
+        const errorEntries = stockData.filter((item: any) => 
+          item.erp_code && String(item.erp_code).toUpperCase().includes('ERROR')
+        )
+        if (errorEntries.length > 0) {
+          console.warn(`Found ${errorEntries.length} entries with ERROR in ERP code. These should be cleaned up.`)
+        }
       }
     }
 
