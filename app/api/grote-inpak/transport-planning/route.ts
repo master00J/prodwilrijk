@@ -24,13 +24,8 @@ export async function POST(request: NextRequest) {
       nextBusinessDay
     )
 
-    // Convert Buffer to ArrayBuffer for NextResponse
-    const arrayBuffer = excelBuffer.buffer.slice(
-      excelBuffer.byteOffset,
-      excelBuffer.byteOffset + excelBuffer.byteLength
-    )
-
-    return new NextResponse(arrayBuffer, {
+    // Return as Response with buffer
+    return new Response(excelBuffer, {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': `attachment; filename="Transportplanning_${formatDateForFilename(nextBusinessDay)}.xlsx"`,
