@@ -24,7 +24,10 @@ export async function POST(request: NextRequest) {
       nextBusinessDay
     )
 
-    return new NextResponse(excelBuffer, {
+    // Convert Buffer to Uint8Array for NextResponse
+    const uint8Array = new Uint8Array(excelBuffer)
+
+    return new NextResponse(uint8Array, {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': `attachment; filename="Transportplanning_${formatDateForFilename(nextBusinessDay)}.xlsx"`,
