@@ -439,8 +439,21 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location?: string): Prom
       if (typeof cellValue === 'number') {
         quantity = Math.floor(Math.abs(cellValue)) // Use absolute value and floor
       } else if (typeof cellValue === 'string') {
-        // Remove commas, spaces, and other non-numeric characters except minus sign
-        const cleanStr = cellValue.replace(/[,\s]/g, '').trim()
+        // Handle European number format: "0," means 0 (comma as decimal separator)
+        // Remove spaces first
+        let cleanStr = cellValue.replace(/\s/g, '').trim()
+        
+        // If it ends with just a comma (e.g., "0,"), treat as 0
+        if (cleanStr.endsWith(',') && !cleanStr.includes('.')) {
+          cleanStr = cleanStr.replace(/,$/, '')
+        }
+        
+        // Replace comma with dot for parsing (European format)
+        cleanStr = cleanStr.replace(',', '.')
+        
+        // Remove any remaining non-numeric characters except minus sign and dot
+        cleanStr = cleanStr.replace(/[^\d.-]/g, '')
+        
         // Try to parse as float first (in case of decimals), then floor
         const parsed = parseFloat(cleanStr)
         quantity = isNaN(parsed) ? 0 : Math.floor(Math.abs(parsed))
