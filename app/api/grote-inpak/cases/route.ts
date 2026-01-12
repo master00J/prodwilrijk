@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     let query = supabaseAdmin
       .from('grote_inpak_cases')
       .select('*')
-      .order('arrival_date', { ascending: false, nullsFirst: false })
+      .order('arrival_date', { ascending: true, nullsFirst: false })
 
     // Apply filters
     if (location && location !== 'Alle') {

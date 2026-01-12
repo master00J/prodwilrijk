@@ -18,3 +18,4 @@ CREATE TABLE IF NOT EXISTS wood_target_stock (
 CREATE INDEX IF NOT EXISTS idx_wood_target_stock_lookup ON wood_target_stock(houtsoort, dikte, breedte);
 CREATE INDEX IF NOT EXISTS idx_wood_target_stock_houtsoort ON wood_target_stock(houtsoort);
 
+

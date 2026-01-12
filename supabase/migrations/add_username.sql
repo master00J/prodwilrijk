@@ -6,3 +6,4 @@ ADD COLUMN IF NOT EXISTS username VARCHAR(255) UNIQUE;
 CREATE INDEX IF NOT EXISTS idx_user_roles_username ON user_roles(username);
 
 
+

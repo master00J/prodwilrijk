@@ -85,3 +85,4 @@ CREATE POLICY "Allow all for authenticated users" ON confirmed_incoming_goods
 
 
 
+

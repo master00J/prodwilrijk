@@ -91,3 +91,4 @@ SELECT houtsoort, dikte, breedte, target_packs, desired_length
 FROM cleaned_data
 ON CONFLICT (houtsoort, dikte, breedte, desired_length) DO NOTHING;
 
+

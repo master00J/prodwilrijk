@@ -1,16 +1,23 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { Search, Filter, Save, Download, Star, StarOff } from 'lucide-react'
+import { Search, Filter, Save, Download, Star, StarOff, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import type { GroteInpakCase } from '@/types/database'
 
 interface OverviewTabProps {
   overview: GroteInpakCase[]
 }
 
+type SortableColumn = keyof GroteInpakCase | null
+type SortDirection = 'asc' | 'desc'
+
 export default function OverviewTab({ overview }: OverviewTabProps) {
   const [filteredData, setFilteredData] = useState<GroteInpakCase[]>(overview)
   const [editedData, setEditedData] = useState<Map<string, Partial<GroteInpakCase>>>(new Map())
+  
+  // Sorting
+  const [sortColumn, setSortColumn] = useState<SortableColumn>('arrival_date')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   
   // Filters
   const [locationFilter, setLocationFilter] = useState('Alle')
@@ -67,6 +74,71 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
 
     setFilteredData(filtered)
   }, [overview, locationFilter, statusFilter, willebroekFilter, priorityFilter, searchQuery])
+
+  // Sort filtered data
+  const sortedData = useMemo(() => {
+    if (!sortColumn) return filteredData
+
+    const sorted = [...filteredData].sort((a, b) => {
+      const aValue = a[sortColumn]
+      const bValue = b[sortColumn]
+
+      // Handle null/undefined values
+      if (aValue == null && bValue == null) return 0
+      if (aValue == null) return 1
+      if (bValue == null) return -1
+
+      // Handle dates
+      if (sortColumn === 'arrival_date') {
+        const aDate = new Date(aValue as string).getTime()
+        const bDate = new Date(bValue as string).getTime()
+        return sortDirection === 'asc' ? aDate - bDate : bDate - aDate
+      }
+
+      // Handle strings
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return sortDirection === 'asc' 
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue)
+      }
+
+      // Handle numbers
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return sortDirection === 'asc' ? aValue - bValue : bValue - aValue
+      }
+
+      // Handle booleans
+      if (typeof aValue === 'boolean' && typeof bValue === 'boolean') {
+        return sortDirection === 'asc' 
+          ? (aValue === bValue ? 0 : aValue ? 1 : -1)
+          : (aValue === bValue ? 0 : aValue ? -1 : 1)
+      }
+
+      return 0
+    })
+
+    return sorted
+  }, [filteredData, sortColumn, sortDirection])
+
+  const handleSort = (column: SortableColumn) => {
+    if (sortColumn === column) {
+      // Toggle direction if clicking the same column
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      // Set new column with ascending as default
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
+
+  const getSortIcon = (column: SortableColumn) => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="w-4 h-4 inline-block ml-1 text-gray-400" />
+    }
+    return sortDirection === 'asc' 
+      ? <ArrowUp className="w-4 h-4 inline-block ml-1 text-blue-600" />
+      : <ArrowDown className="w-4 h-4 inline-block ml-1 text-blue-600" />
+  }
 
   const handleFieldChange = (caseLabel: string, field: keyof GroteInpakCase, value: any) => {
     const newEdited = new Map(editedData)
@@ -212,10 +284,10 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
   }
 
   const handleSelectAll = () => {
-    if (selectedCases.size === filteredData.length) {
+    if (selectedCases.size === sortedData.length) {
       setSelectedCases(new Set())
     } else {
-      setSelectedCases(new Set(filteredData.map(item => item.case_label)))
+      setSelectedCases(new Set(sortedData.map(item => item.case_label)))
     }
   }
 
@@ -368,25 +440,65 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">
                 <input
                   type="checkbox"
-                  checked={selectedCases.size === filteredData.length && filteredData.length > 0}
+                  checked={selectedCases.size === sortedData.length && sortedData.length > 0}
                   onChange={handleSelectAll}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">⭐</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Case Label</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Case Type</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Arrival Date</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Item Number</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Productielocatie</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">In WB</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Status</th>
+              <th 
+                className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                onClick={() => handleSort('case_label')}
+              >
+                Case Label{getSortIcon('case_label')}
+              </th>
+              <th 
+                className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                onClick={() => handleSort('case_type')}
+              >
+                Case Type{getSortIcon('case_type')}
+              </th>
+              <th 
+                className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                onClick={() => handleSort('arrival_date')}
+              >
+                Arrival Date{getSortIcon('arrival_date')}
+              </th>
+              <th 
+                className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                onClick={() => handleSort('item_number')}
+              >
+                Item Number{getSortIcon('item_number')}
+              </th>
+              <th 
+                className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                onClick={() => handleSort('productielocatie')}
+              >
+                Productielocatie{getSortIcon('productielocatie')}
+              </th>
+              <th 
+                className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                onClick={() => handleSort('in_willebroek')}
+              >
+                In WB{getSortIcon('in_willebroek')}
+              </th>
+              <th 
+                className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                onClick={() => handleSort('status')}
+              >
+                Status{getSortIcon('status')}
+              </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Comment</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Stock Location</th>
+              <th 
+                className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                onClick={() => handleSort('stock_location')}
+              >
+                Stock Location{getSortIcon('stock_location')}
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {filteredData.map((item) => {
+            {sortedData.map((item) => {
               const edited = editedData.get(item.case_label) || {}
               const displayItem = { ...item, ...edited }
               const isPriority = displayItem.priority
