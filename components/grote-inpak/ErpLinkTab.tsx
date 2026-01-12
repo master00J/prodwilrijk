@@ -17,6 +17,8 @@ export default function ErpLinkTab() {
   const [entries, setEntries] = useState<ErpLinkEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [isAdding, setIsAdding] = useState(false)
   const [formData, setFormData] = useState<ErpLinkEntry>({
@@ -150,7 +152,8 @@ export default function ErpLinkTab() {
     if (!file) return
 
     setError(null)
-    setLoading(true)
+    setSuccess(null)
+    setUploading(true)
 
     try {
       const formData = new FormData()
@@ -170,11 +173,19 @@ export default function ErpLinkTab() {
       const result = await response.json()
       const uploadedData = result.data || []
 
+      if (!uploadedData || uploadedData.length === 0) {
+        throw new Error('Geen data gevonden in het geüploade bestand')
+      }
+
       // Save each entry to database
+      let savedCount = 0
+      let skippedCount = 0
+      let errorCount = 0
+
       for (const item of uploadedData) {
         if (item.kistnummer) {
           try {
-            await fetch('/api/grote-inpak/erp-link', {
+            const saveResponse = await fetch('/api/grote-inpak/erp-link', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -184,19 +195,46 @@ export default function ErpLinkTab() {
                 description: item.description || null,
               }),
             })
+
+            if (saveResponse.ok) {
+              savedCount++
+            } else {
+              const errorData = await saveResponse.json()
+              // Check if it's a duplicate error
+              if (errorData.error && errorData.error.includes('already exists')) {
+                skippedCount++
+              } else {
+                errorCount++
+                console.warn('Error saving entry:', errorData.error)
+              }
+            }
           } catch (err) {
-            // Ignore duplicate errors, continue with other entries
+            errorCount++
             console.warn('Error saving entry:', err)
           }
         }
       }
 
       await loadEntries()
+
+      // Show success message with statistics
+      if (errorCount === 0) {
+        setSuccess(
+          `ERP LINK bestand succesvol geüpload! ${savedCount} items toegevoegd${skippedCount > 0 ? `, ${skippedCount} items overgeslagen (duplicaten)` : ''}.`
+        )
+      } else {
+        setSuccess(
+          `ERP LINK bestand geüpload: ${savedCount} items toegevoegd, ${skippedCount} overgeslagen, ${errorCount} fouten.`
+        )
+      }
+
+      // Clear success message after 5 seconds
+      setTimeout(() => setSuccess(null), 5000)
     } catch (err: any) {
       setError(err.message || 'Error uploading ERP LINK file')
       console.error('Error uploading ERP LINK:', err)
     } finally {
-      setLoading(false)
+      setUploading(false)
       // Reset file input
       e.target.value = ''
     }
@@ -215,14 +253,15 @@ export default function ErpLinkTab() {
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900">ERP LINK Beheer</h2>
         <div className="flex gap-2">
-          <label className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 cursor-pointer transition-colors">
+          <label className={`flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 cursor-pointer transition-colors ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
             <Upload className="w-4 h-4" />
-            Upload Excel
+            {uploading ? 'Uploaden...' : 'Upload Excel'}
             <input
               type="file"
               accept=".xlsx,.xls"
               className="hidden"
               onChange={handleFileUpload}
+              disabled={uploading}
             />
           </label>
           <button
@@ -239,6 +278,22 @@ export default function ErpLinkTab() {
         <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-800">
           <AlertCircle className="w-5 h-5" />
           <span>{error}</span>
+        </div>
+      )}
+
+      {success && (
+        <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2 text-green-800">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          <span>{success}</span>
+        </div>
+      )}
+
+      {uploading && (
+        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2 text-blue-800">
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-800"></div>
+          <span>ERP LINK bestand wordt geüpload en verwerkt...</span>
         </div>
       )}
 
