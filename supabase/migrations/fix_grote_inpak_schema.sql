@@ -34,9 +34,10 @@ WHERE a.id < b.id
   AND COALESCE(a.erp_code, '') = COALESCE(b.erp_code, '')
   AND COALESCE(a.location, '') = COALESCE(b.location, '');
 
--- Drop old unique constraint if exists (on item_number + location)
+-- Drop old unique constraints if exists (on item_number + location)
 ALTER TABLE grote_inpak_stock
-  DROP CONSTRAINT IF EXISTS grote_inpak_stock_item_number_location_key;
+  DROP CONSTRAINT IF EXISTS grote_inpak_stock_item_number_location_key,
+  DROP CONSTRAINT IF EXISTS unique_item_location;
 
 -- Add unique constraint on erp_code + location (if not exists)
 DO $$ 
