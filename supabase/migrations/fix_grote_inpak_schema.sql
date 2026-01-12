@@ -35,9 +35,30 @@ WHERE a.id < b.id
   AND COALESCE(a.location, '') = COALESCE(b.location, '');
 
 -- Drop old unique constraints if exists (on item_number + location)
+-- These are no longer needed since we use erp_code + location instead
 ALTER TABLE grote_inpak_stock
   DROP CONSTRAINT IF EXISTS grote_inpak_stock_item_number_location_key,
   DROP CONSTRAINT IF EXISTS unique_item_location;
+  
+-- Also check for any other constraints on item_number + location
+DO $$ 
+DECLARE
+    constraint_name TEXT;
+BEGIN
+    -- Find and drop any unique constraints on (item_number, location)
+    FOR constraint_name IN
+        SELECT conname
+        FROM pg_constraint
+        WHERE conrelid = 'grote_inpak_stock'::regclass
+        AND contype = 'u'
+        AND conkey::int[] @> ARRAY[
+            (SELECT attnum FROM pg_attribute WHERE attrelid = 'grote_inpak_stock'::regclass AND attname = 'item_number'),
+            (SELECT attnum FROM pg_attribute WHERE attrelid = 'grote_inpak_stock'::regclass AND attname = 'location')
+        ]
+    LOOP
+        EXECUTE format('ALTER TABLE grote_inpak_stock DROP CONSTRAINT IF EXISTS %I', constraint_name);
+    END LOOP;
+END $$;
 
 -- Add unique constraint on erp_code + location (if not exists)
 DO $$ 
