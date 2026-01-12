@@ -104,77 +104,80 @@ export async function GET(request: NextRequest) {
       console.warn('No ERP LINK data found - showing all stock items')
     }
     
-    // Filter stock data: 
-    // - If item has a kistnummer (starts with K or C), show it directly (like old code)
-    // - If item has an ERP code, only show if it matches ERP LINK
-    // - If no ERP LINK data, show all items (except ERROR)
-    let nonMatchCount = 0 // Track non-matching codes for debug logging
+    // Filter stock data: Like old code (build_overview.py line 822-848)
+    // 1. Accept all stock items first
+    // 2. Determine kistnummer: if code starts with K/C use directly, else map via ERP LINK
+    // 3. Only keep items where kistnummer starts with K or C (like old code line 848)
     let errorCount = 0 // Track ERROR entries
-    const filteredStockData = stockData?.filter((item: any) => {
+    
+    // First, process all stock items and determine kistnummer for each (like old code line 822-838)
+    const processedStockData = stockData?.map((item: any) => {
       // Check if erp_code is actually a kistnummer (starts with K or C)
       // In stock files, kolom A can contain either ERP code OR kistnummer
-      let isKistnummer = false
+      let kistnummer: string | null = null
+      
       if (item.erp_code) {
         const erpCodeStr = String(item.erp_code).toUpperCase().trim()
+        // If it starts with K or C, it's a kistnummer (like old code line 823-827)
         if (erpCodeStr.match(/^[KC]\d+/)) {
-          isKistnummer = true
+          kistnummer = erpCodeStr
         }
       }
       
       // Also check item_number for kistnummer
-      if (!isKistnummer && item.item_number) {
+      if (!kistnummer && item.item_number) {
         const itemNumStr = String(item.item_number).toUpperCase().trim()
         if (itemNumStr.match(/^[KC]\d+/)) {
-          isKistnummer = true
+          kistnummer = itemNumStr
         }
       }
       
-      // If no ERP LINK data, show all items with ERP codes or kistnummers (except ERROR)
-      if (validErpCodes.size === 0) {
-        if (isKistnummer) return true // Always show kistnummers
-        if (!item.erp_code) return false
-        const normalized = String(item.erp_code).toUpperCase().trim().replace(/\s+/g, '')
-        return !normalized.includes('ERROR') // Show items that have an ERP code, but skip ERROR entries
+      // If not a kistnummer yet, try to map via ERP LINK (like old code line 829-838)
+      if (!kistnummer && item.erp_code && validErpCodes.size > 0) {
+        // Normalize ERP code
+        let normalizedStockErpCode = String(item.erp_code).toUpperCase().trim().replace(/\s+/g, '')
+        
+        // Extract GP code if embedded
+        const gpMatch = normalizedStockErpCode.match(/\b(GP\d+)\b/)
+        if (gpMatch) {
+          normalizedStockErpCode = gpMatch[1]
+        }
+        
+        // Skip ERROR entries
+        if (normalizedStockErpCode.includes('ERROR')) {
+          errorCount++
+          return null
+        }
+        
+        // Map ERP code to kistnummer via ERP LINK (like old code line 835)
+        kistnummer = erpCodeToKistnummer.get(normalizedStockErpCode) || null
       }
       
-      // If ERP LINK data exists:
-      // - Show kistnummers directly (they don't need ERP code matching, like old code)
-      // - For ERP codes, only show if they match ERP LINK
-      if (isKistnummer) {
-        return true // Always show items with kistnummer (like old code line 834-838)
+      // Return item with determined kistnummer
+      return {
+        ...item,
+        determined_kistnummer: kistnummer,
+      }
+    }).filter((item: any) => item !== null) || []
+    
+    // Filter: Only keep items where kistnummer starts with K or C (like old code line 848)
+    const filteredStockData = processedStockData.filter((item: any) => {
+      const kistnummer = item.determined_kistnummer
+      if (!kistnummer) {
+        return false // Skip items without kistnummer
       }
       
-      if (!item.erp_code) {
-        return false // Skip items without ERP code or kistnummer
+      // Only keep if kistnummer starts with K or C (like old code: out[out["kistnummer"].str.match(r"^[KkCc]", na=False)])
+      return kistnummer.match(/^[KC]/) !== null
+    })
+    
+    // Update items: set kistnummer from determined_kistnummer and remove temp field
+    filteredStockData.forEach((item: any) => {
+      if (item.determined_kistnummer) {
+        item.kistnummer = item.determined_kistnummer
       }
-      
-      // Normalize ERP code from stock file (same normalization as in ERP LINK)
-      // Remove all spaces and ensure uppercase
-      let normalizedStockErpCode = String(item.erp_code).toUpperCase().trim().replace(/\s+/g, '')
-      
-      // Also try to extract GP code if it's embedded (e.g., "7773 GP008760" -> "GP008760")
-      const gpMatch = normalizedStockErpCode.match(/\b(GP\d+)\b/)
-      if (gpMatch) {
-        normalizedStockErpCode = gpMatch[1]
-      }
-      
-      // Skip ERROR entries
-      if (normalizedStockErpCode.includes('ERROR')) {
-        errorCount++
-        return false
-      }
-      
-      // Only include if this ERP code exists in ERP LINK
-      const isMatch = validErpCodes.has(normalizedStockErpCode)
-      
-      // Debug: log first few non-matching codes (only for first 10 to see patterns)
-      if (!isMatch && nonMatchCount < 10) {
-        console.log(`Stock ERP code "${normalizedStockErpCode}" (original: "${item.erp_code}") not found in ERP LINK`)
-        nonMatchCount++
-      }
-      
-      return isMatch
-    }) || []
+      delete item.determined_kistnummer
+    })
     
     // If we have ERP LINK data but no matches, log a warning
     if (validErpCodes.size > 0 && filteredStockData.length === 0 && stockData && stockData.length > 0) {
@@ -216,62 +219,30 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Aggregate by kistnummer (from ERP LINK) if available, otherwise by ERP code
-    // Also check if item_number might be a kistnummer (starts with K or C)
+    // Aggregate by kistnummer (all items in filteredStockData should have kistnummer now)
     const aggregated = filteredStockData.reduce((acc: any, item: any) => {
-      // Check if item_number is a kistnummer (starts with K or C)
-      let kistnummerFromItem = null
-      if (item.item_number) {
-        const itemNumStr = String(item.item_number).toUpperCase().trim()
-        if (itemNumStr.match(/^[KC]\d+/)) {
-          kistnummerFromItem = itemNumStr
-        }
+      // All items in filteredStockData should have a kistnummer (starts with K or C)
+      const kistnummer = item.kistnummer || null
+      
+      if (!kistnummer) {
+        return acc // Skip items without kistnummer (shouldn't happen after filtering)
       }
       
-      if (!item.erp_code && !kistnummerFromItem) {
-        return acc // Skip items without ERP code or kistnummer
-      }
-      
-      // Normalize ERP code: uppercase, trim, remove spaces
-      const normalizedErpCode = item.erp_code ? String(item.erp_code).toUpperCase().trim().replace(/\s+/g, '') : ''
-      
-      // Try to find kistnummer via ERP code from ERP LINK
-      let kistnummer = normalizedErpCode ? (erpCodeToKistnummer.get(normalizedErpCode) || null) : null
-      
-      // If no kistnummer from ERP code, use kistnummer from item_number if available
-      if (!kistnummer && kistnummerFromItem) {
-        kistnummer = kistnummerFromItem
-        // Also try to get ERP code from ERP LINK for this kistnummer
-        if (kistnummer && !normalizedErpCode) {
-          const erpFromKist = kistnummerToErpCode.get(kistnummer.toUpperCase().trim())
-          if (erpFromKist) {
-            // Update normalizedErpCode for consistency
-            // normalizedErpCode = erpFromKist // Don't update, keep original
-          }
-        }
-      }
-      
-      // Use kistnummer as key if available, otherwise use ERP code
-      const key = kistnummer || (normalizedErpCode ? `ERP_${normalizedErpCode}` : null)
-      
-      if (!key) {
-        return acc // Skip if no key available
-      }
+      // Use kistnummer as key for aggregation
+      const key = kistnummer
       
       if (!acc[key]) {
         // Get erp_code from ERP LINK if kistnummer exists, otherwise use item's ERP code
-        let erpCodeFromLink = item.erp_code
+        let erpCodeFromLink = item.erp_code || null
         if (kistnummer) {
           const erpFromKist = kistnummerToErpCode.get(kistnummer.toUpperCase().trim())
           if (erpFromKist) {
             erpCodeFromLink = erpFromKist
-          } else if (item.erp_code) {
-            erpCodeFromLink = item.erp_code
           }
         }
         
         acc[key] = {
-          kistnummer: kistnummer, // Can be null if not in ERP LINK
+          kistnummer: kistnummer,
           erp_code: erpCodeFromLink || item.erp_code || null,
           locations: [], // Will store { location: string, quantity: number } objects
           locationMap: new Map<string, number>(), // Temporary map to aggregate quantities per location
