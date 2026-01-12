@@ -1,12 +1,15 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Upload, Download, Warehouse, TrendingUp } from 'lucide-react'
+import { Upload, Download, Warehouse, TrendingUp, AlertCircle } from 'lucide-react'
 
 export default function StockAnalysisTab() {
   const [stockData, setStockData] = useState<any[]>([])
   const [aggregatedData, setAggregatedData] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
   const [locationFilter, setLocationFilter] = useState('Alle')
   const [searchQuery, setSearchQuery] = useState('')
   const [dragActive, setDragActive] = useState(false)
@@ -45,7 +48,10 @@ export default function StockAnalysisTab() {
     const files = event.target.files
     if (!files || files.length === 0) return
 
-    setLoading(true)
+    setError(null)
+    setSuccess(null)
+    setUploading(true)
+
     try {
       const formData = new FormData()
       Array.from(files).forEach(file => {
@@ -58,22 +64,39 @@ export default function StockAnalysisTab() {
         body: formData,
       })
 
-      if (uploadResponse.ok) {
-        const result = await uploadResponse.json()
-        
-        // Stock files are now saved directly to database by upload-multiple route
-        // Just reload the stock data
-        await loadStock()
-        alert(`Successfully uploaded ${result.filesProcessed || files.length} stock file(s)! ${result.count || 0} items processed.`)
-      } else {
-        const error = await uploadResponse.json()
-        throw new Error(error.error || 'Failed to upload stock files')
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json()
+        throw new Error(errorData.error || 'Failed to upload stock files')
       }
+
+      const result = await uploadResponse.json()
+      
+      if (!result || result.filesProcessed === 0) {
+        throw new Error('Geen bestanden verwerkt. Controleer of de bestanden geldig zijn.')
+      }
+
+      // Stock files are now saved directly to database by upload-multiple route
+      // Just reload the stock data
+      await loadStock()
+
+      // Show success message with statistics
+      const filesProcessed = result.filesProcessed || files.length
+      const itemsProcessed = result.count || 0
+      setSuccess(
+        `Stock bestand(en) succesvol geüpload! ${filesProcessed} bestand(en) verwerkt, ${itemsProcessed} items toegevoegd.`
+      )
+
+      // Clear success message after 5 seconds
+      setTimeout(() => setSuccess(null), 5000)
     } catch (error: any) {
       console.error('Error uploading stock files:', error)
-      alert(`Error uploading stock files: ${error.message || 'Unknown error'}`)
+      setError(error.message || 'Error uploading stock files')
     } finally {
-      setLoading(false)
+      setUploading(false)
+      // Reset file input
+      if (event.target) {
+        event.target.value = ''
+      }
     }
   }
 
@@ -132,15 +155,17 @@ export default function StockAnalysisTab() {
             className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer transition-all ${
               dragActive
                 ? 'bg-blue-600 scale-105'
+                : uploading
+                ? 'bg-blue-300 cursor-not-allowed'
                 : 'bg-blue-500 hover:bg-blue-600'
             } text-white`}
-            onDragEnter={(e) => { e.preventDefault(); setDragActive(true) }}
+            onDragEnter={(e) => { e.preventDefault(); if (!uploading) setDragActive(true) }}
             onDragLeave={(e) => { e.preventDefault(); setDragActive(false) }}
             onDragOver={(e) => { e.preventDefault() }}
             onDrop={(e) => {
               e.preventDefault()
               setDragActive(false)
-              if (e.dataTransfer.files?.[0]) {
+              if (!uploading && e.dataTransfer.files?.[0]) {
                 const file = e.dataTransfer.files[0]
                 if (file.name.endsWith('.csv') || file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
                   const event = { target: { files: [file] } } as any
@@ -150,8 +175,8 @@ export default function StockAnalysisTab() {
             }}
           >
             <Upload className="w-4 h-4" />
-            <label className="cursor-pointer">
-              {dragActive ? 'Drop hier!' : 'Upload Stock File'}
+            <label className={`cursor-pointer ${uploading ? 'cursor-not-allowed' : ''}`}>
+              {uploading ? 'Uploaden...' : dragActive ? 'Drop hier!' : 'Upload Stock File'}
               <input
                 type="file"
                 accept=".csv,.xlsx,.xls"
@@ -159,6 +184,7 @@ export default function StockAnalysisTab() {
                 className="hidden"
                 id="stock-upload"
                 onChange={handleFileUpload}
+                disabled={uploading}
               />
             </label>
           </div>
@@ -171,6 +197,29 @@ export default function StockAnalysisTab() {
           </button>
         </div>
       </div>
+
+      {error && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-800">
+          <AlertCircle className="w-5 h-5" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {success && (
+        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2 text-green-800">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          <span>{success}</span>
+        </div>
+      )}
+
+      {uploading && (
+        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2 text-blue-800">
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-800"></div>
+          <span>Stock bestand(en) worden geüpload en verwerkt...</span>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="bg-gray-50 rounded-lg p-4 mb-6">

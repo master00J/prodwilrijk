@@ -18,6 +18,7 @@ export default function GroteInpakPage() {
   const [erpLinkFile, setErpLinkFile] = useState<File | null>(null)
   const [stockFiles, setStockFiles] = useState<File[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
   const [overviewData, setOverviewData] = useState<any[]>([])
   const [transportData, setTransportData] = useState<any[]>([])
   const [dragActivePils, setDragActivePils] = useState(false)
@@ -161,9 +162,11 @@ export default function GroteInpakPage() {
 
     setIsProcessing(true)
     setError(null)
+    setSuccess(null)
 
     try {
       let pilsResult: any = null
+      let pilsUploaded = false
       
       // Upload PILS CSV if provided
       if (pilsFile) {
@@ -182,10 +185,12 @@ export default function GroteInpakPage() {
         }
 
         pilsResult = await pilsResponse.json()
+        pilsUploaded = true
       }
 
       // Upload ERP LINK file if provided
       let erpData: any[] = []
+      let erpUploaded = false
       if (erpLinkFile) {
         const erpFormData = new FormData()
         erpFormData.append('file', erpLinkFile)
@@ -199,11 +204,14 @@ export default function GroteInpakPage() {
         if (erpResponse.ok) {
           const erpResult = await erpResponse.json()
           erpData = erpResult.data || []
+          erpUploaded = true
         }
       }
 
       // Upload stock files if provided - upload one by one to avoid 413 errors
       // Each file will overwrite stock for its specific location
+      let stockUploaded = 0
+      let stockItemsProcessed = 0
       if (stockFiles.length > 0) {
         for (const file of stockFiles) {
           const stockFormData = new FormData()
@@ -227,6 +235,10 @@ export default function GroteInpakPage() {
             }
             throw new Error(errorMessage)
           }
+
+          const stockResult = await stockResponse.json()
+          stockUploaded++
+          stockItemsProcessed += stockResult.count || 0
         }
       }
 
@@ -272,10 +284,30 @@ export default function GroteInpakPage() {
         setOverviewData(processResult.cases || [])
         setTransportData(processResult.transport || [])
         setDataLoaded(true)
+
+        // Build success message
+        const successParts: string[] = []
+        if (pilsUploaded) {
+          const pilsCount = pilsResult?.data?.length || 0
+          successParts.push(`PILS: ${pilsCount} items verwerkt`)
+        }
+        if (erpUploaded) {
+          const erpCount = erpData.length || 0
+          successParts.push(`ERP LINK: ${erpCount} items toegevoegd`)
+        }
+        if (stockUploaded > 0) {
+          successParts.push(`Stock: ${stockUploaded} bestand(en), ${stockItemsProcessed} items verwerkt`)
+        }
+        if (successParts.length > 0) {
+          setSuccess(`✅ Bestanden succesvol verwerkt! ${successParts.join(' | ')}`)
+          setTimeout(() => setSuccess(null), 5000)
+        }
       } else if (stockFiles.length > 0) {
         // If only stock files are uploaded, just refresh the stock tab
         // The stock data is already saved to the database
         setDataLoaded(true)
+        setSuccess(`✅ Stock bestanden succesvol geüpload! ${stockUploaded} bestand(en), ${stockItemsProcessed} items verwerkt.`)
+        setTimeout(() => setSuccess(null), 5000)
       }
     } catch (err: any) {
       console.error('Process error:', err)
@@ -357,6 +389,15 @@ export default function GroteInpakPage() {
               <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-800">
                 <AlertCircle className="w-5 h-5" />
                 <span>{error}</span>
+              </div>
+            )}
+
+            {success && (
+              <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2 text-green-800">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span>{success}</span>
               </div>
             )}
 
