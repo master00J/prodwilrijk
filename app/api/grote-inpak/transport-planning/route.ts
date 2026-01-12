@@ -63,10 +63,11 @@ function formatDateNL(date: Date): string {
     'juli', 'augustus', 'september', 'oktober', 'november', 'december'
   ]
   const dagen = [
-    'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag', 'zondag'
+    'zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag'
   ]
   
-  const dagNaam = dagen[date.getDay() === 0 ? 6 : date.getDay() - 1]
+  // getDay() returns 0 for Sunday, 1 for Monday, etc.
+  const dagNaam = dagen[date.getDay()]
   const dag = date.getDate()
   const maand = maanden[date.getMonth()]
   
@@ -288,6 +289,99 @@ async function generateTransportPlanningExcel(
     { wch: 10 }, // GELADEN
     { wch: 24 }, // OPMERKING
   ]
+  
+  // Apply formatting to match the original Excel files
+  // Find row indices for date/title rows and headers
+  let currentRow = 0
+  
+  // VRACHT 1 - WILLEBROEK section
+  // Row 0: Date (yellow background, merged)
+  const dateRow1 = currentRow
+  ws['!merges'] = ws['!merges'] || []
+  ws['!merges'].push({ s: { r: dateRow1, c: 0 }, e: { r: dateRow1, c: 6 } })
+  const dateCell1 = XLSX.utils.encode_cell({ r: dateRow1, c: 0 })
+  if (ws[dateCell1]) {
+    ws[dateCell1].s = {
+      font: { bold: true, sz: 12 },
+      fill: { fgColor: { rgb: 'FFFF00' } }, // Yellow background
+      alignment: { horizontal: 'left', vertical: 'center' }
+    }
+  }
+  
+  // Row 1: Title "VRACHT 1 - WILLEBROEK" (yellow background, merged)
+  const titleRow1 = dateRow1 + 1
+  ws['!merges'].push({ s: { r: titleRow1, c: 0 }, e: { r: titleRow1, c: 6 } })
+  const titleCell1 = XLSX.utils.encode_cell({ r: titleRow1, c: 0 })
+  if (ws[titleCell1]) {
+    ws[titleCell1].s = {
+      font: { bold: true, sz: 12 },
+      fill: { fgColor: { rgb: 'FFFF00' } }, // Yellow background
+      alignment: { horizontal: 'left', vertical: 'center' }
+    }
+  }
+  
+  // Row 2: Headers (grey background, bold)
+  const headerRow1 = titleRow1 + 1
+  for (let c = 0; c < 7; c++) {
+    const cell = XLSX.utils.encode_cell({ r: headerRow1, c })
+    if (ws[cell]) {
+      ws[cell].s = {
+        font: { bold: true },
+        fill: { fgColor: { rgb: 'D3D3D3' } }, // Light grey background
+        alignment: { horizontal: 'center', vertical: 'center' }
+      }
+    }
+  }
+  
+  // Find VRACHT 2 - WILRIJK section
+  let rowIndex = 0
+  let foundWilrijk = false
+  for (let i = 0; i < wsData.length; i++) {
+    if (Array.isArray(wsData[i]) && wsData[i][0] === dateStr && !foundWilrijk) {
+      // Check if next row is VRACHT 2
+      if (i + 1 < wsData.length && wsData[i + 1][0] === 'VRACHT 2 - WILRIJK') {
+        foundWilrijk = true
+        const dateRow2 = i
+        const titleRow2 = i + 1
+        const headerRow2 = i + 2
+        
+        // Row for date (yellow background, merged)
+        ws['!merges'].push({ s: { r: dateRow2, c: 0 }, e: { r: dateRow2, c: 6 } })
+        const dateCell2 = XLSX.utils.encode_cell({ r: dateRow2, c: 0 })
+        if (ws[dateCell2]) {
+          ws[dateCell2].s = {
+            font: { bold: true, sz: 12 },
+            fill: { fgColor: { rgb: 'FFFF00' } }, // Yellow background
+            alignment: { horizontal: 'left', vertical: 'center' }
+          }
+        }
+        
+        // Row for title "VRACHT 2 - WILRIJK" (yellow background, merged)
+        ws['!merges'].push({ s: { r: titleRow2, c: 0 }, e: { r: titleRow2, c: 6 } })
+        const titleCell2 = XLSX.utils.encode_cell({ r: titleRow2, c: 0 })
+        if (ws[titleCell2]) {
+          ws[titleCell2].s = {
+            font: { bold: true, sz: 12 },
+            fill: { fgColor: { rgb: 'FFFF00' } }, // Yellow background
+            alignment: { horizontal: 'left', vertical: 'center' }
+          }
+        }
+        
+        // Row for headers (grey background, bold)
+        for (let c = 0; c < 7; c++) {
+          const cell = XLSX.utils.encode_cell({ r: headerRow2, c })
+          if (ws[cell]) {
+            ws[cell].s = {
+              font: { bold: true },
+              fill: { fgColor: { rgb: 'D3D3D3' } }, // Light grey background
+              alignment: { horizontal: 'center', vertical: 'center' }
+            }
+          }
+        }
+        break
+      }
+    }
+  }
   
   // Add worksheet to workbook
   XLSX.utils.book_append_sheet(wb, ws, 'Transportplanning')
