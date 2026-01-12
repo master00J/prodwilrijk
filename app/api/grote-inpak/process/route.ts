@@ -506,7 +506,7 @@ async function saveStockToDatabase(stockData: any[]) {
         erp_code: item.erp_code,
         location: item.location,
         quantity: item.quantity || 0,
-        item_number: null, // Stock files don't have item_number, only ERP code
+        item_number: '', // Use empty string instead of null to avoid NOT NULL constraint
       }, {
         onConflict: 'erp_code,location',
         ignoreDuplicates: false,
