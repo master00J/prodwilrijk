@@ -88,17 +88,31 @@ export async function GET(request: NextRequest) {
           let normalizedErpCode = String(erp.erp_code).toUpperCase().trim().replace(/\s+/g, '')
           
           // Extract GP code if embedded (e.g., "7773 GP008760" -> "GP008760")
-          const gpMatch = normalizedErpCode.match(/\b(GP\d+)\b/)
+          // This should match the same logic used in stock file parsing
+          const gpMatch = normalizedErpCode.match(/\b(GP\d+)\b/i)
           if (gpMatch) {
             normalizedErpCode = gpMatch[1]
+          } else if (!normalizedErpCode.match(/^[A-Z]{2,}\d+/)) {
+            // If it doesn't match standard ERP code format, try to extract from parts
+            const parts = normalizedErpCode.split(/\s+/)
+            for (let i = parts.length - 1; i >= 0; i--) {
+              const part = parts[i].trim()
+              if (part.match(/^[A-Z]{2,}\d+/i)) {
+                normalizedErpCode = part
+                break
+              }
+            }
           }
           
-          validErpCodes.add(normalizedErpCode)
-          erpCodeToKistnummer.set(normalizedErpCode, erp.kistnummer)
-          
-          if (erp.kistnummer) {
-            const normalizedKistnummer = String(erp.kistnummer).toUpperCase().trim()
-            kistnummerToErpCode.set(normalizedKistnummer, normalizedErpCode)
+          // Only add if it's a valid ERP code format
+          if (normalizedErpCode && normalizedErpCode.match(/^[A-Z]{2,}\d+/)) {
+            validErpCodes.add(normalizedErpCode)
+            erpCodeToKistnummer.set(normalizedErpCode, erp.kistnummer)
+            
+            if (erp.kistnummer) {
+              const normalizedKistnummer = String(erp.kistnummer).toUpperCase().trim()
+              kistnummerToErpCode.set(normalizedKistnummer, normalizedErpCode)
+            }
           }
         }
       })
@@ -149,9 +163,10 @@ export async function GET(request: NextRequest) {
         let normalizedStockErpCode = String(item.erp_code).toUpperCase().trim().replace(/\s+/g, '')
         
         // Extract GP code if embedded (e.g., "7773 GP008760" -> "GP008760")
-        const gpMatch = normalizedStockErpCode.match(/\b(GP\d+)\b/)
+        // Use case-insensitive matching to be safe
+        const gpMatch = normalizedStockErpCode.match(/\b(GP\d+)\b/i)
         if (gpMatch) {
-          normalizedStockErpCode = gpMatch[1]
+          normalizedStockErpCode = gpMatch[1].toUpperCase()
         }
         
         // Skip ERROR entries
@@ -160,8 +175,30 @@ export async function GET(request: NextRequest) {
           return null
         }
         
-        // Map ERP code to kistnummer via ERP LINK (like old code line 835)
+        // Try exact match first (case-insensitive, but we've already normalized to uppercase)
         kistnummer = erpCodeToKistnummer.get(normalizedStockErpCode) || null
+        
+        // Debug: log first few mapping attempts for troubleshooting
+        if (processedStockData.length < 5) {
+          console.log(`[DEBUG] Mapping stock ERP code "${item.erp_code}" (normalized: "${normalizedStockErpCode}") -> kistnummer: ${kistnummer || 'NOT FOUND'}`)
+          console.log(`[DEBUG] Is in validErpCodes: ${validErpCodes.has(normalizedStockErpCode)}`)
+          if (kistnummer) {
+            console.log(`[DEBUG] ✅ Successfully mapped to kistnummer: ${kistnummer}`)
+          } else if (validErpCodes.has(normalizedStockErpCode)) {
+            console.log(`[DEBUG] ⚠️ ERP code found in validErpCodes but no kistnummer mapping!`)
+          } else {
+            console.log(`[DEBUG] ❌ ERP code not found in ERP LINK`)
+          }
+        }
+        
+        // If no exact match, try without leading zeros (e.g., GP000004 -> GP4, but this might not be correct)
+        // Actually, let's not do this as it could cause false matches
+        
+        // Also check if the normalized code exists in validErpCodes set (for debugging)
+        if (!kistnummer && !validErpCodes.has(normalizedStockErpCode)) {
+          // This ERP code is not in ERP LINK, so it won't have a kistnummer
+          // This is expected for many stock items that are not kisten
+        }
       }
       
       // Return item with determined kistnummer
@@ -230,51 +267,70 @@ export async function GET(request: NextRequest) {
     
     console.log(`Stock data: ${stockData?.length || 0} total items -> ${filteredStockData.length} items shown (ERP LINK filtering: ${validErpCodes.size > 0 ? 'enabled' : 'disabled'})`)
     
-    // Debug: log some sample ERP codes and check for matches
-    if (stockData && stockData.length > 0) {
-      const sampleErpCodes = stockData.slice(0, 10).map((item: any) => item.erp_code).filter(Boolean)
-      console.log(`Sample ERP codes from stock (first 10):`, sampleErpCodes)
+    // Debug: Check ALL stock ERP codes for matches (not just sample)
+    if (stockData && stockData.length > 0 && validErpCodes.size > 0) {
+      const allStockErpCodes = new Set(stockData.map((item: any) => item.erp_code).filter(Boolean))
+      const matchingCodes: string[] = []
+      const nonMatchingCodes: string[] = []
       
-      // Check how many stock ERP codes match with ERP LINK
-      if (validErpCodes.size > 0) {
-        const sampleValidCodes = Array.from(validErpCodes).slice(0, 10)
-        console.log(`Sample valid ERP codes from ERP LINK (first 10):`, sampleValidCodes)
+      allStockErpCodes.forEach(code => {
+        let normalized = String(code).toUpperCase().trim().replace(/\s+/g, '')
+        // Extract GP code if embedded
+        const gpMatch = normalized.match(/\b(GP\d+)\b/)
+        if (gpMatch) {
+          normalized = gpMatch[1]
+        }
         
-        // Count matches with detailed logging
-        const matchingCodes: string[] = []
-        const nonMatchingCodes: string[] = []
+        // Skip ERROR entries
+        if (normalized.includes('ERROR')) {
+          return
+        }
         
-        sampleErpCodes.forEach(code => {
-          let normalized = String(code).toUpperCase().trim().replace(/\s+/g, '')
-          // Extract GP code if embedded
-          const gpMatch = normalized.match(/\b(GP\d+)\b/)
-          if (gpMatch) {
-            normalized = gpMatch[1]
-          }
-          
-          if (validErpCodes.has(normalized)) {
-            matchingCodes.push(code)
-          } else {
-            nonMatchingCodes.push(code)
-          }
+        if (validErpCodes.has(normalized)) {
+          matchingCodes.push(normalized)
+        } else {
+          nonMatchingCodes.push(normalized)
+        }
+      })
+      
+      console.log(`\n=== ERP CODE MATCHING ANALYSIS ===`)
+      console.log(`Total unique ERP codes in stock: ${allStockErpCodes.size}`)
+      console.log(`Total valid ERP codes in ERP LINK: ${validErpCodes.size}`)
+      console.log(`Matching codes: ${matchingCodes.length}`)
+      console.log(`Non-matching codes: ${nonMatchingCodes.length}`)
+      
+      if (matchingCodes.length > 0) {
+        console.log(`\n✅ Matching ERP codes (first 20):`, matchingCodes.slice(0, 20))
+        // Check if these matching codes have kistnummers
+        const matchingWithKistnummer = matchingCodes.filter(code => {
+          const kist = erpCodeToKistnummer.get(code)
+          return kist && kist.match(/^[KCV]/)
         })
-        
-        console.log(`Matching codes in sample: ${matchingCodes.length} out of ${sampleErpCodes.length}`)
-        if (matchingCodes.length > 0) {
-          console.log(`Matching codes:`, matchingCodes)
-        }
-        if (nonMatchingCodes.length > 0) {
-          console.log(`Non-matching codes:`, nonMatchingCodes)
-        }
-        
-        // Check for ERROR1 entries
-        const errorEntries = stockData.filter((item: any) => 
-          item.erp_code && String(item.erp_code).toUpperCase().includes('ERROR')
-        )
-        if (errorEntries.length > 0) {
-          console.warn(`Found ${errorEntries.length} entries with ERROR in ERP code. These should be cleaned up.`)
+        console.log(`Matching codes with valid kistnummer (K/C/V): ${matchingWithKistnummer.length}`)
+        if (matchingWithKistnummer.length > 0) {
+          console.log(`Sample kistnummers from matches:`, matchingWithKistnummer.slice(0, 10).map(code => {
+            const kist = erpCodeToKistnummer.get(code)
+            return `${code} -> ${kist}`
+          }))
         }
       }
+      
+      if (nonMatchingCodes.length > 0 && matchingCodes.length === 0) {
+        console.log(`\n❌ No matching codes found!`)
+        console.log(`Sample stock ERP codes (first 20):`, Array.from(allStockErpCodes).slice(0, 20))
+        console.log(`Sample ERP LINK codes (first 20):`, Array.from(validErpCodes).slice(0, 20))
+        console.log(`\n⚠️ This suggests the stock files and ERP LINK file are from different time periods or contain different data.`)
+      }
+      
+      // Check for ERROR entries
+      const errorEntries = stockData.filter((item: any) => 
+        item.erp_code && String(item.erp_code).toUpperCase().includes('ERROR')
+      )
+      if (errorEntries.length > 0) {
+        console.warn(`Found ${errorEntries.length} entries with ERROR in ERP code. These should be cleaned up.`)
+      }
+      
+      console.log(`=== END ANALYSIS ===\n`)
     }
 
     // Aggregate by kistnummer (all items in filteredStockData should have kistnummer now)
@@ -350,11 +406,17 @@ export async function GET(request: NextRequest) {
     // Get all unique locations from the filtered stock data for the dropdown
     const allLocations = Array.from(new Set(filteredStockData.map((item: any) => item.location).filter(Boolean) || [])).sort()
 
+    // Include warning message if no items match
+    const warning = validErpCodes.size > 0 && filteredStockData.length === 0 && stockData && stockData.length > 0
+      ? `Geen stock items gevonden die overeenkomen met de ERP LINK file. De stock files bevatten ${stockData.length} items, maar geen enkele ERP code komt overeen met de ${validErpCodes.size} ERP codes in ERP LINK. Upload de stock files opnieuw met de juiste data die overeenkomt met de ERP LINK file.`
+      : null
+
     return NextResponse.json({ 
       data: filteredStockData, 
       aggregated: filteredAggregated,
       count: filteredStockData.length,
-      allLocations: allLocations // Include all locations for the dropdown
+      allLocations: allLocations, // Include all locations for the dropdown
+      warning: warning // Include warning message if applicable
     })
   } catch (error: any) {
     console.error('Error fetching stock:', error)

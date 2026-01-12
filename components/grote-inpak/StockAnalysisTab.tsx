@@ -28,10 +28,17 @@ export default function StockAnalysisTab() {
         console.log('Stock API response:', {
           dataCount: result.data?.length || 0,
           aggregatedCount: result.aggregated?.length || 0,
-          allLocations: result.allLocations?.length || 0
+          allLocations: result.allLocations?.length || 0,
+          warning: result.warning
         })
         setStockData(result.data || [])
         setAggregatedData(result.aggregated || [])
+        // Set warning message if provided
+        if (result.warning) {
+          setError(result.warning)
+        } else {
+          setError(null)
+        }
         // Use allLocations from API if available, otherwise derive from stockData
         if (result.allLocations && result.allLocations.length > 0) {
           // Store locations in a way that the component can use
@@ -328,15 +335,21 @@ export default function StockAnalysisTab() {
         </div>
       ) : (
         <div className="text-center py-12">
-          <div className="text-gray-500 mb-2">
+          <p className="text-gray-500 mb-2">
             Geen stock data gevonden. Upload een stock bestand om te beginnen.
-          </div>
-          {stockData.length > 0 && aggregatedData.length === 0 && (
+          </p>
+          {error && (
+            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-left max-w-2xl mx-auto">
+              <p className="text-yellow-800 font-semibold mb-2">⚠️ Let op:</p>
+              <p className="text-yellow-700 text-sm">{error}</p>
+            </div>
+          )}
+          {!error && stockData.length > 0 && aggregatedData.length === 0 && (
             <div className="text-sm text-gray-400 mt-2">
               (Er zijn {stockData.length} stock items in de database, maar geen match met ERP LINK)
             </div>
           )}
-          {stockData.length === 0 && (
+          {!error && stockData.length === 0 && (
             <div className="text-sm text-gray-400 mt-2">
               (Geen stock items gevonden in de database)
             </div>
