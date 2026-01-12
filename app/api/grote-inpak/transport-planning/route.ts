@@ -82,7 +82,7 @@ async function generateTransportPlanningExcel(
   transportData: any[],
   stockData: any[],
   planDate: Date
-): Promise<Buffer> {
+): Promise<Uint8Array> {
   // Create workbook
   const wb = XLSX.utils.book_new()
   
@@ -291,9 +291,9 @@ async function generateTransportPlanningExcel(
   // Add worksheet to workbook
   XLSX.utils.book_append_sheet(wb, ws, 'Transportplanning')
   
-  // Generate buffer
-  const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
+  // Generate buffer as Uint8Array
+  const buffer = XLSX.write(wb, { type: 'array', bookType: 'xlsx' })
   
-  return Buffer.from(buffer)
+  return new Uint8Array(buffer)
 }
 
