@@ -371,13 +371,61 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location?: string): Prom
   
   // Process data rows
   for (let rowNum = startRow; rowNum <= range.e.r; rowNum++) {
-    // Column A (index 0) = ERP code
+    // Column A (index 0) = May contain "7773 GP008760" format - extract ERP code
     const colA = XLSX.utils.encode_cell({ r: rowNum, c: 0 })
-    const erpCodeCell = worksheet[colA]
-    const erpCode = erpCodeCell ? String(erpCodeCell.v || '').trim() : ''
+    const colACell = worksheet[colA]
+    const colAValue = colACell ? String(colACell.v || '').trim() : ''
+    
+    // Column B (index 1) = "Consumption Item No." - may contain ERP code as fallback
+    const colB = XLSX.utils.encode_cell({ r: rowNum, c: 1 })
+    const colBCell = worksheet[colB]
+    const colBValue = colBCell ? String(colBCell.v || '').trim() : ''
+    
+    // Extract ERP code from column A
+    // Pattern: "7773 GP008760" -> extract "GP008760"
+    // Or just "GP008760" -> use as is
+    let erpCode = ''
+    
+    if (colAValue) {
+      // Try to find GP code pattern (GP followed by digits)
+      const gpMatch = colAValue.match(/\b(GP\d+)\b/i)
+      if (gpMatch) {
+        erpCode = gpMatch[1].toUpperCase()
+      } else {
+        // If no GP pattern found, try to use the last word/part (might be ERP code)
+        const parts = colAValue.split(/\s+/)
+        if (parts.length > 1) {
+          // Use last part if it looks like an ERP code (starts with letters and has digits)
+          const lastPart = parts[parts.length - 1]
+          if (lastPart.match(/^[A-Z]{2,}\d+/i)) {
+            erpCode = lastPart.toUpperCase()
+          } else {
+            // Fallback: use the whole value if it looks like an ERP code
+            if (colAValue.match(/^[A-Z]{2,}\d+/i)) {
+              erpCode = colAValue.toUpperCase()
+            }
+          }
+        } else {
+          // Single value - use if it looks like ERP code
+          if (colAValue.match(/^[A-Z]{2,}\d+/i)) {
+            erpCode = colAValue.toUpperCase()
+          }
+        }
+      }
+    }
+    
+    // Fallback to column B if column A didn't yield an ERP code
+    if (!erpCode && colBValue) {
+      const gpMatchB = colBValue.match(/\b(GP\d+)\b/i)
+      if (gpMatchB) {
+        erpCode = gpMatchB[1].toUpperCase()
+      } else if (colBValue.match(/^[A-Z]{2,}\d+/i)) {
+        erpCode = colBValue.toUpperCase()
+      }
+    }
     
     // Skip empty rows or rows that look like headers
-    if (!erpCode || erpCode.toLowerCase() === 'erp code' || erpCode.toLowerCase() === 'erp_code') {
+    if (!erpCode || erpCode.toLowerCase() === 'erp code' || erpCode.toLowerCase() === 'erp_code' || erpCode.toLowerCase() === 'no.') {
       continue
     }
     
