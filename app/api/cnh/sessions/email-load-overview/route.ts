@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import nodemailer from 'nodemailer'
 import PDFDocument from 'pdfkit'
-import type { PDFDocument as PDFDoc } from 'pdfkit'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -91,7 +90,7 @@ export async function POST(request: NextRequest) {
 
     // Motor table generator function
     const generateMotorTable = (
-      doc: PDFDoc,
+      doc: PDFDocument,
       motors: Array<{ motorNr: string; verzendnota: string }>,
       startY: number,
       pageConfig: typeof PAGE_CONFIG,
