@@ -94,6 +94,7 @@ export default function CNHWorkflowPage() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false)
   const [templateName, setTemplateName] = useState('')
+  const [editingMotor, setEditingMotor] = useState<CNHMotor | null>(null)
 
   const packTimerIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const loadTimerIntervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -120,6 +121,28 @@ export default function CNHWorkflowPage() {
     const seconds = totalSeconds % 60
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
   }, [])
+
+  // Update motor function
+  const updateMotor = useCallback(async (motor: CNHMotor) => {
+    try {
+      const resp = await fetch(`/api/cnh/motors/${motor.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(motor),
+      })
+      const data = await resp.json()
+      if (!resp.ok || !data.success) {
+        throw new Error(data.error || 'Fout bij bijwerken motor')
+      }
+      showStatus('Motor bijgewerkt', 'success')
+      setEditingMotor(null)
+      fetchPackMotors()
+      fetchLoadMotors()
+    } catch (e: any) {
+      console.error(e)
+      showStatus('Fout bij bijwerken motor: ' + e.message, 'error')
+    }
+  }, [showStatus, fetchPackMotors, fetchLoadMotors])
 
   // INCOMING TAB FUNCTIONS
   const addIncomingMotorRow = useCallback(() => {
@@ -1178,6 +1201,7 @@ export default function CNHWorkflowPage() {
                         <th className="px-4 py-2 text-left border-b">Bodem Hoog</th>
                       </>
                     )}
+                    <th className="px-4 py-2 text-left border-b">Acties</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1248,6 +1272,14 @@ export default function CNHWorkflowPage() {
                           <td className="px-4 py-2">-</td>
                         </>
                       )}
+                      <td className="px-4 py-2">
+                        <button
+                          onClick={() => setEditingMotor(motor)}
+                          className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                        >
+                          Bewerken
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1597,6 +1629,7 @@ export default function CNHWorkflowPage() {
                       <th className="px-4 py-2 text-left border-b">Motornummer</th>
                       <th className="px-4 py-2 text-left border-b">Locatie</th>
                       <th className="px-4 py-2 text-left border-b">Verzendnota</th>
+                      <th className="px-4 py-2 text-left border-b">Acties</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1621,6 +1654,14 @@ export default function CNHWorkflowPage() {
                         <td className="px-4 py-2">{motor.motor_nr}</td>
                         <td className="px-4 py-2">{motor.location || 'N/A'}</td>
                         <td className="px-4 py-2">{motor.shipping_note || 'N/A'}</td>
+                        <td className="px-4 py-2">
+                          <button
+                            onClick={() => setEditingMotor(motor)}
+                            className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                          >
+                            Bewerken
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
