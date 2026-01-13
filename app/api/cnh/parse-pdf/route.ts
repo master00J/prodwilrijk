@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pdfParse from 'pdf-parse'
+import pdfImgConvert from 'pdf-img-convert'
+import { createWorker } from 'tesseract.js'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// POST /api/cnh/parse-pdf - Parse PDF and extract motor numbers and shipping note
+// POST /api/cnh/parse-pdf - Parse PDF and extract motor numbers and shipping note using OCR for scanned PDFs
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
@@ -29,24 +31,73 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
-    // Parse PDF
-    const pdfData = await pdfParse(buffer)
+    let text = ''
 
-    // Extract text from PDF
-    const text = pdfData.text
+    // Try to parse as text-based PDF first
+    try {
+      const pdfData = await pdfParse(buffer)
+      text = pdfData.text
+      
+      // If we got meaningful text (more than just a few characters), use it
+      if (text.length > 100) {
+        console.log('PDF contains text, using direct text extraction')
+      } else {
+        // PDF appears to be scanned, need OCR
+        text = ''
+        throw new Error('PDF appears to be scanned, using OCR')
+      }
+    } catch (parseError) {
+      // PDF is likely scanned, convert to images and use OCR
+      console.log('PDF is scanned or has no text, using OCR...')
+      
+      try {
+        // Convert PDF pages to images
+        const outputImages = await pdfImgConvert.convert(buffer, {
+          scale: 2.0, // Higher scale for better OCR accuracy
+        })
+
+        if (!outputImages || outputImages.length === 0) {
+          return NextResponse.json(
+            { error: 'Kon PDF niet converteren naar afbeeldingen' },
+            { status: 500 }
+          )
+        }
+
+        // Initialize Tesseract worker
+        const worker = await createWorker('nld+eng') // Dutch + English
+
+        // Process each page
+        const allText: string[] = []
+        for (let i = 0; i < outputImages.length; i++) {
+          const image = outputImages[i]
+          const { data: { text: pageText } } = await worker.recognize(image)
+          allText.push(pageText)
+          console.log(`Processed page ${i + 1}/${outputImages.length}`)
+        }
+
+        await worker.terminate()
+        text = allText.join('\n')
+      } catch (ocrError: any) {
+        console.error('OCR error:', ocrError)
+        return NextResponse.json(
+          { error: 'Fout bij OCR verwerking: ' + (ocrError.message || 'Unknown error') },
+          { status: 500 }
+        )
+      }
+    }
 
     // Parse the text to extract motor numbers and shipping note
-    // This is a basic parser - you may need to adjust based on the actual PDF format
     const lines = text.split('\n').map((line) => line.trim()).filter((line) => line.length > 0)
 
     // Try to find shipping note (common patterns: "Verzendnota", "Shipping Note", "Note:", etc.)
     let shippingNote = ''
     const shippingNotePatterns = [
-      /verzendnota[:\s]+([^\n]+)/i,
-      /shipping\s*note[:\s]+([^\n]+)/i,
-      /note[:\s]+([^\n]+)/i,
-      /ref[:\s]+([^\n]+)/i,
-      /reference[:\s]+([^\n]+)/i,
+      /verzendnota[:\s]+([^\n\r]+)/i,
+      /shipping\s*note[:\s]+([^\n\r]+)/i,
+      /note[:\s]+([^\n\r]+)/i,
+      /ref[:\s]+([^\n\r]+)/i,
+      /reference[:\s]+([^\n\r]+)/i,
+      /lb[:\s]+([^\n\r]+)/i, // "lb" might be the shipping note prefix
     ]
 
     for (const pattern of shippingNotePatterns) {
@@ -66,22 +117,28 @@ export async function POST(request: NextRequest) {
       /^[A-Z0-9]{4,20}$/, // Alphanumeric codes (4-20 chars)
       /^[0-9]{6,12}$/, // Numeric codes (6-12 digits)
       /^[A-Z]{2,4}[0-9]{4,12}$/, // Letter prefix + numbers
+      /^[A-Z0-9]{6,15}$/, // General alphanumeric pattern
     ]
 
     for (const line of lines) {
       // Skip lines that are clearly headers/labels
+      const lowerLine = line.toLowerCase()
       if (
-        line.toLowerCase().includes('motor') ||
-        line.toLowerCase().includes('nummer') ||
-        line.toLowerCase().includes('number') ||
-        line.toLowerCase().includes('verzendnota') ||
-        line.toLowerCase().includes('shipping') ||
-        line.toLowerCase().includes('note') ||
-        line.toLowerCase().includes('ref') ||
-        line.toLowerCase().includes('datum') ||
-        line.toLowerCase().includes('date') ||
+        lowerLine.includes('motor') ||
+        lowerLine.includes('nummer') ||
+        lowerLine.includes('number') ||
+        lowerLine.includes('verzendnota') ||
+        lowerLine.includes('shipping') ||
+        lowerLine.includes('note') ||
+        lowerLine.includes('ref') ||
+        lowerLine.includes('datum') ||
+        lowerLine.includes('date') ||
+        lowerLine.includes('lb') ||
+        lowerLine.includes('pagina') ||
+        lowerLine.includes('page') ||
         line.length < 4 ||
-        line.length > 30
+        line.length > 30 ||
+        /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(line) // Skip dates
       ) {
         continue
       }
@@ -95,8 +152,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Remove duplicates
-    const uniqueMotorNumbers = [...new Set(motorNumbers)]
+    // Remove duplicates and sort
+    const uniqueMotorNumbers = [...new Set(motorNumbers)].sort()
 
     return NextResponse.json({
       success: true,
@@ -113,4 +170,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-
