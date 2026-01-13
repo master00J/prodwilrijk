@@ -85,7 +85,8 @@ export default function Navbar() {
   const isCNHPage = 
     pathname.startsWith('/cnh/workflow') ||
     pathname.startsWith('/cnh/dashboard') ||
-    pathname.startsWith('/cnh/admin')
+    pathname.startsWith('/cnh/admin') ||
+    pathname.startsWith('/cnh/verify')
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -417,6 +418,15 @@ export default function Navbar() {
                       }`}
                     >
                       CNH Dashboard
+                    </Link>
+                    <Link
+                      href="/cnh/verify"
+                      onClick={() => setIsCNHOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/cnh/verify') ? 'bg-green-50 text-green-600 font-medium border-l-4 border-green-500' : 'text-gray-700'
+                      }`}
+                    >
+                      CNH Verificatie (Tablet)
                     </Link>
                     {isAdmin && (
                       <Link

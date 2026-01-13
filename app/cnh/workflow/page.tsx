@@ -1290,7 +1290,15 @@ export default function CNHWorkflowPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
-      <h1 className="text-3xl font-bold text-center mb-6">CNH Workflow</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">CNH Workflow</h1>
+        <a
+          href="/cnh/verify"
+          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium text-sm flex items-center gap-2"
+        >
+          📱 Verificatie (Tablet)
+        </a>
+      </div>
 
       {/* Status messages */}
       {statusMessage && (
