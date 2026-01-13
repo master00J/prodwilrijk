@@ -353,6 +353,28 @@ export default function CNHDashboardPage() {
     }
   }, [showStatus, fetchTemplates])
 
+  // Send email for load session
+  const sendLoadSessionEmail = useCallback(async (session: CNHSession) => {
+    const toEmail = prompt('Geef het e-mail adres op:')
+    if (!toEmail) return
+
+    try {
+      const resp = await fetch('/api/cnh/sessions/email-load-overview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: session.id, toEmail }),
+      })
+      const data = await resp.json()
+      if (!resp.ok || !data.success) {
+        throw new Error(data.error || 'Fout bij mailLoadOverview')
+      }
+      showStatus('E-mail met overzicht verzonden!', 'success')
+    } catch (e: any) {
+      console.error('sendLoadSessionEmail error:', e)
+      showStatus('Fout: ' + e.message, 'error')
+    }
+  }, [showStatus])
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
       <h1 className="text-3xl font-bold text-center mb-6">CNH Dashboard</h1>
@@ -610,12 +632,20 @@ export default function CNHDashboardPage() {
                       <td className="px-4 py-2">{formatDuration(session.loading_minutes)}</td>
                       <td className="px-4 py-2">{session.loading_count || 0}</td>
                       <td className="px-4 py-2">
-                        <button
-                          onClick={() => setEditingLoadSession(session)}
-                          className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
-                        >
-                          Bewerken
-                        </button>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setEditingLoadSession(session)}
+                            className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                          >
+                            Bewerken
+                          </button>
+                          <button
+                            onClick={() => sendLoadSessionEmail(session)}
+                            className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
+                          >
+                            📧 Email
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
