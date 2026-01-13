@@ -60,15 +60,17 @@ export async function POST(request: NextRequest) {
     // Parse the text to extract motor numbers and shipping note
     const lines = text.split('\n').map((line) => line.trim()).filter((line) => line.length > 0)
 
-    // Try to find shipping note - Look for "NR" followed by a number (e.g., "NR 138197")
+    // Try to find shipping note - Look for "NR" followed by a number (e.g., "NR 138197" or just "138197")
     let shippingNote = ''
     const shippingNotePatterns = [
-      /\bNR\s+(\d+)\b/i, // "NR 138197" pattern (priority)
-      /verzendnota[:\s]+([^\n\r]+)/i,
-      /shipping\s*note[:\s]+([^\n\r]+)/i,
-      /note[:\s]+([^\n\r]+)/i,
-      /ref[:\s]+([^\n\r]+)/i,
-      /reference[:\s]+([^\n\r]+)/i,
+      /\bNR\s+(\d{4,10})\b/i, // "NR 138197" pattern (priority)
+      /\bNR[:\s]*(\d{4,10})\b/i, // "NR: 138197" or "NR 138197"
+      /\b(\d{5,7})\b(?=.*verzend|.*shipping|.*order)/i, // Standalone number near shipping/order keywords (5-7 digits)
+      /verzendnota[:\s]+(\d{4,10})/i,
+      /shipping\s*note[:\s]+(\d{4,10})/i,
+      /note[:\s]+(\d{4,10})/i,
+      /ref[:\s]+(\d{4,10})/i,
+      /reference[:\s]+(\d{4,10})/i,
     ]
 
     for (const pattern of shippingNotePatterns) {
@@ -78,32 +80,65 @@ export async function POST(request: NextRequest) {
         break
       }
     }
+    
+    // Fallback: Look for standalone 5-7 digit numbers in the top area of the document
+    if (!shippingNote) {
+      const topText = text.substring(0, Math.min(2000, text.length))
+      const standaloneNumbers = topText.match(/\b(\d{5,7})\b/g)
+      if (standaloneNumbers && standaloneNumbers.length > 0) {
+        // Take the first reasonable number (not a date or year)
+        for (const num of standaloneNumbers) {
+          if (!/^\d{4}$/.test(num) || parseInt(num) >= 2000) {
+            shippingNote = num
+            break
+          }
+        }
+      }
+    }
 
-    // Extract motor numbers - Look for numeric codes (4-15 digits)
-    // These appear in the "Stuknummer" column
+    // Extract motor numbers - Look for 6-digit numbers under "Stuknummer" column
+    // These are typically 6-digit codes like 253226, 253365, etc.
     const motorNumbers: string[] = []
     
     // Look for "Stuknummer" section and extract numbers that follow
     const stuknummerIndex = lines.findIndex(line => 
       line.toLowerCase().includes('stuknummer') || 
-      line.toLowerCase().includes('stuk nummer')
+      line.toLowerCase().includes('stuk nummer') ||
+      line.toLowerCase().includes('stuknr')
     )
     
     // If we found "Stuknummer" header, look for numbers in nearby lines
     if (stuknummerIndex >= 0) {
-      // Check lines after "Stuknummer" header (skip a few lines to account for column headers)
-      for (let i = stuknummerIndex + 2; i < Math.min(stuknummerIndex + 20, lines.length); i++) {
+      // Check lines after "Stuknummer" header (skip header line)
+      for (let i = stuknummerIndex + 1; i < Math.min(stuknummerIndex + 30, lines.length); i++) {
         const line = lines[i]
-        // Look for numeric codes (4-15 digits, motor numbers can vary in length)
-        const numberMatches = line.match(/\b(\d{4,15})\b/g)
-        if (numberMatches) {
-          for (const num of numberMatches) {
-            // Skip if it looks like a date, year, or other common patterns
+        
+        // Priority: Look for 6-digit numbers (most common motor number format)
+        const sixDigitMatches = line.match(/\b(\d{6})\b/g)
+        if (sixDigitMatches) {
+          for (const num of sixDigitMatches) {
+            // Filter out common false positives
             if (
-              num !== '0000' && 
-              num !== '00000' &&
-              !/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(num) && // Skip dates
-              !/^\d{4}$/.test(num) && parseInt(num) < 2000 // Skip years (4 digits < 2000)
+              parseInt(num) >= 100000 && // Valid 6-digit range
+              parseInt(num) < 999999 &&
+              !motorNumbers.includes(num) // Avoid duplicates
+            ) {
+              motorNumbers.push(num)
+            }
+          }
+        }
+        
+        // Also check for other common motor number formats (5-7 digits)
+        const flexibleMatches = line.match(/\b(\d{5,7})\b/g)
+        if (flexibleMatches) {
+          for (const num of flexibleMatches) {
+            // Skip if already found or if it's likely not a motor number
+            if (
+              !motorNumbers.includes(num) &&
+              num.length >= 5 && // At least 5 digits
+              parseInt(num) >= 10000 && // Reasonable minimum
+              parseInt(num) < 9999999 && // Reasonable maximum
+              !/^\d{4}$/.test(num) || parseInt(num) >= 2000 // Not a year
             ) {
               motorNumbers.push(num)
             }
@@ -112,19 +147,39 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // Also search entire text for numeric codes as fallback
+    // Also search entire text for 6-digit numbers as fallback
     if (motorNumbers.length === 0) {
-      const allNumberMatches = text.match(/\b(\d{4,15})\b/g)
-      if (allNumberMatches) {
-        for (const num of allNumberMatches) {
-          // Skip dates, years, and common non-motor numbers
+      // Priority: Look for 6-digit numbers throughout the document
+      const sixDigitMatches = text.match(/\b(\d{6})\b/g)
+      if (sixDigitMatches) {
+        for (const num of sixDigitMatches) {
+          // Filter out common false positives (dates, years, etc.)
           if (
-            num !== '0000' && 
-            num !== '00000' &&
-            !/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(num) && // Skip dates
-            !/^\d{4}$/.test(num) && parseInt(num) < 2000 // Skip years (4 digits < 2000)
+            parseInt(num) >= 100000 && // Valid 6-digit range
+            parseInt(num) < 999999 &&
+            !motorNumbers.includes(num) && // Avoid duplicates
+            num !== shippingNote // Don't include shipping note
           ) {
             motorNumbers.push(num)
+          }
+        }
+      }
+      
+      // Fallback: Look for 5-7 digit numbers
+      if (motorNumbers.length === 0) {
+        const flexibleMatches = text.match(/\b(\d{5,7})\b/g)
+        if (flexibleMatches) {
+          for (const num of flexibleMatches) {
+            if (
+              !motorNumbers.includes(num) &&
+              num.length >= 5 &&
+              parseInt(num) >= 10000 &&
+              parseInt(num) < 9999999 &&
+              num !== shippingNote && // Don't include shipping note
+              (!/^\d{4}$/.test(num) || parseInt(num) >= 2000) // Not a year
+            ) {
+              motorNumbers.push(num)
+            }
           }
         }
       }
