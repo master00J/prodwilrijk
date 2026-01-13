@@ -4,11 +4,12 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// GET /api/cnh/motors?state=received|packaged|loaded
+// GET /api/cnh/motors?state=received|packaged|loaded&shippingNote=xxx
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const state = searchParams.get('state')
+    const shippingNote = searchParams.get('shippingNote')
 
     let query = supabaseAdmin
       .from('cnh_motors')
@@ -17,6 +18,10 @@ export async function GET(request: NextRequest) {
 
     if (state) {
       query = query.eq('state', state)
+    }
+
+    if (shippingNote) {
+      query = query.eq('shipping_note', shippingNote)
     }
 
     const { data, error } = await query
