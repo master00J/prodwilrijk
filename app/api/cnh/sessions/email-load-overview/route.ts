@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
 
     // Motor table generator function
     const generateMotorTable = (
-      doc: PDFDocument,
+      doc: InstanceType<typeof PDFDocument>,
       motors: Array<{ motorNr: string; verzendnota: string }>,
       startY: number,
       pageConfig: typeof PAGE_CONFIG,
