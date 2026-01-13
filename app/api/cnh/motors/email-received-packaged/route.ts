@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import nodemailer from 'nodemailer'
-import PDFDocument from 'pdfkit'
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -42,306 +42,407 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 2) Generate PDF
-    const buffers: Buffer[] = []
-    const doc = new PDFDocument({
-      margin: 50,
-      size: 'A4',
-      bufferPages: true,
-    })
+    // 2) Generate PDF with pdf-lib
+    const pdfDoc = await PDFDocument.create()
+    const page = pdfDoc.addPage([595, 842]) // A4 size in points
+    const { width, height } = page.getSize()
+    const margin = 50
+    const pageWidth = width - 2 * margin
+    let currentY = height - margin
 
-    doc.on('data', (chunk) => buffers.push(chunk))
-    
-    // PDF Styling configuration
-    const COLORS = {
-      primary: '#00897B',
-      secondary: '#555555',
-      border: '#e0e0e0',
-      background: '#f9f9f9',
-      rowBackground: '#f0f0f0',
-      text: '#2c2c2c',
+    // Colors
+    const colors = {
+      primary: rgb(0, 0.537, 0.486), // #00897B
+      secondary: rgb(0.333, 0.333, 0.333), // #555555
+      border: rgb(0.878, 0.878, 0.878), // #e0e0e0
+      background: rgb(0.976, 0.976, 0.976), // #f9f9f9
+      rowBackground: rgb(0.941, 0.941, 0.941), // #f0f0f0
+      text: rgb(0.173, 0.173, 0.173), // #2c2c2c
     }
 
-    const FONTS = {
-      normal: 'Helvetica',
-      bold: 'Helvetica-Bold',
-      italic: 'Helvetica-Oblique',
-    }
-
-    const PAGE_CONFIG = {
-      margin: 50,
-      contentWidth: 495,
-      maxY: 750,
-    }
+    // Fonts
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
+    const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
 
     // Helper functions
-    function addDivider(doc: any) {
-      doc.strokeColor(COLORS.border)
-        .lineWidth(0.5)
-        .moveTo(PAGE_CONFIG.margin, doc.y)
-        .lineTo(PAGE_CONFIG.margin + PAGE_CONFIG.contentWidth, doc.y)
-        .stroke()
-      doc.moveDown(0.5)
-    }
-
-    function addHeader(doc: any, title: string) {
-      doc.fontSize(20)
-        .font(FONTS.bold)
-        .fillColor(COLORS.primary)
-        .text(title, PAGE_CONFIG.margin, doc.y)
-
-      const date = new Date().toLocaleDateString('nl-BE')
-      doc.fontSize(10)
-        .font(FONTS.normal)
-        .fillColor(COLORS.secondary)
-        .text(date, PAGE_CONFIG.margin + 380, doc.y - 18, {
-          width: 120,
-          align: 'right',
-        })
-
-      doc.moveDown(1)
-      addDivider(doc)
-    }
-
-    function addSectionTitle(doc: any, title: string) {
-      const y = doc.y
-      doc.save()
-        .fillColor(COLORS.rowBackground)
-        .rect(PAGE_CONFIG.margin, y - 2, PAGE_CONFIG.contentWidth, 20)
-        .fill()
-        .restore()
-
-      doc.fillColor(COLORS.primary)
-        .fontSize(13)
-        .font(FONTS.bold)
-        .text(title, PAGE_CONFIG.margin + 10, y)
-
-      doc.moveDown(2)
-    }
-
-    function addStatistics(doc: any, motors: any[]) {
-      const stats = motors.reduce((acc: any, motor: any) => {
-        const key = `${motor.location || 'Onbekend'}-${motor.state || 'Onbekend'}`
-        if (!acc[key]) {
-          acc[key] = {
-            location: motor.location || 'Onbekend',
-            state: motor.state || 'Onbekend',
-            count: 0,
-          }
-        }
-        acc[key].count++
-        return acc
-      }, {})
-
-      const statsColumns = {
-        location: { x: PAGE_CONFIG.margin, width: 200 },
-        state: { x: PAGE_CONFIG.margin + 200, width: 150 },
-        count: { x: PAGE_CONFIG.margin + 350, width: 100 },
-      }
-
-      // Stats header
-      doc.font(FONTS.bold)
-        .fontSize(11)
-        .fillColor(COLORS.primary)
-
-      const headerY = doc.y
-      doc.save()
-        .fillColor(COLORS.background)
-        .rect(PAGE_CONFIG.margin, headerY - 5, PAGE_CONFIG.contentWidth, 22)
-        .fill()
-        .restore()
-
-      doc.text('Locatie', statsColumns.location.x + 10, headerY, {
-        width: statsColumns.location.width - 10,
-        align: 'left',
-      })
-      doc.text('Status', statsColumns.state.x, headerY, {
-        width: statsColumns.state.width,
-        align: 'left',
-      })
-      doc.text('Aantal', statsColumns.count.x, headerY, {
-        width: statsColumns.count.width - 10,
-        align: 'right',
-      })
-
-      doc.moveDown(1)
-
-      // Stats rows
-      const statsList = Object.values(stats).sort((a: any, b: any) => {
-        if (a.location !== b.location) return a.location.localeCompare(b.location)
-        return a.state.localeCompare(b.state)
-      })
-
-      let totalMotors = 0
-      statsList.forEach((stat: any, i: number) => {
-        if (i % 2 === 0) {
-          doc.save()
-            .fillColor(COLORS.rowBackground)
-            .rect(PAGE_CONFIG.margin, doc.y - 2, PAGE_CONFIG.contentWidth, 20)
-            .fill()
-            .restore()
-        }
-
-        const yPos = doc.y
-        doc.font(FONTS.normal)
-          .fontSize(10)
-          .fillColor(COLORS.text)
-          .text(stat.location, statsColumns.location.x + 10, yPos, {
-            width: statsColumns.location.width - 10,
-            align: 'left',
-          })
-          .text(stat.state, statsColumns.state.x, yPos, {
-            width: statsColumns.state.width,
-            align: 'left',
-          })
-          .text(stat.count.toString(), statsColumns.count.x, yPos, {
-            width: statsColumns.count.width - 10,
-            align: 'right',
-          })
-
-        totalMotors += stat.count
-        doc.moveDown(1)
-      })
-
-      doc.moveDown(0.5)
-      addDivider(doc)
-
-      doc.font(FONTS.bold)
-        .fontSize(11)
-        .fillColor(COLORS.primary)
-        .text('Totaal aantal motoren:', PAGE_CONFIG.margin + 15, doc.y, {
-          continued: true,
-        })
-        .text(` ${totalMotors}`, { align: 'left' })
-
-      doc.moveDown(2)
-    }
-
-    function addTableHeader(doc: any) {
-      const columns = {
-        id: { x: 60, width: 40 },
-        motor_nr: { x: 110, width: 100 },
-        location: { x: 215, width: 90 },
-        state: { x: 310, width: 60 },
-        shippingNote: { x: 375, width: 135 },
-      }
-
-      const headerY = doc.y
-      doc.save()
-        .fillColor(COLORS.background)
-        .rect(PAGE_CONFIG.margin, headerY - 5, PAGE_CONFIG.contentWidth, 22)
-        .fill()
-        .restore()
-
-      doc.font(FONTS.bold)
-        .fontSize(11)
-        .fillColor(COLORS.primary)
-
-      doc.text('ID', columns.id.x, headerY, {
-        width: columns.id.width,
-        align: 'left',
-      })
-      doc.text('MotorNr', columns.motor_nr.x, headerY, {
-        width: columns.motor_nr.width,
-        align: 'left',
-      })
-      doc.text('Locatie', columns.location.x, headerY, {
-        width: columns.location.width,
-        align: 'left',
-      })
-      doc.text('State', columns.state.x, headerY, {
-        width: columns.state.width,
-        align: 'left',
-      })
-      doc.text('Verzendnota', columns.shippingNote.x, headerY, {
-        width: columns.shippingNote.width,
-        align: 'left',
-      })
-
-      doc.moveDown(1)
-      addDivider(doc)
-      return columns
-    }
-
-    function addMotorsTable(doc: any, motors: any[]) {
-      const columns = addTableHeader(doc)
-
-      doc.font(FONTS.normal)
-        .fontSize(10)
-        .fillColor(COLORS.text)
-
-      motors.forEach((m: any, i: number) => {
-        if (doc.y > PAGE_CONFIG.maxY) {
-          doc.addPage()
-          addHeader(doc, 'Overzicht Motoren: Momenteel bij Foresco')
-          addSectionTitle(doc, 'Motoren in received/packaged status')
-          addTableHeader(doc)
-        }
-
-        if (i % 2 === 0) {
-          doc.save()
-            .fillColor(COLORS.rowBackground)
-            .rect(PAGE_CONFIG.margin, doc.y - 2, PAGE_CONFIG.contentWidth, 20)
-            .fill()
-            .restore()
-        }
-
-        const yPos = doc.y
-        doc.fillColor(COLORS.text)
-          .text(m.id?.toString() || '', columns.id.x, yPos, {
-            width: columns.id.width,
-          })
-          .text(m.motor_nr || '', columns.motor_nr.x, yPos, {
-            width: columns.motor_nr.width,
-          })
-          .text(m.location || '', columns.location.x, yPos, {
-            width: columns.location.width,
-          })
-          .text(m.state || '', columns.state.x, yPos, {
-            width: columns.state.width,
-          })
-          .text(m.shipping_note || '', columns.shippingNote.x, yPos, {
-            width: columns.shippingNote.width,
-          })
-
-        doc.moveDown(1)
+    function drawDivider(y: number) {
+      page.drawLine({
+        start: { x: margin, y },
+        end: { x: width - margin, y },
+        thickness: 0.5,
+        color: colors.border,
       })
     }
 
-    function addFooters(doc: any) {
-      const pages = doc.bufferedPageRange()
-      for (let i = 0; i < pages.count; i++) {
-        doc.switchToPage(i)
-        doc.fontSize(9)
-          .font(FONTS.normal)
-          .fillColor(COLORS.secondary)
-          .text(
-            `Pagina ${i + 1} van ${pages.count}`,
-            PAGE_CONFIG.margin,
-            doc.page.height - 50,
-            { align: 'center', width: PAGE_CONFIG.contentWidth }
-          )
-      }
-    }
-
-    // Generate PDF
-    addHeader(doc, 'Overzicht Motoren: Momenteel bij Foresco')
-    addSectionTitle(doc, 'Overzicht Aantallen')
-    addStatistics(doc, motors)
-
-    addSectionTitle(doc, 'Motoren in received/packaged status')
-    addMotorsTable(doc, motors)
-
-    addFooters(doc)
-
-    doc.end()
-
-    // Wait for PDF to finish
-    await new Promise<void>((resolve) => {
-      doc.on('end', () => resolve())
+    // Header
+    const title = 'Overzicht Motoren: Momenteel bij Foresco'
+    const titleWidth = fontBold.widthOfTextAtSize(title, 20)
+    page.drawText(title, {
+      x: margin,
+      y: currentY - 20,
+      size: 20,
+      font: fontBold,
+      color: colors.primary,
     })
 
-    const pdfData = Buffer.concat(buffers)
+    const date = new Date().toLocaleDateString('nl-BE')
+    const dateWidth = font.widthOfTextAtSize(date, 10)
+    page.drawText(date, {
+      x: width - margin - dateWidth,
+      y: currentY - 18,
+      size: 10,
+      font: font,
+      color: colors.secondary,
+    })
+
+    currentY -= 50
+    drawDivider(currentY)
+    currentY -= 20
+
+    // Statistics section
+    const stats = motors.reduce((acc: any, motor: any) => {
+      const key = `${motor.location || 'Onbekend'}-${motor.state || 'Onbekend'}`
+      if (!acc[key]) {
+        acc[key] = {
+          location: motor.location || 'Onbekend',
+          state: motor.state || 'Onbekend',
+          count: 0,
+        }
+      }
+      acc[key].count++
+      return acc
+    }, {})
+
+    // Section title: Overzicht Aantallen
+    page.drawRectangle({
+      x: margin,
+      y: currentY - 18,
+      width: pageWidth,
+      height: 20,
+      color: colors.rowBackground,
+    })
+    page.drawText('Overzicht Aantallen', {
+      x: margin + 10,
+      y: currentY - 5,
+      size: 13,
+      font: fontBold,
+      color: colors.primary,
+    })
+    currentY -= 40
+
+    // Statistics table header
+    page.drawRectangle({
+      x: margin,
+      y: currentY - 18,
+      width: pageWidth,
+      height: 22,
+      color: colors.background,
+    })
+    page.drawText('Locatie', {
+      x: margin + 10,
+      y: currentY - 5,
+      size: 11,
+      font: fontBold,
+      color: colors.primary,
+    })
+    page.drawText('Status', {
+      x: margin + 210,
+      y: currentY - 5,
+      size: 11,
+      font: fontBold,
+      color: colors.primary,
+    })
+    page.drawText('Aantal', {
+      x: margin + 360,
+      y: currentY - 5,
+      size: 11,
+      font: fontBold,
+      color: colors.primary,
+    })
+    currentY -= 30
+
+    // Statistics rows
+    const statsList = Object.values(stats).sort((a: any, b: any) => {
+      if (a.location !== b.location) return a.location.localeCompare(b.location)
+      return a.state.localeCompare(b.state)
+    })
+
+    let totalMotors = 0
+    statsList.forEach((stat: any, i: number) => {
+      if (i % 2 === 0) {
+        page.drawRectangle({
+          x: margin,
+          y: currentY - 18,
+          width: pageWidth,
+          height: 20,
+          color: colors.rowBackground,
+        })
+      }
+
+      page.drawText(stat.location, {
+        x: margin + 10,
+        y: currentY - 5,
+        size: 10,
+        font: font,
+        color: colors.text,
+      })
+      page.drawText(stat.state, {
+        x: margin + 210,
+        y: currentY - 5,
+        size: 10,
+        font: font,
+        color: colors.text,
+      })
+      const countText = stat.count.toString()
+      const countWidth = font.widthOfTextAtSize(countText, 10)
+      page.drawText(countText, {
+        x: margin + 450 - countWidth,
+        y: currentY - 5,
+        size: 10,
+        font: font,
+        color: colors.text,
+      })
+
+      totalMotors += stat.count
+      currentY -= 25
+    })
+
+    currentY -= 10
+    drawDivider(currentY)
+    currentY -= 15
+
+    // Total
+    const totalText = `Totaal aantal motoren: ${totalMotors}`
+    page.drawText(totalText, {
+      x: margin + 15,
+      y: currentY,
+      size: 11,
+      font: fontBold,
+      color: colors.primary,
+    })
+    currentY -= 40
+
+    // Motors table section
+    page.drawRectangle({
+      x: margin,
+      y: currentY - 18,
+      width: pageWidth,
+      height: 20,
+      color: colors.rowBackground,
+    })
+    page.drawText('Motoren in received/packaged status', {
+      x: margin + 10,
+      y: currentY - 5,
+      size: 13,
+      font: fontBold,
+      color: colors.primary,
+    })
+    currentY -= 40
+
+    // Table header
+    page.drawRectangle({
+      x: margin,
+      y: currentY - 18,
+      width: pageWidth,
+      height: 22,
+      color: colors.background,
+    })
+    page.drawText('ID', {
+      x: margin + 10,
+      y: currentY - 5,
+      size: 11,
+      font: fontBold,
+      color: colors.primary,
+    })
+    page.drawText('MotorNr', {
+      x: margin + 60,
+      y: currentY - 5,
+      size: 11,
+      font: fontBold,
+      color: colors.primary,
+    })
+    page.drawText('Locatie', {
+      x: margin + 165,
+      y: currentY - 5,
+      size: 11,
+      font: fontBold,
+      color: colors.primary,
+    })
+    page.drawText('State', {
+      x: margin + 260,
+      y: currentY - 5,
+      size: 11,
+      font: fontBold,
+      color: colors.primary,
+    })
+    page.drawText('Verzendnota', {
+      x: margin + 325,
+      y: currentY - 5,
+      size: 11,
+      font: fontBold,
+      color: colors.primary,
+    })
+    currentY -= 30
+    drawDivider(currentY)
+    currentY -= 10
+
+    // Motors rows
+    let currentPage = page
+    motors.forEach((m: any, i: number) => {
+      // Check if we need a new page
+      if (currentY < 100) {
+        const newPage = pdfDoc.addPage([595, 842])
+        const { width: newWidth, height: newHeight } = newPage.getSize()
+        newPage.drawText('Overzicht Motoren: Momenteel bij Foresco', {
+          x: margin,
+          y: newHeight - margin - 20,
+          size: 20,
+          font: fontBold,
+          color: colors.primary,
+        })
+        currentY = newHeight - margin - 70
+        newPage.drawLine({
+          start: { x: margin, y: currentY },
+          end: { x: newWidth - margin, y: currentY },
+          thickness: 0.5,
+          color: colors.border,
+        })
+        currentY -= 40
+
+        // Redraw section title and table header on new page
+        newPage.drawRectangle({
+          x: margin,
+          y: currentY - 18,
+          width: pageWidth,
+          height: 20,
+          color: colors.rowBackground,
+        })
+        newPage.drawText('Motoren in received/packaged status', {
+          x: margin + 10,
+          y: currentY - 5,
+          size: 13,
+          font: fontBold,
+          color: colors.primary,
+        })
+        currentY -= 40
+
+        newPage.drawRectangle({
+          x: margin,
+          y: currentY - 18,
+          width: pageWidth,
+          height: 22,
+          color: colors.background,
+        })
+        newPage.drawText('ID', {
+          x: margin + 10,
+          y: currentY - 5,
+          size: 11,
+          font: fontBold,
+          color: colors.primary,
+        })
+        newPage.drawText('MotorNr', {
+          x: margin + 60,
+          y: currentY - 5,
+          size: 11,
+          font: fontBold,
+          color: colors.primary,
+        })
+        newPage.drawText('Locatie', {
+          x: margin + 165,
+          y: currentY - 5,
+          size: 11,
+          font: fontBold,
+          color: colors.primary,
+        })
+        newPage.drawText('State', {
+          x: margin + 260,
+          y: currentY - 5,
+          size: 11,
+          font: fontBold,
+          color: colors.primary,
+        })
+        newPage.drawText('Verzendnota', {
+          x: margin + 325,
+          y: currentY - 5,
+          size: 11,
+          font: fontBold,
+          color: colors.primary,
+        })
+        currentY -= 30
+        newPage.drawLine({
+          start: { x: margin, y: currentY },
+          end: { x: newWidth - margin, y: currentY },
+          thickness: 0.5,
+          color: colors.border,
+        })
+        currentY -= 10
+        currentPage = newPage
+      }
+
+      if (i % 2 === 0) {
+        currentPage.drawRectangle({
+          x: margin,
+          y: currentY - 18,
+          width: pageWidth,
+          height: 20,
+          color: colors.rowBackground,
+        })
+      }
+
+      currentPage.drawText(m.id?.toString() || '', {
+        x: margin + 10,
+        y: currentY - 5,
+        size: 10,
+        font: font,
+        color: colors.text,
+      })
+      currentPage.drawText(m.motor_nr || '', {
+        x: margin + 60,
+        y: currentY - 5,
+        size: 10,
+        font: font,
+        color: colors.text,
+      })
+      currentPage.drawText(m.location || '', {
+        x: margin + 165,
+        y: currentY - 5,
+        size: 10,
+        font: font,
+        color: colors.text,
+      })
+      currentPage.drawText(m.state || '', {
+        x: margin + 260,
+        y: currentY - 5,
+        size: 10,
+        font: font,
+        color: colors.text,
+      })
+      currentPage.drawText(m.shipping_note || '', {
+        x: margin + 325,
+        y: currentY - 5,
+        size: 10,
+        font: font,
+        color: colors.text,
+      })
+
+      currentY -= 25
+    })
+
+    // Add page numbers
+    const pages = pdfDoc.getPages()
+    pages.forEach((p, i) => {
+      const pageNumber = `Pagina ${i + 1} van ${pages.length}`
+      const pageNumberWidth = font.widthOfTextAtSize(pageNumber, 9)
+      p.drawText(pageNumber, {
+        x: (width - pageNumberWidth) / 2,
+        y: 30,
+        size: 9,
+        font: font,
+        color: colors.secondary,
+      })
+    })
+
+    const pdfBytes = await pdfDoc.save()
 
     // 3) Send email
     const transporter = nodemailer.createTransport({
@@ -362,7 +463,7 @@ export async function POST(request: NextRequest) {
       attachments: [
         {
           filename: `Overzicht motoren momenteel bij Foresco.pdf`,
-          content: pdfData,
+          content: Buffer.from(pdfBytes),
         },
       ],
     })
@@ -379,4 +480,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-
