@@ -1573,6 +1573,7 @@ export default function CNHWorkflowPage() {
                   type="file"
                   accept="image/*"
                   onChange={handlePhotoChange}
+                  id="containerPhotoInput"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 {photoPreview && (
@@ -1582,7 +1583,8 @@ export default function CNHWorkflowPage() {
                 )}
                 <button
                   onClick={uploadContainerPhoto}
-                  className="mt-2 px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
+                  disabled={!containerPhoto}
+                  className="mt-2 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
                   Upload Foto
                 </button>
