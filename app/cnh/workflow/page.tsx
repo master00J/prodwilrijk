@@ -831,12 +831,17 @@ export default function CNHWorkflowPage() {
       if (!resp.ok || !data.success) {
         throw new Error(data.error || 'Fout bij uploaden foto')
       }
-      showStatus('Foto geüpload en gekoppeld aan laadsessie!', 'success')
+      showStatus('✅ Containerfoto succesvol geüpload en gekoppeld aan laadsessie!', 'success')
       setContainerPhoto(null)
       setPhotoPreview(null)
+      // Clear file input
+      const fileInput = document.getElementById('containerPhotoInput') as HTMLInputElement
+      if (fileInput) {
+        fileInput.value = ''
+      }
     } catch (e: any) {
       console.error(e)
-      showStatus('Fout bij uploadContainerPhoto: ' + e.message, 'error')
+      showStatus('❌ Fout bij uploaden foto: ' + e.message, 'error')
     }
   }, [loadSessionId, containerPhoto, showStatus])
 
