@@ -183,7 +183,7 @@ export default function CNHWorkflowPage() {
       console.error(e)
       showStatus('Fout bij inkomend opslaan: ' + e.message, 'error')
     }
-  }, [incomingShippingNote, incomingMotors, showStatus, fetchPackMotors, fetchLoadMotors])
+  }, [incomingShippingNote, incomingMotors, showStatus])
 
   // PACK TAB FUNCTIONS
   const fetchPackMotors = useCallback(async () => {
