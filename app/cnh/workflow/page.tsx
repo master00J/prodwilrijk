@@ -180,6 +180,12 @@ export default function CNHWorkflowPage() {
 
         // Initialize Tesseract worker
         const worker = await createWorker('nld+eng') // Dutch + English
+        
+        // Configure worker for better OCR results
+        await worker.setParameters({
+          tessedit_pageseg_mode: '6', // Assume uniform block of text
+          tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz -:',
+        })
 
         let allText = ''
 
@@ -204,11 +210,8 @@ export default function CNHWorkflowPage() {
             viewport: viewport,
           }).promise
 
-          // Perform OCR on the canvas image with better settings
-          const { data: { text } } = await worker.recognize(canvas, {
-            tessedit_pageseg_mode: '6', // Assume uniform block of text
-            tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz -:',
-          })
+          // Perform OCR on the canvas image
+          const { data: { text } } = await worker.recognize(canvas)
           console.log(`Pagina ${pageNum} OCR tekst (eerste 500 chars):`, text.substring(0, 500))
           allText += text + '\n'
         }
