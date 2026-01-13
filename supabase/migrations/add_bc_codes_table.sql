@@ -18,3 +18,4 @@ CREATE INDEX IF NOT EXISTS idx_bc_codes_lookup ON bc_codes(breedte, dikte, houts
 CREATE INDEX IF NOT EXISTS idx_bc_codes_houtsoort ON bc_codes(houtsoort);
 
 
+

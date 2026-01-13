@@ -8,3 +8,4 @@ ALTER TABLE grote_inpak_cases
 -- Add index on erp_code for faster lookups
 CREATE INDEX IF NOT EXISTS idx_grote_inpak_cases_erp_code ON grote_inpak_cases(erp_code);
 
+

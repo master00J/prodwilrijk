@@ -92,3 +92,4 @@ FROM cleaned_data
 ON CONFLICT (houtsoort, dikte, breedte, desired_length) DO NOTHING;
 
 
+

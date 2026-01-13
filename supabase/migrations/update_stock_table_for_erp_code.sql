@@ -24,3 +24,4 @@ ALTER TABLE grote_inpak_stock
 -- Add index on erp_code for faster lookups
 CREATE INDEX IF NOT EXISTS idx_grote_inpak_stock_erp_code ON grote_inpak_stock(erp_code);
 
+

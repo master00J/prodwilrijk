@@ -19,3 +19,4 @@ CREATE INDEX IF NOT EXISTS idx_wood_target_stock_lookup ON wood_target_stock(hou
 CREATE INDEX IF NOT EXISTS idx_wood_target_stock_houtsoort ON wood_target_stock(houtsoort);
 
 
+

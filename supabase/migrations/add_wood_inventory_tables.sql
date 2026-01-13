@@ -91,3 +91,4 @@ CREATE INDEX IF NOT EXISTS idx_wood_consumption_datum_verbruik ON wood_consumpti
 CREATE INDEX IF NOT EXISTS idx_wood_consumption_stock_id ON wood_consumption(stock_id);
 
 
+
