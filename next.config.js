@@ -1,3 +1,5 @@
+const webpack = require('webpack')
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -5,13 +7,20 @@ const nextConfig = {
     domains: ['localhost'],
   },
   webpack: (config, { isServer }) => {
-    if (!isServer) {
-      // Exclude canvas from client-side bundle (pdfjs-dist tries to import it but we use dynamic import)
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        canvas: false,
-      }
+    // Exclude canvas from bundle (pdfjs-dist tries to import it but we use dynamic import)
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      canvas: false,
+      fs: false,
     }
+    
+    // Ignore canvas module completely during build
+    config.plugins.push(
+      new webpack.IgnorePlugin({
+        resourceRegExp: /^canvas$/,
+      })
+    )
+    
     return config
   },
 }
