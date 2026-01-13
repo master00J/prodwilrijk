@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pdfParse from 'pdf-parse'
-import pdfImgConvert from 'pdf-img-convert'
-import { createWorker } from 'tesseract.js'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// POST /api/cnh/parse-pdf - Parse PDF and extract motor numbers and shipping note using OCR for scanned PDFs
+// POST /api/cnh/parse-pdf - Parse PDF and extract motor numbers and shipping note
+// Note: Currently supports text-based PDFs only. Scanned PDFs require OCR which is not yet implemented server-side.
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
@@ -31,65 +30,37 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
+    // Parse PDF
     let text = ''
-
-    // Try to parse as text-based PDF first
     try {
       const pdfData = await pdfParse(buffer)
       text = pdfData.text
-      
-      // If we got meaningful text (more than just a few characters), use it
-      if (text.length > 100) {
-        console.log('PDF contains text, using direct text extraction')
-      } else {
-        // PDF appears to be scanned, need OCR
-        text = ''
-        throw new Error('PDF appears to be scanned, using OCR')
-      }
-    } catch (parseError) {
-      // PDF is likely scanned, convert to images and use OCR
-      console.log('PDF is scanned or has no text, using OCR...')
-      
-      try {
-        // Convert PDF pages to images
-        const outputImages = await pdfImgConvert.convert(buffer, {
-          scale: 2.0, // Higher scale for better OCR accuracy
-        })
+    } catch (parseError: any) {
+      // PDF might be scanned (image-based)
+      return NextResponse.json(
+        { 
+          error: 'Dit PDF bestand lijkt gescand te zijn. Helaas wordt OCR (tekstherkenning) momenteel nog niet ondersteund. Probeer een PDF met selecteerbare tekst.',
+          isScanned: true
+        },
+        { status: 400 }
+      )
+    }
 
-        if (!outputImages || outputImages.length === 0) {
-          return NextResponse.json(
-            { error: 'Kon PDF niet converteren naar afbeeldingen' },
-            { status: 500 }
-          )
-        }
-
-        // Initialize Tesseract worker
-        const worker = await createWorker('nld+eng') // Dutch + English
-
-        // Process each page
-        const allText: string[] = []
-        for (let i = 0; i < outputImages.length; i++) {
-          const image = outputImages[i]
-          const { data: { text: pageText } } = await worker.recognize(image)
-          allText.push(pageText)
-          console.log(`Processed page ${i + 1}/${outputImages.length}`)
-        }
-
-        await worker.terminate()
-        text = allText.join('\n')
-      } catch (ocrError: any) {
-        console.error('OCR error:', ocrError)
-        return NextResponse.json(
-          { error: 'Fout bij OCR verwerking: ' + (ocrError.message || 'Unknown error') },
-          { status: 500 }
-        )
-      }
+    // Check if PDF has meaningful text (not scanned)
+    if (!text || text.trim().length < 50) {
+      return NextResponse.json(
+        { 
+          error: 'Dit PDF bestand bevat geen selecteerbare tekst. Het lijkt een gescand document te zijn. Helaas wordt OCR (tekstherkenning) momenteel nog niet ondersteund. Probeer een PDF met selecteerbare tekst.',
+          isScanned: true
+        },
+        { status: 400 }
+      )
     }
 
     // Parse the text to extract motor numbers and shipping note
     const lines = text.split('\n').map((line) => line.trim()).filter((line) => line.length > 0)
 
-    // Try to find shipping note (common patterns: "Verzendnota", "Shipping Note", "Note:", etc.)
+    // Try to find shipping note (common patterns: "Verzendnota", "Shipping Note", "Note:", "lb", etc.)
     let shippingNote = ''
     const shippingNotePatterns = [
       /verzendnota[:\s]+([^\n\r]+)/i,
@@ -112,7 +83,6 @@ export async function POST(request: NextRequest) {
     const motorNumbers: string[] = []
     
     // Pattern 1: Look for lines that look like motor numbers (e.g., alphanumeric codes)
-    // Common patterns: alphanumeric codes, numbers with letters, etc.
     const motorPatterns = [
       /^[A-Z0-9]{4,20}$/, // Alphanumeric codes (4-20 chars)
       /^[0-9]{6,12}$/, // Numeric codes (6-12 digits)
