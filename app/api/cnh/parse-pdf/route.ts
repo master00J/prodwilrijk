@@ -60,15 +60,15 @@ export async function POST(request: NextRequest) {
     // Parse the text to extract motor numbers and shipping note
     const lines = text.split('\n').map((line) => line.trim()).filter((line) => line.length > 0)
 
-    // Try to find shipping note (common patterns: "Verzendnota", "Shipping Note", "Note:", "lb", etc.)
+    // Try to find shipping note - Look for "NR" followed by a number (e.g., "NR 138197")
     let shippingNote = ''
     const shippingNotePatterns = [
+      /\bNR\s+(\d+)\b/i, // "NR 138197" pattern (priority)
       /verzendnota[:\s]+([^\n\r]+)/i,
       /shipping\s*note[:\s]+([^\n\r]+)/i,
       /note[:\s]+([^\n\r]+)/i,
       /ref[:\s]+([^\n\r]+)/i,
       /reference[:\s]+([^\n\r]+)/i,
-      /lb[:\s]+([^\n\r]+)/i, // "lb" might be the shipping note prefix
     ]
 
     for (const pattern of shippingNotePatterns) {
@@ -79,45 +79,53 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Extract motor numbers - common patterns
+    // Extract motor numbers - Look for numeric codes (4-15 digits)
+    // These appear in the "Stuknummer" column
     const motorNumbers: string[] = []
     
-    // Pattern 1: Look for lines that look like motor numbers (e.g., alphanumeric codes)
-    const motorPatterns = [
-      /^[A-Z0-9]{4,20}$/, // Alphanumeric codes (4-20 chars)
-      /^[0-9]{6,12}$/, // Numeric codes (6-12 digits)
-      /^[A-Z]{2,4}[0-9]{4,12}$/, // Letter prefix + numbers
-      /^[A-Z0-9]{6,15}$/, // General alphanumeric pattern
-    ]
-
-    for (const line of lines) {
-      // Skip lines that are clearly headers/labels
-      const lowerLine = line.toLowerCase()
-      if (
-        lowerLine.includes('motor') ||
-        lowerLine.includes('nummer') ||
-        lowerLine.includes('number') ||
-        lowerLine.includes('verzendnota') ||
-        lowerLine.includes('shipping') ||
-        lowerLine.includes('note') ||
-        lowerLine.includes('ref') ||
-        lowerLine.includes('datum') ||
-        lowerLine.includes('date') ||
-        lowerLine.includes('lb') ||
-        lowerLine.includes('pagina') ||
-        lowerLine.includes('page') ||
-        line.length < 4 ||
-        line.length > 30 ||
-        /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(line) // Skip dates
-      ) {
-        continue
+    // Look for "Stuknummer" section and extract numbers that follow
+    const stuknummerIndex = lines.findIndex(line => 
+      line.toLowerCase().includes('stuknummer') || 
+      line.toLowerCase().includes('stuk nummer')
+    )
+    
+    // If we found "Stuknummer" header, look for numbers in nearby lines
+    if (stuknummerIndex >= 0) {
+      // Check lines after "Stuknummer" header (skip a few lines to account for column headers)
+      for (let i = stuknummerIndex + 2; i < Math.min(stuknummerIndex + 20, lines.length); i++) {
+        const line = lines[i]
+        // Look for numeric codes (4-15 digits, motor numbers can vary in length)
+        const numberMatches = line.match(/\b(\d{4,15})\b/g)
+        if (numberMatches) {
+          for (const num of numberMatches) {
+            // Skip if it looks like a date, year, or other common patterns
+            if (
+              num !== '0000' && 
+              num !== '00000' &&
+              !/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(num) && // Skip dates
+              !/^\d{4}$/.test(num) && parseInt(num) < 2000 // Skip years (4 digits < 2000)
+            ) {
+              motorNumbers.push(num)
+            }
+          }
+        }
       }
-
-      // Check if line matches motor number pattern
-      for (const pattern of motorPatterns) {
-        if (pattern.test(line)) {
-          motorNumbers.push(line)
-          break
+    }
+    
+    // Also search entire text for numeric codes as fallback
+    if (motorNumbers.length === 0) {
+      const allNumberMatches = text.match(/\b(\d{4,15})\b/g)
+      if (allNumberMatches) {
+        for (const num of allNumberMatches) {
+          // Skip dates, years, and common non-motor numbers
+          if (
+            num !== '0000' && 
+            num !== '00000' &&
+            !/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(num) && // Skip dates
+            !/^\d{4}$/.test(num) && parseInt(num) < 2000 // Skip years (4 digits < 2000)
+          ) {
+            motorNumbers.push(num)
+          }
         }
       }
     }
