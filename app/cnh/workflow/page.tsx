@@ -225,6 +225,31 @@ export default function CNHWorkflowPage() {
         // Parse the extracted text
         const lines = allText.split('\n').map((line) => line.trim()).filter((line) => line.length > 0)
 
+        // Helper function to correct OCR errors: "7" at start often should be "1"
+        // Note: We only correct the first digit, as the last digit can legitimately be "7"
+        const correctOCRNumber = (num: string): string => {
+          // If number starts with "7" and is in range 100000-200000, likely should start with "1"
+          if (num.startsWith('7') && num.length === 6) {
+            const corrected = '1' + num.substring(1)
+            const value = parseInt(corrected)
+            if (value >= 100000 && value < 200000) {
+              console.log(`OCR correctie: "${num}" -> "${corrected}" (eerste cijfer 7->1)`)
+              num = corrected
+            }
+          }
+          // If both start and end are "7", correct both (e.g., "738797" -> "138197")
+          // This is a special case where OCR misreads both ends
+          if (num.startsWith('7') && num.endsWith('7') && num.length === 6) {
+            const corrected = '1' + num.substring(1, num.length - 1) + '1'
+            const value = parseInt(corrected)
+            if (value >= 100000 && value < 200000) {
+              console.log(`OCR correctie: "${num}" -> "${corrected}" (beide uiteinden 7->1)`)
+              num = corrected
+            }
+          }
+          return num
+        }
+
         // Extract shipping note - Look for "NR" followed by a number (e.g., "NR 138197")
         // Priority: Find "NR" followed by a 6-digit number starting with "1" (common pattern)
         let shippingNote = ''
@@ -233,7 +258,7 @@ export default function CNHWorkflowPage() {
         const nrPattern = /\bNR\s+(\d{5,7})\b/i
         const nrMatch = allText.match(nrPattern)
         if (nrMatch && nrMatch[1]) {
-          shippingNote = nrMatch[1].trim()
+          shippingNote = correctOCRNumber(nrMatch[1].trim())
           console.log('Shipping note gevonden via NR pattern:', shippingNote)
         } else {
           // Try other patterns
@@ -246,30 +271,31 @@ export default function CNHWorkflowPage() {
           for (const pattern of shippingNotePatterns) {
             const match = allText.match(pattern)
             if (match && match[1]) {
-              shippingNote = match[1].trim()
+              shippingNote = correctOCRNumber(match[1].trim())
               console.log('Shipping note gevonden:', shippingNote, 'via pattern:', pattern)
               break
             }
           }
           
-          // Fallback: Look for 6-digit numbers starting with "1" in the top area (to catch OCR errors)
+          // Fallback: Look for 6-digit numbers in the top area (to catch OCR errors)
           if (!shippingNote) {
             const topText = allText.substring(0, Math.min(2000, allText.length))
-            // Look for 6-digit numbers that start with 1 (or could be misread as 7)
-            const nrNumbers = topText.match(/\b[17](\d{5})\b/g)
+            // Look for 6-digit numbers that could be shipping notes
+            const nrNumbers = topText.match(/\b(\d{6})\b/g)
             if (nrNumbers && nrNumbers.length > 0) {
               // Prefer numbers starting with 1, but also check if 7 could be 1 (OCR error)
               for (const num of nrNumbers) {
-                // If it starts with 7 but could be 1, or starts with 1
-                if (num.startsWith('1') || (num.startsWith('7') && parseInt(num) >= 100000 && parseInt(num) < 200000)) {
-                  shippingNote = num
+                const corrected = correctOCRNumber(num)
+                // If it starts with 1 (after correction) or is in valid range
+                if (corrected.startsWith('1') || (parseInt(corrected) >= 100000 && parseInt(corrected) < 200000)) {
+                  shippingNote = corrected
                   console.log('Shipping note gevonden (fallback met OCR correctie):', shippingNote)
                   break
                 }
               }
-              // If no match found, take the first one
+              // If no match found, take the first one and try to correct it
               if (!shippingNote && nrNumbers.length > 0) {
-                shippingNote = nrNumbers[0]
+                shippingNote = correctOCRNumber(nrNumbers[0])
                 console.log('Shipping note gevonden (fallback eerste match):', shippingNote)
               }
             }
