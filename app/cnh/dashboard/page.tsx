@@ -375,6 +375,28 @@ export default function CNHDashboardPage() {
     }
   }, [showStatus])
 
+  // Send email with overview of motors currently at Foresco
+  const sendReceivedPackagedEmail = useCallback(async () => {
+    const toEmail = prompt('Geef het e-mail adres op:')
+    if (!toEmail) return
+
+    try {
+      const resp = await fetch('/api/cnh/motors/email-received-packaged', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toEmail }),
+      })
+      const data = await resp.json()
+      if (!resp.ok || !data.success) {
+        throw new Error(data.error || 'Fout bij email_received_packaged')
+      }
+      showStatus('E-mail met overzicht verzonden!', 'success')
+    } catch (e: any) {
+      console.error('sendReceivedPackagedEmail error:', e)
+      showStatus('Fout: ' + e.message, 'error')
+    }
+  }, [showStatus])
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
       <h1 className="text-3xl font-bold text-center mb-6">CNH Dashboard</h1>
@@ -665,7 +687,15 @@ export default function CNHDashboardPage() {
         {/* All Motors Tab */}
         {activeTab === 'allmotors' && (
           <div>
-            <h2 className="text-2xl font-bold mb-4">Overzicht van Alle Motoren</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold">Overzicht van Alle Motoren</h2>
+              <button
+                onClick={sendReceivedPackagedEmail}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold"
+              >
+                📧 Verstuur Overzicht naar Klant
+              </button>
+            </div>
             <div className="mb-4 flex flex-wrap gap-4 items-end bg-gray-50 p-4 rounded-lg">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">State:</label>
