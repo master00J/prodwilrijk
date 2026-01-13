@@ -1,6 +1,13 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import * as pdfjsLib from 'pdfjs-dist'
+import { createWorker } from 'tesseract.js'
+
+// Configure PDF.js worker
+if (typeof window !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+}
 
 interface CNHMotor {
   id: number
@@ -152,6 +159,7 @@ export default function CNHWorkflowPage() {
 
     setParsingPdf(true)
     try {
+      // First, try server-side parsing (for text-based PDFs)
       const formData = new FormData()
       formData.append('file', pdfFile)
 
@@ -161,6 +169,131 @@ export default function CNHWorkflowPage() {
       })
       const data = await resp.json()
 
+      // If server indicates it's a scanned PDF, use client-side OCR
+      if (!resp.ok && data.isScanned) {
+        showStatus('Gescand PDF gedetecteerd. OCR wordt uitgevoerd in de browser...', 'info')
+        
+        // Client-side OCR for scanned PDFs
+        const arrayBuffer = await pdfFile.arrayBuffer()
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+        const numPages = pdf.numPages
+
+        // Initialize Tesseract worker
+        const worker = await createWorker('nld+eng') // Dutch + English
+
+        let allText = ''
+
+        // Process each page
+        for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+          showStatus(`OCR bezig: pagina ${pageNum} van ${numPages}...`, 'info')
+          
+          const page = await pdf.getPage(pageNum)
+          const viewport = page.getViewport({ scale: 2.0 }) // Higher scale for better OCR
+
+          // Create canvas to render PDF page
+          const canvas = document.createElement('canvas')
+          const context = canvas.getContext('2d')
+          if (!context) throw new Error('Canvas context niet beschikbaar')
+
+          canvas.height = viewport.height
+          canvas.width = viewport.width
+
+          // Render PDF page to canvas
+          await page.render({
+            canvasContext: context,
+            viewport: viewport,
+          }).promise
+
+          // Perform OCR on the canvas image
+          const { data: { text } } = await worker.recognize(canvas)
+          allText += text + '\n'
+        }
+
+        await worker.terminate()
+
+        // Parse the extracted text
+        const lines = allText.split('\n').map((line) => line.trim()).filter((line) => line.length > 0)
+
+        // Extract shipping note
+        let shippingNote = ''
+        const shippingNotePatterns = [
+          /verzendnota[:\s]+([^\n\r]+)/i,
+          /shipping\s*note[:\s]+([^\n\r]+)/i,
+          /note[:\s]+([^\n\r]+)/i,
+          /ref[:\s]+([^\n\r]+)/i,
+          /reference[:\s]+([^\n\r]+)/i,
+          /lb[:\s]+([^\n\r]+)/i,
+        ]
+
+        for (const pattern of shippingNotePatterns) {
+          const match = allText.match(pattern)
+          if (match && match[1]) {
+            shippingNote = match[1].trim()
+            break
+          }
+        }
+
+        // Extract motor numbers
+        const motorNumbers: string[] = []
+        const motorPatterns = [
+          /^[A-Z0-9]{4,20}$/,
+          /^[0-9]{6,12}$/,
+          /^[A-Z]{2,4}[0-9]{4,12}$/,
+          /^[A-Z0-9]{6,15}$/,
+        ]
+
+        for (const line of lines) {
+          const lowerLine = line.toLowerCase()
+          if (
+            lowerLine.includes('motor') ||
+            lowerLine.includes('nummer') ||
+            lowerLine.includes('number') ||
+            lowerLine.includes('verzendnota') ||
+            lowerLine.includes('shipping') ||
+            lowerLine.includes('note') ||
+            lowerLine.includes('ref') ||
+            lowerLine.includes('datum') ||
+            lowerLine.includes('date') ||
+            lowerLine.includes('lb') ||
+            lowerLine.includes('pagina') ||
+            lowerLine.includes('page') ||
+            line.length < 4 ||
+            line.length > 30 ||
+            /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(line)
+          ) {
+            continue
+          }
+
+          for (const pattern of motorPatterns) {
+            if (pattern.test(line)) {
+              motorNumbers.push(line)
+              break
+            }
+          }
+        }
+
+        const uniqueMotorNumbers = [...new Set(motorNumbers)].sort()
+
+        // Fill in the extracted data
+        if (shippingNote) {
+          setIncomingShippingNote(shippingNote)
+        }
+        if (uniqueMotorNumbers.length > 0) {
+          setIncomingMotors(
+            uniqueMotorNumbers.map((motorNr: string) => ({
+              motorNr: motorNr,
+              location: 'China',
+            }))
+          )
+          showStatus(`✅ OCR voltooid! ${uniqueMotorNumbers.length} motornummers gevonden.`, 'success')
+        } else {
+          showStatus('Geen motornummers gevonden na OCR. Controleer het bestand.', 'warning')
+        }
+        setPdfFile(null)
+        return
+      }
+
+      // If server-side parsing succeeded
       if (!resp.ok || !data.success) {
         throw new Error(data.error || 'Fout bij het lezen van PDF')
       }
@@ -173,7 +306,7 @@ export default function CNHWorkflowPage() {
         setIncomingMotors(
           data.motorNumbers.map((motorNr: string) => ({
             motorNr: motorNr,
-            location: 'China', // Default location
+            location: 'China',
           }))
         )
         showStatus(`${data.motorNumbers.length} motornummers gevonden in PDF!`, 'success')
