@@ -1,13 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import * as pdfjsLib from 'pdfjs-dist'
 import { createWorker } from 'tesseract.js'
-
-// Configure PDF.js worker
-if (typeof window !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
-}
 
 interface CNHMotor {
   id: number
@@ -172,6 +166,12 @@ export default function CNHWorkflowPage() {
       // If server indicates it's a scanned PDF, use client-side OCR
       if (!resp.ok && data.isScanned) {
         showStatus('Gescand PDF gedetecteerd. OCR wordt uitgevoerd in de browser...', 'info')
+        
+        // Dynamic import of pdfjs-dist to avoid SSR issues
+        const pdfjsLib = await import('pdfjs-dist')
+        
+        // Configure PDF.js worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
         
         // Client-side OCR for scanned PDFs
         const arrayBuffer = await pdfFile.arrayBuffer()
