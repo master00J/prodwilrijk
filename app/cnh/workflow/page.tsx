@@ -54,9 +54,8 @@ export default function CNHWorkflowPage() {
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' | 'warning' | 'info' } | null>(null)
 
   // Incoming tab state
-  const [incomingLocation, setIncomingLocation] = useState('China')
   const [incomingShippingNote, setIncomingShippingNote] = useState('')
-  const [incomingMotors, setIncomingMotors] = useState<string[]>([''])
+  const [incomingMotors, setIncomingMotors] = useState<Array<{motorNr: string; location: string}>>([{motorNr: '', location: 'China'}])
 
   // Pack tab state
   const [packMotors, setPackMotors] = useState<CNHMotor[]>([])
@@ -124,23 +123,26 @@ export default function CNHWorkflowPage() {
 
   // INCOMING TAB FUNCTIONS
   const addIncomingMotorRow = useCallback(() => {
-    setIncomingMotors((prev) => [...prev, ''])
+    setIncomingMotors((prev) => [...prev, {motorNr: '', location: 'China'}])
   }, [])
 
   const removeIncomingMotorRow = useCallback((index: number) => {
     setIncomingMotors((prev) => prev.filter((_, i) => i !== index))
   }, [])
 
-  const updateIncomingMotor = useCallback((index: number, value: string) => {
+  const updateIncomingMotor = useCallback((index: number, motorNr: string, location?: string) => {
     setIncomingMotors((prev) => {
       const newMotors = [...prev]
-      newMotors[index] = value
+      newMotors[index] = {
+        motorNr: motorNr,
+        location: location !== undefined ? location : newMotors[index].location,
+      }
       return newMotors
     })
   }, [])
 
   const saveIncomingMotors = useCallback(async () => {
-    const motors = incomingMotors.filter((m) => m.trim())
+    const motors = incomingMotors.filter((m) => m.motorNr.trim())
     if (!motors.length) {
       showStatus('Gelieve minstens 1 motornummer in te geven', 'warning')
       return
@@ -150,14 +152,23 @@ export default function CNHWorkflowPage() {
       return
     }
 
+    // Validate all motors have locations
+    const motorsWithoutLocation = motors.filter((m) => !m.location || !m.location.trim())
+    if (motorsWithoutLocation.length > 0) {
+      showStatus('Alle motoren moeten een locatie hebben', 'warning')
+      return
+    }
+
     try {
       const resp = await fetch('/api/cnh/motors/receive', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          location: incomingLocation,
           shippingNote: incomingShippingNote,
-          motors,
+          motors: motors.map((m) => ({
+            motorNr: m.motorNr.trim(),
+            location: m.location,
+          })),
         }),
       })
       const data = await resp.json()
@@ -165,14 +176,14 @@ export default function CNHWorkflowPage() {
 
       showStatus(`${motors.length} inkomende motoren succesvol geregistreerd!`, 'success')
       setIncomingShippingNote('')
-      setIncomingMotors([''])
+      setIncomingMotors([{motorNr: '', location: 'China'}])
       fetchPackMotors()
       fetchLoadMotors()
     } catch (e: any) {
       console.error(e)
       showStatus('Fout bij inkomend opslaan: ' + e.message, 'error')
     }
-  }, [incomingLocation, incomingShippingNote, incomingMotors, showStatus])
+  }, [incomingShippingNote, incomingMotors, showStatus, fetchPackMotors, fetchLoadMotors])
 
   // PACK TAB FUNCTIONS
   const fetchPackMotors = useCallback(async () => {
@@ -989,19 +1000,6 @@ export default function CNHWorkflowPage() {
           <div>
             <h2 className="text-2xl font-bold mb-4">Inkomend</h2>
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Locatie</label>
-              <select
-                value={incomingLocation}
-                onChange={(e) => setIncomingLocation(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="China">China</option>
-                <option value="Amerika">Amerika</option>
-                <option value="UZB">UZB</option>
-                <option value="Other">Anders</option>
-              </select>
-            </div>
-            <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Verzendnota <span className="text-red-500">*</span>
               </label>
@@ -1014,16 +1012,26 @@ export default function CNHWorkflowPage() {
               />
             </div>
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Motornummers</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Motornummers (met locatie per motor)</label>
               {incomingMotors.map((motor, index) => (
                 <div key={index} className="flex gap-2 mb-2">
                   <input
                     type="text"
-                    value={motor}
+                    value={motor.motorNr}
                     onChange={(e) => updateIncomingMotor(index, e.target.value)}
                     placeholder="Motornummer"
                     className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                  <select
+                    value={motor.location}
+                    onChange={(e) => updateIncomingMotor(index, motor.motorNr, e.target.value)}
+                    className="w-40 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="China">China</option>
+                    <option value="Amerika">Amerika</option>
+                    <option value="UZB">UZB</option>
+                    <option value="Other">Anders</option>
+                  </select>
                   <button
                     onClick={() => removeIncomingMotorRow(index)}
                     className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600"

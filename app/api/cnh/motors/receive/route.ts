@@ -8,19 +8,28 @@ export const revalidate = 0
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { location, shippingNote, motors } = body
+    const { shippingNote, motors } = body
 
-    if (!location || !shippingNote || !Array.isArray(motors) || motors.length === 0) {
+    if (!shippingNote || !Array.isArray(motors) || motors.length === 0) {
       return NextResponse.json(
-        { error: 'Location, shippingNote, and motors array are required' },
+        { error: 'shippingNote and motors array are required' },
         { status: 400 }
       )
     }
 
-    // Insert motors
-    const motorsToInsert = motors.map((motorNr: string) => ({
-      motor_nr: motorNr.trim(),
-      location: location,
+    // Validate motors format
+    const validMotors = motors.every((m: any) => m.motorNr && m.location)
+    if (!validMotors) {
+      return NextResponse.json(
+        { error: 'Each motor must have motorNr and location' },
+        { status: 400 }
+      )
+    }
+
+    // Insert motors with individual locations
+    const motorsToInsert = motors.map((motor: { motorNr: string; location: string }) => ({
+      motor_nr: motor.motorNr.trim(),
+      location: motor.location,
       shipping_note: shippingNote.trim(),
       state: 'received',
       received_at: new Date().toISOString(),
@@ -46,10 +55,10 @@ export async function POST(request: NextRequest) {
         .insert({
           action: 'receive',
           details: {
-            location,
             shippingNote,
             count: data.length,
             motorIds: data.map((m: any) => m.id),
+            locations: [...new Set(data.map((m: any) => m.location))], // Unique locations
           },
         })
       
