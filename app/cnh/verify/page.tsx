@@ -35,13 +35,13 @@ export default function CNHVerifyPage() {
         const data = await resp.json()
 
         if (!resp.ok) {
-          throw new Error(data.error || 'Fout bij ophalen verzendnota\'s')
+          throw new Error(data.error || 'Fout bij ophalen verzendnota&apos;s')
         }
 
         setShippingNotes(data || [])
       } catch (e: any) {
         console.error(e)
-        setError('Fout bij ophalen verzendnota\'s: ' + e.message)
+        setError('Fout bij ophalen verzendnota&apos;s: ' + e.message)
       } finally {
         setLoadingNotes(false)
       }
@@ -122,7 +122,7 @@ export default function CNHVerifyPage() {
         {!selectedShippingNote && (
           <div className="bg-white rounded-xl shadow-xl p-8 mb-6 border-2 border-blue-200">
             <h2 className="text-3xl font-semibold mb-6 text-gray-700 text-center">
-              Beschikbare Verzendnota's
+              Beschikbare Verzendnota&apos;s
             </h2>
             
             {loadingNotes ? (
@@ -131,7 +131,7 @@ export default function CNHVerifyPage() {
               </div>
             ) : shippingNotes.length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-xl text-gray-600">Geen verzendnota's gevonden</p>
+                <p className="text-xl text-gray-600">Geen verzendnota&apos;s gevonden</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
