@@ -60,37 +60,48 @@ export async function POST(request: NextRequest) {
     // Parse the text to extract motor numbers and shipping note
     const lines = text.split('\n').map((line) => line.trim()).filter((line) => line.length > 0)
 
-    // Try to find shipping note - Look for "NR" followed by a number (e.g., "NR 138197" or just "138197")
+    // Try to find shipping note - Look for "NR" followed by a number (e.g., "NR 138197")
+    // Priority: Find "NR" followed by a 6-digit number starting with "1" (common pattern)
     let shippingNote = ''
-    const shippingNotePatterns = [
-      /\bNR\s+(\d{4,10})\b/i, // "NR 138197" pattern (priority)
-      /\bNR[:\s]*(\d{4,10})\b/i, // "NR: 138197" or "NR 138197"
-      /\b(\d{5,7})\b(?=.*verzend|.*shipping|.*order)/i, // Standalone number near shipping/order keywords (5-7 digits)
-      /verzendnota[:\s]+(\d{4,10})/i,
-      /shipping\s*note[:\s]+(\d{4,10})/i,
-      /note[:\s]+(\d{4,10})/i,
-      /ref[:\s]+(\d{4,10})/i,
-      /reference[:\s]+(\d{4,10})/i,
-    ]
-
-    for (const pattern of shippingNotePatterns) {
-      const match = text.match(pattern)
-      if (match && match[1]) {
-        shippingNote = match[1].trim()
-        break
-      }
-    }
     
-    // Fallback: Look for standalone 5-7 digit numbers in the top area of the document
-    if (!shippingNote) {
-      const topText = text.substring(0, Math.min(2000, text.length))
-      const standaloneNumbers = topText.match(/\b(\d{5,7})\b/g)
-      if (standaloneNumbers && standaloneNumbers.length > 0) {
-        // Take the first reasonable number (not a date or year)
-        for (const num of standaloneNumbers) {
-          if (!/^\d{4}$/.test(num) || parseInt(num) >= 2000) {
-            shippingNote = num
-            break
+    // First, try to find "NR" followed by a number (highest priority)
+    const nrPattern = /\bNR\s+(\d{5,7})\b/i
+    const nrMatch = text.match(nrPattern)
+    if (nrMatch && nrMatch[1]) {
+      shippingNote = nrMatch[1].trim()
+    } else {
+      // Try other patterns
+      const shippingNotePatterns = [
+        /\bNR[:\s]*(\d{5,7})\b/i, // "NR: 138197" or "NR 138197"
+        /verzendnota[:\s]+(\d{5,7})/i,
+        /shipping\s*note[:\s]+(\d{5,7})/i,
+      ]
+
+      for (const pattern of shippingNotePatterns) {
+        const match = text.match(pattern)
+        if (match && match[1]) {
+          shippingNote = match[1].trim()
+          break
+        }
+      }
+      
+      // Fallback: Look for 6-digit numbers starting with "1" in the top area (to catch OCR errors)
+      if (!shippingNote) {
+        const topText = text.substring(0, Math.min(2000, text.length))
+        // Look for 6-digit numbers that start with 1 (or could be misread as 7)
+        const nrNumbers = topText.match(/\b[17](\d{5})\b/g)
+        if (nrNumbers && nrNumbers.length > 0) {
+          // Prefer numbers starting with 1, but also check if 7 could be 1 (OCR error)
+          for (const num of nrNumbers) {
+            // If it starts with 7 but could be 1, or starts with 1
+            if (num.startsWith('1') || (num.startsWith('7') && parseInt(num) >= 100000 && parseInt(num) < 200000)) {
+              shippingNote = num
+              break
+            }
+          }
+          // If no match found, take the first one
+          if (!shippingNote && nrNumbers.length > 0) {
+            shippingNote = nrNumbers[0]
           }
         }
       }
@@ -185,8 +196,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Remove duplicates and sort
-    const uniqueMotorNumbers = [...new Set(motorNumbers)].sort()
+    // Remove duplicates while preserving original order
+    const uniqueMotorNumbers: string[] = []
+    const seen = new Set<string>()
+    for (const num of motorNumbers) {
+      if (!seen.has(num)) {
+        seen.add(num)
+        uniqueMotorNumbers.push(num)
+      }
+    }
 
     return NextResponse.json({
       success: true,
