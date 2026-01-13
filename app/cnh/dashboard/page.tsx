@@ -101,6 +101,12 @@ export default function CNHDashboardPage() {
     loadLocation: '',
   })
 
+  // Edit modals state
+  const [editingMotor, setEditingMotor] = useState<CNHMotor | null>(null)
+  const [editingPackSession, setEditingPackSession] = useState<CNHSession | null>(null)
+  const [editingLoadSession, setEditingLoadSession] = useState<CNHSession | null>(null)
+  const [editingTemplate, setEditingTemplate] = useState<CNHTemplate | null>(null)
+
   const showStatus = useCallback((text: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
     setStatusMessage({ text, type })
     setTimeout(() => setStatusMessage(null), 5000)
@@ -283,6 +289,69 @@ export default function CNHDashboardPage() {
     if (!dateString) return 'N/A'
     return new Date(dateString).toLocaleString('nl-NL')
   }
+
+  // Edit functions
+  const updateMotor = useCallback(async (motor: CNHMotor) => {
+    try {
+      const resp = await fetch(`/api/cnh/motors/${motor.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(motor),
+      })
+      const data = await resp.json()
+      if (!resp.ok || !data.success) {
+        throw new Error(data.error || 'Fout bij bijwerken motor')
+      }
+      showStatus('Motor bijgewerkt', 'success')
+      setEditingMotor(null)
+      fetchAllMotors()
+      fetchStats()
+    } catch (e: any) {
+      console.error(e)
+      showStatus('Fout bij bijwerken motor: ' + e.message, 'error')
+    }
+  }, [showStatus, fetchAllMotors, fetchStats])
+
+  const updateSession = useCallback(async (session: CNHSession) => {
+    try {
+      const resp = await fetch(`/api/cnh/sessions/${session.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(session),
+      })
+      const data = await resp.json()
+      if (!resp.ok || !data.success) {
+        throw new Error(data.error || 'Fout bij bijwerken sessie')
+      }
+      showStatus('Sessie bijgewerkt', 'success')
+      setEditingPackSession(null)
+      setEditingLoadSession(null)
+      fetchSessions()
+    } catch (e: any) {
+      console.error(e)
+      showStatus('Fout bij bijwerken sessie: ' + e.message, 'error')
+    }
+  }, [showStatus, fetchSessions])
+
+  const updateTemplate = useCallback(async (template: CNHTemplate) => {
+    try {
+      const resp = await fetch(`/api/cnh/templates/${template.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(template),
+      })
+      const data = await resp.json()
+      if (!resp.ok || !data.success) {
+        throw new Error(data.error || 'Fout bij bijwerken template')
+      }
+      showStatus('Template bijgewerkt', 'success')
+      setEditingTemplate(null)
+      fetchTemplates()
+    } catch (e: any) {
+      console.error(e)
+      showStatus('Fout bij bijwerken template: ' + e.message, 'error')
+    }
+  }, [showStatus, fetchTemplates])
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -473,6 +542,7 @@ export default function CNHDashboardPage() {
                     <th className="px-4 py-2 text-left border-b">Aantal</th>
                     <th className="px-4 py-2 text-left border-b">Operators</th>
                     <th className="px-4 py-2 text-left border-b">Operator Tijd</th>
+                    <th className="px-4 py-2 text-left border-b">Acties</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -486,11 +556,19 @@ export default function CNHDashboardPage() {
                       <td className="px-4 py-2">{session.packaging_count || 0}</td>
                       <td className="px-4 py-2">{session.packaging_persons || 0}</td>
                       <td className="px-4 py-2">{formatDuration(session.operator_minutes)}</td>
+                      <td className="px-4 py-2">
+                        <button
+                          onClick={() => setEditingPackSession(session)}
+                          className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                        >
+                          Bewerken
+                        </button>
+                      </td>
                     </tr>
                   ))}
                   {packSessions.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
                         Geen verpakkingssessies gevonden
                       </td>
                     </tr>
@@ -517,6 +595,7 @@ export default function CNHDashboardPage() {
                     <th className="px-4 py-2 text-left border-b">Gestopt</th>
                     <th className="px-4 py-2 text-left border-b">Tijd</th>
                     <th className="px-4 py-2 text-left border-b">Aantal</th>
+                    <th className="px-4 py-2 text-left border-b">Acties</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -530,11 +609,19 @@ export default function CNHDashboardPage() {
                       <td className="px-4 py-2">{formatDate(session.stopped_at)}</td>
                       <td className="px-4 py-2">{formatDuration(session.loading_minutes)}</td>
                       <td className="px-4 py-2">{session.loading_count || 0}</td>
+                      <td className="px-4 py-2">
+                        <button
+                          onClick={() => setEditingLoadSession(session)}
+                          className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                        >
+                          Bewerken
+                        </button>
+                      </td>
                     </tr>
                   ))}
                   {loadSessions.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
                         Geen lading-sessies gevonden
                       </td>
                     </tr>
@@ -608,6 +695,7 @@ export default function CNHDashboardPage() {
                     <th className="px-4 py-2 text-left border-b">Ontvangen</th>
                     <th className="px-4 py-2 text-left border-b">Verpakt</th>
                     <th className="px-4 py-2 text-left border-b">Geladen</th>
+                    <th className="px-4 py-2 text-left border-b">Acties</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -633,11 +721,19 @@ export default function CNHDashboardPage() {
                       <td className="px-4 py-2">{formatDate(motor.received_at)}</td>
                       <td className="px-4 py-2">{formatDate(motor.packaged_at)}</td>
                       <td className="px-4 py-2">{formatDate(motor.loaded_at)}</td>
+                      <td className="px-4 py-2">
+                        <button
+                          onClick={() => setEditingMotor(motor)}
+                          className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                        >
+                          Bewerken
+                        </button>
+                      </td>
                     </tr>
                   ))}
                   {paginatedMotors.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
                         Geen motoren gevonden
                       </td>
                     </tr>
@@ -702,6 +798,12 @@ export default function CNHDashboardPage() {
                   <div key={template.id} className="border border-gray-300 rounded-lg p-4">
                     <div className="flex justify-between items-center mb-3">
                       <h3 className="text-lg font-semibold">{template.name}</h3>
+                      <button
+                        onClick={() => setEditingTemplate(template)}
+                        className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                      >
+                        Bewerken
+                      </button>
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       {template.load_location && (
@@ -768,6 +870,492 @@ export default function CNHDashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Edit Motor Modal */}
+      {editingMotor && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold">Motor Bewerken</h2>
+                <button
+                  onClick={() => setEditingMotor(null)}
+                  className="text-gray-500 hover:text-gray-700 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  updateMotor(editingMotor)
+                }}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Motornummer</label>
+                    <input
+                      type="text"
+                      value={editingMotor.motor_nr}
+                      onChange={(e) => setEditingMotor({ ...editingMotor, motor_nr: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">State</label>
+                    <select
+                      value={editingMotor.state}
+                      onChange={(e) => setEditingMotor({ ...editingMotor, state: e.target.value as 'received' | 'packaged' | 'loaded' })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="received">received</option>
+                      <option value="packaged">packaged</option>
+                      <option value="loaded">loaded</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Locatie</label>
+                    <select
+                      value={editingMotor.location || ''}
+                      onChange={(e) => setEditingMotor({ ...editingMotor, location: e.target.value || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Selecteer...</option>
+                      <option value="China">China</option>
+                      <option value="Amerika">Amerika</option>
+                      <option value="UZB">UZB</option>
+                      <option value="Other">Anders</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Verzendnota</label>
+                    <input
+                      type="text"
+                      value={editingMotor.shipping_note || ''}
+                      onChange={(e) => setEditingMotor({ ...editingMotor, shipping_note: e.target.value || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Bodem Laag</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editingMotor.bodem_low || 0}
+                      onChange={(e) => setEditingMotor({ ...editingMotor, bodem_low: parseInt(e.target.value) || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Bodem Hoog</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editingMotor.bodem_high || 0}
+                      onChange={(e) => setEditingMotor({ ...editingMotor, bodem_high: parseInt(e.target.value) || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Laadreferentie</label>
+                    <input
+                      type="text"
+                      value={editingMotor.load_reference || ''}
+                      onChange={(e) => setEditingMotor({ ...editingMotor, load_reference: e.target.value || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Container Nummer</label>
+                    <input
+                      type="text"
+                      value={editingMotor.container_number || ''}
+                      onChange={(e) => setEditingMotor({ ...editingMotor, container_number: e.target.value || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Truck Nummerplaat</label>
+                    <input
+                      type="text"
+                      value={editingMotor.truck_plate || ''}
+                      onChange={(e) => setEditingMotor({ ...editingMotor, truck_plate: e.target.value || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setEditingMotor(null)}
+                    className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
+                  >
+                    Annuleren
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    Opslaan
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Pack Session Modal */}
+      {editingPackSession && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold">Verpakkingssessie Bewerken</h2>
+                <button
+                  onClick={() => setEditingPackSession(null)}
+                  className="text-gray-500 hover:text-gray-700 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  updateSession(editingPackSession)
+                }}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Locatie</label>
+                    <input
+                      type="text"
+                      value={editingPackSession.location || ''}
+                      onChange={(e) => setEditingPackSession({ ...editingPackSession, location: e.target.value || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Packaging Minuten</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editingPackSession.packaging_minutes || 0}
+                      onChange={(e) => setEditingPackSession({ ...editingPackSession, packaging_minutes: parseInt(e.target.value) || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Packaging Aantal</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editingPackSession.packaging_count || 0}
+                      onChange={(e) => setEditingPackSession({ ...editingPackSession, packaging_count: parseInt(e.target.value) || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Packaging Personen</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editingPackSession.packaging_persons || 0}
+                      onChange={(e) => setEditingPackSession({ ...editingPackSession, packaging_persons: parseInt(e.target.value) || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Operator Minuten</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editingPackSession.operator_minutes || 0}
+                      onChange={(e) => setEditingPackSession({ ...editingPackSession, operator_minutes: parseInt(e.target.value) || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setEditingPackSession(null)}
+                    className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
+                  >
+                    Annuleren
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    Opslaan
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Load Session Modal */}
+      {editingLoadSession && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold">Laadsessie Bewerken</h2>
+                <button
+                  onClick={() => setEditingLoadSession(null)}
+                  className="text-gray-500 hover:text-gray-700 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  updateSession(editingLoadSession)
+                }}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Locatie</label>
+                    <input
+                      type="text"
+                      value={editingLoadSession.location || ''}
+                      onChange={(e) => setEditingLoadSession({ ...editingLoadSession, location: e.target.value || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Laadreferentie</label>
+                    <input
+                      type="text"
+                      value={editingLoadSession.load_reference || ''}
+                      onChange={(e) => setEditingLoadSession({ ...editingLoadSession, load_reference: e.target.value || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Container Nummer</label>
+                    <input
+                      type="text"
+                      value={editingLoadSession.container_no || ''}
+                      onChange={(e) => setEditingLoadSession({ ...editingLoadSession, container_no: e.target.value || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Truck Nummerplaat</label>
+                    <input
+                      type="text"
+                      value={editingLoadSession.truck_plate || ''}
+                      onChange={(e) => setEditingLoadSession({ ...editingLoadSession, truck_plate: e.target.value || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Booking Ref</label>
+                    <input
+                      type="text"
+                      value={editingLoadSession.booking_ref || ''}
+                      onChange={(e) => setEditingLoadSession({ ...editingLoadSession, booking_ref: e.target.value || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Your Ref</label>
+                    <input
+                      type="text"
+                      value={editingLoadSession.your_ref || ''}
+                      onChange={(e) => setEditingLoadSession({ ...editingLoadSession, your_ref: e.target.value || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Container Tarra</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={editingLoadSession.container_tarra || 0}
+                      onChange={(e) => setEditingLoadSession({ ...editingLoadSession, container_tarra: parseFloat(e.target.value) || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Loading Minuten</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editingLoadSession.loading_minutes || 0}
+                      onChange={(e) => setEditingLoadSession({ ...editingLoadSession, loading_minutes: parseInt(e.target.value) || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Loading Aantal</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editingLoadSession.loading_count || 0}
+                      onChange={(e) => setEditingLoadSession({ ...editingLoadSession, loading_count: parseInt(e.target.value) || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Loading Personen</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editingLoadSession.loading_persons || 0}
+                      onChange={(e) => setEditingLoadSession({ ...editingLoadSession, loading_persons: parseInt(e.target.value) || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setEditingLoadSession(null)}
+                    className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
+                  >
+                    Annuleren
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    Opslaan
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Template Modal */}
+      {editingTemplate && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold">Template Bewerken</h2>
+                <button
+                  onClick={() => setEditingTemplate(null)}
+                  className="text-gray-500 hover:text-gray-700 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  updateTemplate(editingTemplate)
+                }}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Naam</label>
+                    <input
+                      type="text"
+                      value={editingTemplate.name}
+                      onChange={(e) => setEditingTemplate({ ...editingTemplate, name: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Locatie</label>
+                    <select
+                      value={editingTemplate.load_location || ''}
+                      onChange={(e) => setEditingTemplate({ ...editingTemplate, load_location: e.target.value || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Selecteer...</option>
+                      <option value="China">China</option>
+                      <option value="Amerika">Amerika</option>
+                      <option value="UZB">UZB</option>
+                      <option value="Other">Anders</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Laadreferentie</label>
+                    <input
+                      type="text"
+                      value={editingTemplate.load_reference || ''}
+                      onChange={(e) => setEditingTemplate({ ...editingTemplate, load_reference: e.target.value || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Container Nummer</label>
+                    <input
+                      type="text"
+                      value={editingTemplate.container_number || ''}
+                      onChange={(e) => setEditingTemplate({ ...editingTemplate, container_number: e.target.value || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Truck Nummerplaat</label>
+                    <input
+                      type="text"
+                      value={editingTemplate.truck_plate || ''}
+                      onChange={(e) => setEditingTemplate({ ...editingTemplate, truck_plate: e.target.value || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Booking Ref</label>
+                    <input
+                      type="text"
+                      value={editingTemplate.booking_ref || ''}
+                      onChange={(e) => setEditingTemplate({ ...editingTemplate, booking_ref: e.target.value || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Your Ref</label>
+                    <input
+                      type="text"
+                      value={editingTemplate.your_ref || ''}
+                      onChange={(e) => setEditingTemplate({ ...editingTemplate, your_ref: e.target.value || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Container Tarra</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={editingTemplate.container_tarra || 0}
+                      onChange={(e) => setEditingTemplate({ ...editingTemplate, container_tarra: parseFloat(e.target.value) || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setEditingTemplate(null)}
+                    className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
+                  >
+                    Annuleren
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    Opslaan
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
