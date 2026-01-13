@@ -1690,6 +1690,141 @@ export default function CNHWorkflowPage() {
         )}
       </div>
 
+      {/* Edit Motor Modal */}
+      {editingMotor && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold">Motor Bewerken</h2>
+                <button
+                  onClick={() => setEditingMotor(null)}
+                  className="text-gray-500 hover:text-gray-700 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  updateMotor(editingMotor)
+                }}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Motornummer</label>
+                    <input
+                      type="text"
+                      value={editingMotor.motor_nr}
+                      onChange={(e) => setEditingMotor({ ...editingMotor, motor_nr: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">State</label>
+                    <select
+                      value={editingMotor.state}
+                      onChange={(e) => setEditingMotor({ ...editingMotor, state: e.target.value as 'received' | 'packaged' | 'loaded' })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="received">received</option>
+                      <option value="packaged">packaged</option>
+                      <option value="loaded">loaded</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Locatie</label>
+                    <select
+                      value={editingMotor.location || ''}
+                      onChange={(e) => setEditingMotor({ ...editingMotor, location: e.target.value || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Selecteer...</option>
+                      <option value="China">China</option>
+                      <option value="Amerika">Amerika</option>
+                      <option value="UZB">UZB</option>
+                      <option value="Other">Anders</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Verzendnota</label>
+                    <input
+                      type="text"
+                      value={editingMotor.shipping_note || ''}
+                      onChange={(e) => setEditingMotor({ ...editingMotor, shipping_note: e.target.value || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Bodem Laag</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editingMotor.bodem_low || 0}
+                      onChange={(e) => setEditingMotor({ ...editingMotor, bodem_low: parseInt(e.target.value) || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Bodem Hoog</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editingMotor.bodem_high || 0}
+                      onChange={(e) => setEditingMotor({ ...editingMotor, bodem_high: parseInt(e.target.value) || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Laadreferentie</label>
+                    <input
+                      type="text"
+                      value={editingMotor.load_reference || ''}
+                      onChange={(e) => setEditingMotor({ ...editingMotor, load_reference: e.target.value || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Container Nummer</label>
+                    <input
+                      type="text"
+                      value={editingMotor.container_number || ''}
+                      onChange={(e) => setEditingMotor({ ...editingMotor, container_number: e.target.value || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Truck Nummerplaat</label>
+                    <input
+                      type="text"
+                      value={editingMotor.truck_plate || ''}
+                      onChange={(e) => setEditingMotor({ ...editingMotor, truck_plate: e.target.value || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setEditingMotor(null)}
+                    className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
+                  >
+                    Annuleren
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    Opslaan
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Save Template Modal */}
       {showSaveTemplateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
