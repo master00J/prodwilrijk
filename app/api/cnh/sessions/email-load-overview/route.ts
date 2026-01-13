@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import nodemailer from 'nodemailer'
-import PDFDocument from 'pdfkit'
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -71,184 +71,217 @@ export async function POST(request: NextRequest) {
       verzendnota: m.shipping_note || '—',
     }))
 
-    // 3) Generate PDF
-    const buffers: Buffer[] = []
+    // 3) Generate PDF with pdf-lib
+    const pdfDoc = await PDFDocument.create()
+    const page = pdfDoc.addPage([595, 842]) // A4 size in points
+    const { width, height } = page.getSize()
+    const margin = 50
+    const pageWidth = width - 2 * margin
+    let currentY = height - margin
 
-    const COLORS = {
-      primary: '#00897B',
-      text: '#333333',
-      lightGray: '#f5f5f5',
-      border: '#dddddd',
-      rowBg: '#f9f9f9',
+    // Colors
+    const colors = {
+      primary: rgb(0, 0.537, 0.486), // #00897B
+      text: rgb(0.2, 0.2, 0.2), // #333333
+      lightGray: rgb(0.961, 0.961, 0.961), // #f5f5f5
+      rowBg: rgb(0.976, 0.976, 0.976), // #f9f9f9
     }
 
-    const PAGE_CONFIG = {
-      margin: 50,
-      width: 495,
-      maxY: 750,
-    }
+    // Fonts
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
+    const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
 
-    // Motor table generator function
-    const generateMotorTable = (
-      doc: InstanceType<typeof PDFDocument>,
-      motors: Array<{ motorNr: string; verzendnota: string }>,
-      startY: number,
-      pageConfig: typeof PAGE_CONFIG,
-      colors: typeof COLORS
-    ) => {
-      let currentY = startY
-      const rowHeight = 25
-      const headerHeight = 25
-      let headerDrawnOnCurrentPage = false
-
-      const drawHeader = (y: number) => {
-        doc.rect(50, y - 5, pageConfig.width, headerHeight)
-          .fillColor(colors.lightGray)
-          .fill()
-
-        doc.fillColor(colors.text)
-          .fontSize(11)
-          .text('Motor Nr.', 70, y)
-          .text('Verzendnota', 300, y)
-
-        headerDrawnOnCurrentPage = true
-        return y + headerHeight
-      }
-
-      let currentIndex = 0
-
-      while (currentIndex < motors.length) {
-        if (currentY + rowHeight > pageConfig.maxY) {
-          doc.addPage()
-          currentY = 50
-          headerDrawnOnCurrentPage = false
-        }
-
-        if (!headerDrawnOnCurrentPage) {
-          currentY = drawHeader(currentY)
-        }
-
-        if (currentIndex % 2 === 0) {
-          doc.rect(50, currentY - 5, pageConfig.width, rowHeight)
-            .fillColor(colors.rowBg)
-            .fill()
-        }
-
-        doc.fillColor(colors.text)
-          .font('Helvetica')
-          .fontSize(11)
-          .text(motors[currentIndex].motorNr, 70, currentY)
-          .text(motors[currentIndex].verzendnota, 300, currentY)
-
-        currentY += rowHeight
-        currentIndex++
-      }
-
-      return currentY
-    }
-
-    // Create PDF document
-    const doc = new PDFDocument({
-      margin: PAGE_CONFIG.margin,
-      size: 'A4',
-      bufferPages: true,
-      info: {
-        Title: `Laadoverzicht ${sessData['Laad Referentie:']}`,
-        Author: 'Foresco',
-      },
+    // Header - Reference title
+    page.drawText(sessData['Laad Referentie:'] || '', {
+      x: margin + 170,
+      y: currentY - 30,
+      size: 24,
+      font: fontBold,
+      color: colors.primary,
     })
-
-    // Event handlers for PDF data
-    doc.on('data', (chunk: Buffer) => buffers.push(chunk))
-
-    // Wait for PDF to finish generating
-    const pdfPromise = new Promise<Buffer>((resolve, reject) => {
-      doc.on('end', () => {
-        resolve(Buffer.concat(buffers))
-      })
-      doc.on('error', reject)
-    })
-
-    // PDF Content generation
-    // Header section - Logo (skip for now, can add later)
-    // Reference title
-    doc.font('Helvetica-Bold')
-      .fontSize(24)
-      .fillColor(COLORS.primary)
-      .text(sessData['Laad Referentie:'], 220, 50)
 
     // Date
-    doc.font('Helvetica')
-      .fontSize(10)
-      .fillColor(COLORS.text)
-      .text(new Date().toLocaleDateString('nl-BE'), 495, 50, {
-        align: 'right',
-      })
-
-    // General Information section
-    doc.moveDown(3)
-    doc.font('Helvetica-Bold')
-      .fontSize(14)
-      .fillColor(COLORS.primary)
-      .text('Algemene Informatie', 50, doc.y)
-
-    // Info box with gray background
-    const infoBoxY = doc.y + 10
-    const infoBoxHeight = Object.keys(sessData).length * 25 + 30
-
-    doc.rect(50, infoBoxY, PAGE_CONFIG.width, infoBoxHeight)
-      .fillColor(COLORS.lightGray)
-      .fill()
-
-    // Info items
-    let currentY = infoBoxY + 15
-    Object.entries(sessData).forEach(([key, value]) => {
-      doc.font('Helvetica-Bold')
-        .fontSize(11)
-        .fillColor(COLORS.text)
-        .text(key, 70, currentY)
-
-      doc.font('Helvetica')
-        .text(value, 220, currentY)
-
-      currentY += 25
+    const dateText = new Date().toLocaleDateString('nl-BE')
+    const dateWidth = font.widthOfTextAtSize(dateText, 10)
+    page.drawText(dateText, {
+      x: width - margin - dateWidth,
+      y: currentY - 30,
+      size: 10,
+      font: font,
+      color: colors.text,
     })
 
-    // Motors section
-    doc.moveDown(4)
-    doc.font('Helvetica-Bold')
-      .fontSize(14)
-      .fillColor(COLORS.primary)
-      .text('Motoren in deze Lading')
+    currentY -= 100
 
-    // Generate motor table with pagination
-    const tableStartY = doc.y + 20
-    generateMotorTable(doc, motorsList, tableStartY, PAGE_CONFIG, COLORS)
+    // General Information section
+    page.drawText('Algemene Informatie', {
+      x: margin,
+      y: currentY,
+      size: 14,
+      font: fontBold,
+      color: colors.primary,
+    })
 
-    // Add page numbers to all pages
-    const pages = doc.bufferedPageRange()
-    for (let i = 0; i < pages.count; i++) {
-      doc.switchToPage(i)
-      doc.font('Helvetica')
-        .fontSize(9)
-        .fillColor('#999999')
-        .text(`Pagina ${i + 1} van ${pages.count}`, 50, doc.page.height - 50, {
-          align: 'center',
-          width: PAGE_CONFIG.width,
+    currentY -= 30
+
+    // Info box background
+    const infoBoxHeight = Object.keys(sessData).length * 25 + 30
+    page.drawRectangle({
+      x: margin,
+      y: currentY - infoBoxHeight,
+      width: pageWidth,
+      height: infoBoxHeight,
+      color: colors.lightGray,
+    })
+
+    // Info items
+    let infoY = currentY - 20
+    Object.entries(sessData).forEach(([key, value]) => {
+      page.drawText(key, {
+        x: margin + 20,
+        y: infoY,
+        size: 11,
+        font: fontBold,
+        color: colors.text,
+      })
+      page.drawText(value, {
+        x: margin + 170,
+        y: infoY,
+        size: 11,
+        font: font,
+        color: colors.text,
+      })
+      infoY -= 25
+    })
+
+    currentY -= infoBoxHeight + 50
+
+    // Motors section title
+    page.drawText('Motoren in deze Lading', {
+      x: margin,
+      y: currentY,
+      size: 14,
+      font: fontBold,
+      color: colors.primary,
+    })
+
+    currentY -= 40
+
+    // Motor table header
+    const headerY = currentY
+    page.drawRectangle({
+      x: margin,
+      y: headerY - 20,
+      width: pageWidth,
+      height: 25,
+      color: colors.lightGray,
+    })
+    page.drawText('Motor Nr.', {
+      x: margin + 20,
+      y: headerY - 5,
+      size: 11,
+      font: font,
+      color: colors.text,
+    })
+    page.drawText('Verzendnota', {
+      x: margin + 250,
+      y: headerY - 5,
+      size: 11,
+      font: font,
+      color: colors.text,
+    })
+
+    currentY -= 35
+
+    // Motor rows
+    const rowHeight = 25
+    let rowIndex = 0
+    for (const motor of motorsList) {
+      // Check if we need a new page
+      if (currentY < margin + 50) {
+        const newPage = pdfDoc.addPage([595, 842])
+        const { height: newHeight } = newPage.getSize()
+        currentY = newHeight - margin - 100
+
+        // Draw header on new page
+        newPage.drawRectangle({
+          x: margin,
+          y: currentY - 20,
+          width: pageWidth,
+          height: 25,
+          color: colors.lightGray,
         })
+        newPage.drawText('Motor Nr.', {
+          x: margin + 20,
+          y: currentY - 5,
+          size: 11,
+          font: font,
+          color: colors.text,
+        })
+        newPage.drawText('Verzendnota', {
+          x: margin + 250,
+          y: currentY - 5,
+          size: 11,
+          font: font,
+          color: colors.text,
+        })
+
+        currentY -= 35
+        rowIndex = 0
+      }
+
+      // Alternate row background
+      if (rowIndex % 2 === 0) {
+        page.drawRectangle({
+          x: margin,
+          y: currentY - 20,
+          width: pageWidth,
+          height: rowHeight,
+          color: colors.rowBg,
+        })
+      }
+
+      page.drawText(motor.motorNr, {
+        x: margin + 20,
+        y: currentY - 5,
+        size: 11,
+        font: font,
+        color: colors.text,
+      })
+      page.drawText(motor.verzendnota, {
+        x: margin + 250,
+        y: currentY - 5,
+        size: 11,
+        font: font,
+        color: colors.text,
+      })
+
+      currentY -= rowHeight
+      rowIndex++
     }
 
-    // Finish PDF
-    doc.end()
+    // Add page numbers
+    const pages = pdfDoc.getPages()
+    pages.forEach((page, index) => {
+      const pageNumber = `Pagina ${index + 1} van ${pages.length}`
+      const pageNumberWidth = font.widthOfTextAtSize(pageNumber, 9)
+      page.drawText(pageNumber, {
+        x: (width - pageNumberWidth) / 2,
+        y: 30,
+        size: 9,
+        font: font,
+        color: rgb(0.6, 0.6, 0.6),
+      })
+    })
 
-    // Wait for PDF to be generated
-    const pdfData = await pdfPromise
+    // Generate PDF bytes
+    const pdfBytes = await pdfDoc.save()
 
     // 4) Prepare email attachments
     const attachments: Array<{ filename: string; content?: Buffer; path?: string }> = [
       {
         filename: `Laadoverzicht_${sessData['Laad Referentie:']}.pdf`,
-        content: pdfData,
+        content: Buffer.from(pdfBytes),
       },
     ]
 
@@ -317,4 +350,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-
