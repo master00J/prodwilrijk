@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     // Get all motors with shipping notes
     const { data: motors, error } = await supabaseAdmin
       .from('cnh_motors')
-      .select('shipping_note, received_at')
+      .select('shipping_note, received_at, state')
       .not('shipping_note', 'is', null)
       .order('received_at', { ascending: false })
 
@@ -23,13 +23,16 @@ export async function GET(request: NextRequest) {
     }
 
     // Group by shipping note and count motors
-    const shippingNotesMap = new Map<string, { count: number; received_at: string | null }>()
+    const shippingNotesMap = new Map<string, { count: number; to_check_count: number; received_at: string | null }>()
     
-    motors?.forEach((motor) => {
+    motors?.forEach((motor: any) => {
       if (motor.shipping_note) {
         const existing = shippingNotesMap.get(motor.shipping_note)
         if (existing) {
           existing.count++
+          if (motor.state === 'to_check') {
+            existing.to_check_count++
+          }
           // Keep the most recent received_at
           if (motor.received_at && (!existing.received_at || motor.received_at > existing.received_at)) {
             existing.received_at = motor.received_at
@@ -37,6 +40,7 @@ export async function GET(request: NextRequest) {
         } else {
           shippingNotesMap.set(motor.shipping_note, {
             count: 1,
+            to_check_count: motor.state === 'to_check' ? 1 : 0,
             received_at: motor.received_at || null,
           })
         }
@@ -48,6 +52,7 @@ export async function GET(request: NextRequest) {
       .map(([shipping_note, data]) => ({
         shipping_note,
         motor_count: data.count,
+        to_check_count: data.to_check_count,
         received_at: data.received_at,
       }))
       .sort((a, b) => {

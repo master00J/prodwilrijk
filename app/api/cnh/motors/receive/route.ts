@@ -27,11 +27,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Insert motors with individual locations
+    // Status is 'to_check' until verified on the verification page
     const motorsToInsert = motors.map((motor: { motorNr: string; location: string }) => ({
       motor_nr: motor.motorNr.trim(),
       location: motor.location,
       shipping_note: shippingNote.trim(),
-      state: 'received',
+      state: 'to_check',
       received_at: new Date().toISOString(),
     }))
 

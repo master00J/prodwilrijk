@@ -9,7 +9,7 @@ interface CNHMotor {
   type?: string
   location?: string
   shipping_note?: string
-  state: 'received' | 'packaged' | 'loaded'
+  state: 'to_check' | 'received' | 'packaged' | 'loaded'
   bodem_low?: number
   bodem_high?: number
   received_at?: string
@@ -2095,9 +2095,10 @@ export default function CNHWorkflowPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">State</label>
                     <select
                       value={editingMotor.state}
-                      onChange={(e) => setEditingMotor({ ...editingMotor, state: e.target.value as 'received' | 'packaged' | 'loaded' })}
+                      onChange={(e) => setEditingMotor({ ...editingMotor, state: e.target.value as 'to_check' | 'received' | 'packaged' | 'loaded' })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
+                      <option value="to_check">to_check</option>
                       <option value="received">received</option>
                       <option value="packaged">packaged</option>
                       <option value="loaded">loaded</option>

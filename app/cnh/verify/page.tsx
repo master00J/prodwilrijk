@@ -7,13 +7,14 @@ interface CNHMotor {
   motor_nr: string
   location?: string
   shipping_note?: string
-  state: 'received' | 'packaged' | 'loaded'
+  state: 'to_check' | 'received' | 'packaged' | 'loaded'
   received_at?: string
 }
 
 interface ShippingNote {
   shipping_note: string
   motor_count: number
+  to_check_count: number
   received_at: string | null
 }
 
@@ -64,6 +65,7 @@ export default function CNHVerifyPage() {
     setEditingMotors({})
 
     try {
+      // Get all motors for this shipping note (including to_check and received)
       const resp = await fetch(`/api/cnh/motors?shippingNote=${encodeURIComponent(note)}`)
       const data = await resp.json()
 
@@ -71,11 +73,13 @@ export default function CNHVerifyPage() {
         throw new Error(data.error || 'Fout bij ophalen motoren')
       }
 
-      setMotors(data || [])
+      // Filter to only show 'to_check' motors (those that need verification)
+      const toCheckMotors = (data || []).filter((motor: CNHMotor) => motor.state === 'to_check')
+      setMotors(toCheckMotors)
       
       // Initialize editing state with current values
       const editingState: Record<number, { motor_nr: string; location: string }> = {}
-      data.forEach((motor: CNHMotor) => {
+      toCheckMotors.forEach((motor: CNHMotor) => {
         editingState[motor.id] = {
           motor_nr: motor.motor_nr,
           location: motor.location || '',
@@ -83,8 +87,12 @@ export default function CNHVerifyPage() {
       })
       setEditingMotors(editingState)
 
-      if (data.length === 0) {
-        setError('Geen motoren gevonden voor deze verzendnota')
+      if (toCheckMotors.length === 0) {
+        if (data.length > 0) {
+          setError('Alle motoren voor deze verzendnota zijn al geverifieerd')
+        } else {
+          setError('Geen motoren gevonden voor deze verzendnota')
+        }
       }
     } catch (e: any) {
       console.error(e)
@@ -95,14 +103,44 @@ export default function CNHVerifyPage() {
     }
   }, [])
 
-  const handleVerify = useCallback(() => {
+  const handleVerify = useCallback(async () => {
     if (motors.length === 0) {
       setError('Geen motoren om te verifiëren')
       return
     }
-    setVerified(true)
+
+    setLoading(true)
     setError(null)
-  }, [motors])
+
+    try {
+      // Update all motors to 'received' status
+      const updatePromises = motors.map((motor) =>
+        fetch(`/api/cnh/motors/${motor.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            state: 'received',
+          }),
+        })
+      )
+
+      await Promise.all(updatePromises)
+
+      // Reload motors to get updated state
+      if (selectedShippingNote) {
+        await loadMotorsForShippingNote(selectedShippingNote)
+      }
+
+      setVerified(true)
+      setSuccess('Motoren succesvol geverifieerd en gemarkeerd als ontvangen!')
+      setTimeout(() => setSuccess(null), 5000)
+    } catch (e: any) {
+      console.error(e)
+      setError('Fout bij verifiëren: ' + e.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [motors, selectedShippingNote, loadMotorsForShippingNote])
 
   const handleReset = useCallback(() => {
     setSelectedShippingNote(null)
@@ -237,9 +275,21 @@ export default function CNHVerifyPage() {
                       <p className="text-3xl font-bold text-blue-800">
                         {note.shipping_note}
                       </p>
-                      <span className="text-lg font-semibold text-blue-600">
-                        {note.motor_count} {note.motor_count === 1 ? 'motor' : 'motoren'}
-                      </span>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="text-lg font-semibold text-blue-600">
+                          {note.motor_count} {note.motor_count === 1 ? 'motor' : 'motoren'}
+                        </span>
+                        {note.to_check_count > 0 && (
+                          <span className="text-sm font-medium text-orange-600 bg-orange-100 px-2 py-1 rounded">
+                            {note.to_check_count} te verifiëren
+                          </span>
+                        )}
+                        {note.to_check_count === 0 && (
+                          <span className="text-sm font-medium text-green-600 bg-green-100 px-2 py-1 rounded">
+                            ✅ Geverifieerd
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <p className="text-sm text-gray-600 mt-2">
                       Ontvangen: {formatDate(note.received_at)}
