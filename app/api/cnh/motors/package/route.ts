@@ -46,7 +46,7 @@ export async function PUT(request: NextRequest) {
     await Promise.all(updates)
 
     // Log the action
-    await supabaseAdmin
+    const { error: logError } = await supabaseAdmin
       .from('cnh_logs')
       .insert({
         action: 'package',
@@ -55,7 +55,10 @@ export async function PUT(request: NextRequest) {
           motorIds: motors.map((m: any) => m.motorId),
         },
       })
-      .catch((err) => console.error('Error logging:', err))
+    
+    if (logError) {
+      console.error('Error logging:', logError)
+    }
 
     return NextResponse.json({
       success: true,

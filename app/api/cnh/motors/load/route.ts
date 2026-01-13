@@ -46,7 +46,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Log the action
-    await supabaseAdmin
+    const { error: logError } = await supabaseAdmin
       .from('cnh_logs')
       .insert({
         action: 'load',
@@ -58,7 +58,10 @@ export async function PUT(request: NextRequest) {
           truckPlate,
         },
       })
-      .catch((err) => console.error('Error logging:', err))
+    
+    if (logError) {
+      console.error('Error logging:', logError)
+    }
 
     return NextResponse.json({
       success: true,

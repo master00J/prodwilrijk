@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
 
     // Log the action
     if (data && data.length > 0) {
-      await supabaseAdmin
+      const { error: logError } = await supabaseAdmin
         .from('cnh_logs')
         .insert({
           action: 'receive',
@@ -52,7 +52,10 @@ export async function POST(request: NextRequest) {
             motorIds: data.map((m: any) => m.id),
           },
         })
-        .catch((err) => console.error('Error logging:', err))
+      
+      if (logError) {
+        console.error('Error logging:', logError)
+      }
     }
 
     return NextResponse.json({
