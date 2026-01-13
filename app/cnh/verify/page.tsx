@@ -126,23 +126,29 @@ export default function CNHVerifyPage() {
 
       await Promise.all(updatePromises)
 
-      // Reload motors to get updated state
-      if (selectedShippingNote) {
-        await loadMotorsForShippingNote(selectedShippingNote)
-      }
-
       setVerified(true)
       setSuccess('Motoren succesvol geverifieerd en gemarkeerd als ontvangen!')
-      setTimeout(() => setSuccess(null), 5000)
+      
+      // Reload shipping notes list to remove fully verified ones
+      const notesResp = await fetch('/api/cnh/shipping-notes')
+      const notesData = await notesResp.json()
+      if (notesResp.ok) {
+        setShippingNotes(notesData || [])
+      }
+
+      // If this shipping note is now fully verified, go back to list
+      setTimeout(() => {
+        handleReset()
+      }, 2000)
     } catch (e: any) {
       console.error(e)
       setError('Fout bij verifiëren: ' + e.message)
     } finally {
       setLoading(false)
     }
-  }, [motors, selectedShippingNote, loadMotorsForShippingNote])
+  }, [motors])
 
-  const handleReset = useCallback(() => {
+  const handleReset = useCallback(async () => {
     setSelectedShippingNote(null)
     setEditingShippingNote('')
     setMotors([])
@@ -150,6 +156,17 @@ export default function CNHVerifyPage() {
     setVerified(false)
     setError(null)
     setSuccess(null)
+    
+    // Reload shipping notes to refresh the list (remove fully verified ones)
+    try {
+      const resp = await fetch('/api/cnh/shipping-notes')
+      const data = await resp.json()
+      if (resp.ok) {
+        setShippingNotes(data || [])
+      }
+    } catch (e) {
+      console.error('Error refreshing shipping notes:', e)
+    }
   }, [])
 
   const updateMotorField = useCallback((motorId: number, field: 'motor_nr' | 'location', value: string) => {

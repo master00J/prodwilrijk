@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Convert to array and sort by received_at (most recent first)
+    // Convert to array, filter out fully verified shipping notes, and sort by received_at (most recent first)
     const shippingNotes = Array.from(shippingNotesMap.entries())
       .map(([shipping_note, data]) => ({
         shipping_note,
@@ -55,6 +55,7 @@ export async function GET(request: NextRequest) {
         to_check_count: data.to_check_count,
         received_at: data.received_at,
       }))
+      .filter((note) => note.to_check_count > 0) // Only show shipping notes with motors that need verification
       .sort((a, b) => {
         if (!a.received_at) return 1
         if (!b.received_at) return -1
