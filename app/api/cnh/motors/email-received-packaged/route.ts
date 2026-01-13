@@ -130,6 +130,13 @@ export async function POST(request: NextRequest) {
     })
     currentY -= 40
 
+    // Statistics table - define column positions
+    const statsColumns = {
+      location: { x: margin + 10, width: 200 },
+      state: { x: margin + 220, width: 150 },
+      count: { x: margin + 380, width: 100 },
+    }
+
     // Statistics table header
     page.drawRectangle({
       x: margin,
@@ -139,21 +146,21 @@ export async function POST(request: NextRequest) {
       color: colors.background,
     })
     page.drawText('Locatie', {
-      x: margin + 10,
+      x: statsColumns.location.x,
       y: currentY - 5,
       size: 11,
       font: fontBold,
       color: colors.primary,
     })
     page.drawText('Status', {
-      x: margin + 210,
+      x: statsColumns.state.x,
       y: currentY - 5,
       size: 11,
       font: fontBold,
       color: colors.primary,
     })
     page.drawText('Aantal', {
-      x: margin + 360,
+      x: statsColumns.count.x + statsColumns.count.width - fontBold.widthOfTextAtSize('Aantal', 11),
       y: currentY - 5,
       size: 11,
       font: fontBold,
@@ -180,14 +187,14 @@ export async function POST(request: NextRequest) {
       }
 
       page.drawText(stat.location, {
-        x: margin + 10,
+        x: statsColumns.location.x,
         y: currentY - 5,
         size: 10,
         font: font,
         color: colors.text,
       })
       page.drawText(stat.state, {
-        x: margin + 210,
+        x: statsColumns.state.x,
         y: currentY - 5,
         size: 10,
         font: font,
@@ -196,7 +203,7 @@ export async function POST(request: NextRequest) {
       const countText = stat.count.toString()
       const countWidth = font.widthOfTextAtSize(countText, 10)
       page.drawText(countText, {
-        x: margin + 450 - countWidth,
+        x: statsColumns.count.x + statsColumns.count.width - countWidth,
         y: currentY - 5,
         size: 10,
         font: font,
@@ -239,6 +246,15 @@ export async function POST(request: NextRequest) {
     })
     currentY -= 40
 
+    // Motors table - define column positions
+    const motorsColumns = {
+      id: { x: margin + 10, width: 50 },
+      motor_nr: { x: margin + 70, width: 100 },
+      location: { x: margin + 180, width: 90 },
+      state: { x: margin + 280, width: 80 },
+      shippingNote: { x: margin + 370, width: 120 },
+    }
+
     // Table header
     page.drawRectangle({
       x: margin,
@@ -248,35 +264,35 @@ export async function POST(request: NextRequest) {
       color: colors.background,
     })
     page.drawText('ID', {
-      x: margin + 10,
+      x: motorsColumns.id.x,
       y: currentY - 5,
       size: 11,
       font: fontBold,
       color: colors.primary,
     })
     page.drawText('MotorNr', {
-      x: margin + 60,
+      x: motorsColumns.motor_nr.x,
       y: currentY - 5,
       size: 11,
       font: fontBold,
       color: colors.primary,
     })
     page.drawText('Locatie', {
-      x: margin + 165,
+      x: motorsColumns.location.x,
       y: currentY - 5,
       size: 11,
       font: fontBold,
       color: colors.primary,
     })
     page.drawText('State', {
-      x: margin + 260,
+      x: motorsColumns.state.x,
       y: currentY - 5,
       size: 11,
       font: fontBold,
       color: colors.primary,
     })
     page.drawText('Verzendnota', {
-      x: margin + 325,
+      x: motorsColumns.shippingNote.x,
       y: currentY - 5,
       size: 11,
       font: fontBold,
@@ -334,35 +350,35 @@ export async function POST(request: NextRequest) {
           color: colors.background,
         })
         newPage.drawText('ID', {
-          x: margin + 10,
+          x: motorsColumns.id.x,
           y: currentY - 5,
           size: 11,
           font: fontBold,
           color: colors.primary,
         })
         newPage.drawText('MotorNr', {
-          x: margin + 60,
+          x: motorsColumns.motor_nr.x,
           y: currentY - 5,
           size: 11,
           font: fontBold,
           color: colors.primary,
         })
         newPage.drawText('Locatie', {
-          x: margin + 165,
+          x: motorsColumns.location.x,
           y: currentY - 5,
           size: 11,
           font: fontBold,
           color: colors.primary,
         })
         newPage.drawText('State', {
-          x: margin + 260,
+          x: motorsColumns.state.x,
           y: currentY - 5,
           size: 11,
           font: fontBold,
           color: colors.primary,
         })
         newPage.drawText('Verzendnota', {
-          x: margin + 325,
+          x: motorsColumns.shippingNote.x,
           y: currentY - 5,
           size: 11,
           font: fontBold,
@@ -390,35 +406,35 @@ export async function POST(request: NextRequest) {
       }
 
       currentPage.drawText(m.id?.toString() || '', {
-        x: margin + 10,
+        x: motorsColumns.id.x,
         y: currentY - 5,
         size: 10,
         font: font,
         color: colors.text,
       })
       currentPage.drawText(m.motor_nr || '', {
-        x: margin + 60,
+        x: motorsColumns.motor_nr.x,
         y: currentY - 5,
         size: 10,
         font: font,
         color: colors.text,
       })
       currentPage.drawText(m.location || '', {
-        x: margin + 165,
+        x: motorsColumns.location.x,
         y: currentY - 5,
         size: 10,
         font: font,
         color: colors.text,
       })
       currentPage.drawText(m.state || '', {
-        x: margin + 260,
+        x: motorsColumns.state.x,
         y: currentY - 5,
         size: 10,
         font: font,
         color: colors.text,
       })
       currentPage.drawText(m.shipping_note || '', {
-        x: margin + 325,
+        x: motorsColumns.shippingNote.x,
         y: currentY - 5,
         size: 10,
         font: font,
