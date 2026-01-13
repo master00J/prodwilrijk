@@ -187,6 +187,19 @@ export default function CNHWorkflowPage() {
     }
   }, [])
 
+  // LOAD TAB FUNCTIONS - fetch functions defined early
+  const fetchLoadMotors = useCallback(async () => {
+    try {
+      const resp = await fetch('/api/cnh/motors?state=packaged')
+      const data = await resp.json()
+      if (resp.ok) {
+        setLoadMotors(data || [])
+      }
+    } catch (e) {
+      console.error('Error fetching load motors:', e)
+    }
+  }, [])
+
   const filteredPackMotors = useMemo(() => {
     if (!packFilter.trim()) return packMotors
     const filter = packFilter.toLowerCase()
@@ -492,18 +505,6 @@ export default function CNHWorkflowPage() {
   }, [packOperatorIdCounter])
 
   // LOAD TAB FUNCTIONS
-  const fetchLoadMotors = useCallback(async () => {
-    try {
-      const resp = await fetch('/api/cnh/motors?state=packaged')
-      const data = await resp.json()
-      if (resp.ok) {
-        setLoadMotors(data || [])
-      }
-    } catch (e) {
-      console.error('Error fetching load motors:', e)
-    }
-  }, [])
-
   const fetchTemplates = useCallback(async () => {
     try {
       const resp = await fetch('/api/cnh/templates')
