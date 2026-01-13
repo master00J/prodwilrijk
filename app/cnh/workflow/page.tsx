@@ -122,28 +122,6 @@ export default function CNHWorkflowPage() {
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
   }, [])
 
-  // Update motor function
-  const updateMotor = useCallback(async (motor: CNHMotor) => {
-    try {
-      const resp = await fetch(`/api/cnh/motors/${motor.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(motor),
-      })
-      const data = await resp.json()
-      if (!resp.ok || !data.success) {
-        throw new Error(data.error || 'Fout bij bijwerken motor')
-      }
-      showStatus('Motor bijgewerkt', 'success')
-      setEditingMotor(null)
-      fetchPackMotors()
-      fetchLoadMotors()
-    } catch (e: any) {
-      console.error(e)
-      showStatus('Fout bij bijwerken motor: ' + e.message, 'error')
-    }
-  }, [showStatus, fetchPackMotors, fetchLoadMotors])
-
   // INCOMING TAB FUNCTIONS
   const addIncomingMotorRow = useCallback(() => {
     setIncomingMotors((prev) => [...prev, {motorNr: '', location: 'China'}])
@@ -233,6 +211,28 @@ export default function CNHWorkflowPage() {
       console.error('Error fetching load motors:', e)
     }
   }, [])
+
+  // Update motor function
+  const updateMotor = useCallback(async (motor: CNHMotor) => {
+    try {
+      const resp = await fetch(`/api/cnh/motors/${motor.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(motor),
+      })
+      const data = await resp.json()
+      if (!resp.ok || !data.success) {
+        throw new Error(data.error || 'Fout bij bijwerken motor')
+      }
+      showStatus('Motor bijgewerkt', 'success')
+      setEditingMotor(null)
+      fetchPackMotors()
+      fetchLoadMotors()
+    } catch (e: any) {
+      console.error(e)
+      showStatus('Fout bij bijwerken motor: ' + e.message, 'error')
+    }
+  }, [showStatus, fetchPackMotors, fetchLoadMotors])
 
   const filteredPackMotors = useMemo(() => {
     if (!packFilter.trim()) return packMotors
