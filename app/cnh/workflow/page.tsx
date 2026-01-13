@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { createWorker } from 'tesseract.js'
+import { createWorker, PSM } from 'tesseract.js'
 
 interface CNHMotor {
   id: number
@@ -183,7 +183,7 @@ export default function CNHWorkflowPage() {
         
         // Configure worker for better OCR results
         await worker.setParameters({
-          tessedit_pageseg_mode: '6', // Assume uniform block of text
+          tessedit_pageseg_mode: PSM.UNIFORM_BLOCK, // Assume uniform block of text
           tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz -:',
         })
 
