@@ -196,29 +196,31 @@ export async function POST(request: NextRequest) {
     // Motor rows
     const rowHeight = 25
     let rowIndex = 0
+    let currentPage = page
     for (const motor of motorsList) {
       // Check if we need a new page
       if (currentY < margin + 50) {
         const newPage = pdfDoc.addPage([595, 842])
         const { height: newHeight } = newPage.getSize()
         currentY = newHeight - margin - 100
+        currentPage = newPage
 
         // Draw header on new page
-        newPage.drawRectangle({
+        currentPage.drawRectangle({
           x: margin,
           y: currentY - 20,
           width: pageWidth,
           height: 25,
           color: colors.lightGray,
         })
-        newPage.drawText('Motor Nr.', {
+        currentPage.drawText('Motor Nr.', {
           x: margin + 20,
           y: currentY - 5,
           size: 11,
           font: font,
           color: colors.text,
         })
-        newPage.drawText('Verzendnota', {
+        currentPage.drawText('Verzendnota', {
           x: margin + 250,
           y: currentY - 5,
           size: 11,
@@ -232,7 +234,7 @@ export async function POST(request: NextRequest) {
 
       // Alternate row background
       if (rowIndex % 2 === 0) {
-        page.drawRectangle({
+        currentPage.drawRectangle({
           x: margin,
           y: currentY - 20,
           width: pageWidth,
@@ -241,14 +243,14 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      page.drawText(motor.motorNr, {
+      currentPage.drawText(motor.motorNr, {
         x: margin + 20,
         y: currentY - 5,
         size: 11,
         font: font,
         color: colors.text,
       })
-      page.drawText(motor.verzendnota, {
+      currentPage.drawText(motor.verzendnota, {
         x: margin + 250,
         y: currentY - 5,
         size: 11,
