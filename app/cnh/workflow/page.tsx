@@ -95,6 +95,8 @@ export default function CNHWorkflowPage() {
   const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false)
   const [templateName, setTemplateName] = useState('')
   const [editingMotor, setEditingMotor] = useState<CNHMotor | null>(null)
+  const [pdfFile, setPdfFile] = useState<File | null>(null)
+  const [parsingPdf, setParsingPdf] = useState(false)
 
   const packTimerIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const loadTimerIntervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -140,6 +142,58 @@ export default function CNHWorkflowPage() {
       }
       return newMotors
     })
+  }, [])
+
+  const parsePdf = useCallback(async () => {
+    if (!pdfFile) {
+      showStatus('Geen PDF bestand geselecteerd', 'warning')
+      return
+    }
+
+    setParsingPdf(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', pdfFile)
+
+      const resp = await fetch('/api/cnh/parse-pdf', {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await resp.json()
+
+      if (!resp.ok || !data.success) {
+        throw new Error(data.error || 'Fout bij het lezen van PDF')
+      }
+
+      // Fill in the extracted data
+      if (data.shippingNote) {
+        setIncomingShippingNote(data.shippingNote)
+      }
+      if (data.motorNumbers && data.motorNumbers.length > 0) {
+        setIncomingMotors(
+          data.motorNumbers.map((motorNr: string) => ({
+            motorNr: motorNr,
+            location: 'China', // Default location
+          }))
+        )
+        showStatus(`${data.motorNumbers.length} motornummers gevonden in PDF!`, 'success')
+      } else {
+        showStatus('Geen motornummers gevonden in PDF. Controleer het bestand.', 'warning')
+      }
+      setPdfFile(null)
+    } catch (e: any) {
+      console.error(e)
+      showStatus('Fout bij het lezen van PDF: ' + e.message, 'error')
+    } finally {
+      setParsingPdf(false)
+    }
+  }, [pdfFile, showStatus])
+
+  const handlePdfChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setPdfFile(file)
+    }
   }, [])
 
   const saveIncomingMotors = useCallback(async () => {
@@ -1027,6 +1081,37 @@ export default function CNHWorkflowPage() {
         {activeTab === 'incoming' && (
           <div>
             <h2 className="text-2xl font-bold mb-4">Inkomend</h2>
+            
+            {/* PDF Upload Section */}
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <h3 className="text-lg font-semibold mb-3">PDF Upload (Automatisch Uitlezen)</h3>
+              <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Upload PDF Bestand
+                  </label>
+                  <input
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    onChange={handlePdfChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {pdfFile && (
+                    <p className="mt-1 text-sm text-gray-600">
+                      Geselecteerd: {pdfFile.name}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={parsePdf}
+                  disabled={!pdfFile || parsingPdf}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  {parsingPdf ? 'Bezig met lezen...' : 'PDF Uitlezen'}
+                </button>
+              </div>
+            </div>
+
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Verzendnota <span className="text-red-500">*</span>
