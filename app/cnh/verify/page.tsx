@@ -30,6 +30,9 @@ export default function CNHVerifyPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [verified, setVerified] = useState(false)
+  const [showAddMotor, setShowAddMotor] = useState(false)
+  const [newMotor, setNewMotor] = useState({ motor_nr: '', location: '' })
+  const [addingMotor, setAddingMotor] = useState(false)
 
   // Load all shipping notes on mount
   useEffect(() => {
@@ -253,6 +256,53 @@ export default function CNHVerifyPage() {
     })
   }, [])
 
+  const handleAddMotor = useCallback(async () => {
+    if (!selectedShippingNote || !newMotor.motor_nr.trim() || !newMotor.location) {
+      setError('Vul alstublieft motornummer en locatie in')
+      return
+    }
+
+    setAddingMotor(true)
+    setError(null)
+
+    try {
+      const resp = await fetch('/api/cnh/motors/receive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shippingNote: editingShippingNote.trim() || selectedShippingNote,
+          motors: [
+            {
+              motorNr: newMotor.motor_nr.trim(),
+              location: newMotor.location,
+            },
+          ],
+        }),
+      })
+
+      const data = await resp.json()
+
+      if (!resp.ok) {
+        throw new Error(data.error || 'Fout bij toevoegen motor')
+      }
+
+      // Reset form
+      setNewMotor({ motor_nr: '', location: '' })
+      setShowAddMotor(false)
+      setSuccess('Motor succesvol toegevoegd!')
+
+      // Reload motors list
+      await loadMotorsForShippingNote(editingShippingNote.trim() || selectedShippingNote)
+
+      setTimeout(() => setSuccess(null), 3000)
+    } catch (e: any) {
+      console.error(e)
+      setError('Fout bij toevoegen motor: ' + e.message)
+    } finally {
+      setAddingMotor(false)
+    }
+  }, [selectedShippingNote, editingShippingNote, newMotor, loadMotorsForShippingNote])
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100 py-8 px-4">
       <div className="max-w-5xl mx-auto">
@@ -382,6 +432,72 @@ export default function CNHVerifyPage() {
                 </button>
               </div>
             </div>
+
+            {/* Add Motor Button and Form */}
+            {!loading && (
+              <div className="mb-6">
+                {!showAddMotor ? (
+                  <button
+                    onClick={() => setShowAddMotor(true)}
+                    className="w-full md:w-auto px-6 py-3 bg-green-600 text-white text-lg font-bold rounded-xl hover:bg-green-700 shadow-lg transform hover:scale-105 transition-transform"
+                  >
+                    ➕ Nieuwe motor toevoegen
+                  </button>
+                ) : (
+                  <div className="bg-green-50 border-2 border-green-300 rounded-xl p-6">
+                    <h3 className="text-xl font-bold text-gray-800 mb-4">Nieuwe motor toevoegen</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Motornummer *
+                        </label>
+                        <input
+                          type="text"
+                          value={newMotor.motor_nr}
+                          onChange={(e) => setNewMotor({ ...newMotor, motor_nr: e.target.value })}
+                          className="w-full px-4 py-2 text-lg font-semibold border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                          placeholder="Bijv. 123456"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Locatie *
+                        </label>
+                        <select
+                          value={newMotor.location}
+                          onChange={(e) => setNewMotor({ ...newMotor, location: e.target.value })}
+                          className="w-full px-4 py-2 text-lg font-medium border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        >
+                          <option value="">Selecteer locatie...</option>
+                          <option value="China">China</option>
+                          <option value="Amerika">Amerika</option>
+                          <option value="UZB">UZB</option>
+                          <option value="Other">Anders</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleAddMotor}
+                        disabled={addingMotor || !newMotor.motor_nr.trim() || !newMotor.location}
+                        className="px-6 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                      >
+                        {addingMotor ? 'Toevoegen...' : '✅ Toevoegen'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowAddMotor(false)
+                          setNewMotor({ motor_nr: '', location: '' })
+                        }}
+                        className="px-6 py-2 bg-gray-400 text-white font-bold rounded-lg hover:bg-gray-500"
+                      >
+                        Annuleren
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {loading ? (
               <div className="text-center py-8">
