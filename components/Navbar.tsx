@@ -87,7 +87,8 @@ export default function Navbar() {
     pathname.startsWith('/cnh/dashboard') ||
     pathname.startsWith('/cnh/admin') ||
     pathname.startsWith('/cnh/verify') ||
-    pathname.startsWith('/cnh/admin/prepack')
+    pathname.startsWith('/cnh/admin/prepack') ||
+    pathname.startsWith('/cnh/admin/airtec')
 
   // Close dropdowns when clicking outside
   useEffect(() => {

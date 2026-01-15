@@ -12,14 +12,14 @@ export default function AdminPage() {
       icon: '📊',
       color: 'blue',
     },
+    {
+      title: 'Airtec Flow Monitoring',
+      description: 'Bekijk statistieken over verpakte kisten, manuren en prestaties per persoon voor Airtec',
+      href: '/cnh/admin/airtec',
+      icon: '📈',
+      color: 'green',
+    },
     // Toekomstige flows kunnen hier worden toegevoegd
-    // {
-    //   title: 'Andere Flow',
-    //   description: 'Beschrijving van de flow',
-    //   href: '/admin/andere-flow',
-    //   icon: '📈',
-    //   color: 'green',
-    // },
   ]
 
   const getColorClasses = (color: string) => {

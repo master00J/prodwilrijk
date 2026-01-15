@@ -149,12 +149,18 @@ export default function CNHAdminPage() {
       {/* Quick Links */}
       <div className="bg-white rounded-lg shadow p-6 mb-6">
         <h2 className="text-xl font-semibold mb-4">Monitoring</h2>
-        <div className="flex gap-4">
+        <div className="flex gap-4 flex-wrap">
           <a
             href="/cnh/admin/prepack"
             className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
           >
             📊 Prepack Flow Monitoring
+          </a>
+          <a
+            href="/cnh/admin/airtec"
+            className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors"
+          >
+            📈 Airtec Flow Monitoring
           </a>
         </div>
       </div>
