@@ -141,6 +141,7 @@ export async function GET(request: NextRequest) {
             itemsPacked: 0,
             manHours: 0,
             employees: new Set(),
+            revenue: 0,
           }
         }
         
