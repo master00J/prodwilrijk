@@ -142,7 +142,7 @@ export default function SalesOrdersUploadPage() {
             <li>Upload een Excel bestand met verkooporders</li>
             <li>Kolom A moet de prijs bevatten</li>
             <li>Kolom K moet de omschrijving bevatten met itemnummer tussen haakjes</li>
-            <li>Voorbeeld omschrijving: "860X470X220 KIST ISPM15 MPXM (1094139873)"</li>
+            <li>Voorbeeld omschrijving: &quot;860X470X220 KIST ISPM15 MPXM (1094139873)&quot;</li>
           </ul>
         </div>
 
