@@ -90,10 +90,10 @@ export default function CNHPrepackMonitorPage() {
     <div className="container mx-auto px-4 py-8 max-w-7xl">
       <div className="mb-6">
         <Link 
-          href="/cnh/admin" 
+          href="/admin" 
           className="text-blue-600 hover:text-blue-800 mb-4 inline-block"
         >
-          ← Terug naar CNH Admin
+          ← Terug naar Admin
         </Link>
         <h1 className="text-3xl font-bold">Prepack Flow Monitoring</h1>
       </div>
