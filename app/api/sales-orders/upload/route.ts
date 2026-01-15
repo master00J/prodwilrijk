@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Insert into sales_orders table
+    // Multiple uploads per day are allowed - the latest price will be used
     const { data, error } = await supabaseAdmin
       .from('sales_orders')
       .insert(validItems)

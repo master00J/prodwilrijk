@@ -6,8 +6,9 @@ CREATE TABLE IF NOT EXISTS sales_orders (
   description TEXT,
   uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(item_number, uploaded_at) -- Allow same item with different prices on different dates
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  -- Note: No unique constraint to allow multiple uploads per day
+  -- The get_latest_price function will always return the most recent price
 );
 
 -- Index for faster lookups
