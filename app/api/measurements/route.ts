@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { item_id, packaging_method, dimensions, net_weight, created_by } = body
+    const { item_id, packaging_method, dimensions, net_weight, special_instructions, created_by } = body
 
     if (!item_id) {
       return NextResponse.json(
@@ -73,6 +73,7 @@ export async function POST(request: NextRequest) {
           packaging_method: packaging_method || null,
           dimensions: dimensions || null,
           net_weight: net_weight ? parseFloat(net_weight) : null,
+          special_instructions: special_instructions || null,
           created_by: created_by || null,
           updated_at: new Date().toISOString(),
         })
@@ -98,6 +99,7 @@ export async function POST(request: NextRequest) {
           packaging_method: packaging_method || null,
           dimensions: dimensions || null,
           net_weight: net_weight ? parseFloat(net_weight) : null,
+          special_instructions: special_instructions || null,
           created_by: created_by || null,
         })
         .select()

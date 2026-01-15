@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS measurements (
   packaging_method VARCHAR(255), -- Verpakkingsmethode
   dimensions VARCHAR(255), -- Afmetingen (bijv. "50x30x20 cm")
   net_weight DECIMAL(10, 2), -- Netto gewicht (in kg)
+  special_instructions TEXT, -- Speciale instructies
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   created_by VARCHAR(255), -- Optioneel: wie heeft het ingevuld

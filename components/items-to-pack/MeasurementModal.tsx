@@ -14,6 +14,7 @@ interface MeasurementData {
   packaging_method: string
   dimensions: string
   net_weight: string
+  special_instructions: string
 }
 
 export default function MeasurementModal({
@@ -26,6 +27,7 @@ export default function MeasurementModal({
     packaging_method: '',
     dimensions: '',
     net_weight: '',
+    special_instructions: '',
   })
   const [loading, setLoading] = useState(false)
   const [existingMeasurement, setExistingMeasurement] = useState<any>(null)
@@ -39,6 +41,7 @@ export default function MeasurementModal({
         packaging_method: '',
         dimensions: '',
         net_weight: '',
+        special_instructions: '',
       })
       setExistingMeasurement(null)
     }
@@ -58,6 +61,7 @@ export default function MeasurementModal({
             packaging_method: measurement.packaging_method || '',
             dimensions: measurement.dimensions || '',
             net_weight: measurement.net_weight ? measurement.net_weight.toString() : '',
+            special_instructions: measurement.special_instructions || '',
           })
         }
       }
@@ -80,6 +84,7 @@ export default function MeasurementModal({
           packaging_method: formData.packaging_method.trim() || null,
           dimensions: formData.dimensions.trim() || null,
           net_weight: formData.net_weight.trim() || null,
+          special_instructions: formData.special_instructions.trim() || null,
         }),
       })
 
@@ -196,6 +201,25 @@ export default function MeasurementModal({
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="Bijv. 12.5"
               required
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="special_instructions"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
+              Speciale instructies
+            </label>
+            <textarea
+              id="special_instructions"
+              value={formData.special_instructions}
+              onChange={(e) =>
+                setFormData({ ...formData, special_instructions: e.target.value })
+              }
+              rows={4}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Voeg hier eventuele speciale instructies toe voor het verpakken van dit item..."
             />
           </div>
 

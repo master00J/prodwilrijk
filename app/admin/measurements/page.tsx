@@ -10,6 +10,7 @@ interface Measurement {
   packaging_method: string | null
   dimensions: string | null
   net_weight: number | null
+  special_instructions: string | null
   created_at: string
   updated_at: string
   created_by: string | null
@@ -142,6 +143,9 @@ export default function MeasurementsPage() {
                       Netto Gewicht (kg)
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Speciale Instructies
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Ingevuld op
                     </th>
                   </tr>
@@ -173,6 +177,15 @@ export default function MeasurementsPage() {
                           <span className="font-medium">
                             {measurement.net_weight.toFixed(2)} kg
                           </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 text-sm text-gray-900 max-w-xs">
+                        {measurement.special_instructions ? (
+                          <div className="whitespace-pre-wrap break-words">
+                            {measurement.special_instructions}
+                          </div>
                         ) : (
                           <span className="text-gray-400">-</span>
                         )}
