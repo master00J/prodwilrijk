@@ -64,6 +64,15 @@ export default function Home() {
         { href: '/grote-inpak', label: 'Grote Inpak Dashboard' },
       ] as FeatureLink[]
     },
+    {
+      title: 'XML Generator',
+      description: 'Generate XML files and labels for prepack orders',
+      icon: FileSpreadsheet,
+      color: 'purple',
+      links: [
+        { href: '/xml-generator', label: 'XML Generator' },
+      ] as FeatureLink[]
+    },
   ]
 
   const quickActions = [
