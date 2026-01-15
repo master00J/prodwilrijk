@@ -146,6 +146,19 @@ export default function CNHAdminPage() {
     <div className="container mx-auto px-4 py-8 max-w-7xl">
       <h1 className="text-3xl font-bold text-center mb-6">CNH Admin</h1>
 
+      {/* Quick Links */}
+      <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 className="text-xl font-semibold mb-4">Monitoring</h2>
+        <div className="flex gap-4">
+          <a
+            href="/cnh/admin/prepack"
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+          >
+            📊 Prepack Flow Monitoring
+          </a>
+        </div>
+      </div>
+
       {/* Status messages */}
       {statusMessage && (
         <div

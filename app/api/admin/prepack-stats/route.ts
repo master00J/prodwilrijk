@@ -143,6 +143,78 @@ export async function GET(request: NextRequest) {
       return sum
     }, 0)
 
+    // Calculate statistics per person
+    const personStatsMap: Record<string, {
+      name: string
+      itemsPacked: number
+      manHours: number
+    }> = {}
+
+    // Distribute packed items proportionally based on time logs
+    // For each day, calculate the proportion of work done by each person
+    const dailyPersonWork: Record<string, Record<string, number>> = {}
+    
+    logs.forEach((log: any) => {
+      if (log.start_time && log.end_time && log.employees?.name) {
+        const startTime = new Date(log.start_time)
+        const endTime = new Date(log.end_time)
+        const date = startTime.toISOString().split('T')[0]
+        const hours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60)
+        const personName = log.employees.name
+
+        if (!dailyPersonWork[date]) {
+          dailyPersonWork[date] = {}
+        }
+        if (!dailyPersonWork[date][personName]) {
+          dailyPersonWork[date][personName] = 0
+        }
+        dailyPersonWork[date][personName] += hours
+
+        // Initialize person stats
+        if (!personStatsMap[personName]) {
+          personStatsMap[personName] = {
+            name: personName,
+            itemsPacked: 0,
+            manHours: 0,
+          }
+        }
+        personStatsMap[personName].manHours += hours
+      }
+    })
+
+    // Distribute packed items to persons based on their work proportion per day
+    items.forEach((item) => {
+      const date = new Date(item.date_packed).toISOString().split('T')[0]
+      const dayWork = dailyPersonWork[date]
+      if (dayWork) {
+        const totalHoursForDay = Object.values(dayWork).reduce((sum, hours) => sum + hours, 0)
+        if (totalHoursForDay > 0) {
+          Object.entries(dayWork).forEach(([personName, hours]) => {
+            if (!personStatsMap[personName]) {
+              personStatsMap[personName] = {
+                name: personName,
+                itemsPacked: 0,
+                manHours: 0,
+              }
+            }
+            // Distribute items proportionally based on hours worked
+            const proportion = hours / totalHoursForDay
+            personStatsMap[personName].itemsPacked += Math.round((item.amount || 0) * proportion)
+          })
+        }
+      }
+    })
+
+    // Convert person stats to array and calculate items per hour
+    const personStatsArray = Object.values(personStatsMap)
+      .map(stat => ({
+        name: stat.name,
+        itemsPacked: stat.itemsPacked,
+        manHours: Number(stat.manHours.toFixed(2)),
+        itemsPerHour: stat.manHours > 0 ? Number((stat.itemsPacked / stat.manHours).toFixed(2)) : 0,
+      }))
+      .sort((a, b) => b.itemsPacked - a.itemsPacked) // Sort by items packed descending
+
     return NextResponse.json({
       dailyStats: dailyStatsArray,
       totals: {
@@ -151,6 +223,7 @@ export async function GET(request: NextRequest) {
         averageItemsPerHour: totalManHours > 0 ? Number((totalItemsPacked / totalManHours).toFixed(2)) : 0,
         totalDays: dailyStatsArray.length,
       },
+      personStats: personStatsArray,
     })
   } catch (error) {
     console.error('Unexpected error:', error)
