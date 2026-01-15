@@ -19,6 +19,13 @@ export default function AdminPage() {
       icon: '📈',
       color: 'green',
     },
+    {
+      title: 'Verkooporders Upload',
+      description: 'Upload Excel bestand met verkooporders om prijzen in te laden voor omzet berekening',
+      href: '/admin/sales-orders',
+      icon: '💰',
+      color: 'purple',
+    },
     // Toekomstige flows kunnen hier worden toegevoegd
   ]
 

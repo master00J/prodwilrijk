@@ -73,16 +73,40 @@ export async function GET(request: NextRequest) {
     const items = packedItems || []
     const logs = timeLogs || []
 
+    // Get unique item numbers to fetch prices
+    const uniqueItemNumbers = [...new Set(items.map((item: any) => item.item_number).filter(Boolean))]
+    
+    // Fetch latest prices for all items
+    let pricesMap: Record<string, number> = {}
+    if (uniqueItemNumbers.length > 0) {
+      // Get the latest price for each item number
+      const { data: salesOrders, error: salesError } = await supabaseAdmin
+        .from('sales_orders')
+        .select('item_number, price, uploaded_at')
+        .in('item_number', uniqueItemNumbers)
+        .order('uploaded_at', { ascending: false })
+
+      if (!salesError && salesOrders) {
+        // Use the latest price for each item
+        salesOrders.forEach((order: any) => {
+          if (!pricesMap[order.item_number]) {
+            pricesMap[order.item_number] = parseFloat(order.price) || 0
+          }
+        })
+      }
+    }
+
     // Calculate statistics per day
     const dailyStats: Record<string, {
       date: string
       itemsPacked: number
       manHours: number
       employees: Set<string>
+      revenue: number
     }> = {}
 
     // Process packed items
-    items.forEach((item) => {
+    items.forEach((item: any) => {
       const date = new Date(item.date_packed).toISOString().split('T')[0]
       if (!dailyStats[date]) {
         dailyStats[date] = {
@@ -90,9 +114,15 @@ export async function GET(request: NextRequest) {
           itemsPacked: 0,
           manHours: 0,
           employees: new Set(),
+          revenue: 0,
         }
       }
-      dailyStats[date].itemsPacked += item.amount || 0
+      const amount = item.amount || 0
+      dailyStats[date].itemsPacked += amount
+      
+      // Calculate revenue for this item
+      const price = pricesMap[item.item_number] || 0
+      dailyStats[date].revenue += price * amount
     })
 
     // Process time logs
@@ -129,11 +159,12 @@ export async function GET(request: NextRequest) {
         manHours: Number(stat.manHours.toFixed(2)),
         employeeCount: stat.employees.size,
         itemsPerHour: stat.manHours > 0 ? Number((stat.itemsPacked / stat.manHours).toFixed(2)) : 0,
+        revenue: Number(stat.revenue.toFixed(2)),
       }))
       .sort((a, b) => a.date.localeCompare(b.date))
 
     // Calculate totals
-    const totalItemsPacked = items.reduce((sum, item) => sum + (item.amount || 0), 0)
+    const totalItemsPacked = items.reduce((sum, item: any) => sum + (item.amount || 0), 0)
     const totalManHours = logs.reduce((sum, log: any) => {
       if (log.start_time && log.end_time) {
         const startTime = new Date(log.start_time)
@@ -141,6 +172,13 @@ export async function GET(request: NextRequest) {
         return sum + (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60)
       }
       return sum
+    }, 0)
+    
+    // Calculate total revenue
+    const totalRevenue = items.reduce((sum, item: any) => {
+      const price = pricesMap[item.item_number] || 0
+      const amount = item.amount || 0
+      return sum + (price * amount)
     }, 0)
 
     // Calculate statistics per person
@@ -222,6 +260,7 @@ export async function GET(request: NextRequest) {
         totalManHours: Number(totalManHours.toFixed(2)),
         averageItemsPerHour: totalManHours > 0 ? Number((totalItemsPacked / totalManHours).toFixed(2)) : 0,
         totalDays: dailyStatsArray.length,
+        totalRevenue: Number(totalRevenue.toFixed(2)),
       },
       personStats: personStatsArray,
     })
