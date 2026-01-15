@@ -2,6 +2,18 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts'
 
 interface DailyStat {
   date: string
@@ -161,6 +173,141 @@ export default function CNHPrepackMonitorPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Charts Section */}
+      <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 className="text-2xl font-semibold mb-4">Grafieken</h2>
+        {loading ? (
+          <div className="text-center py-8">
+            <div className="text-xl">Grafieken laden...</div>
+          </div>
+        ) : dailyStats.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            Geen data gevonden voor de geselecteerde periode
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Items Verpakt per Dag */}
+            <div>
+              <h3 className="text-lg font-medium mb-4 text-gray-700">Items Verpakt per Dag</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={dailyStats}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(value) => new Date(value).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })}
+                  />
+                  <YAxis />
+                  <Tooltip
+                    labelFormatter={(value) => new Date(value).toLocaleDateString('nl-NL', { 
+                      weekday: 'short',
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric'
+                    })}
+                  />
+                  <Legend />
+                  <Bar dataKey="itemsPacked" fill="#3b82f6" name="Items Verpakt" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Omzet per Dag */}
+            <div>
+              <h3 className="text-lg font-medium mb-4 text-gray-700">Omzet per Dag</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={dailyStats}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(value) => new Date(value).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })}
+                  />
+                  <YAxis
+                    tickFormatter={(value) => `€${(value / 1000).toFixed(0)}k`}
+                  />
+                  <Tooltip
+                    labelFormatter={(value) => new Date(value).toLocaleDateString('nl-NL', { 
+                      weekday: 'short',
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric'
+                    })}
+                    formatter={(value: number) => [`€${value.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'Omzet']}
+                  />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke="#eab308"
+                    strokeWidth={2}
+                    name="Omzet"
+                    dot={{ fill: '#eab308', r: 4 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Manuren per Dag */}
+            <div>
+              <h3 className="text-lg font-medium mb-4 text-gray-700">Manuren per Dag</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={dailyStats}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(value) => new Date(value).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })}
+                  />
+                  <YAxis />
+                  <Tooltip
+                    labelFormatter={(value) => new Date(value).toLocaleDateString('nl-NL', { 
+                      weekday: 'short',
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric'
+                    })}
+                    formatter={(value: number) => [`${value.toFixed(2)} uur`, 'Manuren']}
+                  />
+                  <Legend />
+                  <Bar dataKey="manHours" fill="#10b981" name="Manuren" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Items per Uur per Dag */}
+            <div>
+              <h3 className="text-lg font-medium mb-4 text-gray-700">Productiviteit (Items/Uur) per Dag</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={dailyStats}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(value) => new Date(value).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })}
+                  />
+                  <YAxis />
+                  <Tooltip
+                    labelFormatter={(value) => new Date(value).toLocaleDateString('nl-NL', { 
+                      weekday: 'short',
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric'
+                    })}
+                    formatter={(value: number) => [`${value.toFixed(2)} items/uur`, 'Productiviteit']}
+                  />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="itemsPerHour"
+                    stroke="#8b5cf6"
+                    strokeWidth={2}
+                    name="Items/Uur"
+                    dot={{ fill: '#8b5cf6', r: 4 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Werkende Personen */}
