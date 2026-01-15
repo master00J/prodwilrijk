@@ -8,14 +8,14 @@ export default function AdminPage() {
     {
       title: 'Prepack Flow Monitoring',
       description: 'Bekijk statistieken over verpakte kisten, manuren en prestaties per persoon',
-      href: '/cnh/admin/prepack',
+      href: '/admin/prepack',
       icon: '📊',
       color: 'blue',
     },
     {
       title: 'Airtec Flow Monitoring',
       description: 'Bekijk statistieken over verpakte kisten, manuren en prestaties per persoon voor Airtec',
-      href: '/cnh/admin/airtec',
+      href: '/admin/airtec',
       icon: '📈',
       color: 'green',
     },

@@ -20,12 +20,10 @@ interface Totals {
 
 interface PersonStats {
   name: string
-  itemsPacked: number
   manHours: number
-  itemsPerHour: number
 }
 
-export default function CNHAirtecMonitorPage() {
+export default function AirtecMonitorPage() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [loading, setLoading] = useState(false)
@@ -144,9 +142,9 @@ export default function CNHAirtecMonitorPage() {
         </div>
       </div>
 
-      {/* Aantal Verpakte Kisten per Persoon */}
+      {/* Werkende Personen */}
       <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 className="text-2xl font-semibold mb-4">Aantal Verpakte Kisten per Persoon</h2>
+        <h2 className="text-2xl font-semibold mb-4">Werkende Personen</h2>
         {loading ? (
           <div className="text-center py-8">
             <div className="text-xl">Statistieken laden...</div>
@@ -161,22 +159,16 @@ export default function CNHAirtecMonitorPage() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Persoon</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Aantal Verpakte Kisten</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Manuren</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Items/Uur</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {personStats
-                  .sort((a, b) => b.itemsPacked - a.itemsPacked) // Sort by items packed descending
-                  .map((stat) => (
-                    <tr key={stat.name} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{stat.name}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900">{stat.itemsPacked}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900">{stat.manHours.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900">{stat.itemsPerHour.toFixed(2)}</td>
-                    </tr>
-                  ))}
+                {personStats.map((stat) => (
+                  <tr key={stat.name} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{stat.name}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{stat.manHours.toFixed(2)}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
