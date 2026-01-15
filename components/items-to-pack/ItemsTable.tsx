@@ -17,6 +17,7 @@ interface ItemsTableProps {
   onReturn: (id: number) => void
   onUploadImage: (id: number) => void
   onEditProblemComment: (id: number) => void
+  onFillMeasurement?: (id: number) => void
 }
 
 export default function ItemsTable({
@@ -32,6 +33,7 @@ export default function ItemsTable({
   onReturn,
   onUploadImage,
   onEditProblemComment,
+  onFillMeasurement,
 }: ItemsTableProps) {
   const [expandedImage, setExpandedImage] = useState<number | null>(null)
 
@@ -237,7 +239,16 @@ export default function ItemsTable({
                       </div>
                     </td>
                     <td className="px-4 py-4">
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
+                        {isMeasurement && onFillMeasurement && (
+                          <button
+                            onClick={() => onFillMeasurement(item.id)}
+                            className="px-3 py-1 bg-purple-500 text-white rounded text-xs hover:bg-purple-600 font-medium"
+                            title="Vul opmetingen in"
+                          >
+                            📏 Opmetingen
+                          </button>
+                        )}
                         <button
                           onClick={() => onReturn(item.id)}
                           className="px-3 py-1 bg-orange-500 text-white rounded text-xs hover:bg-orange-600 font-medium"

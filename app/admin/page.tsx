@@ -26,6 +26,13 @@ export default function AdminPage() {
       icon: '💰',
       color: 'purple',
     },
+    {
+      title: 'Opmetingen Overzicht',
+      description: 'Bekijk alle ingevulde opmetingen voor items die nog niet bekend waren in het systeem',
+      href: '/admin/measurements',
+      icon: '📏',
+      color: 'orange',
+    },
     // Toekomstige flows kunnen hier worden toegevoegd
   ]
 

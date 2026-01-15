@@ -14,6 +14,7 @@ import TimeRegistrationModal from '@/components/items-to-pack/TimeRegistrationMo
 import ActiveTimersCard from '@/components/items-to-pack/ActiveTimersCard'
 import ProblemCommentModal from '@/components/items-to-pack/ProblemCommentModal'
 import MarkProblemModal from '@/components/items-to-pack/MarkProblemModal'
+import MeasurementModal from '@/components/items-to-pack/MeasurementModal'
 import Pagination from '@/components/common/Pagination'
 
 interface ItemsResponse {
@@ -44,6 +45,7 @@ export default function ItemsToPackPage() {
   const [showTimeModal, setShowTimeModal] = useState(false)
   const [showProblemCommentModal, setShowProblemCommentModal] = useState(false)
   const [showMarkProblemModal, setShowMarkProblemModal] = useState(false)
+  const [showMeasurementModal, setShowMeasurementModal] = useState(false)
   const [activeTimeLogs, setActiveTimeLogs] = useState<any[]>([])
   const [selectedItemForAction, setSelectedItemForAction] = useState<number | null>(null)
   const [sortColumn, setSortColumn] = useState<keyof ItemToPack | null>(null)
@@ -452,6 +454,11 @@ export default function ItemsToPackPage() {
     setShowProblemCommentModal(true)
   }
 
+  const handleFillMeasurement = (id: number) => {
+    setSelectedItemForAction(id)
+    setShowMeasurementModal(true)
+  }
+
   const handleSaveProblemComment = async (comment: string) => {
     if (!selectedItemForAction) return
 
@@ -720,6 +727,7 @@ export default function ItemsToPackPage() {
         onReturn={handleReturn}
         onUploadImage={handleUploadImage}
         onEditProblemComment={handleEditProblemComment}
+        onFillMeasurement={handleFillMeasurement}
       />
 
       {totalPages > 1 && (
@@ -801,6 +809,18 @@ export default function ItemsToPackPage() {
           items={items.filter(item => selectedItems.has(item.id))}
           onClose={() => setShowMarkProblemModal(false)}
           onConfirm={handleMarkProblemConfirm}
+        />
+      )}
+
+      {showMeasurementModal && selectedItemForAction && (
+        <MeasurementModal
+          item={items.find(item => item.id === selectedItemForAction) || null}
+          isOpen={showMeasurementModal}
+          onClose={() => {
+            setShowMeasurementModal(false)
+            setSelectedItemForAction(null)
+          }}
+          onSave={fetchItems}
         />
       )}
     </div>
