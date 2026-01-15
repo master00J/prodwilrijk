@@ -147,12 +147,12 @@ export default function AirtecPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-4xl">
-      <h1 className="text-3xl font-bold mb-6">Airtec - Excel Upload</h1>
+    <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6 max-w-4xl">
+      <h1 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6">Airtec - Excel Upload</h1>
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold mb-4">Upload Multiple Items</h2>
-        <p className="text-gray-600 mb-6">
+      <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+        <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4">Upload Multiple Items</h2>
+        <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">
           Upload an Excel file (.xlsx or .xls) with Airtec item data. Required columns: <strong>Item Number</strong> or <strong>Description</strong>.
           Optional columns: <strong>Lot Number</strong>, <strong>Date Sent</strong>, <strong>Box Number (Kistnummer)</strong>, <strong>Division</strong>, <strong>Quantity</strong>.
         </p>

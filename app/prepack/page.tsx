@@ -110,27 +110,27 @@ export default function PrepackPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-4xl">
-      <h1 className="text-3xl font-bold mb-6">Prepack - Excel Upload</h1>
+    <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6 max-w-4xl">
+      <h1 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6">Prepack - Excel Upload</h1>
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold mb-4">Upload Multiple Items</h2>
-        <p className="text-gray-600 mb-6">
+      <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+        <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4">Upload Multiple Items</h2>
+        <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">
           Upload an Excel file (.xlsx or .xls) with columns: <strong>Item</strong>, <strong>Pallet</strong>, and <strong>Qty</strong>
         </p>
 
         <form onSubmit={handleFileUpload}>
-          <div className="flex flex-col md:flex-row gap-4 items-center">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-center">
             <input
               type="file"
               accept=".xlsx,.xls"
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+              className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base sm:text-lg touch-manipulation min-h-[44px]"
               disabled={uploading}
             />
             <button
               type="submit"
               disabled={uploading}
-              className="px-8 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium text-lg min-w-[120px]"
+              className="px-6 sm:px-8 py-2.5 sm:py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium text-base sm:text-lg min-w-[120px] min-h-[44px] touch-manipulation"
             >
               {uploading ? 'Uploading...' : 'Upload'}
             </button>
@@ -139,7 +139,7 @@ export default function PrepackPage() {
 
         {message && (
           <div
-            className={`mt-4 p-4 rounded-lg ${
+            className={`mt-3 sm:mt-4 p-3 sm:p-4 rounded-lg text-sm sm:text-base ${
               message.type === 'success'
                 ? 'bg-green-50 text-green-800 border border-green-200'
                 : 'bg-red-50 text-red-800 border border-red-200'
@@ -149,9 +149,9 @@ export default function PrepackPage() {
           </div>
         )}
 
-        <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-          <h3 className="font-semibold mb-2">Excel File Format:</h3>
-          <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
+        <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-gray-50 rounded-lg">
+          <h3 className="font-semibold mb-2 text-sm sm:text-base">Excel File Format:</h3>
+          <ul className="list-disc list-inside space-y-1 text-xs sm:text-sm text-gray-600">
             <li>Column names: <strong>Item</strong> (or Item Number), <strong>Pallet</strong> (or PO Number), <strong>Qty</strong> (or Quantity/Amount)</li>
             <li>First row should contain column headers</li>
             <li>Each row represents one item to add</li>

@@ -398,8 +398,8 @@ export default function CNHDashboardPage() {
   }, [showStatus])
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
-      <h1 className="text-3xl font-bold text-center mb-6">CNH Dashboard</h1>
+    <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6 md:py-8 max-w-7xl">
+      <h1 className="text-2xl sm:text-3xl font-bold text-center mb-4 sm:mb-6">CNH Dashboard</h1>
 
       {/* Status messages */}
       {statusMessage && (

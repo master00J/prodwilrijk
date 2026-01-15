@@ -98,27 +98,27 @@ export default function Home() {
       {/* Hero Section */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 via-purple-600/10 to-orange-600/10"></div>
-        <div className="container mx-auto px-4 py-20 md:py-28 relative">
+        <div className="container mx-auto px-2 sm:px-4 py-12 sm:py-16 md:py-20 lg:py-28 relative">
           <div className="max-w-4xl mx-auto text-center">
-            <div className="inline-flex items-center justify-center w-20 h-20 mb-6 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 shadow-lg shadow-blue-500/25">
-              <Warehouse className="w-10 h-10 text-white" />
+            <div className="inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 mb-4 sm:mb-6 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 shadow-lg shadow-blue-500/25">
+              <Warehouse className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
             </div>
-            <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 mb-4 sm:mb-6 leading-tight px-2">
               Prodwilrijk <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">V2</span>
             </h1>
-            <p className="text-xl md:text-2xl text-gray-600 mb-8 max-w-2xl mx-auto leading-relaxed">
+            <p className="text-lg sm:text-xl md:text-2xl text-gray-600 mb-6 sm:mb-8 max-w-2xl mx-auto leading-relaxed px-2">
               Modern warehouse management system designed for efficiency and productivity
             </p>
-            <div className="flex flex-wrap justify-center gap-4">
+            <div className="flex flex-wrap justify-center gap-3 sm:gap-4 px-2">
               {quickActions.map((action) => {
                 const Icon = action.icon
                 return (
                   <Link
                     key={action.href}
                     href={action.href}
-                    className={`group relative px-6 py-3 bg-gradient-to-r ${action.color} text-white rounded-xl font-semibold shadow-lg shadow-gray-900/10 hover:shadow-xl hover:shadow-gray-900/20 transition-all duration-300 hover:scale-105 flex items-center gap-2`}
+                    className={`group relative px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r ${action.color} text-white rounded-xl font-semibold shadow-lg shadow-gray-900/10 hover:shadow-xl hover:shadow-gray-900/20 transition-all duration-300 hover:scale-105 flex items-center gap-2 text-sm sm:text-base min-h-[44px] touch-manipulation`}
                   >
-                    <Icon className="w-5 h-5" />
+                    <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
                     <span>{action.label}</span>
                     <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-300" />
                   </Link>
@@ -130,17 +130,17 @@ export default function Home() {
       </section>
 
       {/* Features Section */}
-      <section className="container mx-auto px-4 py-16 md:py-24">
-        <div className="text-center mb-16">
-          <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+      <section className="container mx-auto px-2 sm:px-4 py-12 sm:py-16 md:py-24">
+        <div className="text-center mb-8 sm:mb-12 md:mb-16">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 mb-3 sm:mb-4">
             Complete Workflow Management
           </h2>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+          <p className="text-base sm:text-lg md:text-xl text-gray-600 max-w-2xl mx-auto px-2">
             Streamline your warehouse operations with our integrated modules
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
+        <div className="grid sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8 max-w-7xl mx-auto">
           {features.map((feature) => {
             const Icon = feature.icon
             const colorClasses = {
@@ -155,14 +155,14 @@ export default function Home() {
                 className="group bg-white rounded-2xl shadow-lg shadow-gray-900/5 hover:shadow-xl hover:shadow-gray-900/10 transition-all duration-300 overflow-hidden border border-gray-100 hover:border-gray-200"
               >
                 <div className={`h-2 bg-gradient-to-r ${colorClasses[feature.color as keyof typeof colorClasses]}`}></div>
-                <div className="p-8">
-                  <div className={`inline-flex items-center justify-center w-14 h-14 rounded-xl bg-gradient-to-br ${colorClasses[feature.color as keyof typeof colorClasses]} mb-6 shadow-lg`}>
-                    <Icon className="w-7 h-7 text-white" />
+                <div className="p-4 sm:p-6 md:p-8">
+                  <div className={`inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br ${colorClasses[feature.color as keyof typeof colorClasses]} mb-4 sm:mb-6 shadow-lg`}>
+                    <Icon className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
                   </div>
-                  <h3 className="text-2xl font-bold text-gray-900 mb-3">
+                  <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2 sm:mb-3">
                     {feature.title}
                   </h3>
-                  <p className="text-gray-600 mb-6 leading-relaxed">
+                  <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6 leading-relaxed">
                     {feature.description}
                   </p>
                   <div className="space-y-2">
@@ -170,7 +170,7 @@ export default function Home() {
                       <Link
                         key={link.href}
                         href={link.href}
-                        className="group/link flex items-center justify-between p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors duration-200"
+                        className="group/link flex items-center justify-between p-2.5 sm:p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors duration-200 min-h-[44px] touch-manipulation"
                       >
                         <div className="flex items-center gap-3">
                           {link.step && (
@@ -194,9 +194,9 @@ export default function Home() {
       </section>
 
       {/* Stats/Info Section */}
-      <section className="bg-gradient-to-r from-gray-900 to-gray-800 text-white py-16">
-        <div className="container mx-auto px-4">
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto text-center">
+      <section className="bg-gradient-to-r from-gray-900 to-gray-800 text-white py-12 sm:py-16">
+        <div className="container mx-auto px-2 sm:px-4">
+          <div className="grid sm:grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 max-w-5xl mx-auto text-center">
             <div>
               <div className="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
                 Streamlined

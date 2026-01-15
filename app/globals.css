@@ -22,11 +22,96 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Tablet-optimized touch targets */
+/* Tablet-optimized touch targets and spacing */
 @media (max-width: 1024px) {
   button, a, input[type="checkbox"] {
     min-height: 44px;
     min-width: 44px;
+  }
+  
+  /* Better touch targets for tablets */
+  button, a, input, select, textarea {
+    touch-action: manipulation;
+  }
+  
+  /* Improve spacing on tablets */
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  /* Better table scrolling on tablets */
+  table {
+    font-size: 0.875rem;
+  }
+  
+  th, td {
+    padding: 0.75rem 0.5rem;
+  }
+  
+  /* Better form inputs on tablets */
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  input[type="password"],
+  select,
+  textarea {
+    min-height: 44px;
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+  
+  /* Better card spacing */
+  .card, .bg-white {
+    padding: 1rem;
+  }
+  
+  /* Better button spacing */
+  .flex.gap-2 > button,
+  .flex.gap-2 > a {
+    padding: 0.75rem 1rem;
+  }
+}
+
+/* Tablet-specific optimizations (640px - 1024px) */
+@media (min-width: 640px) and (max-width: 1024px) {
+  /* Better spacing for tablets */
+  .container {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+  
+  /* Better card padding */
+  .bg-white.rounded-lg,
+  .bg-white.rounded-xl {
+    padding: 1.25rem;
+  }
+  
+  /* Better button sizing for tablets */
+  button {
+    padding: 0.625rem 1.25rem;
+  }
+}
+
+/* Mobile optimizations */
+@media (max-width: 640px) {
+  /* Smaller text on mobile */
+  h1 {
+    font-size: 1.875rem;
+  }
+  
+  h2 {
+    font-size: 1.5rem;
+  }
+  
+  /* Better button sizing */
+  button {
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+  }
+  
+  /* Better input sizing */
+  input, select, textarea {
+    font-size: 16px; /* Prevents zoom on iOS */
   }
 }
 

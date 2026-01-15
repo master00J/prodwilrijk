@@ -304,61 +304,61 @@ export default function CNHVerifyPage() {
   }, [selectedShippingNote, editingShippingNote, newMotor, loadMotorsForShippingNote])
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100 py-8 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100 py-4 sm:py-6 md:py-8 px-2 sm:px-4">
       <div className="max-w-5xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-5xl font-bold mb-2 text-gray-800">
+        <div className="text-center mb-4 sm:mb-6 md:mb-8">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-2 text-gray-800">
             CNH Verificatie
           </h1>
-          <p className="text-xl text-gray-600">
+          <p className="text-lg sm:text-xl text-gray-600">
             Controleer motoren bij lossen camion
           </p>
         </div>
 
         {/* Shipping Notes List */}
         {!selectedShippingNote && (
-          <div className="bg-white rounded-xl shadow-xl p-8 mb-6 border-2 border-blue-200">
-            <h2 className="text-3xl font-semibold mb-6 text-gray-700 text-center">
+          <div className="bg-white rounded-xl shadow-xl p-4 sm:p-6 md:p-8 mb-4 sm:mb-6 border-2 border-blue-200">
+            <h2 className="text-2xl sm:text-3xl font-semibold mb-4 sm:mb-6 text-gray-700 text-center">
               Beschikbare Verzendnota&apos;s
             </h2>
             
             {loadingNotes ? (
               <div className="text-center py-8">
-                <p className="text-xl text-gray-600">Laden...</p>
+                <p className="text-lg sm:text-xl text-gray-600">Laden...</p>
               </div>
             ) : shippingNotes.length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-xl text-gray-600">Geen verzendnota&apos;s gevonden</p>
+                <p className="text-lg sm:text-xl text-gray-600">Geen verzendnota&apos;s gevonden</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                 {shippingNotes.map((note) => (
                   <button
                     key={note.shipping_note}
                     onClick={() => loadMotorsForShippingNote(note.shipping_note)}
-                    className="p-6 bg-blue-50 border-2 border-blue-300 rounded-xl hover:bg-blue-100 hover:border-blue-400 hover:shadow-lg transition-all text-left"
+                    className="p-4 sm:p-6 bg-blue-50 border-2 border-blue-300 rounded-xl hover:bg-blue-100 hover:border-blue-400 hover:shadow-lg transition-all text-left min-h-[120px] touch-manipulation"
                   >
-                    <div className="flex justify-between items-start mb-2">
-                      <p className="text-3xl font-bold text-blue-800">
+                    <div className="flex justify-between items-start mb-2 flex-wrap gap-2">
+                      <p className="text-2xl sm:text-3xl font-bold text-blue-800 break-all">
                         {note.shipping_note}
                       </p>
                       <div className="flex flex-col items-end gap-1">
-                        <span className="text-lg font-semibold text-blue-600">
+                        <span className="text-base sm:text-lg font-semibold text-blue-600 whitespace-nowrap">
                           {note.motor_count} {note.motor_count === 1 ? 'motor' : 'motoren'}
                         </span>
                         {note.to_check_count > 0 && (
-                          <span className="text-sm font-medium text-orange-600 bg-orange-100 px-2 py-1 rounded">
+                          <span className="text-xs sm:text-sm font-medium text-orange-600 bg-orange-100 px-2 py-1 rounded whitespace-nowrap">
                             {note.to_check_count} te verifiëren
                           </span>
                         )}
                         {note.to_check_count === 0 && (
-                          <span className="text-sm font-medium text-green-600 bg-green-100 px-2 py-1 rounded">
+                          <span className="text-xs sm:text-sm font-medium text-green-600 bg-green-100 px-2 py-1 rounded whitespace-nowrap">
                             ✅ Geverifieerd
                           </span>
                         )}
                       </div>
                     </div>
-                    <p className="text-sm text-gray-600 mt-2">
+                    <p className="text-xs sm:text-sm text-gray-600 mt-2">
                       Ontvangen: {formatDate(note.received_at)}
                     </p>
                   </button>
@@ -370,30 +370,30 @@ export default function CNHVerifyPage() {
 
         {/* Error Message */}
         {error && (
-          <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded">
-            <p className="font-semibold">{error}</p>
+          <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-3 sm:p-4 mb-4 sm:mb-6 rounded">
+            <p className="font-semibold text-sm sm:text-base">{error}</p>
           </div>
         )}
 
         {/* Success Message */}
         {success && (
-          <div className="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6 rounded">
-            <p className="font-semibold text-xl">✅ {success}</p>
+          <div className="bg-green-100 border-l-4 border-green-500 text-green-700 p-3 sm:p-4 mb-4 sm:mb-6 rounded">
+            <p className="font-semibold text-base sm:text-lg md:text-xl">✅ {success}</p>
           </div>
         )}
 
         {/* Success/Verified Message */}
         {verified && (
-          <div className="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6 rounded">
-            <p className="font-semibold text-xl">✅ Alle motoren geverifieerd!</p>
+          <div className="bg-green-100 border-l-4 border-green-500 text-green-700 p-3 sm:p-4 mb-4 sm:mb-6 rounded">
+            <p className="font-semibold text-base sm:text-lg md:text-xl">✅ Alle motoren geverifieerd!</p>
           </div>
         )}
 
         {/* Motors List */}
         {selectedShippingNote && (
-          <div className="bg-white rounded-xl shadow-xl p-8 mb-6 border-2 border-gray-200">
-            <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-              <div className="flex-1">
+          <div className="bg-white rounded-xl shadow-xl p-4 sm:p-6 md:p-8 mb-4 sm:mb-6 border-2 border-gray-200">
+            <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center mb-4 sm:mb-6 gap-3 sm:gap-4">
+              <div className="flex-1 min-w-0">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Verzendnota
                 </label>
@@ -401,32 +401,32 @@ export default function CNHVerifyPage() {
                   type="text"
                   value={editingShippingNote}
                   onChange={(e) => setEditingShippingNote(e.target.value)}
-                  className="w-full px-4 py-3 text-2xl font-semibold border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 text-lg sm:text-xl md:text-2xl font-semibold border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 touch-manipulation"
                   placeholder="Verzendnota nummer"
                 />
-                <p className="text-lg text-gray-600 mt-2">
+                <p className="text-base sm:text-lg text-gray-600 mt-2">
                   {loading ? 'Laden...' : `${motors.length} ${motors.length === 1 ? 'motor' : 'motoren'}`}
                 </p>
               </div>
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full md:w-auto">
                 <button
                   onClick={saveChanges}
                   disabled={saving}
-                  className="w-full md:w-auto px-8 py-4 bg-blue-600 text-white text-xl font-bold rounded-xl hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed shadow-lg transform hover:scale-105 transition-transform"
+                  className="w-full md:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-blue-600 text-white text-base sm:text-lg md:text-xl font-bold rounded-xl hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed shadow-lg transform hover:scale-105 transition-transform touch-manipulation min-h-[48px]"
                 >
                   {saving ? 'Opslaan...' : '💾 Opslaan'}
                 </button>
                 {!verified && motors.length > 0 && (
                   <button
                     onClick={handleVerify}
-                    className="w-full md:w-auto px-8 py-4 bg-green-600 text-white text-xl font-bold rounded-xl hover:bg-green-700 shadow-lg transform hover:scale-105 transition-transform"
+                    className="w-full md:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-green-600 text-white text-base sm:text-lg md:text-xl font-bold rounded-xl hover:bg-green-700 shadow-lg transform hover:scale-105 transition-transform touch-manipulation min-h-[48px]"
                   >
                     ✅ Verifiëren
                   </button>
                 )}
                 <button
                   onClick={handleReset}
-                  className="w-full md:w-auto px-8 py-4 bg-gray-600 text-white text-xl font-bold rounded-xl hover:bg-gray-700 shadow-lg transform hover:scale-105 transition-transform"
+                  className="w-full md:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-gray-600 text-white text-base sm:text-lg md:text-xl font-bold rounded-xl hover:bg-gray-700 shadow-lg transform hover:scale-105 transition-transform touch-manipulation min-h-[48px]"
                 >
                   ← Terug
                 </button>
@@ -435,18 +435,18 @@ export default function CNHVerifyPage() {
 
             {/* Add Motor Button and Form */}
             {!loading && (
-              <div className="mb-6">
+              <div className="mb-4 sm:mb-6">
                 {!showAddMotor ? (
                   <button
                     onClick={() => setShowAddMotor(true)}
-                    className="w-full md:w-auto px-6 py-3 bg-green-600 text-white text-lg font-bold rounded-xl hover:bg-green-700 shadow-lg transform hover:scale-105 transition-transform"
+                    className="w-full md:w-auto px-6 py-3 bg-green-600 text-white text-base sm:text-lg font-bold rounded-xl hover:bg-green-700 shadow-lg transform hover:scale-105 transition-transform touch-manipulation min-h-[48px]"
                   >
                     ➕ Nieuwe motor toevoegen
                   </button>
                 ) : (
-                  <div className="bg-green-50 border-2 border-green-300 rounded-xl p-6">
-                    <h3 className="text-xl font-bold text-gray-800 mb-4">Nieuwe motor toevoegen</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div className="bg-green-50 border-2 border-green-300 rounded-xl p-4 sm:p-6">
+                    <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-3 sm:mb-4">Nieuwe motor toevoegen</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-3 sm:mb-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Motornummer *
@@ -455,7 +455,7 @@ export default function CNHVerifyPage() {
                           type="text"
                           value={newMotor.motor_nr}
                           onChange={(e) => setNewMotor({ ...newMotor, motor_nr: e.target.value })}
-                          className="w-full px-4 py-2 text-lg font-semibold border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                          className="w-full px-3 sm:px-4 py-2 sm:py-3 text-base sm:text-lg font-semibold border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 touch-manipulation min-h-[48px]"
                           placeholder="Bijv. 123456"
                         />
                       </div>
@@ -466,7 +466,7 @@ export default function CNHVerifyPage() {
                         <select
                           value={newMotor.location}
                           onChange={(e) => setNewMotor({ ...newMotor, location: e.target.value })}
-                          className="w-full px-4 py-2 text-lg font-medium border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                          className="w-full px-3 sm:px-4 py-2 sm:py-3 text-base sm:text-lg font-medium border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 touch-manipulation min-h-[48px]"
                         >
                           <option value="">Selecteer locatie...</option>
                           <option value="China">China</option>
@@ -476,11 +476,11 @@ export default function CNHVerifyPage() {
                         </select>
                       </div>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                       <button
                         onClick={handleAddMotor}
                         disabled={addingMotor || !newMotor.motor_nr.trim() || !newMotor.location}
-                        className="px-6 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                        className="flex-1 px-6 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed touch-manipulation min-h-[48px]"
                       >
                         {addingMotor ? 'Toevoegen...' : '✅ Toevoegen'}
                       </button>
@@ -489,7 +489,7 @@ export default function CNHVerifyPage() {
                           setShowAddMotor(false)
                           setNewMotor({ motor_nr: '', location: '' })
                         }}
-                        className="px-6 py-2 bg-gray-400 text-white font-bold rounded-lg hover:bg-gray-500"
+                        className="flex-1 sm:flex-none px-6 py-3 bg-gray-400 text-white font-bold rounded-lg hover:bg-gray-500 touch-manipulation min-h-[48px]"
                       >
                         Annuleren
                       </button>
@@ -501,14 +501,14 @@ export default function CNHVerifyPage() {
 
             {loading ? (
               <div className="text-center py-8">
-                <p className="text-xl text-gray-600">Motoren laden...</p>
+                <p className="text-lg sm:text-xl text-gray-600">Motoren laden...</p>
               </div>
             ) : motors.length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-xl text-gray-600">Geen motoren gevonden</p>
+                <p className="text-lg sm:text-xl text-gray-600">Geen motoren gevonden</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                 {motors.map((motor, index) => {
                   const edited = editingMotors[motor.id] || { motor_nr: motor.motor_nr, location: motor.location || '' }
                   const hasChanges = edited.motor_nr !== motor.motor_nr || edited.location !== (motor.location || '')
@@ -516,7 +516,7 @@ export default function CNHVerifyPage() {
                   return (
                     <div
                       key={motor.id}
-                      className={`p-6 rounded-xl border-3 transition-all ${
+                      className={`p-4 sm:p-6 rounded-xl border-3 transition-all ${
                         verified
                           ? 'bg-green-100 border-green-400 shadow-lg'
                           : hasChanges
@@ -524,8 +524,8 @@ export default function CNHVerifyPage() {
                           : 'bg-gray-50 border-gray-400 hover:shadow-md'
                       }`}
                     >
-                      <div className="space-y-3">
-                        <p className="text-sm text-gray-600">Motor #{index + 1}</p>
+                      <div className="space-y-2 sm:space-y-3">
+                        <p className="text-xs sm:text-sm text-gray-600">Motor #{index + 1}</p>
                         
                         <div>
                           <label className="block text-xs font-medium text-gray-600 mb-1">
@@ -535,7 +535,7 @@ export default function CNHVerifyPage() {
                             type="text"
                             value={edited.motor_nr}
                             onChange={(e) => updateMotorField(motor.id, 'motor_nr', e.target.value)}
-                            className={`w-full px-3 py-2 text-2xl font-bold border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                            className={`w-full px-3 py-2 sm:py-3 text-xl sm:text-2xl font-bold border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 touch-manipulation min-h-[48px] ${
                               hasChanges && edited.motor_nr !== motor.motor_nr
                                 ? 'border-yellow-500 bg-yellow-50'
                                 : 'border-gray-300'
@@ -550,7 +550,7 @@ export default function CNHVerifyPage() {
                           <select
                             value={edited.location}
                             onChange={(e) => updateMotorField(motor.id, 'location', e.target.value)}
-                            className={`w-full px-3 py-2 text-lg font-medium border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                            className={`w-full px-3 py-2 sm:py-3 text-base sm:text-lg font-medium border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 touch-manipulation min-h-[48px] ${
                               hasChanges && edited.location !== (motor.location || '')
                                 ? 'border-yellow-500 bg-yellow-50'
                                 : 'border-gray-300'

@@ -1289,9 +1289,9 @@ export default function CNHWorkflowPage() {
   }, [])
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">CNH Workflow</h1>
+    <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6 md:py-8 max-w-7xl">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-3 sm:gap-4">
+        <h1 className="text-2xl sm:text-3xl font-bold">CNH Workflow</h1>
         <a
           href="/cnh/verify"
           className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium text-sm flex items-center gap-2"

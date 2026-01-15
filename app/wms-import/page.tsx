@@ -270,9 +270,9 @@ export default function WMSImportPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-4xl">
-      <h1 className="text-3xl font-bold mb-6">WMS Status 30 Import</h1>
-      <p className="text-gray-600 mb-6">
+    <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6 max-w-4xl">
+      <h1 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6">WMS Status 30 Import</h1>
+      <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">
         Import items from WMS status 30. Only items with today&apos;s date in &quot;Laatste status verandering&quot; will be imported.
         Duplicate lines (based on Pallet number) will be automatically skipped.
       </p>

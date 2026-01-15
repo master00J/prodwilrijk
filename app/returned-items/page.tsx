@@ -107,9 +107,9 @@ export default function ReturnedItemsPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-7xl">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Returned Items</h1>
+    <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6 max-w-7xl">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-3 sm:gap-4">
+        <h1 className="text-2xl sm:text-3xl font-bold">Returned Items</h1>
         <button
           onClick={handleDownload}
           className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 font-medium"

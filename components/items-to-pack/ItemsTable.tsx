@@ -51,11 +51,11 @@ export default function ItemsTable({
 
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto -mx-2 sm:mx-0">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-4 text-left">
+              <th className="px-2 sm:px-4 py-3 sm:py-4 text-left">
                 <input
                   type="checkbox"
                   checked={allSelected}
@@ -63,7 +63,7 @@ export default function ItemsTable({
                     if (input) input.indeterminate = someSelected && !allSelected
                   }}
                   onChange={(e) => onSelectAll(e.target.checked)}
-                  className="w-5 h-5 cursor-pointer"
+                  className="w-5 h-5 cursor-pointer touch-manipulation"
                 />
               </th>
               <th
@@ -96,19 +96,19 @@ export default function ItemsTable({
               >
                 Date Added {sortColumn === 'date_added' && (sortDirection === 'asc' ? '↑' : '↓')}
               </th>
-              <th className="px-4 py-4 text-left text-sm font-medium text-gray-700">
+              <th className="px-2 sm:px-4 py-3 sm:py-4 text-left text-xs sm:text-sm font-medium text-gray-700">
                 Priority
               </th>
-              <th className="px-4 py-4 text-left text-sm font-medium text-gray-700">
+              <th className="px-2 sm:px-4 py-3 sm:py-4 text-left text-xs sm:text-sm font-medium text-gray-700">
                 Measurement
               </th>
-              <th className="px-4 py-4 text-left text-sm font-medium text-gray-700">
+              <th className="px-2 sm:px-4 py-3 sm:py-4 text-left text-xs sm:text-sm font-medium text-gray-700">
                 Problem
               </th>
-              <th className="px-4 py-4 text-left text-sm font-medium text-gray-700">
+              <th className="px-2 sm:px-4 py-3 sm:py-4 text-left text-xs sm:text-sm font-medium text-gray-700">
                 Images
               </th>
-              <th className="px-4 py-4 text-left text-sm font-medium text-gray-700">
+              <th className="px-2 sm:px-4 py-3 sm:py-4 text-left text-xs sm:text-sm font-medium text-gray-700">
                 Actions
               </th>
             </tr>
@@ -140,24 +140,24 @@ export default function ItemsTable({
 
                 return (
                   <tr key={item.id} className={rowClass || undefined}>
-                    <td className="px-4 py-4">
+                    <td className="px-2 sm:px-4 py-3 sm:py-4">
                       <input
                         type="checkbox"
                         checked={selectedItems.has(item.id)}
                         onChange={(e) => onSelectItem(item.id, e.target.checked)}
-                        className="w-5 h-5 cursor-pointer"
+                        className="w-5 h-5 cursor-pointer touch-manipulation"
                       />
                     </td>
-                    <td className="px-4 py-4 text-sm text-gray-900">{item.id}</td>
-                    <td className="px-4 py-4 text-sm text-gray-900 font-medium">
+                    <td className="px-2 sm:px-4 py-3 sm:py-4 text-xs sm:text-sm text-gray-900">{item.id}</td>
+                    <td className="px-2 sm:px-4 py-3 sm:py-4 text-xs sm:text-sm text-gray-900 font-medium break-all">
                       {item.item_number}
                     </td>
-                    <td className="px-4 py-4 text-sm text-gray-900">{item.po_number}</td>
-                    <td className="px-4 py-4 text-sm text-gray-900">{item.amount}</td>
-                    <td className="px-4 py-4 text-sm text-gray-900">
+                    <td className="px-2 sm:px-4 py-3 sm:py-4 text-xs sm:text-sm text-gray-900 break-all">{item.po_number}</td>
+                    <td className="px-2 sm:px-4 py-3 sm:py-4 text-xs sm:text-sm text-gray-900">{item.amount}</td>
+                    <td className="px-2 sm:px-4 py-3 sm:py-4 text-xs sm:text-sm text-gray-900 whitespace-nowrap">
                       {new Date(item.date_added).toLocaleDateString()}
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="px-2 sm:px-4 py-3 sm:py-4">
                       <input
                         type="checkbox"
                         checked={isPriority}
@@ -165,7 +165,7 @@ export default function ItemsTable({
                         className="w-5 h-5"
                       />
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="px-2 sm:px-4 py-3 sm:py-4">
                       <input
                         type="checkbox"
                         checked={isMeasurement}
@@ -173,7 +173,7 @@ export default function ItemsTable({
                         className="w-5 h-5"
                       />
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="px-2 sm:px-4 py-3 sm:py-4">
                       {isProblem && (
                         <div className="flex items-start gap-2">
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
@@ -195,11 +195,11 @@ export default function ItemsTable({
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-4">
-                      <div className="flex gap-2 items-center flex-wrap">
+                    <td className="px-2 sm:px-4 py-3 sm:py-4">
+                      <div className="flex gap-1 sm:gap-2 items-center flex-wrap">
                         <button
                           onClick={() => onUploadImage(item.id)}
-                          className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+                          className="px-2 py-1.5 sm:py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 touch-manipulation min-h-[36px] sm:min-h-[auto]"
                           title="Upload image"
                         >
                           📷
@@ -238,12 +238,12 @@ export default function ItemsTable({
                         ) : null}
                       </div>
                     </td>
-                    <td className="px-4 py-4">
-                      <div className="flex gap-2 flex-wrap">
+                    <td className="px-2 sm:px-4 py-3 sm:py-4">
+                      <div className="flex flex-col sm:flex-row gap-1 sm:gap-2">
                         {isMeasurement && onFillMeasurement && (
                           <button
                             onClick={() => onFillMeasurement(item.id)}
-                            className="px-3 py-1 bg-purple-500 text-white rounded text-xs hover:bg-purple-600 font-medium"
+                            className="px-2 sm:px-3 py-1.5 sm:py-1 bg-purple-500 text-white rounded text-xs hover:bg-purple-600 font-medium touch-manipulation min-h-[36px] sm:min-h-[auto]"
                             title="Vul opmetingen in"
                           >
                             📏 Opmetingen
@@ -251,14 +251,14 @@ export default function ItemsTable({
                         )}
                         <button
                           onClick={() => onReturn(item.id)}
-                          className="px-3 py-1 bg-orange-500 text-white rounded text-xs hover:bg-orange-600 font-medium"
+                          className="px-2 sm:px-3 py-1.5 sm:py-1 bg-orange-500 text-white rounded text-xs hover:bg-orange-600 font-medium touch-manipulation min-h-[36px] sm:min-h-[auto]"
                           title="Return item"
                         >
                           ↩️ Return
                         </button>
                         <button
                           onClick={() => onDelete(item.id)}
-                          className="px-3 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600 font-medium"
+                          className="px-2 sm:px-3 py-1.5 sm:py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600 font-medium touch-manipulation min-h-[36px] sm:min-h-[auto]"
                           title="Delete item"
                         >
                           🗑️ Delete
