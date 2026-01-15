@@ -27,6 +27,17 @@ interface PersonStats {
   itemsPerHour: number
 }
 
+interface DetailedItem {
+  id: number
+  item_number: string
+  po_number: string
+  amount: number
+  price: number
+  revenue: number
+  date_packed: string
+  date_added: string
+}
+
 export default function CNHPrepackMonitorPage() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -34,6 +45,7 @@ export default function CNHPrepackMonitorPage() {
   const [dailyStats, setDailyStats] = useState<DailyStat[]>([])
   const [totals, setTotals] = useState<Totals | null>(null)
   const [personStats, setPersonStats] = useState<PersonStats[]>([])
+  const [detailedItems, setDetailedItems] = useState<DetailedItem[]>([])
 
   // Set default date range to last 7 days
   useEffect(() => {
@@ -60,6 +72,7 @@ export default function CNHPrepackMonitorPage() {
       setDailyStats(data.dailyStats || [])
       setTotals(data.totals || null)
       setPersonStats(data.personStats || [])
+      setDetailedItems(data.detailedItems || [])
     } catch (error) {
       console.error('Error fetching stats:', error)
       alert('Failed to load statistics')
@@ -185,6 +198,59 @@ export default function CNHPrepackMonitorPage() {
                       <td className="px-4 py-3 text-sm text-gray-900">{stat.itemsPerHour.toFixed(2)}</td>
                     </tr>
                   ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Detailed Items List */}
+      <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 className="text-2xl font-semibold mb-4">Gedetailleerde Lijst Verpakte Items</h2>
+        {loading ? (
+          <div className="text-center py-8">
+            <div className="text-xl">Items laden...</div>
+          </div>
+        ) : detailedItems.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            Geen items gevonden voor de geselecteerde periode
+          </div>
+        ) : (
+          <div className="overflow-x-auto max-h-96 overflow-y-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50 sticky top-0">
+                <tr>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Datum Verpakt</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Itemnummer</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">PO Nummer</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Aantal</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Prijs</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Omzet</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {detailedItems.map((item) => (
+                  <tr key={item.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      {new Date(item.date_packed).toLocaleDateString('nl-NL', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </td>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{item.item_number}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{item.po_number || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{item.amount}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      {item.price > 0 ? `€${item.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                      {item.revenue > 0 ? `€${item.revenue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

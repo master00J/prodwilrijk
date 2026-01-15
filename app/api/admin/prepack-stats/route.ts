@@ -254,6 +254,27 @@ export async function GET(request: NextRequest) {
       }))
       .sort((a, b) => b.itemsPacked - a.itemsPacked) // Sort by items packed descending
 
+    // Prepare detailed items list with prices
+    const detailedItems = items.map((item: any) => {
+      const price = pricesMap[item.item_number] || 0
+      const amount = item.amount || 0
+      const revenue = price * amount
+      
+      return {
+        id: item.id,
+        item_number: item.item_number,
+        po_number: item.po_number,
+        amount: amount,
+        price: Number(price.toFixed(2)),
+        revenue: Number(revenue.toFixed(2)),
+        date_packed: item.date_packed,
+        date_added: item.date_added,
+      }
+    }).sort((a, b) => {
+      // Sort by date_packed descending (newest first)
+      return new Date(b.date_packed).getTime() - new Date(a.date_packed).getTime()
+    })
+
     return NextResponse.json({
       dailyStats: dailyStatsArray,
       totals: {
@@ -264,6 +285,7 @@ export async function GET(request: NextRequest) {
         totalRevenue: Number(totalRevenue.toFixed(2)),
       },
       personStats: personStatsArray,
+      detailedItems: detailedItems,
     })
   } catch (error) {
     console.error('Unexpected error:', error)
