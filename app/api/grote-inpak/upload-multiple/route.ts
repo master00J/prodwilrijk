@@ -379,18 +379,16 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
       erpCode = normalizeErpCode(colBValue)
     }
 
-    if (erpCode && !/^[A-Z]{2,}\d+/.test(erpCode)) {
-      erpCode = null
+    if (erpCode) {
+      const cleaned = erpCode.toLowerCase()
+      if (cleaned === 'erp code' || cleaned === 'erp_code' || cleaned === 'no.' || cleaned === 'no') {
+        erpCode = null
+      }
     }
     
     // Skip empty rows or rows that look like headers
     // Also skip if ERP code is just "NO" (from "No." header)
-    if (!erpCode || 
-        erpCode.toLowerCase() === 'erp code' || 
-        erpCode.toLowerCase() === 'erp_code' || 
-        erpCode.toLowerCase() === 'no.' ||
-        erpCode.toLowerCase() === 'no' ||
-        erpCode.length < 3) { // Skip very short codes that are likely not ERP codes
+    if (!erpCode || erpCode.length < 2) { // Skip very short codes that are likely not ERP codes
       continue
     }
     const parseNumericCell = (cell: any): number => {
