@@ -91,7 +91,10 @@ export async function POST(request: NextRequest) {
     ;(stockData || []).forEach((row: StockRow) => {
       const erpCode = String(row.erp_code || '').trim()
       if (!erpCode) return
-      const caseType = caseByErp.get(erpCode)
+      let caseType = caseByErp.get(erpCode)
+      if (!caseType && /^[KVC]/i.test(erpCode)) {
+        caseType = erpCode.toUpperCase().replace(/^V/, 'K')
+      }
       if (!caseType) return
       const qty = Number(row.quantity || 0)
       const stock = Number(row.stock ?? row.quantity ?? 0)
