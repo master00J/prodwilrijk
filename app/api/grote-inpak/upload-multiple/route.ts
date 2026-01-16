@@ -34,6 +34,19 @@ export async function POST(request: NextRequest) {
     // This avoids 413 errors with large files
     // Process each file individually and overwrite stock for that specific location
     if (fileType === 'stock') {
+      const { data: erpLinkData } = await supabaseAdmin
+        .from('grote_inpak_erp_link')
+        .select('kistnummer, erp_code')
+
+      const erpToKist = new Map<string, string>()
+      if (erpLinkData && erpLinkData.length > 0) {
+        erpLinkData.forEach((row: any) => {
+          const normalized = normalizeErpCode(row.erp_code)
+          if (!normalized || !row.kistnummer) return
+          erpToKist.set(normalized, String(row.kistnummer).toUpperCase().trim())
+        })
+      }
+
       let totalProcessed = 0
       let filesProcessed = 0
       const errors: string[] = []
@@ -87,12 +100,23 @@ export async function POST(request: NextRequest) {
                   existing.in_transfer += item.in_transfer || 0
                   console.log(`Found duplicate ERP code ${item.erp_code} in ${location}, summing quantities: ${existing.quantity - item.quantity} + ${item.quantity} = ${existing.quantity}`)
                 } else {
+                  let kistnummer: string | null = null
+                  const erpCodeStr = String(item.erp_code || '').toUpperCase().trim()
+                  if (/^[KCV]/.test(erpCodeStr)) {
+                    kistnummer = erpCodeStr.replace(/^V/, 'K')
+                  } else {
+                    const normalized = normalizeErpCode(item.erp_code)
+                    if (normalized && erpToKist.has(normalized)) {
+                      kistnummer = erpToKist.get(normalized) || null
+                    }
+                  }
                   uniqueData.set(key, {
                     ...item,
                     stock: item.stock || 0,
                     inkoop: item.inkoop || 0,
                     productie: item.productie || 0,
                     in_transfer: item.in_transfer || 0,
+                    kistnummer,
                   })
                 }
               }
@@ -108,6 +132,7 @@ export async function POST(request: NextRequest) {
                 .insert(
                   uniqueDataArray.map(item => ({
                     erp_code: item.erp_code,
+                    kistnummer: item.kistnummer,
                     location: item.location,
                     quantity: item.quantity,
                     stock: item.stock || 0,

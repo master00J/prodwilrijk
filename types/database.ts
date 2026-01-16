@@ -54,6 +54,7 @@ export interface GroteInpakTransport {
 export interface GroteInpakStock {
   id: number
   item_number: string
+  kistnummer?: string | null
   location?: string | null
   quantity?: number | null
   stock?: number | null

@@ -16,6 +16,7 @@ type ErpRow = {
 
 type StockRow = {
   erp_code: string | null
+  kistnummer?: string | null
   quantity: number | null
   location?: string | null
   stock?: number | null
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
 
     const { data: stockData, error: stockError } = await supabaseAdmin
       .from('grote_inpak_stock')
-      .select('erp_code, quantity, location, stock, inkoop, productie, in_transfer')
+      .select('erp_code, kistnummer, quantity, location, stock, inkoop, productie, in_transfer')
 
     if (stockError) throw stockError
 
@@ -90,8 +91,9 @@ export async function POST(request: NextRequest) {
     const transferByCase = new Map<string, number>()
     ;(stockData || []).forEach((row: StockRow) => {
       const erpCode = String(row.erp_code || '').trim()
-      if (!erpCode) return
-      let caseType = caseByErp.get(erpCode)
+      const kistnummer = String((row as any).kistnummer || '').trim()
+      if (!erpCode && !kistnummer) return
+      let caseType = kistnummer || caseByErp.get(erpCode)
       if (!caseType && /^[KVC]/i.test(erpCode)) {
         caseType = erpCode.toUpperCase().replace(/^V/, 'K')
       }
