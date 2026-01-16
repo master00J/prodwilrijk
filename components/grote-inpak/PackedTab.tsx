@@ -14,8 +14,6 @@ export default function PackedTab() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
 
   const [packedXmlFiles, setPackedXmlFiles] = useState<File[]>([])
-  const [indusFilesN, setIndusFilesN] = useState<File[]>([])
-  const [indusFilesY, setIndusFilesY] = useState<File[]>([])
   const [poNumbers, setPoNumbers] = useState({
     apf: 'MF-4536602',
     s4: 'MF-4536602',
@@ -204,13 +202,32 @@ export default function PackedTab() {
     XLSX.writeFile(wb, `Packed_Overzicht_${new Date().toISOString().split('T')[0]}.xlsx`)
   }
 
-  const exportPackedXml = async () => {
-    if (packedXmlFiles.length === 0) {
+  const splitPackedFiles = (files: File[]) => {
+    const packed: File[] = []
+    const packedN: File[] = []
+    const packedY: File[] = []
+
+    files.forEach((file) => {
+      const name = file.name.toLowerCase()
+      if (/packed[\s_-]?n/.test(name)) {
+        packedN.push(file)
+      } else if (/packed[\s_-]?y/.test(name)) {
+        packedY.push(file)
+      } else {
+        packed.push(file)
+      }
+    })
+
+    return { packed, packedN, packedY }
+  }
+
+  const exportPackedXml = async (files: File[]) => {
+    if (files.length === 0) {
       return { ok: false, message: 'Geen PACKED Excel geselecteerd' }
     }
     const errors: string[] = []
 
-    for (const file of packedXmlFiles) {
+    for (const file of files) {
       const formData = new FormData()
       formData.append('file', file)
       formData.append('po_apf', poNumbers.apf)
@@ -251,13 +268,13 @@ export default function PackedTab() {
       : { ok: false, message: errors.join('\n') }
   }
 
-  const exportIndusXml = async () => {
-    if (indusFilesN.length === 0 && indusFilesY.length === 0) {
+  const exportIndusXml = async (filesN: File[], filesY: File[]) => {
+    if (filesN.length === 0 && filesY.length === 0) {
       return { ok: false, message: 'Geen PACKED_N of PACKED_Y geselecteerd' }
     }
     const formData = new FormData()
-    indusFilesN.forEach((file) => formData.append('packed_n', file))
-    indusFilesY.forEach((file) => formData.append('packed_y', file))
+    filesN.forEach((file) => formData.append('packed_n', file))
+    filesY.forEach((file) => formData.append('packed_y', file))
     formData.append('purchase_order', poNumbers.indus)
     formData.append('item_suffix', indusSuffix)
 
@@ -283,7 +300,7 @@ export default function PackedTab() {
   }
 
   const handleExportAll = async () => {
-    if (packedXmlFiles.length === 0 && indusFilesN.length === 0 && indusFilesY.length === 0) {
+    if (packedXmlFiles.length === 0) {
       alert('Selecteer minstens één PACKED of INDUS bestand')
       return
     }
@@ -291,12 +308,13 @@ export default function PackedTab() {
     setConverting(true)
     try {
       const errors: string[] = []
-      if (packedXmlFiles.length > 0) {
-        const res = await exportPackedXml()
+      const { packed, packedN, packedY } = splitPackedFiles(packedXmlFiles)
+      if (packed.length > 0) {
+        const res = await exportPackedXml(packed)
         if (!res.ok && res.message) errors.push(res.message)
       }
-      if (indusFilesN.length > 0 || indusFilesY.length > 0) {
-        const res = await exportIndusXml()
+      if (packedN.length > 0 || packedY.length > 0) {
+        const res = await exportIndusXml(packedN, packedY)
         if (!res.ok && res.message) errors.push(res.message)
       }
 
@@ -480,34 +498,42 @@ export default function PackedTab() {
       <div className="bg-white border border-gray-200 rounded-lg p-6 mb-8">
         <h3 className="text-lg font-semibold mb-4">📤 Exporteer Packed → XML</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <input
-            type="text"
-            value={poNumbers.apf}
-            onChange={(e) => setPoNumbers({ ...poNumbers, apf: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-            placeholder="PO voor APF/Leeg"
-          />
-          <input
-            type="text"
-            value={poNumbers.s4}
-            onChange={(e) => setPoNumbers({ ...poNumbers, s4: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-            placeholder="PO voor S4"
-          />
-          <input
-            type="text"
-            value={poNumbers.s5}
-            onChange={(e) => setPoNumbers({ ...poNumbers, s5: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-            placeholder="PO voor S5"
-          />
-          <input
-            type="text"
-            value={poNumbers.s9}
-            onChange={(e) => setPoNumbers({ ...poNumbers, s9: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-            placeholder="PO voor S9"
-          />
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">PO voor APF/Leeg</label>
+            <input
+              type="text"
+              value={poNumbers.apf}
+              onChange={(e) => setPoNumbers({ ...poNumbers, apf: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">PO voor S4</label>
+            <input
+              type="text"
+              value={poNumbers.s4}
+              onChange={(e) => setPoNumbers({ ...poNumbers, s4: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">PO voor S5</label>
+            <input
+              type="text"
+              value={poNumbers.s5}
+              onChange={(e) => setPoNumbers({ ...poNumbers, s5: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">PO voor S9</label>
+            <input
+              type="text"
+              value={poNumbers.s9}
+              onChange={(e) => setPoNumbers({ ...poNumbers, s9: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            />
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -537,40 +563,28 @@ export default function PackedTab() {
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <h3 className="text-lg font-semibold mb-4">📤 Exporteer INDUS (PACKED_N/Y) → XML</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <input
-            type="text"
-            value={poNumbers.indus}
-            onChange={(e) => setPoNumbers({ ...poNumbers, indus: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-            placeholder="PO voor INDUS"
-          />
-          <input
-            type="text"
-            value={indusSuffix}
-            onChange={(e) => setIndusSuffix(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-            placeholder="Item suffix indien nodig (bv. KC)"
-          />
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">PO voor INDUS</label>
+            <input
+              type="text"
+              value={poNumbers.indus}
+              onChange={(e) => setPoNumbers({ ...poNumbers, indus: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Item suffix</label>
+            <input
+              type="text"
+              value={indusSuffix}
+              onChange={(e) => setIndusSuffix(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            />
+          </div>
         </div>
-        <div className="flex flex-col md:flex-row md:items-center gap-4">
-          <input
-            type="file"
-            accept=".xlsx,.xls"
-            multiple
-            onChange={(e) => setIndusFilesN(e.target.files ? Array.from(e.target.files) : [])}
-          />
-          <input
-            type="file"
-            accept=".xlsx,.xls"
-            multiple
-            onChange={(e) => setIndusFilesY(e.target.files ? Array.from(e.target.files) : [])}
-          />
-          {(indusFilesN.length > 0 || indusFilesY.length > 0) && (
-            <p className="text-xs text-slate-500">
-              {indusFilesN.length} N / {indusFilesY.length} Y geselecteerd
-            </p>
-          )}
-        </div>
+        <p className="text-xs text-slate-500">
+          Gebruik één upload: bestanden met naam PACKED_N of PACKED_Y worden automatisch als INDUS verwerkt.
+        </p>
       </div>
 
       <div className="flex justify-end mt-6">
