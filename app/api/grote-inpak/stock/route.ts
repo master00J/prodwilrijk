@@ -49,24 +49,36 @@ export async function GET(request: NextRequest) {
     const itemNumber = searchParams.get('item_number')
     const location = searchParams.get('location')
 
-    let query = supabaseAdmin
+    let baseQuery = supabaseAdmin
       .from('grote_inpak_stock')
       .select('*')
-      .order('item_number', { ascending: true })
+      .order('erp_code', { ascending: true })
 
     if (itemNumber) {
-      query = query.eq('item_number', itemNumber)
+      baseQuery = baseQuery.eq('item_number', itemNumber)
     }
 
     if (location) {
-      query = query.eq('location', location)
+      baseQuery = baseQuery.eq('location', location)
     }
 
-    const { data: stockData, error } = await query
-
-    if (error) {
-      console.error('Error fetching stock from database:', error)
-      throw error
+    const stockData: any[] = []
+    const pageSize = 1000
+    let from = 0
+    while (true) {
+      const { data, error } = await baseQuery.range(from, from + pageSize - 1)
+      if (error) {
+        console.error('Error fetching stock from database:', error)
+        throw error
+      }
+      if (!data || data.length === 0) {
+        break
+      }
+      stockData.push(...data)
+      if (data.length < pageSize) {
+        break
+      }
+      from += pageSize
     }
 
     console.log(`Fetched ${stockData?.length || 0} stock items from database`)
