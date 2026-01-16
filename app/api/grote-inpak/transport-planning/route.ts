@@ -17,9 +17,15 @@ export async function POST(request: NextRequest) {
     // Calculate next business day if not provided
     const nextBusinessDay = planDate ? new Date(planDate) : getNextBusinessDay(new Date())
     
+    const filteredTransport = (transportData || []).filter((item: any) => {
+      const isGenk = String(item.productielocatie || '').toLowerCase().includes('genk')
+      const needsTransport = item.transport_needed === true || item.in_willebroek === false
+      return isGenk && needsTransport
+    })
+
     // Generate Excel file
     const excelBuffer = await generateTransportPlanningExcel(
-      transportData,
+      filteredTransport,
       stockData || [],
       nextBusinessDay
     )
@@ -29,7 +35,7 @@ export async function POST(request: NextRequest) {
     return new Response(excelBuffer as BodyInit, {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="Transportplanning_${formatDateForFilename(nextBusinessDay)}.xlsx"`,
+        'Content-Disposition': `attachment; filename="${formatDateForFilename(nextBusinessDay)}.xlsx"`,
       },
     })
   } catch (error: any) {
