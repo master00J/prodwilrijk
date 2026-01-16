@@ -213,7 +213,8 @@ export async function POST(request: NextRequest) {
     ws.eachRow((row, rowNumber) => {
       row.eachCell((cell) => {
         cell.border = border
-        if (rowNumber > 1 && typeof cell.value === 'number' && cell.value > 0 && cell.col > 2) {
+        const numericValue = typeof cell.value === 'number' ? cell.value : Number.NaN
+        if (rowNumber > 1 && Number.isFinite(numericValue) && numericValue > 0 && cell.col > 2) {
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2CC' } }
         }
       })
