@@ -387,7 +387,8 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
       
       // Log first few rows for debugging
       if (results.length <= 10) {
-        console.log(`Row ${rowNum + 1}: ERP Code="${erpCode}", Quantity=${quantity}, Location="${location}" (from col A: "${colAValue}", col C: ${quantityCell ? quantityCell.v : 'empty'})`)
+        const quantitySource = isTransfer ? 'col F' : 'col C'
+        console.log(`Row ${rowNum + 1}: ERP Code="${erpCode}", Quantity=${quantity}, Location="${location}" (from col A: "${colAValue}", ${quantitySource})`)
       }
     }
   }
