@@ -41,6 +41,21 @@ function normalizeCaseType(value: string): string {
   return normalized
 }
 
+function parseNumber(value: unknown): number {
+  if (value === null || value === undefined) return 0
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+  const raw = String(value).trim()
+  if (!raw) return 0
+  let cleaned = raw.replace(/\s+/g, '')
+  if (cleaned.includes(',') && cleaned.includes('.')) {
+    cleaned = cleaned.replace(/\./g, '').replace(',', '.')
+  } else if (cleaned.includes(',')) {
+    cleaned = cleaned.replace(',', '.')
+  }
+  const num = Number(cleaned)
+  return Number.isFinite(num) ? num : 0
+}
+
 function formatDateLabel(value: string): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
@@ -111,11 +126,11 @@ export async function POST(request: NextRequest) {
       }
       caseType = normalizeCaseType(caseType || '')
       if (!caseType) return
-      const qty = Number(row.quantity || 0)
-      const stock = Number(row.stock ?? row.quantity ?? 0)
-      const inkoop = Number(row.inkoop ?? 0)
-      const productie = Number(row.productie ?? 0)
-      const inTransfer = Number(row.in_transfer ?? 0)
+      const qty = parseNumber(row.quantity)
+      const stock = parseNumber(row.stock ?? row.quantity ?? 0)
+      const inkoop = parseNumber(row.inkoop)
+      const productie = parseNumber(row.productie)
+      const inTransfer = parseNumber(row.in_transfer)
       if (![qty, stock, inkoop, productie, inTransfer].some((val) => Number.isFinite(val))) return
       const loc = String(row.location || '').toLowerCase()
       if (loc.includes('transfer')) {
