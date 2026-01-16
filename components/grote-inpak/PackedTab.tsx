@@ -49,6 +49,32 @@ export default function PackedTab() {
     loadPacked()
   }, [loadPacked])
 
+  useEffect(() => {
+    const stored = localStorage.getItem('packed_po_numbers')
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored)
+        setPoNumbers((prev) => ({ ...prev, ...parsed }))
+      } catch {
+        // ignore invalid storage
+      }
+    }
+    const storedSuffix = localStorage.getItem('packed_indus_suffix')
+    if (storedSuffix) {
+      setIndusSuffix(storedSuffix)
+    }
+  }, [])
+
+  const persistPoNumbers = (next: typeof poNumbers) => {
+    setPoNumbers(next)
+    localStorage.setItem('packed_po_numbers', JSON.stringify(next))
+  }
+
+  const persistIndusSuffix = (next: string) => {
+    setIndusSuffix(next)
+    localStorage.setItem('packed_indus_suffix', next)
+  }
+
   const handleFileSelect = (files: FileList | File[] | null) => {
     if (!files || files.length === 0) return
     const list = Array.from(files)
@@ -415,28 +441,28 @@ export default function PackedTab() {
           <input
             type="text"
             value={poNumbers.apf}
-            onChange={(e) => setPoNumbers({ ...poNumbers, apf: e.target.value })}
+            onChange={(e) => persistPoNumbers({ ...poNumbers, apf: e.target.value })}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             placeholder="PO voor APF/Leeg"
           />
           <input
             type="text"
             value={poNumbers.s4}
-            onChange={(e) => setPoNumbers({ ...poNumbers, s4: e.target.value })}
+            onChange={(e) => persistPoNumbers({ ...poNumbers, s4: e.target.value })}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             placeholder="PO voor S4"
           />
           <input
             type="text"
             value={poNumbers.s5}
-            onChange={(e) => setPoNumbers({ ...poNumbers, s5: e.target.value })}
+            onChange={(e) => persistPoNumbers({ ...poNumbers, s5: e.target.value })}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             placeholder="PO voor S5"
           />
           <input
             type="text"
             value={poNumbers.s9}
-            onChange={(e) => setPoNumbers({ ...poNumbers, s9: e.target.value })}
+            onChange={(e) => persistPoNumbers({ ...poNumbers, s9: e.target.value })}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             placeholder="PO voor S9"
           />
@@ -463,14 +489,14 @@ export default function PackedTab() {
           <input
             type="text"
             value={poNumbers.indus}
-            onChange={(e) => setPoNumbers({ ...poNumbers, indus: e.target.value })}
+            onChange={(e) => persistPoNumbers({ ...poNumbers, indus: e.target.value })}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             placeholder="PO voor INDUS"
           />
           <input
             type="text"
             value={indusSuffix}
-            onChange={(e) => setIndusSuffix(e.target.value)}
+            onChange={(e) => persistIndusSuffix(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             placeholder="Item suffix indien nodig (bv. KC)"
           />
