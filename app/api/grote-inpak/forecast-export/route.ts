@@ -64,6 +64,21 @@ function formatDateLabel(value: string): string {
   return `${day}-${month}-${date.getFullYear()}`
 }
 
+async function fetchAllRows<T>(table: string, select: string): Promise<T[]> {
+  const pageSize = 1000
+  let from = 0
+  let all: T[] = []
+  while (true) {
+    const { data, error } = await supabaseAdmin.from(table).select(select).range(from, from + pageSize - 1)
+    if (error) throw error
+    const rows = (data || []) as T[]
+    all = all.concat(rows)
+    if (rows.length < pageSize) break
+    from += pageSize
+  }
+  return all
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -71,29 +86,22 @@ export async function POST(request: NextRequest) {
     const dateFrom = body.dateFrom ? new Date(body.dateFrom) : null
     const dateTo = body.dateTo ? new Date(body.dateTo) : null
 
-    const { data: forecastData, error: forecastError } = await supabaseAdmin
-      .from('grote_inpak_forecast')
-      .select('case_label, case_type, arrival_date')
-
-    if (forecastError) throw forecastError
-
-    const { data: erpData, error: erpError } = await supabaseAdmin
-      .from('grote_inpak_erp_link')
-      .select('kistnummer, productielocatie, erp_code')
-
-    if (erpError) throw erpError
-
-    const { data: stockData, error: stockError } = await supabaseAdmin
-      .from('grote_inpak_stock')
-      .select('erp_code, kistnummer, quantity, location, stock, inkoop, productie, in_transfer')
-
-    if (stockError) throw stockError
-
-    const { data: casesData, error: casesError } = await supabaseAdmin
-      .from('grote_inpak_cases')
-      .select('case_label, case_type, arrival_date')
-
-    if (casesError) throw casesError
+    const forecastData = await fetchAllRows<ForecastRow>(
+      'grote_inpak_forecast',
+      'case_label, case_type, arrival_date'
+    )
+    const erpData = await fetchAllRows<ErpRow>(
+      'grote_inpak_erp_link',
+      'kistnummer, productielocatie, erp_code'
+    )
+    const stockData = await fetchAllRows<StockRow>(
+      'grote_inpak_stock',
+      'erp_code, kistnummer, quantity, location, stock, inkoop, productie, in_transfer'
+    )
+    const casesData = await fetchAllRows<CaseRow>(
+      'grote_inpak_cases',
+      'case_label, case_type, arrival_date'
+    )
 
     const pilsLabels = new Set(
       (casesData || []).map((row: CaseRow) => String(row.case_label || '').trim()).filter(Boolean)
