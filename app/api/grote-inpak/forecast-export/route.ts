@@ -214,11 +214,6 @@ export async function POST(request: NextRequest) {
     })
 
     const filteredDateCols = dateCols.filter((date) => rows.some((row) => Number(row[date] || 0) > 0))
-    rows.forEach((row) => {
-      const total = filteredDateCols.reduce((sum, date) => sum + Number(row[date] || 0), 0)
-      row['TOTAAL'] = total
-    })
-
     const finalRows = rows
       .filter((row) => Number(row['TOTAAL'] || 0) > 0)
       .map((row) => {
@@ -228,7 +223,8 @@ export async function POST(request: NextRequest) {
         filteredDateCols.forEach((date) => {
           output[date] = row[date]
         })
-        output['TOTAAL'] = row['TOTAAL']
+        const total = filteredDateCols.reduce((sum, date) => sum + Number(output[date] || 0), 0)
+        output['TOTAAL'] = total
         return output
       })
 
