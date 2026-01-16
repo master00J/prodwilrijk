@@ -25,6 +25,7 @@ export default function PackedTab() {
   })
   const [indusSuffix, setIndusSuffix] = useState('KC')
   const [converting, setConverting] = useState(false)
+  const [settingsSaving, setSettingsSaving] = useState(false)
 
   const loadPacked = useCallback(async () => {
     setLoading(true)
@@ -50,29 +51,54 @@ export default function PackedTab() {
   }, [loadPacked])
 
   useEffect(() => {
-    const stored = localStorage.getItem('packed_po_numbers')
-    if (stored) {
+    const loadSettings = async () => {
       try {
-        const parsed = JSON.parse(stored)
-        setPoNumbers((prev) => ({ ...prev, ...parsed }))
-      } catch {
-        // ignore invalid storage
+        const response = await fetch('/api/grote-inpak/packed-settings')
+        if (!response.ok) return
+        const result = await response.json()
+        if (result?.data) {
+          setPoNumbers({
+            apf: result.data.po_apf || 'MF-4536602',
+            s4: result.data.po_s4 || 'MF-4536602',
+            s5: result.data.po_s5 || 'MF-4536602',
+            s9: result.data.po_s9 || 'MF-4536602',
+            indus: result.data.po_indus || 'MF-4581681',
+          })
+          setIndusSuffix(result.data.indus_suffix || 'KC')
+        }
+      } catch (error) {
+        console.error('Error loading packed settings:', error)
       }
     }
-    const storedSuffix = localStorage.getItem('packed_indus_suffix')
-    if (storedSuffix) {
-      setIndusSuffix(storedSuffix)
-    }
+    loadSettings()
   }, [])
 
-  const persistPoNumbers = (next: typeof poNumbers) => {
-    setPoNumbers(next)
-    localStorage.setItem('packed_po_numbers', JSON.stringify(next))
-  }
-
-  const persistIndusSuffix = (next: string) => {
-    setIndusSuffix(next)
-    localStorage.setItem('packed_indus_suffix', next)
+  const handleSaveSettings = async () => {
+    setSettingsSaving(true)
+    try {
+      const response = await fetch('/api/grote-inpak/packed-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          po_apf: poNumbers.apf,
+          po_s4: poNumbers.s4,
+          po_s5: poNumbers.s5,
+          po_s9: poNumbers.s9,
+          po_indus: poNumbers.indus,
+          indus_suffix: indusSuffix,
+        }),
+      })
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Instellingen opslaan mislukt')
+      }
+      alert('Instellingen opgeslagen')
+    } catch (error: any) {
+      console.error('Error saving packed settings:', error)
+      alert(`Instellingen opslaan mislukt: ${error.message || 'Onbekende fout'}`)
+    } finally {
+      setSettingsSaving(false)
+    }
   }
 
   const handleFileSelect = (files: FileList | File[] | null) => {
@@ -178,94 +204,100 @@ export default function PackedTab() {
     XLSX.writeFile(wb, `Packed_Overzicht_${new Date().toISOString().split('T')[0]}.xlsx`)
   }
 
-  const handleConvertPacked = async () => {
-    if (!packedXmlFile) {
-      alert('Selecteer eerst een PACKED Excel bestand')
-      return
+  const exportPackedXml = async () => {
+    if (!packedXmlFile) return { ok: false, message: 'Geen PACKED Excel geselecteerd' }
+    const formData = new FormData()
+    formData.append('file', packedXmlFile)
+    formData.append('po_apf', poNumbers.apf)
+    formData.append('po_s4', poNumbers.s4)
+    formData.append('po_s5', poNumbers.s5)
+    formData.append('po_s9', poNumbers.s9)
+
+    const response = await fetch('/api/grote-inpak/packed-xml', {
+      method: 'POST',
+      body: formData,
+    })
+    if (!response.ok) {
+      const error = await response.json()
+      return { ok: false, message: error.error || 'Packed XML export mislukt' }
     }
 
-    setConverting(true)
-    try {
-      const formData = new FormData()
-      formData.append('file', packedXmlFile)
-      formData.append('po_apf', poNumbers.apf)
-      formData.append('po_s4', poNumbers.s4)
-      formData.append('po_s5', poNumbers.s5)
-      formData.append('po_s9', poNumbers.s9)
-
-      const response = await fetch('/api/grote-inpak/packed-xml', {
-        method: 'POST',
-        body: formData,
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'XML export mislukt')
-      }
-
-      const result = await response.json()
-      const files = result.files || []
-      if (files.length === 0) {
-        alert('Geen XML-bestanden aangemaakt')
-        return
-      }
-
-      files.forEach((file: any) => {
-        const blob = new Blob([file.xml], { type: 'application/xml' })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = file.filename
-        a.click()
-        URL.revokeObjectURL(url)
-      })
-
-      alert('XML-bestanden aangemaakt en gedownload')
-    } catch (error: any) {
-      console.error('XML export error:', error)
-      alert(`XML export mislukt: ${error.message || 'Unknown error'}`)
-    } finally {
-      setConverting(false)
-    }
-  }
-
-  const handleConvertIndus = async () => {
-    if (!indusFileN && !indusFileY) {
-      alert('Selecteer minstens één PACKED_N of PACKED_Y bestand')
-      return
+    const result = await response.json()
+    const files = result.files || []
+    if (files.length === 0) {
+      return { ok: false, message: 'Geen Packed XML-bestanden aangemaakt' }
     }
 
-    setConverting(true)
-    try {
-      const formData = new FormData()
-      if (indusFileN) formData.append('packed_n', indusFileN)
-      if (indusFileY) formData.append('packed_y', indusFileY)
-      formData.append('purchase_order', poNumbers.indus)
-      formData.append('item_suffix', indusSuffix)
-
-      const response = await fetch('/api/grote-inpak/packed-ny-xml', {
-        method: 'POST',
-        body: formData,
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'INDUS XML export mislukt')
-      }
-
-      const result = await response.json()
-      const blob = new Blob([result.xml], { type: 'application/xml' })
+    files.forEach((file: any) => {
+      const blob = new Blob([file.xml], { type: 'application/xml' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = result.filename || 'indus.xml'
+      a.download = file.filename
       a.click()
       URL.revokeObjectURL(url)
+    })
 
-      alert('INDUS XML aangemaakt en gedownload')
+    return { ok: true }
+  }
+
+  const exportIndusXml = async () => {
+    if (!indusFileN && !indusFileY) {
+      return { ok: false, message: 'Geen PACKED_N of PACKED_Y geselecteerd' }
+    }
+    const formData = new FormData()
+    if (indusFileN) formData.append('packed_n', indusFileN)
+    if (indusFileY) formData.append('packed_y', indusFileY)
+    formData.append('purchase_order', poNumbers.indus)
+    formData.append('item_suffix', indusSuffix)
+
+    const response = await fetch('/api/grote-inpak/packed-ny-xml', {
+      method: 'POST',
+      body: formData,
+    })
+    if (!response.ok) {
+      const error = await response.json()
+      return { ok: false, message: error.error || 'INDUS XML export mislukt' }
+    }
+
+    const result = await response.json()
+    const blob = new Blob([result.xml], { type: 'application/xml' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = result.filename || 'indus.xml'
+    a.click()
+    URL.revokeObjectURL(url)
+
+    return { ok: true }
+  }
+
+  const handleExportAll = async () => {
+    if (!packedXmlFile && !indusFileN && !indusFileY) {
+      alert('Selecteer minstens één PACKED of INDUS bestand')
+      return
+    }
+
+    setConverting(true)
+    try {
+      const errors: string[] = []
+      if (packedXmlFile) {
+        const res = await exportPackedXml()
+        if (!res.ok && res.message) errors.push(res.message)
+      }
+      if (indusFileN || indusFileY) {
+        const res = await exportIndusXml()
+        if (!res.ok && res.message) errors.push(res.message)
+      }
+
+      if (errors.length > 0) {
+        alert(`Export voltooid met fouten:\n${errors.join('\n')}`)
+      } else {
+        alert('Alle XML-bestanden aangemaakt en gedownload')
+      }
     } catch (error: any) {
-      console.error('INDUS XML export error:', error)
-      alert(`INDUS XML export mislukt: ${error.message || 'Unknown error'}`)
+      console.error('XML export error:', error)
+      alert(`XML export mislukt: ${error.message || 'Unknown error'}`)
     } finally {
       setConverting(false)
     }
@@ -441,31 +473,43 @@ export default function PackedTab() {
           <input
             type="text"
             value={poNumbers.apf}
-            onChange={(e) => persistPoNumbers({ ...poNumbers, apf: e.target.value })}
+            onChange={(e) => setPoNumbers({ ...poNumbers, apf: e.target.value })}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             placeholder="PO voor APF/Leeg"
           />
           <input
             type="text"
             value={poNumbers.s4}
-            onChange={(e) => persistPoNumbers({ ...poNumbers, s4: e.target.value })}
+            onChange={(e) => setPoNumbers({ ...poNumbers, s4: e.target.value })}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             placeholder="PO voor S4"
           />
           <input
             type="text"
             value={poNumbers.s5}
-            onChange={(e) => persistPoNumbers({ ...poNumbers, s5: e.target.value })}
+            onChange={(e) => setPoNumbers({ ...poNumbers, s5: e.target.value })}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             placeholder="PO voor S5"
           />
           <input
             type="text"
             value={poNumbers.s9}
-            onChange={(e) => persistPoNumbers({ ...poNumbers, s9: e.target.value })}
+            onChange={(e) => setPoNumbers({ ...poNumbers, s9: e.target.value })}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             placeholder="PO voor S9"
           />
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSaveSettings}
+            disabled={settingsSaving}
+            className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 disabled:opacity-50"
+          >
+            {settingsSaving ? 'Opslaan...' : 'Instellingen opslaan'}
+          </button>
+          <p className="text-xs text-slate-500">
+            Deze instellingen worden gedeeld voor alle pc&apos;s
+          </p>
         </div>
         <div className="flex flex-col md:flex-row md:items-center gap-4">
           <input
@@ -473,13 +517,6 @@ export default function PackedTab() {
             accept=".xlsx,.xls"
             onChange={(e) => setPackedXmlFile(e.target.files?.[0] || null)}
           />
-          <button
-            onClick={handleConvertPacked}
-            disabled={converting}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-          >
-            {converting ? 'Bezig...' : 'Exporteer Packed → XML'}
-          </button>
         </div>
       </div>
 
@@ -489,14 +526,14 @@ export default function PackedTab() {
           <input
             type="text"
             value={poNumbers.indus}
-            onChange={(e) => persistPoNumbers({ ...poNumbers, indus: e.target.value })}
+            onChange={(e) => setPoNumbers({ ...poNumbers, indus: e.target.value })}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             placeholder="PO voor INDUS"
           />
           <input
             type="text"
             value={indusSuffix}
-            onChange={(e) => persistIndusSuffix(e.target.value)}
+            onChange={(e) => setIndusSuffix(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             placeholder="Item suffix indien nodig (bv. KC)"
           />
@@ -512,14 +549,17 @@ export default function PackedTab() {
             accept=".xlsx,.xls"
             onChange={(e) => setIndusFileY(e.target.files?.[0] || null)}
           />
-          <button
-            onClick={handleConvertIndus}
-            disabled={converting}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-          >
-            {converting ? 'Bezig...' : 'Exporteer INDUS → XML'}
-          </button>
         </div>
+      </div>
+
+      <div className="flex justify-end mt-6">
+        <button
+          onClick={handleExportAll}
+          disabled={converting}
+          className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+        >
+          {converting ? 'Bezig...' : 'Exporteer alles → XML'}
+        </button>
       </div>
     </div>
   )
