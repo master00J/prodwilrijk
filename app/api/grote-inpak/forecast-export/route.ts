@@ -18,6 +18,10 @@ type StockRow = {
   erp_code: string | null
   quantity: number | null
   location?: string | null
+  stock?: number | null
+  inkoop?: number | null
+  productie?: number | null
+  in_transfer?: number | null
 }
 
 type CaseRow = {
@@ -55,7 +59,7 @@ export async function POST(request: NextRequest) {
 
     const { data: stockData, error: stockError } = await supabaseAdmin
       .from('grote_inpak_stock')
-      .select('erp_code, quantity, location')
+      .select('erp_code, quantity, location, stock, inkoop, productie, in_transfer')
 
     if (stockError) throw stockError
 
@@ -81,6 +85,8 @@ export async function POST(request: NextRequest) {
     })
 
     const stockByCase = new Map<string, number>()
+    const inkoopByCase = new Map<string, number>()
+    const productieByCase = new Map<string, number>()
     const transferByCase = new Map<string, number>()
     ;(stockData || []).forEach((row: StockRow) => {
       const erpCode = String(row.erp_code || '').trim()
@@ -88,12 +94,24 @@ export async function POST(request: NextRequest) {
       const caseType = caseByErp.get(erpCode)
       if (!caseType) return
       const qty = Number(row.quantity || 0)
-      if (!Number.isFinite(qty)) return
+      const stock = Number(row.stock ?? row.quantity ?? 0)
+      const inkoop = Number(row.inkoop ?? 0)
+      const productie = Number(row.productie ?? 0)
+      const inTransfer = Number(row.in_transfer ?? 0)
+      if (![qty, stock, inkoop, productie, inTransfer].some((val) => Number.isFinite(val))) return
       const loc = String(row.location || '').toLowerCase()
       if (loc.includes('transfer')) {
-        transferByCase.set(caseType, (transferByCase.get(caseType) || 0) + qty)
+        transferByCase.set(caseType, (transferByCase.get(caseType) || 0) + (Number.isFinite(inTransfer) ? inTransfer : 0))
       } else {
-        stockByCase.set(caseType, (stockByCase.get(caseType) || 0) + qty)
+        if (Number.isFinite(stock)) {
+          stockByCase.set(caseType, (stockByCase.get(caseType) || 0) + stock)
+        }
+        if (Number.isFinite(inkoop)) {
+          inkoopByCase.set(caseType, (inkoopByCase.get(caseType) || 0) + inkoop)
+        }
+        if (Number.isFinite(productie)) {
+          productieByCase.set(caseType, (productieByCase.get(caseType) || 0) + productie)
+        }
       }
     })
 
@@ -108,11 +126,17 @@ export async function POST(request: NextRequest) {
     const availableByCase = new Map<string, number>()
     const allCases = new Set<string>([
       ...Array.from(stockByCase.keys()),
+      ...Array.from(inkoopByCase.keys()),
+      ...Array.from(productieByCase.keys()),
       ...Array.from(transferByCase.keys()),
       ...Array.from(pilsNeedByCase.keys()),
     ])
     allCases.forEach((caseType) => {
-      const available = (stockByCase.get(caseType) || 0) + (transferByCase.get(caseType) || 0)
+      const available =
+        (stockByCase.get(caseType) || 0) +
+        (inkoopByCase.get(caseType) || 0) +
+        (productieByCase.get(caseType) || 0) +
+        (transferByCase.get(caseType) || 0)
       availableByCase.set(caseType, available)
       const used = pilsNeedByCase.get(caseType) || 0
       netAvailableByCase.set(caseType, Math.max(0, Math.round(available) - used))
@@ -282,6 +306,8 @@ export async function POST(request: NextRequest) {
       const opPils = pilsByCaseLoc.get(key) || 0
       const opStock = stockByCase.get(caseType) || 0
       const inTransfer = transferByCase.get(caseType) || 0
+      const inProductie = productieByCase.get(caseType) || 0
+      const inInkoop = inkoopByCase.get(caseType) || 0
       const nettoNodig = Math.max(
         0,
         forecastAantal - (netAvailableByCase.get(caseType) || 0)
@@ -294,8 +320,8 @@ export async function POST(request: NextRequest) {
         op_pils: opPils,
         op_stock: opStock,
         in_transfer: inTransfer,
-        in_productie: 0,
-        in_inkooporder: 0,
+        in_productie: inProductie,
+        in_inkooporder: inInkoop,
         netto_nodig: nettoNodig,
       })
     })
@@ -361,7 +387,9 @@ export async function POST(request: NextRequest) {
       if (String(data.loc).toLowerCase() !== location.toLowerCase()) return
       const opStock = stockByCase.get(caseType) || 0
       const inTransfer = transferByCase.get(caseType) || 0
-      const total = opStock + inTransfer
+      const inProductie = productieByCase.get(caseType) || 0
+      const inInkoop = inkoopByCase.get(caseType) || 0
+      const total = opStock + inProductie + inInkoop + inTransfer
       if (data.count <= total) return
       const kategoriematch = String(caseType).trim().toUpperCase().match(/^([KC])/)
       const kistCategorie = kategoriematch ? kategoriematch[1] : 'Overig'
@@ -371,8 +399,8 @@ export async function POST(request: NextRequest) {
         arrival_date: data.arrival ? formatDateLabel(data.arrival) : '',
         aantal_op_pils: data.count,
         op_stock: opStock,
-        in_productie: 0,
-        in_inkooporder: 0,
+        in_productie: inProductie,
+        in_inkooporder: inInkoop,
         in_transfer: inTransfer,
         totaal_beschikbaar: total,
         tekort: Math.max(0, data.count - total),

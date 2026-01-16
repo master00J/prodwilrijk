@@ -81,9 +81,19 @@ export async function POST(request: NextRequest) {
                   // If duplicate, sum the quantities
                   const existing = uniqueData.get(key)
                   existing.quantity += item.quantity
+                  existing.stock += item.stock || 0
+                  existing.inkoop += item.inkoop || 0
+                  existing.productie += item.productie || 0
+                  existing.in_transfer += item.in_transfer || 0
                   console.log(`Found duplicate ERP code ${item.erp_code} in ${location}, summing quantities: ${existing.quantity - item.quantity} + ${item.quantity} = ${existing.quantity}`)
                 } else {
-                  uniqueData.set(key, { ...item })
+                  uniqueData.set(key, {
+                    ...item,
+                    stock: item.stock || 0,
+                    inkoop: item.inkoop || 0,
+                    productie: item.productie || 0,
+                    in_transfer: item.in_transfer || 0,
+                  })
                 }
               }
               
@@ -100,6 +110,10 @@ export async function POST(request: NextRequest) {
                     erp_code: item.erp_code,
                     location: item.location,
                     quantity: item.quantity,
+                    stock: item.stock || 0,
+                    inkoop: item.inkoop || 0,
+                    productie: item.productie || 0,
+                    in_transfer: item.in_transfer || 0,
                     item_number: '', // Use empty string instead of null to avoid NOT NULL constraint
                   }))
                 )
@@ -358,59 +372,51 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
         erpCode.length < 3) { // Skip very short codes that are likely not ERP codes
       continue
     }
-    // Column C (index 2) = stock quantity (regular files)
-    // Transfer files (Regels*): Column F (index 5) = in_transfer quantity
+    const parseNumericCell = (cell: any): number => {
+      if (!cell) return 0
+      const cellValue = cell.v
+      if (typeof cellValue === 'number') {
+        return Math.floor(Math.abs(cellValue))
+      }
+      if (typeof cellValue === 'string') {
+        let cleanStr = cellValue.replace(/\s/g, '').trim()
+        if (cleanStr.endsWith(',') && !cleanStr.includes('.')) {
+          cleanStr = cleanStr.replace(/,$/, '')
+        }
+        cleanStr = cleanStr.replace(',', '.')
+        cleanStr = cleanStr.replace(/[^\d.-]/g, '')
+        const parsed = parseFloat(cleanStr)
+        return isNaN(parsed) ? 0 : Math.floor(Math.abs(parsed))
+      }
+      return Math.floor(Math.abs(parseFloat(String(cellValue || '0')) || 0))
+    }
+
+    let stock = 0
+    let inkoop = 0
+    let productie = 0
+    let inTransfer = 0
     let quantity = 0
     
     if (isTransfer) {
       location = 'In transfer'
       const colF = XLSX.utils.encode_cell({ r: rowNum, c: 5 })
       const quantityCell = worksheet[colF]
-      if (quantityCell) {
-        const cellValue = quantityCell.v
-        if (typeof cellValue === 'number') {
-          quantity = Math.floor(Math.abs(cellValue))
-        } else if (typeof cellValue === 'string') {
-          let cleanStr = cellValue.replace(/\s/g, '').trim()
-          cleanStr = cleanStr.replace(',', '.')
-          cleanStr = cleanStr.replace(/[^\d.-]/g, '')
-          const parsed = parseFloat(cleanStr)
-          quantity = isNaN(parsed) ? 0 : Math.floor(Math.abs(parsed))
-        } else {
-          quantity = Math.floor(Math.abs(parseFloat(String(cellValue || '0')) || 0))
-        }
-      }
+      inTransfer = parseNumericCell(quantityCell)
     } else {
       const colC = XLSX.utils.encode_cell({ r: rowNum, c: 2 })
       const quantityCell = worksheet[colC]
-      if (quantityCell) {
-        const cellValue = quantityCell.v
-        if (typeof cellValue === 'number') {
-          quantity = Math.floor(Math.abs(cellValue)) // Use absolute value and floor
-        } else if (typeof cellValue === 'string') {
-          // Handle European number format: "0," means 0 (comma as decimal separator)
-          // Remove spaces first
-          let cleanStr = cellValue.replace(/\s/g, '').trim()
-          
-          // If it ends with just a comma (e.g., "0,"), treat as 0
-          if (cleanStr.endsWith(',') && !cleanStr.includes('.')) {
-            cleanStr = cleanStr.replace(/,$/, '')
-          }
-          
-          // Replace comma with dot for parsing (European format)
-          cleanStr = cleanStr.replace(',', '.')
-          
-          // Remove any remaining non-numeric characters except minus sign and dot
-          cleanStr = cleanStr.replace(/[^\d.-]/g, '')
-          
-          // Try to parse as float first (in case of decimals), then floor
-          const parsed = parseFloat(cleanStr)
-          quantity = isNaN(parsed) ? 0 : Math.floor(Math.abs(parsed))
-        } else {
-          quantity = Math.floor(Math.abs(parseFloat(String(cellValue || '0')) || 0))
-        }
-      }
+      stock = parseNumericCell(quantityCell)
+
+      const colI = XLSX.utils.encode_cell({ r: rowNum, c: 8 })
+      const inkoopCell = worksheet[colI]
+      inkoop = parseNumericCell(inkoopCell)
+
+      const colK = XLSX.utils.encode_cell({ r: rowNum, c: 10 })
+      const productieCell = worksheet[colK]
+      productie = parseNumericCell(productieCell)
     }
+
+    quantity = stock
     
     // Process rows with ERP code (even if quantity is 0, as it might be valid stock of 0)
     if (erpCode) {
@@ -418,6 +424,10 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
         erp_code: erpCode,
         location: location,
         quantity: quantity,
+        stock,
+        inkoop,
+        productie,
+        in_transfer: inTransfer,
       })
       
       // Log first few rows for debugging

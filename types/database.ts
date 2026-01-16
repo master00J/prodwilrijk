@@ -56,6 +56,10 @@ export interface GroteInpakStock {
   item_number: string
   location?: string | null
   quantity?: number | null
+  stock?: number | null
+  inkoop?: number | null
+  productie?: number | null
+  in_transfer?: number | null
   erp_code?: string | null
   created_at: string
   updated_at: string
@@ -63,9 +67,11 @@ export interface GroteInpakStock {
 
 export interface GroteInpakForecast {
   id: number
-  item_number: string
-  forecast_date?: string | null
-  forecast_quantity?: number | null
+  item_number?: string | null
+  case_label?: string | null
+  case_type?: string | null
+  arrival_date?: string | null
+  source_file?: string | null
   created_at: string
   updated_at: string
 }
