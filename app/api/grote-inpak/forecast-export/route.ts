@@ -170,7 +170,25 @@ export async function POST(request: NextRequest) {
       .filter((row) => String(row.productielocatie || '').toLowerCase() === location.toLowerCase())
 
     if (filtered.length === 0) {
-      return NextResponse.json({ error: 'Geen forecast data gevonden' }, { status: 400 })
+      // Still return an empty export with headers to match old behavior
+      const wb = new ExcelJS.Workbook()
+      const ws = wb.addWorksheet('Forecast')
+      ws.addRow(['GP CODE', 'kist', 'TOTAAL'])
+      const header = ws.getRow(1)
+      header.font = { bold: true }
+      header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'D9D9D9' } }
+      ws.views = [{ state: 'frozen', xSplit: 2, ySplit: 1 }]
+      ws.columns.forEach((col) => {
+        col.width = 14
+      })
+      const buffer = await wb.xlsx.writeBuffer()
+      const fileName = `Forecast_${location}.xlsx`
+      return new Response(buffer as BodyInit, {
+        headers: {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': `attachment; filename="${fileName}"`,
+        },
+      })
     }
 
     const dateSet = new Set<string>()
@@ -228,9 +246,7 @@ export async function POST(request: NextRequest) {
         return output
       })
 
-    if (finalRows.length === 0) {
-      return NextResponse.json({ error: 'Geen forecast data met behoefte gevonden' }, { status: 400 })
-    }
+    // If nothing has net need, still return the file with headers (like old app)
 
     const wb = new ExcelJS.Workbook()
     const ws = wb.addWorksheet('Forecast')
