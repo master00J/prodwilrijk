@@ -9,6 +9,7 @@ interface ErpLinkEntry {
   erp_code?: string | null
   productielocatie?: string | null
   description?: string | null
+  stapel?: number | null
   created_at?: string
   updated_at?: string
 }
@@ -26,6 +27,7 @@ export default function ErpLinkTab() {
     erp_code: '',
     productielocatie: '',
     description: '',
+    stapel: 1,
   })
 
   const loadEntries = useCallback(async () => {
@@ -57,6 +59,7 @@ export default function ErpLinkTab() {
       erp_code: entry.erp_code || '',
       productielocatie: entry.productielocatie || '',
       description: entry.description || '',
+      stapel: entry.stapel || 1,
     })
     setIsAdding(false)
   }
@@ -69,6 +72,7 @@ export default function ErpLinkTab() {
       erp_code: '',
       productielocatie: '',
       description: '',
+      stapel: 1,
     })
   }
 
@@ -80,6 +84,7 @@ export default function ErpLinkTab() {
       erp_code: '',
       productielocatie: '',
       description: '',
+      stapel: 1,
     })
   }
 
@@ -93,7 +98,6 @@ export default function ErpLinkTab() {
 
       let response
       if (editingId) {
-        // Update existing
         response = await fetch('/api/grote-inpak/erp-link', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -103,7 +107,6 @@ export default function ErpLinkTab() {
           }),
         })
       } else {
-        // Create new
         response = await fetch('/api/grote-inpak/erp-link', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -177,7 +180,6 @@ export default function ErpLinkTab() {
         throw new Error('Geen data gevonden in het geüploade bestand')
       }
 
-      // Save each entry to database
       let savedCount = 0
       let skippedCount = 0
       let errorCount = 0
@@ -193,6 +195,7 @@ export default function ErpLinkTab() {
                 erp_code: item.erp_code || null,
                 productielocatie: item.productielocatie || null,
                 description: item.description || null,
+                stapel: item.stapel || 1,
               }),
             })
 
@@ -200,7 +203,6 @@ export default function ErpLinkTab() {
               savedCount++
             } else {
               const errorData = await saveResponse.json()
-              // Check if it's a duplicate error
               if (errorData.error && errorData.error.includes('already exists')) {
                 skippedCount++
               } else {
@@ -217,7 +219,6 @@ export default function ErpLinkTab() {
 
       await loadEntries()
 
-      // Show success message with statistics
       if (errorCount === 0) {
         setSuccess(
           `ERP LINK bestand succesvol geüpload! ${savedCount} items toegevoegd${skippedCount > 0 ? `, ${skippedCount} items overgeslagen (duplicaten)` : ''}.`
@@ -228,14 +229,12 @@ export default function ErpLinkTab() {
         )
       }
 
-      // Clear success message after 5 seconds
       setTimeout(() => setSuccess(null), 5000)
     } catch (err: any) {
       setError(err.message || 'Error uploading ERP LINK file')
       console.error('Error uploading ERP LINK:', err)
     } finally {
       setUploading(false)
-      // Reset file input
       e.target.value = ''
     }
   }
@@ -269,7 +268,7 @@ export default function ErpLinkTab() {
             className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
           >
             <Plus className="w-4 h-4" />
-            Nieuw Toevoegen
+            Nieuw
           </button>
         </div>
       </div>
@@ -297,7 +296,6 @@ export default function ErpLinkTab() {
         </div>
       )}
 
-      {/* Add/Edit Form */}
       {(isAdding || editingId !== null) && (
         <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold mb-4">
@@ -354,6 +352,18 @@ export default function ErpLinkTab() {
                 placeholder="Optionele beschrijving"
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Stapel
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={formData.stapel || 1}
+                onChange={(e) => setFormData({ ...formData, stapel: Number(e.target.value) || 1 })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
           </div>
           <div className="flex gap-2 mt-4">
             <button
@@ -374,7 +384,6 @@ export default function ErpLinkTab() {
         </div>
       )}
 
-      {/* Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
@@ -392,64 +401,50 @@ export default function ErpLinkTab() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Beschrijving
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Stapel
+                </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Acties
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {entries.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
-                    Geen ERP LINK entries gevonden. Voeg er een toe of upload een Excel bestand.
+              {entries.map((entry) => (
+                <tr key={entry.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {entry.kistnummer}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {entry.erp_code || '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {entry.productielocatie || '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {entry.description || '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {entry.stapel || 1}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        onClick={() => handleEdit(entry)}
+                        className="text-blue-600 hover:text-blue-900"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(entry.id || 0)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
-              ) : (
-                entries.map((entry) => (
-                  <tr key={entry.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {entry.kistnummer}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {entry.erp_code || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          entry.productielocatie === 'Wilrijk'
-                            ? 'bg-orange-100 text-orange-800'
-                            : entry.productielocatie === 'Genk'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-gray-100 text-gray-800'
-                        }`}
-                      >
-                        {entry.productielocatie || '-'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {entry.description || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleEdit(entry)}
-                          className="text-blue-600 hover:text-blue-900"
-                          title="Bewerken"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => entry.id && handleDelete(entry.id)}
-                          className="text-red-600 hover:text-red-900"
-                          title="Verwijderen"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
+              ))}
             </tbody>
           </table>
         </div>
@@ -457,4 +452,3 @@ export default function ErpLinkTab() {
     </div>
   )
 }
-

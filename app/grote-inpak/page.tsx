@@ -9,6 +9,8 @@ import PackedTab from '@/components/grote-inpak/PackedTab'
 import StockAnalysisTab from '@/components/grote-inpak/StockAnalysisTab'
 import BacklogTab from '@/components/grote-inpak/BacklogTab'
 import ErpLinkTab from '@/components/grote-inpak/ErpLinkTab'
+import ExecutiveDashboardTab from '@/components/grote-inpak/ExecutiveDashboardTab'
+import KanbanTab from '@/components/grote-inpak/KanbanTab'
 
 export default function GroteInpakPage() {
   const [activeTab, setActiveTab] = useState(0)
@@ -30,13 +32,15 @@ export default function GroteInpakPage() {
   const stockInputRef = useRef<HTMLInputElement>(null)
 
   const tabs = [
-    { id: 0, label: '📋 Overzicht', icon: '📋' },
-    { id: 1, label: '🚚 Transport', icon: '🚚' },
-    { id: 2, label: '📈 Forecast', icon: '📈' },
-    { id: 3, label: '📦 Packed', icon: '📦' },
-    { id: 4, label: '📊 Stock', icon: '📊' },
-    { id: 5, label: '⏰ Backlog', icon: '⏰' },
-    { id: 6, label: '🔗 ERP LINK', icon: '🔗' },
+    { id: 0, label: '📊 Executive Dashboard', icon: '📊' },
+    { id: 1, label: '📋 Overzicht', icon: '📋' },
+    { id: 2, label: '🚚 Transport', icon: '🚚' },
+    { id: 3, label: '📈 Forecast', icon: '📈' },
+    { id: 4, label: '📦 Packed', icon: '📦' },
+    { id: 5, label: '📊 Stock', icon: '📊' },
+    { id: 6, label: '📦 Kanban Rekken', icon: '📦' },
+    { id: 7, label: '⏰ Backlog', icon: '⏰' },
+    { id: 8, label: '🔗 ERP LINK', icon: '🔗' },
   ]
 
   const handleFileSelect = useCallback((type: 'pils' | 'erplink', file: File | null) => {
@@ -621,14 +625,18 @@ export default function GroteInpakPage() {
         </div>
 
         <div className="p-6">
-          {activeTab === 0 && dataLoaded && <OverviewTab overview={overviewData} />}
-          {activeTab === 1 && dataLoaded && <TransportTab transport={transportData} overview={overviewData} />}
-          {activeTab === 2 && dataLoaded && <ForecastTab />}
-          {activeTab === 3 && dataLoaded && <PackedTab />}
-          {activeTab === 4 && <StockAnalysisTab />}
-          {activeTab === 5 && dataLoaded && <BacklogTab overview={overviewData} />}
-          {activeTab === 6 && <ErpLinkTab />}
-          {activeTab !== 4 && activeTab !== 6 && !dataLoaded && (
+          {activeTab === 0 && dataLoaded && (
+            <ExecutiveDashboardTab overview={overviewData} transport={transportData} />
+          )}
+          {activeTab === 1 && dataLoaded && <OverviewTab overview={overviewData} />}
+          {activeTab === 2 && dataLoaded && <TransportTab transport={transportData} overview={overviewData} />}
+          {activeTab === 3 && dataLoaded && <ForecastTab />}
+          {activeTab === 4 && dataLoaded && <PackedTab />}
+          {activeTab === 5 && <StockAnalysisTab />}
+          {activeTab === 6 && <KanbanTab />}
+          {activeTab === 7 && dataLoaded && <BacklogTab overview={overviewData} />}
+          {activeTab === 8 && <ErpLinkTab />}
+          {activeTab !== 5 && activeTab !== 6 && activeTab !== 8 && !dataLoaded && (
             <div className="text-center py-12 text-gray-500">
               Upload bestanden en klik op &apos;Verwerken&apos; om deze tab te gebruiken.
             </div>

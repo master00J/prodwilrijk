@@ -316,6 +316,23 @@ async function parseERPExcel(workbook: XLSX.WorkBook): Promise<any[]> {
         productielocatie = ''
       }
     }
+    let stapelRaw = findValue(row, [
+      'stapel', 'Stapel', 'stack', 'Stack', 'stapelgrootte', 'Stapelgrootte', 'per_stapel', 'Per Stapel'
+    ])
+
+    if (!stapelRaw && rawData && rawData[index + 1]) {
+      const rowData = rawData[index + 1]
+      if (rowData && rowData.length > 3) {
+        stapelRaw = String(rowData[3] || '').trim()
+      }
+    }
+
+    if (!stapelRaw && row['D']) {
+      stapelRaw = String(row['D'] || '').trim()
+    }
+
+    const stapel = Math.max(1, parseInt(String(stapelRaw || ''), 10) || 1)
+
     
     return {
       kistnummer: kistnummer,
@@ -323,6 +340,7 @@ async function parseERPExcel(workbook: XLSX.WorkBook): Promise<any[]> {
       item_number: findValue(row, ['Item Number', 'item_number', 'Item', 'Artikel', 'ARTIKEL', 'ItemNr', 'ItemNr.', 'Item Nr']),
       description: findValue(row, ['Description', 'description', 'Omschrijving', 'DESCRIPTION', 'Desc']),
       productielocatie: productielocatie,
+      stapel: stapel,
       // Store all original data for flexibility
       ...row,
     }
@@ -555,10 +573,20 @@ async function parsePackedExcel(workbook: XLSX.WorkBook): Promise<any[]> {
   const sheetName = workbook.SheetNames[0]
   const worksheet = workbook.Sheets[sheetName]
   const data = XLSX.utils.sheet_to_json(worksheet, { raw: false })
-  
-  return data.map((row: any) => ({
-    case_label: row['Case Label'] || row['case_label'] || row['Case'] || '',
-    packed_date: row['Date'] || row['date'] || row['Packed Date'] || new Date().toISOString().split('T')[0],
-  }))
+
+  return data.map((row: any) => {
+    const caseLabel = row['Case Label'] || row['case_label'] || row['Case'] || ''
+    const caseTypeRaw = row['Case Type'] || row['case_type'] || row['Kist Type'] || row['Type'] || ''
+    const normalizedCaseType = String(caseTypeRaw || '').trim().replace(/^[Vv]/, 'K')
+    const packedDate = row['Date'] || row['date'] || row['Packed Date'] || new Date().toISOString().split('T')[0]
+
+    return {
+      case_label: caseLabel,
+      case_type: normalizedCaseType,
+      packed_date: packedDate,
+    }
+  })
 }
+
+
 

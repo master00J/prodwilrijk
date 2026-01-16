@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
             erp_code: item.erp_code,
             productielocatie: item.productielocatie,
             description: item.description,
+            stapel: item.stapel,
           }))
         }
       } catch (err) {
@@ -48,6 +49,19 @@ export async function POST(request: NextRequest) {
       await saveStockToDatabase(stockData)
     }
 
+    // Save backlog snapshot (once per day)
+    try {
+      const backlogOverdue = overview.filter((item: any) => (item.dagen_te_laat || 0) > 0).length
+      const today = new Date().toISOString().split('T')[0]
+      await supabaseAdmin
+        .from('grote_inpak_backlog_history')
+        .upsert(
+          { snapshot_date: today, backlog_overdue: backlogOverdue },
+          { onConflict: 'snapshot_date' }
+        )
+    } catch (err) {
+      console.warn('Could not save backlog history snapshot:', err)
+    }
     return NextResponse.json({
       success: true,
       overview,
@@ -513,4 +527,6 @@ async function saveStockToDatabase(stockData: any[]) {
       })
   }
 }
+
+
 

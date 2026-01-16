@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { kistnummer, erp_code, productielocatie, description } = body
+    const { kistnummer, erp_code, productielocatie, description, stapel } = body
 
     if (!kistnummer) {
       return NextResponse.json(
@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
         erp_code: erp_code ? String(erp_code).trim() : null,
         productielocatie: normalizedProductielocatie || null,
         description: description ? String(description).trim() : null,
+        stapel: stapel !== undefined && stapel !== null ? Math.max(1, Number(stapel) || 1) : 1,
       })
       .select()
       .single()
@@ -90,7 +91,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-    const { id, kistnummer, erp_code, productielocatie, description } = body
+    const { id, kistnummer, erp_code, productielocatie, description, stapel } = body
 
     if (!id) {
       return NextResponse.json(
@@ -115,6 +116,7 @@ export async function PUT(request: NextRequest) {
     if (erp_code !== undefined) updateData.erp_code = erp_code ? String(erp_code).trim() : null
     if (productielocatie !== undefined) updateData.productielocatie = normalizedProductielocatie || null
     if (description !== undefined) updateData.description = description ? String(description).trim() : null
+    if (stapel !== undefined) updateData.stapel = Math.max(1, Number(stapel) || 1)
 
     const { data, error } = await supabaseAdmin
       .from('grote_inpak_erp_link')
@@ -180,4 +182,5 @@ export async function DELETE(request: NextRequest) {
     )
   }
 }
+
 
