@@ -68,21 +68,21 @@ function xmlEscape(value: string): string {
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
-    const packedN = formData.get('packed_n') as File | null
-    const packedY = formData.get('packed_y') as File | null
+    const packedNFiles = formData.getAll('packed_n').filter((item) => item instanceof File) as File[]
+    const packedYFiles = formData.getAll('packed_y').filter((item) => item instanceof File) as File[]
     const purchaseOrder = String(formData.get('purchase_order') || '').trim()
     const itemSuffix = String(formData.get('item_suffix') || '').trim()
 
-    if (!packedN && !packedY) {
+    if (packedNFiles.length === 0 && packedYFiles.length === 0) {
       return NextResponse.json({ error: 'At least one file is required' }, { status: 400 })
     }
 
     const rows: PackedRow[] = []
-    if (packedN) {
-      rows.push(...parsePackedNyExcel(await packedN.arrayBuffer()))
+    for (const file of packedNFiles) {
+      rows.push(...parsePackedNyExcel(await file.arrayBuffer()))
     }
-    if (packedY) {
-      rows.push(...parsePackedNyExcel(await packedY.arrayBuffer()))
+    for (const file of packedYFiles) {
+      rows.push(...parsePackedNyExcel(await file.arrayBuffer()))
     }
 
     const filtered = rows.filter((row) => {

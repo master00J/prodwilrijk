@@ -13,14 +13,15 @@ export default function PackedTab() {
   const [dragActive, setDragActive] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
 
-  const [packedXmlFile, setPackedXmlFile] = useState<File | null>(null)
-  const [indusFileN, setIndusFileN] = useState<File | null>(null)
-  const [indusFileY, setIndusFileY] = useState<File | null>(null)
+  const [packedXmlFiles, setPackedXmlFiles] = useState<File[]>([])
+  const [indusFilesN, setIndusFilesN] = useState<File[]>([])
+  const [indusFilesY, setIndusFilesY] = useState<File[]>([])
   const [poNumbers, setPoNumbers] = useState({
     apf: 'MF-4536602',
     s4: 'MF-4536602',
     s5: 'MF-4536602',
     s9: 'MF-4536602',
+    xx: '',
     indus: 'MF-4581681',
   })
   const [indusSuffix, setIndusSuffix] = useState('KC')
@@ -62,6 +63,7 @@ export default function PackedTab() {
             s4: result.data.po_s4 || 'MF-4536602',
             s5: result.data.po_s5 || 'MF-4536602',
             s9: result.data.po_s9 || 'MF-4536602',
+            xx: result.data.po_xx || '',
             indus: result.data.po_indus || 'MF-4581681',
           })
           setIndusSuffix(result.data.indus_suffix || 'KC')
@@ -84,6 +86,7 @@ export default function PackedTab() {
           po_s4: poNumbers.s4,
           po_s5: poNumbers.s5,
           po_s9: poNumbers.s9,
+          po_xx: poNumbers.xx,
           po_indus: poNumbers.indus,
           indus_suffix: indusSuffix,
         }),
@@ -205,49 +208,59 @@ export default function PackedTab() {
   }
 
   const exportPackedXml = async () => {
-    if (!packedXmlFile) return { ok: false, message: 'Geen PACKED Excel geselecteerd' }
-    const formData = new FormData()
-    formData.append('file', packedXmlFile)
-    formData.append('po_apf', poNumbers.apf)
-    formData.append('po_s4', poNumbers.s4)
-    formData.append('po_s5', poNumbers.s5)
-    formData.append('po_s9', poNumbers.s9)
+    if (packedXmlFiles.length === 0) {
+      return { ok: false, message: 'Geen PACKED Excel geselecteerd' }
+    }
+    const errors: string[] = []
 
-    const response = await fetch('/api/grote-inpak/packed-xml', {
-      method: 'POST',
-      body: formData,
-    })
-    if (!response.ok) {
-      const error = await response.json()
-      return { ok: false, message: error.error || 'Packed XML export mislukt' }
+    for (const file of packedXmlFiles) {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('po_apf', poNumbers.apf)
+      formData.append('po_s4', poNumbers.s4)
+      formData.append('po_s5', poNumbers.s5)
+      formData.append('po_s9', poNumbers.s9)
+
+      const response = await fetch('/api/grote-inpak/packed-xml', {
+        method: 'POST',
+        body: formData,
+      })
+      if (!response.ok) {
+        const error = await response.json()
+        errors.push(`${file.name}: ${error.error || 'Packed XML export mislukt'}`)
+        continue
+      }
+
+      const result = await response.json()
+      const files = result.files || []
+      if (files.length === 0) {
+        errors.push(`${file.name}: geen XML-bestanden aangemaakt`)
+        continue
+      }
+
+      files.forEach((xmlFile: any) => {
+        const blob = new Blob([xmlFile.xml], { type: 'application/xml' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = xmlFile.filename
+        a.click()
+        URL.revokeObjectURL(url)
+      })
     }
 
-    const result = await response.json()
-    const files = result.files || []
-    if (files.length === 0) {
-      return { ok: false, message: 'Geen Packed XML-bestanden aangemaakt' }
-    }
-
-    files.forEach((file: any) => {
-      const blob = new Blob([file.xml], { type: 'application/xml' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = file.filename
-      a.click()
-      URL.revokeObjectURL(url)
-    })
-
-    return { ok: true }
+    return errors.length === 0
+      ? { ok: true }
+      : { ok: false, message: errors.join('\n') }
   }
 
   const exportIndusXml = async () => {
-    if (!indusFileN && !indusFileY) {
+    if (indusFilesN.length === 0 && indusFilesY.length === 0) {
       return { ok: false, message: 'Geen PACKED_N of PACKED_Y geselecteerd' }
     }
     const formData = new FormData()
-    if (indusFileN) formData.append('packed_n', indusFileN)
-    if (indusFileY) formData.append('packed_y', indusFileY)
+    indusFilesN.forEach((file) => formData.append('packed_n', file))
+    indusFilesY.forEach((file) => formData.append('packed_y', file))
     formData.append('purchase_order', poNumbers.indus)
     formData.append('item_suffix', indusSuffix)
 
@@ -273,7 +286,7 @@ export default function PackedTab() {
   }
 
   const handleExportAll = async () => {
-    if (!packedXmlFile && !indusFileN && !indusFileY) {
+    if (packedXmlFiles.length === 0 && indusFilesN.length === 0 && indusFilesY.length === 0) {
       alert('Selecteer minstens één PACKED of INDUS bestand')
       return
     }
@@ -281,11 +294,11 @@ export default function PackedTab() {
     setConverting(true)
     try {
       const errors: string[] = []
-      if (packedXmlFile) {
+      if (packedXmlFiles.length > 0) {
         const res = await exportPackedXml()
         if (!res.ok && res.message) errors.push(res.message)
       }
-      if (indusFileN || indusFileY) {
+      if (indusFilesN.length > 0 || indusFilesY.length > 0) {
         const res = await exportIndusXml()
         if (!res.ok && res.message) errors.push(res.message)
       }
@@ -498,6 +511,13 @@ export default function PackedTab() {
             className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             placeholder="PO voor S9"
           />
+          <input
+            type="text"
+            value={poNumbers.xx}
+            onChange={(e) => setPoNumbers({ ...poNumbers, xx: e.target.value })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            placeholder="PO voor XX"
+          />
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -515,8 +535,12 @@ export default function PackedTab() {
           <input
             type="file"
             accept=".xlsx,.xls"
-            onChange={(e) => setPackedXmlFile(e.target.files?.[0] || null)}
+            multiple
+            onChange={(e) => setPackedXmlFiles(e.target.files ? Array.from(e.target.files) : [])}
           />
+          {packedXmlFiles.length > 0 && (
+            <p className="text-xs text-slate-500">{packedXmlFiles.length} bestand(en) geselecteerd</p>
+          )}
         </div>
       </div>
 
@@ -542,13 +566,20 @@ export default function PackedTab() {
           <input
             type="file"
             accept=".xlsx,.xls"
-            onChange={(e) => setIndusFileN(e.target.files?.[0] || null)}
+            multiple
+            onChange={(e) => setIndusFilesN(e.target.files ? Array.from(e.target.files) : [])}
           />
           <input
             type="file"
             accept=".xlsx,.xls"
-            onChange={(e) => setIndusFileY(e.target.files?.[0] || null)}
+            multiple
+            onChange={(e) => setIndusFilesY(e.target.files ? Array.from(e.target.files) : [])}
           />
+          {(indusFilesN.length > 0 || indusFilesY.length > 0) && (
+            <p className="text-xs text-slate-500">
+              {indusFilesN.length} N / {indusFilesY.length} Y geselecteerd
+            </p>
+          )}
         </div>
       </div>
 
