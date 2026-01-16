@@ -19,8 +19,9 @@ export async function POST(request: NextRequest) {
     
     const filteredTransport = (transportData || []).filter((item: any) => {
       const isGenk = String(item.productielocatie || '').toLowerCase().includes('genk')
-      const needsTransport = item.transport_needed === true || item.in_willebroek === false
-      return isGenk && needsTransport
+      const bestemming = String(item.bestemming || 'Willebroek').toLowerCase()
+      const isWillebroek = bestemming.includes('willebroek')
+      return isGenk && isWillebroek
     })
 
     // Generate Excel file
