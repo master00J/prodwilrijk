@@ -32,6 +32,15 @@ type CaseRow = {
   arrival_date?: string | null
 }
 
+function normalizeCaseType(value: string): string {
+  const normalized = String(value || '').trim().toUpperCase()
+  if (!normalized) return ''
+  if (normalized.startsWith('V')) {
+    return `K${normalized.slice(1)}`
+  }
+  return normalized
+}
+
 function formatDateLabel(value: string): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
@@ -78,9 +87,9 @@ export async function POST(request: NextRequest) {
     const erpByCase = new Map<string, ErpRow>()
     const caseByErp = new Map<string, string>()
     ;(erpData || []).forEach((row: ErpRow) => {
-      const caseType = String(row.kistnummer || '').trim()
+      const caseType = normalizeCaseType(row.kistnummer || '')
       if (!caseType) return
-      erpByCase.set(caseType, row)
+      erpByCase.set(caseType, { ...row, kistnummer: caseType })
       const normalized = normalizeErpCode(String(row.erp_code || ''))
       if (normalized) {
         caseByErp.set(normalized, caseType)
@@ -94,12 +103,13 @@ export async function POST(request: NextRequest) {
     ;(stockData || []).forEach((row: StockRow) => {
       const erpCodeRaw = String(row.erp_code || '').trim()
       const erpCode = normalizeErpCode(erpCodeRaw) || erpCodeRaw
-      const kistnummer = String((row as any).kistnummer || '').trim()
+      const kistnummer = normalizeCaseType((row as any).kistnummer || '')
       if (!erpCode && !kistnummer) return
       let caseType = kistnummer || caseByErp.get(erpCode)
       if (!caseType && /^[KVC]/i.test(erpCode)) {
-        caseType = erpCode.toUpperCase().replace(/^V/, 'K')
+        caseType = normalizeCaseType(erpCode)
       }
+      caseType = normalizeCaseType(caseType || '')
       if (!caseType) return
       const qty = Number(row.quantity || 0)
       const stock = Number(row.stock ?? row.quantity ?? 0)
@@ -125,7 +135,7 @@ export async function POST(request: NextRequest) {
 
     const pilsNeedByCase = new Map<string, number>()
     ;(casesData || []).forEach((row: CaseRow) => {
-      const caseType = String(row.case_type || '').trim()
+      const caseType = normalizeCaseType(row.case_type || '')
       if (!caseType) return
       pilsNeedByCase.set(caseType, (pilsNeedByCase.get(caseType) || 0) + 1)
     })
@@ -153,7 +163,7 @@ export async function POST(request: NextRequest) {
     const filtered = (forecastData || [])
       .map((row: ForecastRow) => ({
         case_label: String(row.case_label || '').trim(),
-        case_type: String(row.case_type || '').trim(),
+        case_type: normalizeCaseType(row.case_type || ''),
         arrival_date: String(row.arrival_date || '').trim(),
       }))
       .filter((row) => row.case_label && row.case_type && row.arrival_date)
@@ -166,7 +176,7 @@ export async function POST(request: NextRequest) {
         return true
       })
       .map((row) => {
-        const erpRow = erpByCase.get(row.case_type)
+        const erpRow = erpByCase.get(normalizeCaseType(row.case_type))
         const loc = erpRow?.productielocatie ? String(erpRow.productielocatie) : 'Wilrijk'
         return { ...row, productielocatie: loc }
       })
@@ -199,8 +209,9 @@ export async function POST(request: NextRequest) {
     filtered.forEach((row) => {
       const dateLabel = formatDateLabel(row.arrival_date)
       dateSet.add(dateLabel)
-      if (!counts.has(row.case_type)) counts.set(row.case_type, new Map())
-      const map = counts.get(row.case_type)!
+      const caseType = normalizeCaseType(row.case_type)
+      if (!counts.has(caseType)) counts.set(caseType, new Map())
+      const map = counts.get(caseType)!
       map.set(dateLabel, (map.get(dateLabel) || 0) + 1)
     })
 
@@ -213,8 +224,9 @@ export async function POST(request: NextRequest) {
     const rows: Array<Record<string, string | number>> = []
     counts.forEach((map, caseType) => {
       const row: Record<string, string | number> = {}
-      row['GP CODE'] = erpByCase.get(caseType)?.erp_code || 'Special'
-      row['kist'] = caseType
+      const normalizedCaseType = normalizeCaseType(caseType)
+      row['GP CODE'] = erpByCase.get(normalizedCaseType)?.erp_code || 'Special'
+      row['kist'] = normalizedCaseType
       dateCols.forEach((date) => {
         row[date] = map.get(date) || 0
       })
@@ -304,7 +316,7 @@ export async function POST(request: NextRequest) {
 
     const pilsByCaseLoc = new Map<string, number>()
     ;(casesData || []).forEach((row: CaseRow) => {
-      const caseType = String(row.case_type || '').trim()
+      const caseType = normalizeCaseType(row.case_type || '')
       if (!caseType) return
       const loc = erpByCase.get(caseType)?.productielocatie || 'Wilrijk'
       const key = `${caseType}||${loc}`
@@ -313,7 +325,7 @@ export async function POST(request: NextRequest) {
 
     const forecastByCaseLoc = new Map<string, number>()
     filtered.forEach((row) => {
-      const key = `${row.case_type}||${row.productielocatie}`
+      const key = `${normalizeCaseType(row.case_type)}||${row.productielocatie}`
       forecastByCaseLoc.set(key, (forecastByCaseLoc.get(key) || 0) + 1)
     })
 
@@ -325,19 +337,20 @@ export async function POST(request: NextRequest) {
     caseLocKeys.forEach((key) => {
       const [caseType, loc] = key.split('||')
       if (loc.toLowerCase() !== location.toLowerCase()) return
+      const normalizedCase = normalizeCaseType(caseType)
       const forecastAantal = (forecastByCaseLoc.get(key) || 0) + (pilsByCaseLoc.get(key) || 0)
       const opPils = pilsByCaseLoc.get(key) || 0
-      const opStock = stockByCase.get(caseType) || 0
-      const inTransfer = transferByCase.get(caseType) || 0
-      const inProductie = productieByCase.get(caseType) || 0
-      const inInkoop = inkoopByCase.get(caseType) || 0
+      const opStock = stockByCase.get(normalizedCase) || 0
+      const inTransfer = transferByCase.get(normalizedCase) || 0
+      const inProductie = productieByCase.get(normalizedCase) || 0
+      const inInkoop = inkoopByCase.get(normalizedCase) || 0
       const nettoNodig = Math.max(
         0,
-        forecastAantal - (netAvailableByCase.get(caseType) || 0)
+        forecastAantal - (netAvailableByCase.get(normalizedCase) || 0)
       )
       statusRows.push({
-        'BC CODE': erpByCase.get(caseType)?.erp_code || 'Special',
-        case_type: caseType,
+        'BC CODE': erpByCase.get(normalizedCase)?.erp_code || 'Special',
+        case_type: normalizedCase,
         productielocatie: loc,
         forecast_aantal: forecastAantal,
         op_pils: opPils,
@@ -389,7 +402,7 @@ export async function POST(request: NextRequest) {
 
     const pilsGrouped = new Map<string, { count: number; arrival: string | null; loc: string }>()
     ;(casesData || []).forEach((row: CaseRow) => {
-      const caseType = String(row.case_type || '').trim()
+      const caseType = normalizeCaseType(row.case_type || '')
       if (!caseType) return
       const loc = erpByCase.get(caseType)?.productielocatie || 'Wilrijk'
       const key = caseType
@@ -408,16 +421,17 @@ export async function POST(request: NextRequest) {
     const priorityRows: Array<Record<string, string | number>> = []
     pilsGrouped.forEach((data, caseType) => {
       if (String(data.loc).toLowerCase() !== location.toLowerCase()) return
-      const opStock = stockByCase.get(caseType) || 0
-      const inTransfer = transferByCase.get(caseType) || 0
-      const inProductie = productieByCase.get(caseType) || 0
-      const inInkoop = inkoopByCase.get(caseType) || 0
+      const normalizedCase = normalizeCaseType(caseType)
+      const opStock = stockByCase.get(normalizedCase) || 0
+      const inTransfer = transferByCase.get(normalizedCase) || 0
+      const inProductie = productieByCase.get(normalizedCase) || 0
+      const inInkoop = inkoopByCase.get(normalizedCase) || 0
       const total = opStock + inProductie + inInkoop + inTransfer
       if (data.count <= total) return
-      const kategoriematch = String(caseType).trim().toUpperCase().match(/^([KC])/)
+      const kategoriematch = String(normalizedCase).trim().toUpperCase().match(/^([KC])/)
       const kistCategorie = kategoriematch ? kategoriematch[1] : 'Overig'
       priorityRows.push({
-        case_type: caseType,
+        case_type: normalizedCase,
         kist_categorie: kistCategorie,
         arrival_date: data.arrival ? formatDateLabel(data.arrival) : '',
         aantal_op_pils: data.count,
