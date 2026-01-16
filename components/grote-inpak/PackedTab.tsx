@@ -21,7 +21,6 @@ export default function PackedTab() {
     s4: 'MF-4536602',
     s5: 'MF-4536602',
     s9: 'MF-4536602',
-    xx: '',
     indus: 'MF-4581681',
   })
   const [indusSuffix, setIndusSuffix] = useState('KC')
@@ -63,7 +62,6 @@ export default function PackedTab() {
             s4: result.data.po_s4 || 'MF-4536602',
             s5: result.data.po_s5 || 'MF-4536602',
             s9: result.data.po_s9 || 'MF-4536602',
-            xx: result.data.po_xx || '',
             indus: result.data.po_indus || 'MF-4581681',
           })
           setIndusSuffix(result.data.indus_suffix || 'KC')
@@ -86,7 +84,6 @@ export default function PackedTab() {
           po_s4: poNumbers.s4,
           po_s5: poNumbers.s5,
           po_s9: poNumbers.s9,
-          po_xx: poNumbers.xx,
           po_indus: poNumbers.indus,
           indus_suffix: indusSuffix,
         }),
@@ -510,13 +507,6 @@ export default function PackedTab() {
             onChange={(e) => setPoNumbers({ ...poNumbers, s9: e.target.value })}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             placeholder="PO voor S9"
-          />
-          <input
-            type="text"
-            value={poNumbers.xx}
-            onChange={(e) => setPoNumbers({ ...poNumbers, xx: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-            placeholder="PO voor XX"
           />
         </div>
         <div className="flex items-center gap-3">
