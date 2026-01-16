@@ -17,7 +17,11 @@ export async function POST(request: NextRequest) {
     // Calculate next business day if not provided
     const nextBusinessDay = planDate ? new Date(planDate) : getNextBusinessDay(new Date())
     
-    const filteredTransport = (transportData || []).filter((item: any) => {
+    const effectiveTransport = (transportData || []).length > 0
+      ? transportData
+      : await loadGenkTransportFromCases()
+
+    const filteredTransport = (effectiveTransport || []).filter((item: any) => {
       const isGenk = String(item.productielocatie || '').toLowerCase().includes('genk')
       const bestemming = String(item.bestemming || 'Willebroek').toLowerCase()
       const isWillebroek = bestemming.includes('willebroek')
@@ -330,3 +334,21 @@ async function generateTransportPlanningExcel(
   return new Uint8Array(buffer)
 }
 
+
+async function loadGenkTransportFromCases(): Promise<any[]> {
+  const { data, error } = await supabaseAdmin
+    .from('grote_inpak_cases')
+    .select('case_type, erp_code, productielocatie, stapel')
+
+  if (error) {
+    throw error
+  }
+
+  return (data || []).map((item: any) => ({
+    case_type: item.case_type,
+    erp_code: item.erp_code,
+    productielocatie: item.productielocatie,
+    stapel: item.stapel || 1,
+    bestemming: 'Willebroek',
+  }))
+}
