@@ -321,6 +321,27 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
     return headerCells.findIndex((cell) => names.some((name) => cell === name || cell.includes(name)))
   }
 
+  const inventoryIdx = findColumnIndex(['inventory', 'voorraad', 'stock'])
+  const purchaseIdx = findColumnIndex([
+    'qty. on purch. order',
+    'qty on purch. order',
+    'qty. on purchase order',
+    'qty on purchase order',
+    'purch. order',
+    'purchase order',
+    'inkoop',
+    'inkooporder',
+  ])
+  const productionIdx = findColumnIndex([
+    'qty. on prod. order',
+    'qty on prod. order',
+    'qty. on production order',
+    'qty on production order',
+    'prod. order',
+    'production order',
+    'productie',
+  ])
+
   const erpCandidateIndices = [
     findColumnIndex(['no.', 'no']),
     findColumnIndex(['production bom no.', 'production bom', 'bom']),
@@ -403,15 +424,19 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
       const quantityCell = worksheet[colF]
       inTransfer = parseNumericCell(quantityCell)
     } else {
-      const colC = XLSX.utils.encode_cell({ r: rowNum, c: 2 })
+      const invCol = inventoryIdx >= 0 ? inventoryIdx : 2
+      const purchCol = purchaseIdx >= 0 ? purchaseIdx : 8
+      const prodCol = productionIdx >= 0 ? productionIdx : 10
+
+      const colC = XLSX.utils.encode_cell({ r: rowNum, c: invCol })
       const quantityCell = worksheet[colC]
       stock = parseNumericCell(quantityCell)
 
-      const colI = XLSX.utils.encode_cell({ r: rowNum, c: 8 })
+      const colI = XLSX.utils.encode_cell({ r: rowNum, c: purchCol })
       const inkoopCell = worksheet[colI]
       inkoop = parseNumericCell(inkoopCell)
 
-      const colK = XLSX.utils.encode_cell({ r: rowNum, c: 10 })
+      const colK = XLSX.utils.encode_cell({ r: rowNum, c: prodCol })
       const productieCell = worksheet[colK]
       productie = parseNumericCell(productieCell)
     }
