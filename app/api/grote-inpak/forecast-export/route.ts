@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import ExcelJS from 'exceljs'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
 
 type ForecastRow = {
   case_label: string
@@ -80,8 +81,9 @@ export async function POST(request: NextRequest) {
       const caseType = String(row.kistnummer || '').trim()
       if (!caseType) return
       erpByCase.set(caseType, row)
-      if (row.erp_code) {
-        caseByErp.set(String(row.erp_code).trim(), caseType)
+      const normalized = normalizeErpCode(String(row.erp_code || ''))
+      if (normalized) {
+        caseByErp.set(normalized, caseType)
       }
     })
 
@@ -90,7 +92,8 @@ export async function POST(request: NextRequest) {
     const productieByCase = new Map<string, number>()
     const transferByCase = new Map<string, number>()
     ;(stockData || []).forEach((row: StockRow) => {
-      const erpCode = String(row.erp_code || '').trim()
+      const erpCodeRaw = String(row.erp_code || '').trim()
+      const erpCode = normalizeErpCode(erpCodeRaw) || erpCodeRaw
       const kistnummer = String((row as any).kistnummer || '').trim()
       if (!erpCode && !kistnummer) return
       let caseType = kistnummer || caseByErp.get(erpCode)
