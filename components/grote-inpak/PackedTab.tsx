@@ -11,7 +11,7 @@ export default function PackedTab() {
   const [dateTo, setDateTo] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [dragActive, setDragActive] = useState(false)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
 
   const [packedXmlFile, setPackedXmlFile] = useState<File | null>(null)
   const [indusFileN, setIndusFileN] = useState<File | null>(null)
@@ -49,57 +49,70 @@ export default function PackedTab() {
     loadPacked()
   }, [loadPacked])
 
-  const handleFileSelect = (file: File | null) => {
-    if (file) {
+  const handleFileSelect = (files: FileList | File[] | null) => {
+    if (!files || files.length === 0) return
+    const list = Array.from(files)
+    const valid = list.filter((file) => {
       const fileName = file.name.toLowerCase()
-      if (!fileName.includes('.xlsx') && !fileName.includes('.xls')) {
-        alert('Ongeldig bestandstype. Verwacht: .xlsx of .xls')
-        return
-      }
-      setSelectedFile(file)
+      return fileName.includes('.xlsx') || fileName.includes('.xls')
+    })
+    if (valid.length === 0) {
+      alert('Ongeldig bestandstype. Verwacht: .xlsx of .xls')
+      return
     }
+    setSelectedFiles(valid)
   }
 
-  const handleFileUpload = async (file: File) => {
-    if (!file) return
+  const handleFileUpload = async (files: File[]) => {
+    if (!files || files.length === 0) return
 
     setLoading(true)
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('fileType', 'packed')
+      const errors: string[] = []
 
-      const uploadResponse = await fetch('/api/grote-inpak/upload', {
-        method: 'POST',
-        body: formData,
-      })
+      for (const file of files) {
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('fileType', 'packed')
 
-      if (uploadResponse.ok) {
-        const result = await uploadResponse.json()
-
-        const packedRows = result.data.map((item: any) => ({
-          case_label: item.case_label || '',
-          case_type: item.case_type || '',
-          packed_date: item.packed_date || new Date().toISOString().split('T')[0],
-          packed_file: file.name,
-        }))
-
-        const saveResponse = await fetch('/api/grote-inpak/packed', {
+        const uploadResponse = await fetch('/api/grote-inpak/upload', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ packedData: packedRows }),
+          body: formData,
         })
 
-        if (saveResponse.ok) {
-          await loadPacked()
-          setSelectedFile(null)
-          alert('Packed data succesvol geüpload!')
+        if (uploadResponse.ok) {
+          const result = await uploadResponse.json()
+
+          const packedRows = (result.data || []).map((item: any) => ({
+            case_label: item.case_label || '',
+            case_type: item.case_type || '',
+            packed_date: item.packed_date || new Date().toISOString().split('T')[0],
+            packed_file: file.name,
+          }))
+
+          if (packedRows.length > 0) {
+            const saveResponse = await fetch('/api/grote-inpak/packed', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ packedData: packedRows }),
+            })
+
+            if (!saveResponse.ok) {
+              errors.push(`${file.name}: opslaan mislukt`)
+            }
+          }
         } else {
-          throw new Error('Failed to save packed data')
+          const error = await uploadResponse.json()
+          errors.push(`${file.name}: ${error.error || 'upload mislukt'}`)
         }
+      }
+
+      await loadPacked()
+      setSelectedFiles([])
+      if (errors.length > 0) {
+        alert(`Sommige bestanden faalden:\n${errors.join('\n')}`)
       } else {
-        const error = await uploadResponse.json()
-        throw new Error(error.error || 'Failed to upload packed file')
+        alert('Packed data succesvol geüpload!')
       }
     } catch (error: any) {
       console.error('Error uploading packed file:', error)
@@ -121,9 +134,8 @@ export default function PackedTab() {
     e.stopPropagation()
     setDragActive(false)
 
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0]
-      handleFileSelect(file)
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFileSelect(e.dataTransfer.files)
     }
   }, [])
 
@@ -264,7 +276,7 @@ export default function PackedTab() {
           className={`border-2 border-dashed rounded-xl p-8 text-center transition-all mb-4 bg-white shadow-sm ${
             dragActive
               ? 'border-blue-500 bg-blue-50/50 scale-[1.02] shadow-md'
-              : selectedFile
+              : selectedFiles.length > 0
               ? 'border-emerald-400 bg-emerald-50/30'
               : 'border-slate-300 hover:border-blue-400 hover:bg-slate-50/50'
           }`}
@@ -273,18 +285,31 @@ export default function PackedTab() {
           onDragOver={handleDrag}
           onDrop={handleDrop}
         >
-          <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full mb-4 transition-colors ${
-            dragActive ? 'bg-blue-100' : selectedFile ? 'bg-emerald-100' : 'bg-slate-100'
-          }`}>
-            <Upload className={`w-8 h-8 ${dragActive ? 'text-blue-600' : selectedFile ? 'text-emerald-600' : 'text-slate-400'}`} />
+          <div
+            className={`inline-flex items-center justify-center w-16 h-16 rounded-full mb-4 transition-colors ${
+              dragActive ? 'bg-blue-100' : selectedFiles.length > 0 ? 'bg-emerald-100' : 'bg-slate-100'
+            }`}
+          >
+            <Upload
+              className={`w-8 h-8 ${
+                dragActive ? 'text-blue-600' : selectedFiles.length > 0 ? 'text-emerald-600' : 'text-slate-400'
+              }`}
+            />
           </div>
           <h3 className="text-lg font-semibold text-slate-800 mb-2">Packed Excel Upload</h3>
-          {selectedFile ? (
+          {selectedFiles.length > 0 ? (
             <div className="mb-4">
-              <p className="text-sm text-slate-600 mb-2">Geselecteerd bestand:</p>
-              <p className="text-base font-medium text-emerald-700 bg-emerald-50 px-4 py-2 rounded-lg inline-block">
-                {selectedFile.name}
-              </p>
+              <p className="text-sm text-slate-600 mb-2">Geselecteerde bestanden:</p>
+              <div className="flex flex-wrap gap-2">
+                {selectedFiles.map((file) => (
+                  <span
+                    key={file.name}
+                    className="text-sm font-medium text-emerald-700 bg-emerald-50 px-3 py-1 rounded-lg inline-block"
+                  >
+                    {file.name}
+                  </span>
+                ))}
+              </div>
             </div>
           ) : (
             <p className="text-sm text-slate-500 mb-4">
@@ -297,18 +322,19 @@ export default function PackedTab() {
             accept=".xlsx,.xls"
             className="hidden"
             id="packed-upload"
-            onChange={(e) => handleFileSelect(e.target.files?.[0] || null)}
+            multiple
+            onChange={(e) => handleFileSelect(e.target.files)}
           />
           <div className="flex gap-3 justify-center">
             <label
               htmlFor="packed-upload"
               className="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer transition-all shadow-sm hover:shadow-md font-medium"
             >
-              {selectedFile ? 'Wijzig Bestand' : 'Selecteer Bestand'}
+              {selectedFiles.length > 0 ? 'Wijzig Bestanden' : 'Selecteer Bestanden'}
             </label>
-            {selectedFile && (
+            {selectedFiles.length > 0 && (
               <button
-                onClick={() => handleFileUpload(selectedFile)}
+                onClick={() => handleFileUpload(selectedFiles)}
                 disabled={loading}
                 className="inline-flex items-center gap-2 px-6 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md font-medium"
               >

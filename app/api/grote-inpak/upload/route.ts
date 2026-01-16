@@ -572,20 +572,48 @@ async function parseForecastCSV(csvText: string): Promise<any[]> {
 async function parsePackedExcel(workbook: XLSX.WorkBook): Promise<any[]> {
   const sheetName = workbook.SheetNames[0]
   const worksheet = workbook.Sheets[sheetName]
-  const data = XLSX.utils.sheet_to_json(worksheet, { raw: false })
+  const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false }) as any[][]
+  const result: any[] = []
 
-  return data.map((row: any) => {
-    const caseLabel = row['Case Label'] || row['case_label'] || row['Case'] || ''
-    const caseTypeRaw = row['Case Type'] || row['case_type'] || row['Kist Type'] || row['Type'] || ''
-    const normalizedCaseType = String(caseTypeRaw || '').trim().replace(/^[Vv]/, 'K')
-    const packedDate = row['Date'] || row['date'] || row['Packed Date'] || new Date().toISOString().split('T')[0]
+  rows.forEach((row) => {
+    const caseLabel = String(row?.[2] ?? '').trim()
+    const caseType = String(row?.[5] ?? '').trim()
+    const dateRaw = String(row?.[9] ?? '').trim()
 
-    return {
+    const packedDate = parsePackedDate(dateRaw)
+    if (!caseLabel || !caseType || !packedDate) return
+
+    result.push({
       case_label: caseLabel,
-      case_type: normalizedCaseType,
+      case_type: caseType,
       packed_date: packedDate,
-    }
+    })
   })
+
+  return result
+}
+
+function parsePackedDate(value: string): string | null {
+  const match = String(value || '').match(/(\d{6})/)
+  if (match) {
+    const yymmdd = match[1]
+    if (/^\d{6}$/.test(yymmdd)) {
+      const year = Number(`20${yymmdd.slice(0, 2)}`)
+      const month = Number(yymmdd.slice(2, 4)) - 1
+      const day = Number(yymmdd.slice(4, 6))
+      const date = new Date(year, month, day)
+      if (!Number.isNaN(date.getTime())) {
+        return date.toISOString().split('T')[0]
+      }
+    }
+  }
+
+  const parsed = new Date(value)
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().split('T')[0]
+  }
+
+  return null
 }
 
 
