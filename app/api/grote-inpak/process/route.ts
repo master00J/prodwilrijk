@@ -44,6 +44,9 @@ export async function POST(request: NextRequest) {
     await saveCasesToDatabase(overview)
     await saveTransportToDatabase(transport)
 
+    // Remove cases that are no longer present in the latest PILS upload
+    await removeMissingCases(overview)
+
     // Save stock data if provided
     if (stockData && stockData.length > 0) {
       await saveStockToDatabase(stockData)
@@ -528,5 +531,39 @@ async function saveStockToDatabase(stockData: any[]) {
   }
 }
 
+async function removeMissingCases(currentOverview: any[]) {
+  const currentLabels = new Set(
+    currentOverview
+      .map((row: any) => String(row.case_label || '').trim())
+      .filter((label: string) => label.length > 0)
+  )
 
+  if (currentLabels.size === 0) {
+    return
+  }
 
+  const { data, error } = await supabaseAdmin
+    .from('grote_inpak_cases')
+    .select('case_label')
+
+  if (error) {
+    throw error
+  }
+
+  const toDelete = (data || [])
+    .map((row: any) => String(row.case_label || '').trim())
+    .filter((label: string) => label.length > 0 && !currentLabels.has(label))
+
+  const chunkSize = 500
+  for (let i = 0; i < toDelete.length; i += chunkSize) {
+    const chunk = toDelete.slice(i, i + chunkSize)
+    const { error: deleteError } = await supabaseAdmin
+      .from('grote_inpak_cases')
+      .delete()
+      .in('case_label', chunk)
+
+    if (deleteError) {
+      throw deleteError
+    }
+  }
+}
