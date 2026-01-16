@@ -214,7 +214,8 @@ export async function POST(request: NextRequest) {
       row.eachCell((cell) => {
         cell.border = border
         const numericValue = typeof cell.value === 'number' ? cell.value : Number.NaN
-        if (rowNumber > 1 && Number.isFinite(numericValue) && numericValue > 0 && cell.col > 2) {
+        const colIndex = typeof cell.col === 'number' ? cell.col : 0
+        if (rowNumber > 1 && Number.isFinite(numericValue) && numericValue > 0 && colIndex > 2) {
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2CC' } }
         }
       })
