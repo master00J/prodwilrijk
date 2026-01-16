@@ -17,11 +17,13 @@ type ErpRow = {
 type StockRow = {
   erp_code: string | null
   quantity: number | null
+  location?: string | null
 }
 
 type CaseRow = {
   case_label: string
   case_type: string
+  arrival_date?: string | null
 }
 
 function formatDateLabel(value: string): string {
@@ -53,13 +55,13 @@ export async function POST(request: NextRequest) {
 
     const { data: stockData, error: stockError } = await supabaseAdmin
       .from('grote_inpak_stock')
-      .select('erp_code, quantity')
+      .select('erp_code, quantity, location')
 
     if (stockError) throw stockError
 
     const { data: casesData, error: casesError } = await supabaseAdmin
       .from('grote_inpak_cases')
-      .select('case_label, case_type')
+      .select('case_label, case_type, arrival_date')
 
     if (casesError) throw casesError
 
@@ -78,7 +80,8 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    const availableByCase = new Map<string, number>()
+    const stockByCase = new Map<string, number>()
+    const transferByCase = new Map<string, number>()
     ;(stockData || []).forEach((row: StockRow) => {
       const erpCode = String(row.erp_code || '').trim()
       if (!erpCode) return
@@ -86,7 +89,12 @@ export async function POST(request: NextRequest) {
       if (!caseType) return
       const qty = Number(row.quantity || 0)
       if (!Number.isFinite(qty)) return
-      availableByCase.set(caseType, (availableByCase.get(caseType) || 0) + qty)
+      const loc = String(row.location || '').toLowerCase()
+      if (loc.includes('transfer')) {
+        transferByCase.set(caseType, (transferByCase.get(caseType) || 0) + qty)
+      } else {
+        stockByCase.set(caseType, (stockByCase.get(caseType) || 0) + qty)
+      }
     })
 
     const pilsNeedByCase = new Map<string, number>()
@@ -97,9 +105,17 @@ export async function POST(request: NextRequest) {
     })
 
     const netAvailableByCase = new Map<string, number>()
-    availableByCase.forEach((avail, caseType) => {
+    const availableByCase = new Map<string, number>()
+    const allCases = new Set<string>([
+      ...Array.from(stockByCase.keys()),
+      ...Array.from(transferByCase.keys()),
+      ...Array.from(pilsNeedByCase.keys()),
+    ])
+    allCases.forEach((caseType) => {
+      const available = (stockByCase.get(caseType) || 0) + (transferByCase.get(caseType) || 0)
+      availableByCase.set(caseType, available)
       const used = pilsNeedByCase.get(caseType) || 0
-      netAvailableByCase.set(caseType, Math.max(0, Math.round(avail) - used))
+      netAvailableByCase.set(caseType, Math.max(0, Math.round(available) - used))
     })
 
     const filtered = (forecastData || [])
@@ -224,6 +240,173 @@ export async function POST(request: NextRequest) {
     ws.columns.forEach((col) => {
       col.width = 14
     })
+
+    const statusSheet = wb.addWorksheet('Status')
+    const statusColumns = [
+      'BC CODE',
+      'case_type',
+      'productielocatie',
+      'forecast_aantal',
+      'op_pils',
+      'op_stock',
+      'in_transfer',
+      'in_productie',
+      'in_inkooporder',
+      'netto_nodig',
+    ]
+
+    const pilsByCaseLoc = new Map<string, number>()
+    ;(casesData || []).forEach((row: CaseRow) => {
+      const caseType = String(row.case_type || '').trim()
+      if (!caseType) return
+      const loc = erpByCase.get(caseType)?.productielocatie || 'Wilrijk'
+      const key = `${caseType}||${loc}`
+      pilsByCaseLoc.set(key, (pilsByCaseLoc.get(key) || 0) + 1)
+    })
+
+    const forecastByCaseLoc = new Map<string, number>()
+    filtered.forEach((row) => {
+      const key = `${row.case_type}||${row.productielocatie}`
+      forecastByCaseLoc.set(key, (forecastByCaseLoc.get(key) || 0) + 1)
+    })
+
+    const statusRows: Array<Record<string, string | number>> = []
+    const caseLocKeys = new Set<string>([
+      ...Array.from(forecastByCaseLoc.keys()),
+      ...Array.from(pilsByCaseLoc.keys()),
+    ])
+    caseLocKeys.forEach((key) => {
+      const [caseType, loc] = key.split('||')
+      if (loc.toLowerCase() !== location.toLowerCase()) return
+      const forecastAantal = (forecastByCaseLoc.get(key) || 0) + (pilsByCaseLoc.get(key) || 0)
+      const opPils = pilsByCaseLoc.get(key) || 0
+      const opStock = stockByCase.get(caseType) || 0
+      const inTransfer = transferByCase.get(caseType) || 0
+      const nettoNodig = Math.max(
+        0,
+        forecastAantal - (netAvailableByCase.get(caseType) || 0)
+      )
+      statusRows.push({
+        'BC CODE': erpByCase.get(caseType)?.erp_code || 'Special',
+        case_type: caseType,
+        productielocatie: loc,
+        forecast_aantal: forecastAantal,
+        op_pils: opPils,
+        op_stock: opStock,
+        in_transfer: inTransfer,
+        in_productie: 0,
+        in_inkooporder: 0,
+        netto_nodig: nettoNodig,
+      })
+    })
+
+    statusRows.sort((a, b) => String(a.case_type).localeCompare(String(b.case_type)))
+
+    statusSheet.mergeCells(1, 1, 1, statusColumns.length)
+    statusSheet.getCell(1, 1).value = `Status ${location}`
+    statusSheet.getCell(1, 1).font = { bold: true }
+    statusSheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF00' } }
+    statusSheet.addRow(statusColumns)
+    statusRows.forEach((row) => {
+      statusSheet.addRow(statusColumns.map((col) => row[col] ?? ''))
+    })
+    statusSheet.getRow(2).font = { bold: true }
+    statusSheet.getRow(2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'D9D9D9' } }
+
+    statusSheet.eachRow((row, rowNumber) => {
+      row.eachCell((cell) => {
+        cell.border = border
+        if (rowNumber === 1) return
+      })
+    })
+    statusSheet.views = [{ state: 'frozen', ySplit: 2 }]
+
+    const prioritySheet = wb.addWorksheet('Prioriteit')
+    const priorityColumns = [
+      'priority_rank',
+      'case_type',
+      'kist_categorie',
+      'arrival_date',
+      'aantal_op_pils',
+      'op_stock',
+      'in_productie',
+      'in_inkooporder',
+      'in_transfer',
+      'totaal_beschikbaar',
+      'tekort',
+      'productielocatie',
+      'BC CODE',
+    ]
+
+    const pilsGrouped = new Map<string, { count: number; arrival: string | null; loc: string }>()
+    ;(casesData || []).forEach((row: CaseRow) => {
+      const caseType = String(row.case_type || '').trim()
+      if (!caseType) return
+      const loc = erpByCase.get(caseType)?.productielocatie || 'Wilrijk'
+      const key = caseType
+      const current = pilsGrouped.get(key)
+      const arrival = row.arrival_date ? String(row.arrival_date) : null
+      if (!current) {
+        pilsGrouped.set(key, { count: 1, arrival, loc })
+      } else {
+        current.count += 1
+        if (arrival && (!current.arrival || arrival < current.arrival)) {
+          current.arrival = arrival
+        }
+      }
+    })
+
+    const priorityRows: Array<Record<string, string | number>> = []
+    pilsGrouped.forEach((data, caseType) => {
+      if (String(data.loc).toLowerCase() !== location.toLowerCase()) return
+      const opStock = stockByCase.get(caseType) || 0
+      const inTransfer = transferByCase.get(caseType) || 0
+      const total = opStock + inTransfer
+      if (data.count <= total) return
+      const kategoriematch = String(caseType).trim().toUpperCase().match(/^([KC])/)
+      const kistCategorie = kategoriematch ? kategoriematch[1] : 'Overig'
+      priorityRows.push({
+        case_type: caseType,
+        kist_categorie: kistCategorie,
+        arrival_date: data.arrival ? formatDateLabel(data.arrival) : '',
+        aantal_op_pils: data.count,
+        op_stock: opStock,
+        in_productie: 0,
+        in_inkooporder: 0,
+        in_transfer: inTransfer,
+        totaal_beschikbaar: total,
+        tekort: Math.max(0, data.count - total),
+        productielocatie: data.loc,
+        'BC CODE': erpByCase.get(caseType)?.erp_code || 'Special',
+      })
+    })
+
+    priorityRows.sort((a, b) => {
+      const da = new Date(String(a.arrival_date || ''))
+      const db = new Date(String(b.arrival_date || ''))
+      return da.getTime() - db.getTime()
+    })
+    priorityRows.forEach((row, index) => {
+      row.priority_rank = index + 1
+    })
+
+    prioritySheet.mergeCells(1, 1, 1, priorityColumns.length)
+    prioritySheet.getCell(1, 1).value = `Productie Prioriteit ${location} (oudste PILS eerst)`
+    prioritySheet.getCell(1, 1).font = { bold: true }
+    prioritySheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF00' } }
+    prioritySheet.addRow(priorityColumns)
+    priorityRows.forEach((row) => {
+      prioritySheet.addRow(priorityColumns.map((col) => row[col] ?? ''))
+    })
+    prioritySheet.getRow(2).font = { bold: true }
+    prioritySheet.getRow(2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'D9D9D9' } }
+    prioritySheet.eachRow((row, rowNumber) => {
+      row.eachCell((cell) => {
+        cell.border = border
+        if (rowNumber === 1) return
+      })
+    })
+    prioritySheet.views = [{ state: 'frozen', ySplit: 2 }]
 
     const buffer = await wb.xlsx.writeBuffer()
     const fileName = `Forecast_${location}.xlsx`
