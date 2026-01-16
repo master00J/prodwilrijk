@@ -267,6 +267,7 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
   // First, try to detect header row by checking first few rows
   // Look for common header patterns like "ERP Code", "Quantity", "Aantal", "No.", "Inventory", etc.
   let startRow = 0
+  let headerRowIndex: number | null = null
   const headerKeywords = ['erp', 'code', 'quantity', 'aantal', 'qty', 'stock', 'voorraad', 'no.', 'inventory', 'consumption']
   
   for (let checkRow = 0; checkRow < Math.min(5, range.e.r + 1); checkRow++) {
@@ -286,31 +287,65 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
     
     if (isHeaderRow) {
       startRow = checkRow + 1 // Start data from next row
+      headerRowIndex = checkRow
       console.log(`Detected header row at row ${checkRow + 1}, starting data from row ${startRow + 1}`)
       break
     }
   }
+
+  const headerCells: string[] = []
+  if (headerRowIndex !== null) {
+    for (let c = 0; c <= range.e.c; c++) {
+      const cell = XLSX.utils.encode_cell({ r: headerRowIndex, c })
+      const cellValue = worksheet[cell]
+      headerCells.push(cellValue ? String(cellValue.v || '').toLowerCase().trim() : '')
+    }
+  }
+
+  const findColumnIndex = (names: string[]) => {
+    if (!headerCells.length) return -1
+    return headerCells.findIndex((cell) => names.some((name) => cell === name || cell.includes(name)))
+  }
+
+  const erpCandidateIndices = [
+    findColumnIndex(['no.', 'no']),
+    findColumnIndex(['production bom no.', 'production bom', 'bom']),
+    findColumnIndex(['routing no.', 'routing']),
+  ].filter((idx) => idx >= 0)
   
   // Process data rows
   for (let rowNum = startRow; rowNum <= range.e.r; rowNum++) {
-    // Column A (index 0) = May contain "7773 GP008760" format - extract ERP code
     const colA = XLSX.utils.encode_cell({ r: rowNum, c: 0 })
     const colACell = worksheet[colA]
     const colAValue = colACell ? String(colACell.v || '').trim() : ''
     
-    // Column B (index 1) = "Consumption Item No." - may contain ERP code as fallback
     const colB = XLSX.utils.encode_cell({ r: rowNum, c: 1 })
     const colBCell = worksheet[colB]
     const colBValue = colBCell ? String(colBCell.v || '').trim() : ''
     
-    // Extract ERP code from column A using consistent normalization
-    // Pattern: "7773 GP008760" -> extract "GP008760"
-    // Or just "GP008760" -> use as is
-    let erpCode = normalizeErpCode(colAValue)
-    
-    // Fallback to column B if column A didn't yield an ERP code
+    let erpCode: string | null = null
+
+    for (const idx of erpCandidateIndices) {
+      const cell = XLSX.utils.encode_cell({ r: rowNum, c: idx })
+      const cellValue = worksheet[cell]
+      const rawValue = cellValue ? String(cellValue.v || '').trim() : ''
+      const normalized = normalizeErpCode(rawValue)
+      if (normalized && /^[A-Z]{2,}\d+/.test(normalized)) {
+        erpCode = normalized
+        break
+      }
+    }
+
+    if (!erpCode) {
+      erpCode = normalizeErpCode(colAValue)
+    }
+
     if (!erpCode && colBValue) {
       erpCode = normalizeErpCode(colBValue)
+    }
+
+    if (erpCode && !/^[A-Z]{2,}\d+/.test(erpCode)) {
+      erpCode = null
     }
     
     // Skip empty rows or rows that look like headers
