@@ -79,7 +79,17 @@ export async function POST(request: NextRequest) {
 
     const deduped = Array.from(dedupedMap.values())
 
+    let currentForecast: any[] = []
     if (replace) {
+      const { data: currentData, error: currentError } = await supabaseAdmin
+        .from('grote_inpak_forecast')
+        .select('case_label, case_type, arrival_date, source_file')
+
+      if (currentError) {
+        throw currentError
+      }
+      currentForecast = currentData || []
+
       const { error: deleteError } = await supabaseAdmin
         .from('grote_inpak_forecast')
         .delete()
@@ -100,6 +110,44 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       throw error
+    }
+
+    if (replace && currentForecast.length > 0) {
+      const currentMap = new Map<string, any>()
+      currentForecast.forEach((row) => {
+        const label = String(row.case_label || '').trim()
+        if (!label) return
+        currentMap.set(label, row)
+      })
+
+      const changes: any[] = []
+      deduped.forEach((row: any) => {
+        const label = String(row.case_label || '').trim()
+        if (!label) return
+        const prev = currentMap.get(label)
+        if (!prev) return
+        const oldDate = String(prev.arrival_date || '').trim()
+        const newDate = String(row.arrival_date || '').trim()
+        if (oldDate && newDate && oldDate !== newDate) {
+          changes.push({
+            case_label: label,
+            case_type: row.case_type || prev.case_type || null,
+            old_arrival_date: oldDate,
+            new_arrival_date: newDate,
+            source_file: row.source_file || prev.source_file || null,
+          })
+        }
+      })
+
+      if (changes.length > 0) {
+        const { error: changeError } = await supabaseAdmin
+          .from('grote_inpak_forecast_changes')
+          .insert(changes)
+
+        if (changeError) {
+          throw changeError
+        }
+      }
     }
 
     return NextResponse.json({ success: true, data, count: data?.length || 0 })

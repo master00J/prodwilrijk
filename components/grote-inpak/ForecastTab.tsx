@@ -5,6 +5,7 @@ import { Upload, Download, TrendingUp } from 'lucide-react'
 
 export default function ForecastTab() {
   const [forecastData, setForecastData] = useState<any[]>([])
+  const [forecastChanges, setForecastChanges] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -23,6 +24,15 @@ export default function ForecastTab() {
       if (response.ok) {
         const result = await response.json()
         setForecastData(result.data || [])
+      }
+
+      const changesParams = new URLSearchParams()
+      if (dateFrom) changesParams.append('date_from', dateFrom)
+      if (dateTo) changesParams.append('date_to', dateTo)
+      const changesResponse = await fetch(`/api/grote-inpak/forecast-changes?${changesParams.toString()}`)
+      if (changesResponse.ok) {
+        const changesResult = await changesResponse.json()
+        setForecastChanges(changesResult.data || [])
       }
     } catch (error) {
       console.error('Error loading forecast:', error)
@@ -327,6 +337,46 @@ export default function ForecastTab() {
           Geen forecast data gevonden. Upload een forecast CSV bestand om te beginnen.
         </div>
       )}
+
+      <div className="bg-white border border-gray-200 rounded-lg p-6 mt-8">
+        <h3 className="text-lg font-semibold mb-4">📅 Forecast datumwijzigingen</h3>
+        {forecastChanges.length === 0 ? (
+          <p className="text-sm text-gray-500">Geen datumwijzigingen gevonden in deze periode.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Case Label</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Case Type</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Oude Datum</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Nieuwe Datum</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Bronbestand</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Gewijzigd</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {forecastChanges.map((item: any, index: number) => (
+                  <tr key={`${item.case_label}-${index}`} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{item.case_label || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{item.case_type || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">
+                      {item.old_arrival_date ? new Date(item.old_arrival_date).toLocaleDateString('nl-NL') : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-700">
+                      {item.new_arrival_date ? new Date(item.new_arrival_date).toLocaleDateString('nl-NL') : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{item.source_file || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">
+                      {item.changed_at ? new Date(item.changed_at).toLocaleString('nl-NL') : '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
