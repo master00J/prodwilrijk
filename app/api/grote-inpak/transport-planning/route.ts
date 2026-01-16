@@ -191,8 +191,13 @@ async function generateTransportPlanningExcel(
     const grouped = new Map<string, any>()
 
     filtered.forEach((item: any) => {
-      const caseType = item.case_type || ''
-      if (!caseType) return
+      const rawCaseType = item.case_type || ''
+      if (!rawCaseType) return
+
+      let caseType = String(rawCaseType).trim().toUpperCase()
+      if (caseType.startsWith('V')) {
+        caseType = 'K' + caseType.substring(1)
+      }
 
       if (!grouped.has(caseType)) {
         grouped.set(caseType, {
@@ -215,10 +220,7 @@ async function generateTransportPlanningExcel(
     grouped.forEach((group, caseType) => {
       let count = group.count
 
-      let normalizedCaseType = String(caseType).trim().toUpperCase()
-      if (normalizedCaseType.startsWith('V')) {
-        normalizedCaseType = 'K' + normalizedCaseType.substring(1)
-      }
+      const normalizedCaseType = String(caseType).trim().toUpperCase()
 
       if (destinationKeyword.toLowerCase() === 'willebroek') {
         const wlbStock = wlbStockMap.get(normalizedCaseType) || 0
@@ -233,7 +235,7 @@ async function generateTransportPlanningExcel(
         result.push({
           TO: '',
           'BC CODE': group.erp_code || '',
-          OMSCHRIJVING: caseType,
+          OMSCHRIJVING: normalizedCaseType,
           AANTAL: `${adjusted}st`,
           'STOCK GENK': genkStock > 0 ? String(genkStock) : 'Geen stock',
           GELADEN: '',
