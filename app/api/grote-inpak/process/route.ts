@@ -160,7 +160,8 @@ async function buildOverview(
     const kistStockEntries = stockMapByKistnummer.get(normalizedCaseType) || []
     const hasKistInWB = kistStockEntries.some((entry: any) => {
       const location = String(entry.location || '').toLowerCase()
-      return location.includes('willebroek') || location === 'wlb'
+      const quantity = Number(entry.quantity || 0)
+      return quantity > 0 && (location.includes('willebroek') || location === 'wlb')
     })
     if (hasKistInWB) return true
     
@@ -169,7 +170,8 @@ async function buildOverview(
       const erpStockEntries = stockMapByErpCode.get(String(erpCode).trim()) || []
       const hasErpInWB = erpStockEntries.some((entry: any) => {
         const location = String(entry.location || '').toLowerCase()
-        return location.includes('willebroek') || location === 'wlb'
+        const quantity = Number(entry.quantity || 0)
+        return quantity > 0 && (location.includes('willebroek') || location === 'wlb')
       })
       if (hasErpInWB) return true
     }

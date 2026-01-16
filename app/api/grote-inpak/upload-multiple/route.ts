@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
           const buffer = Buffer.from(await file.arrayBuffer())
           const location = extractLocationFromFilename(file.name)
           const workbook = XLSX.read(buffer, { type: 'buffer' })
-          const processedData = await parseStockExcel(workbook, location)
+          const processedData = await parseStockExcel(workbook, location, /regels/i.test(file.name))
 
           if (processedData.length > 0) {
             // Delete existing stock for this specific location first (overwrite behavior)
@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
           // Parse Stock Excel - extract location from filename
           const location = extractLocationFromFilename(file.name)
           const workbook = XLSX.read(buffer, { type: 'buffer' })
-          processedData = await parseStockExcel(workbook, location)
+          processedData = await parseStockExcel(workbook, location, /regels/i.test(file.name))
         }
 
         // Update upload log
@@ -215,7 +215,7 @@ function extractLocationFromFilename(filename: string): string {
   // Normalize common location names
   const locationMap: { [key: string]: string } = {
     'willebroek': 'Willebroek',
-    'wilrijk': 'Willebroek', // Wilrijk is the same as Willebroek
+    'wilrijk': 'Wilrijk',
     'wlb': 'Willebroek',
     'pac3pl': 'Willebroek',
     'genk': 'Genk',
@@ -226,7 +226,7 @@ function extractLocationFromFilename(filename: string): string {
   
   // Check for common patterns (order matters - check Wilrijk before Willebroek to avoid partial matches)
   if (lowerName.includes('wilrijk')) {
-    return 'Willebroek' // Wilrijk = Willebroek
+    return 'Wilrijk'
   }
   if (lowerName.includes('willebroek') || lowerName.includes('wlb') || lowerName.includes('pac3pl')) {
     return 'Willebroek'
@@ -252,7 +252,7 @@ function extractLocationFromFilename(filename: string): string {
   return locationMap[fallback.toLowerCase()] || fallback || 'Unknown'
 }
 
-async function parseStockExcel(workbook: XLSX.WorkBook, location: string): Promise<any[]> {
+async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTransfer: boolean = false): Promise<any[]> {
   const sheetName = workbook.SheetNames[0]
   const worksheet = workbook.Sheets[sheetName]
   
@@ -323,52 +323,56 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string): Promi
         erpCode.length < 3) { // Skip very short codes that are likely not ERP codes
       continue
     }
-    
-    // Column C (index 2) = quantity
-    const colC = XLSX.utils.encode_cell({ r: rowNum, c: 2 })
-    const quantityCell = worksheet[colC]
+    // Column C (index 2) = stock quantity (regular files)
+    // Transfer files (Regels*): Column F (index 5) = in_transfer quantity
     let quantity = 0
     
-    if (quantityCell) {
-      const cellValue = quantityCell.v
-      if (typeof cellValue === 'number') {
-        quantity = Math.floor(Math.abs(cellValue)) // Use absolute value and floor
-      } else if (typeof cellValue === 'string') {
-        // Handle European number format: "0," means 0 (comma as decimal separator)
-        // Remove spaces first
-        let cleanStr = cellValue.replace(/\s/g, '').trim()
-        
-        // If it ends with just a comma (e.g., "0,"), treat as 0
-        if (cleanStr.endsWith(',') && !cleanStr.includes('.')) {
-          cleanStr = cleanStr.replace(/,$/, '')
-        }
-        
-        // Replace comma with dot for parsing (European format)
-        cleanStr = cleanStr.replace(',', '.')
-        
-        // Remove any remaining non-numeric characters except minus sign and dot
-        cleanStr = cleanStr.replace(/[^\d.-]/g, '')
-        
-        // Try to parse as float first (in case of decimals), then floor
-        const parsed = parseFloat(cleanStr)
-        quantity = isNaN(parsed) ? 0 : Math.floor(Math.abs(parsed))
-      } else {
-        quantity = Math.floor(Math.abs(parseFloat(String(cellValue || '0')) || 0))
-      }
-    }
-    
-    // Also check column B (index 1) as fallback for quantity if column C is empty
-    if (quantity === 0) {
-      const colB = XLSX.utils.encode_cell({ r: rowNum, c: 1 })
-      const quantityCellB = worksheet[colB]
-      if (quantityCellB) {
-        const cellValue = quantityCellB.v
+    if (isTransfer) {
+      location = 'In transfer'
+      const colF = XLSX.utils.encode_cell({ r: rowNum, c: 5 })
+      const quantityCell = worksheet[colF]
+      if (quantityCell) {
+        const cellValue = quantityCell.v
         if (typeof cellValue === 'number') {
           quantity = Math.floor(Math.abs(cellValue))
         } else if (typeof cellValue === 'string') {
-          const cleanStr = cellValue.replace(/[,\s]/g, '').trim()
+          let cleanStr = cellValue.replace(/\s/g, '').trim()
+          cleanStr = cleanStr.replace(',', '.')
+          cleanStr = cleanStr.replace(/[^\d.-]/g, '')
           const parsed = parseFloat(cleanStr)
           quantity = isNaN(parsed) ? 0 : Math.floor(Math.abs(parsed))
+        } else {
+          quantity = Math.floor(Math.abs(parseFloat(String(cellValue || '0')) || 0))
+        }
+      }
+    } else {
+      const colC = XLSX.utils.encode_cell({ r: rowNum, c: 2 })
+      const quantityCell = worksheet[colC]
+      if (quantityCell) {
+        const cellValue = quantityCell.v
+        if (typeof cellValue === 'number') {
+          quantity = Math.floor(Math.abs(cellValue)) // Use absolute value and floor
+        } else if (typeof cellValue === 'string') {
+          // Handle European number format: "0," means 0 (comma as decimal separator)
+          // Remove spaces first
+          let cleanStr = cellValue.replace(/\s/g, '').trim()
+          
+          // If it ends with just a comma (e.g., "0,"), treat as 0
+          if (cleanStr.endsWith(',') && !cleanStr.includes('.')) {
+            cleanStr = cleanStr.replace(/,$/, '')
+          }
+          
+          // Replace comma with dot for parsing (European format)
+          cleanStr = cleanStr.replace(',', '.')
+          
+          // Remove any remaining non-numeric characters except minus sign and dot
+          cleanStr = cleanStr.replace(/[^\d.-]/g, '')
+          
+          // Try to parse as float first (in case of decimals), then floor
+          const parsed = parseFloat(cleanStr)
+          quantity = isNaN(parsed) ? 0 : Math.floor(Math.abs(parsed))
+        } else {
+          quantity = Math.floor(Math.abs(parseFloat(String(cellValue || '0')) || 0))
         }
       }
     }
