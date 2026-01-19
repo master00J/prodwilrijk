@@ -8,7 +8,6 @@ export default function WMSImportPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [importStats, setImportStats] = useState<{
     total: number
-    fromToday: number
     inserted: number
     skipped: number
     errors: number
@@ -127,27 +126,20 @@ export default function WMSImportPage() {
       console.log('Available columns:', allKeys)
       console.log('First row sample:', firstRow)
       
-      // Find the date column name - "Laatste status verandering"
+      // Find optional date column name - "Laatste status verandering"
       let dateColumnName: string | null = null
-      
+
       for (const key of allKeys) {
         const lowerKey = key.toLowerCase().trim()
-        if (lowerKey === 'laatste status verandering' || 
-            (lowerKey.includes('laatste') && lowerKey.includes('status'))) {
+        if (
+          lowerKey === 'laatste status verandering' ||
+          (lowerKey.includes('laatste') && lowerKey.includes('status'))
+        ) {
           dateColumnName = key
           console.log('Found date column:', dateColumnName)
           break
         }
       }
-      
-      if (!dateColumnName) {
-        console.warn('Date column not found! Available columns:', allKeys)
-        throw new Error(`Date column "Laatste status verandering" not found. Available columns: ${allKeys.join(', ')}`)
-      }
-
-      // Today's date in YYYY-MM-DD format
-      const today = new Date().toISOString().split('T')[0]
-      console.log('Filtering for today:', today)
       
       // Pre-compile regex for date parsing
       const dateRegex = /^(\d{4})-(\d{2})-(\d{2})/
@@ -189,7 +181,7 @@ export default function WMSImportPage() {
         
         // Get date from "Laatste status verandering" column
         let statusDate: string | null = null
-        const dateValue = row[dateColumnName]
+        const dateValue = dateColumnName ? row[dateColumnName] : null
         
         if (dateValue) {
           const dateStr = String(dateValue).trim()
@@ -198,12 +190,6 @@ export default function WMSImportPage() {
           if (match) {
             statusDate = match[0]
           }
-        }
-        
-        // Filter: only import items with today's date
-        if (!statusDate || statusDate !== today) {
-          console.log('Skipping - not today:', { statusDate, today, item: itemNumber })
-          continue
         }
         
         // Use Pallet as unique identifier
@@ -218,13 +204,11 @@ export default function WMSImportPage() {
         })
       }
 
-      console.log(`Found ${mappedData.length} items from today out of ${totalStatus30} status 30 items`)
+      console.log(`Found ${mappedData.length} items out of ${totalStatus30} status 30 items`)
 
       if (mappedData.length === 0) {
         throw new Error(
-          `No items found with today's date (${today}) in "Laatste status verandering". ` +
-          `Total status 30 items in file: ${totalStatus30}. ` +
-          `Please check that the file contains items with today's date.`
+          `No valid status 30 items found. Total status 30 items in file: ${totalStatus30}.`
         )
       }
 
@@ -245,7 +229,6 @@ export default function WMSImportPage() {
 
       setImportStats({
         total: totalStatus30,
-        fromToday: mappedData.length,
         inserted: result.inserted || 0,
         skipped: result.skipped || 0,
         errors: result.errors || 0,
@@ -273,7 +256,7 @@ export default function WMSImportPage() {
     <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6 max-w-4xl">
       <h1 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6">WMS Status 30 Import</h1>
       <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">
-        Import items from WMS status 30. Only items with today&apos;s date in &quot;Laatste status verandering&quot; will be imported.
+        Import items from WMS status 30. Alle status 30 lijnen worden eenmalig geïmporteerd.
         Duplicate lines (based on Pallet number) will be automatically skipped.
       </p>
 
@@ -317,14 +300,10 @@ export default function WMSImportPage() {
             <h3 className="font-semibold mb-2">Import Statistics:</h3>
             <ul className="space-y-1 text-sm">
               <li>Total status 30 items in file: <strong>{importStats.total}</strong></li>
-              <li>Items from today: <strong className="text-blue-600">{importStats.fromToday}</strong></li>
               <li>New items inserted: <strong className="text-green-600">{importStats.inserted}</strong></li>
               <li>Duplicates skipped: <strong className="text-orange-600">{importStats.skipped}</strong></li>
               {importStats.errors > 0 && (
                 <li>Errors: <strong className="text-red-600">{importStats.errors}</strong></li>
-              )}
-              {importStats.total - importStats.fromToday > 0 && (
-                <li>Filtered out (not today): <strong className="text-gray-600">{importStats.total - importStats.fromToday}</strong></li>
               )}
             </ul>
           </div>
@@ -335,7 +314,6 @@ export default function WMSImportPage() {
           <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
             <li><strong>Supported formats:</strong> .do (WMS export), .xlsx, .xls, .csv, .tsv</li>
             <li><strong>Required columns:</strong> Status, Item, Pallet, Qty</li>
-            <li><strong>Date filter:</strong> &quot;Laatste status verandering&quot; - only items with today&apos;s date are imported</li>
             <li>Duplicate pallets will be automatically skipped</li>
           </ul>
         </div>

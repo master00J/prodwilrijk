@@ -34,25 +34,19 @@ export async function POST(request: NextRequest) {
     }
 
     // OPTIMIZED: Batch check for existing items instead of one-by-one queries
-    // Only check for items imported today to prevent duplicate imports on the same day
-    const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD format
-    const todayStart = new Date(today + 'T00:00:00.000Z').toISOString()
-    const todayEnd = new Date(today + 'T23:59:59.999Z').toISOString()
     
-    // Get all wms_line_ids that already exist (imported today)
+    // Get all wms_line_ids that already exist
     const wmsLineIds = validItems
       .map(item => item.wms_line_id)
       .filter((id): id is string => id !== null && id !== undefined)
     
     let existingWmsLineIds = new Set<string>()
     if (wmsLineIds.length > 0) {
-      // Batch query: get all existing wms_line_ids imported today
+      // Batch query: get all existing wms_line_ids
       const { data: existingByWmsId } = await supabaseAdmin
         .from('items_to_pack')
         .select('wms_line_id')
         .in('wms_line_id', wmsLineIds)
-        .gte('wms_import_date', todayStart)
-        .lte('wms_import_date', todayEnd)
       
       if (existingByWmsId) {
         existingWmsLineIds = new Set(
@@ -71,15 +65,13 @@ export async function POST(request: NextRequest) {
       // Get unique item_number values to query
       const uniqueItemNumbers = [...new Set(itemsWithoutWmsId.map(item => item.item_number))]
       
-      // Query for existing items with matching item_numbers, packed=false, and imported today
+      // Query for existing items with matching item_numbers, packed=false
       // Then filter in memory for matching po_numbers
       const { data: existingByItemPo } = await supabaseAdmin
         .from('items_to_pack')
         .select('item_number, po_number')
         .in('item_number', uniqueItemNumbers)
         .eq('packed', false)
-        .gte('wms_import_date', todayStart)
-        .lte('wms_import_date', todayEnd)
       
       if (existingByItemPo) {
         existingItemPoCombos = new Set(
