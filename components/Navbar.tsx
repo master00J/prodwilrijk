@@ -57,6 +57,7 @@ export default function Navbar() {
   const isPrepackPage = 
     pathname.startsWith('/prepack') || 
     pathname.startsWith('/view-prepack') || 
+    pathname.startsWith('/bestellingen-algemeen') ||
     pathname.startsWith('/confirmed-items') || 
     pathname.startsWith('/wms-import') || 
     pathname.startsWith('/items-to-pack') || 
@@ -181,6 +182,15 @@ export default function Navbar() {
                       }`}
                     >
                       Prepack Lading - Scanner
+                    </Link>
+                    <Link
+                      href="/bestellingen-algemeen"
+                      onClick={() => setIsPrepackOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/bestellingen-algemeen') ? 'bg-blue-50 text-blue-600 font-medium border-l-4 border-blue-500' : 'text-gray-700'
+                      }`}
+                    >
+                      Bestellingen Algemeen
                     </Link>
                     <Link
                       href="/confirmed-items"
