@@ -160,8 +160,8 @@ export default function WoodPickingPage() {
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Zoek op soort, locatie, pakketnummer of 38x150x4500..."
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="Zoek op soort, locatie, pakketnummer of 22x100x4500..."
+            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black placeholder:text-gray-500"
           />
         </div>
       </div>
@@ -169,7 +169,7 @@ export default function WoodPickingPage() {
       {/* Stock Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
+          <table className="min-w-full divide-y divide-gray-200 table-fixed">
             <thead className="bg-gray-50">
               <tr>
                 <th
@@ -227,28 +227,28 @@ export default function WoodPickingPage() {
               ) : (
                 sortedStock.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900 break-words">
                       {item.houtsoort}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 text-sm text-gray-500 break-words">
                       {item.pakketnummer || '-'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 text-sm text-gray-500 break-words">
                       {item.dikte}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 text-sm text-gray-500 break-words">
                       {item.breedte}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 text-sm text-gray-500 break-words">
                       {item.lengte}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 text-sm text-gray-500 break-words">
                       {item.locatie}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 text-sm text-gray-500 break-words">
                       {item.aantal}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm no-print">
+                    <td className="px-6 py-4 text-sm no-print">
                       <button
                         onClick={() => handlePick(item)}
                         className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-sm"

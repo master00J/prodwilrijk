@@ -29,9 +29,9 @@ export async function GET(request: NextRequest) {
           .eq('dikte', dikte)
           .eq('breedte', breedte)
           .eq('lengte', lengte)
+      } else {
+        query = query.or(`houtsoort.ilike.%${search}%,locatie.ilike.%${search}%,pakketnummer.ilike.%${search}%`)
       }
-
-      query = query.or(`houtsoort.ilike.%${search}%,locatie.ilike.%${search}%,pakketnummer.ilike.%${search}%`)
     }
 
     const { data, error } = await query
