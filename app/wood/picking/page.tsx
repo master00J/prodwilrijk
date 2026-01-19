@@ -127,6 +127,26 @@ export default function WoodPickingPage() {
 
   return (
     <div className="container mx-auto px-4 py-6">
+      <style jsx global>{`
+        @media print {
+          @page {
+            size: A4 portrait;
+            margin: 12mm;
+          }
+          body {
+            background: #fff !important;
+          }
+          body > *:not(.print-area) {
+            display: none !important;
+          }
+          .print-area {
+            display: block !important;
+          }
+          .no-print {
+            display: none !important;
+          }
+        }
+      `}</style>
       <div className="bg-white rounded-lg shadow p-6 mb-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-3xl font-bold text-gray-900">Wood Picking</h1>
@@ -153,7 +173,7 @@ export default function WoodPickingPage() {
       </div>
 
       {/* Stock Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
+      <div className="bg-white rounded-lg shadow overflow-hidden mb-6 print-area">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
