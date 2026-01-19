@@ -11,10 +11,20 @@ export default function WoodPickingPage() {
   const [sortColumn, setSortColumn] = useState<keyof WoodStock | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
+  const getSearchParam = (term: string) => {
+    const trimmed = term.trim()
+    if (!trimmed) return ''
+    const hasX = /[x*]/i.test(trimmed)
+    const fullDimPattern = /^\s*\d+(?:[.,]\d+)?\s*[x*]\s*\d+(?:[.,]\d+)?\s*[x*]\s*\d+(?:[.,]\d+)?\s*$/i
+    if (hasX && !fullDimPattern.test(trimmed)) return ''
+    return trimmed
+  }
+
   const fetchStock = async () => {
     try {
-      const url = searchTerm 
-        ? `/api/wood/stock?search=${encodeURIComponent(searchTerm)}`
+      const searchParam = getSearchParam(searchTerm)
+      const url = searchParam
+        ? `/api/wood/stock?search=${encodeURIComponent(searchParam)}`
         : '/api/wood/stock'
       const response = await fetch(url)
       if (!response.ok) throw new Error('Failed to fetch stock')
