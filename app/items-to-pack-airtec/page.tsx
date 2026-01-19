@@ -87,14 +87,6 @@ export default function ItemsToPackAirtecPage() {
   useEffect(() => {
     fetchItems()
     fetchActiveTimeLogs()
-    // Auto-refresh every 60 seconds
-    const interval = setInterval(() => {
-      if (!document.hidden) {
-        fetchItems()
-        fetchActiveTimeLogs()
-      }
-    }, 60000)
-    return () => clearInterval(interval)
   }, [fetchItems])
 
   useEffect(() => {

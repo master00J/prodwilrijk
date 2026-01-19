@@ -51,13 +51,6 @@ export default function ConfirmedItemsPage() {
 
   useEffect(() => {
     fetchItems()
-    // Auto-refresh every 60 seconds
-    const interval = setInterval(() => {
-      if (!document.hidden) {
-        fetchItems()
-      }
-    }, 60000)
-    return () => clearInterval(interval)
   }, [fetchItems])
 
   // Sort items (filtering is now done server-side)

@@ -55,13 +55,6 @@ export default function ReturnedItemsPage() {
 
   useEffect(() => {
     fetchItems()
-    // Auto-refresh every 60 seconds
-    const interval = setInterval(() => {
-      if (!document.hidden) {
-        fetchItems()
-      }
-    }, 60000)
-    return () => clearInterval(interval)
   }, [fetchItems])
 
   const handleSearch = (value: string) => {

@@ -131,7 +131,6 @@ function EditableCell({
 export default function OpenOrdersPage() {
   const [orders, setOrders] = useState<WoodOrder[]>([])
   const [loading, setLoading] = useState(true)
-  const [autoRefresh, setAutoRefresh] = useState(false)
   const [selectedOrders, setSelectedOrders] = useState<Set<number>>(new Set())
   const [sendingPdf, setSendingPdf] = useState(false)
   const [autoOrderRunning, setAutoOrderRunning] = useState(false)
@@ -321,12 +320,6 @@ export default function OpenOrdersPage() {
     fetchOrders()
   }, [])
 
-  useEffect(() => {
-    if (autoRefresh) {
-      const interval = setInterval(fetchOrders, 30000) // Refresh every 30 seconds
-      return () => clearInterval(interval)
-    }
-  }, [autoRefresh])
 
   const handleTogglePriority = async (id: number, currentPriority: boolean) => {
     try {
@@ -551,15 +544,6 @@ export default function OpenOrdersPage() {
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-3xl font-bold text-gray-900">Open Orders</h1>
           <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={autoRefresh}
-                onChange={(e) => setAutoRefresh(e.target.checked)}
-                className="w-4 h-4"
-              />
-              <span className="text-sm">Auto-refresh (30s)</span>
-            </label>
             <button
               onClick={fetchOrders}
               className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"

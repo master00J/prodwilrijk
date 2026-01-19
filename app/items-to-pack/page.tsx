@@ -82,15 +82,6 @@ export default function ItemsToPackPage() {
   useEffect(() => {
     fetchItems()
     fetchActiveTimeLogs()
-    // Auto-refresh every 60 seconds (reduced from 30 to improve performance)
-    // Only refresh if page is visible
-    const interval = setInterval(() => {
-      if (!document.hidden) {
-        fetchItems()
-        fetchActiveTimeLogs()
-      }
-    }, 60000)
-    return () => clearInterval(interval)
   }, [fetchItems])
 
   // Sort items (filtering is now done server-side)

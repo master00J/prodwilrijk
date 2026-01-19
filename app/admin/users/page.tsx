@@ -18,11 +18,6 @@ export default function UsersManagementPage() {
 
   useEffect(() => {
     fetchUsers()
-    // Auto-refresh every 30 seconds to catch new users
-    const interval = setInterval(() => {
-      fetchUsers()
-    }, 30000)
-    return () => clearInterval(interval)
   }, [])
 
   const fetchUsers = async () => {
