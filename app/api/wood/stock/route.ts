@@ -16,6 +16,21 @@ export async function GET(request: NextRequest) {
       .order('ontvangen_op', { ascending: false })
 
     if (search) {
+      const normalized = search.toLowerCase().trim()
+      const dimensionMatch = normalized.match(/(\d+(?:[.,]\d+)?)\s*[x*]\s*(\d+(?:[.,]\d+)?)\s*[x*]\s*(\d+(?:[.,]\d+)?)/)
+
+      if (dimensionMatch) {
+        const toNumber = (value: string) => Number(value.replace(',', '.'))
+        const dikte = toNumber(dimensionMatch[1])
+        const breedte = toNumber(dimensionMatch[2])
+        const lengte = toNumber(dimensionMatch[3])
+
+        query = query
+          .eq('dikte', dikte)
+          .eq('breedte', breedte)
+          .eq('lengte', lengte)
+      }
+
       query = query.or(`houtsoort.ilike.%${search}%,locatie.ilike.%${search}%,pakketnummer.ilike.%${search}%`)
     }
 
