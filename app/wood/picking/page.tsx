@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { WoodStock } from '@/types/database'
 
 export default function WoodPickingPage() {
@@ -11,22 +11,9 @@ export default function WoodPickingPage() {
   const [sortColumn, setSortColumn] = useState<keyof WoodStock | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
-  const getSearchParam = (term: string) => {
-    const trimmed = term.trim()
-    if (!trimmed) return ''
-    const hasX = /[x*]/i.test(trimmed)
-    const fullDimPattern = /^\s*\d+(?:[.,]\d+)?\s*[x*]\s*\d+(?:[.,]\d+)?\s*[x*]\s*\d+(?:[.,]\d+)?\s*$/i
-    if (hasX && !fullDimPattern.test(trimmed)) return ''
-    return trimmed
-  }
-
   const fetchStock = async () => {
     try {
-      const searchParam = getSearchParam(searchTerm)
-      const url = searchParam
-        ? `/api/wood/stock?search=${encodeURIComponent(searchParam)}`
-        : '/api/wood/stock'
-      const response = await fetch(url)
+      const response = await fetch('/api/wood/stock')
       if (!response.ok) throw new Error('Failed to fetch stock')
       const data = await response.json()
       setStock(data)
@@ -40,7 +27,7 @@ export default function WoodPickingPage() {
 
   useEffect(() => {
     fetchStock()
-  }, [searchTerm])
+  }, [])
 
   const handleSort = (column: keyof WoodStock) => {
     if (sortColumn === column) {
@@ -51,7 +38,35 @@ export default function WoodPickingPage() {
     }
   }
 
-  const sortedStock = [...stock].sort((a, b) => {
+  const filteredStock = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase()
+    if (!term) return stock
+    const compactTerm = term.replace(/\s+/g, '')
+
+    return stock.filter((item) => {
+      const dim = `${item.dikte}x${item.breedte}x${item.lengte}`
+      const dimStar = `${item.dikte}*${item.breedte}*${item.lengte}`
+      const haystack = [
+        item.houtsoort,
+        item.pakketnummer,
+        item.dikte,
+        item.breedte,
+        item.lengte,
+        item.locatie,
+        item.aantal,
+        dim,
+        dimStar,
+      ]
+        .filter((v) => v !== null && v !== undefined)
+        .join(' ')
+        .toLowerCase()
+
+      if (haystack.includes(term)) return true
+      return haystack.replace(/\s+/g, '').includes(compactTerm)
+    })
+  }, [stock, searchTerm])
+
+  const sortedStock = [...filteredStock].sort((a, b) => {
     if (!sortColumn) return 0
     
     const aVal = a[sortColumn]
