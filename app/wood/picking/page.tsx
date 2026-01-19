@@ -10,7 +10,6 @@ export default function WoodPickingPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [sortColumn, setSortColumn] = useState<keyof WoodStock | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
-  const [pickAmount, setPickAmount] = useState<{ [key: number]: number }>({})
 
   const fetchStock = async () => {
     try {
@@ -66,14 +65,15 @@ export default function WoodPickingPage() {
   })
 
   const handlePick = async (stockItem: WoodStock) => {
-    const amount = pickAmount[stockItem.id] || stockItem.aantal
-    
-    if (amount <= 0 || amount > stockItem.aantal) {
-      alert('Invalid amount')
+    const raw = prompt(`Aantal planken om te picken (max ${stockItem.aantal}):`, String(stockItem.aantal))
+    if (raw === null) return
+    const amount = Number(raw)
+    if (!Number.isFinite(amount) || amount <= 0 || amount > stockItem.aantal) {
+      alert('Ongeldig aantal')
       return
     }
 
-    if (!confirm(`Pick ${amount} planks from this stock item?`)) return
+    if (!confirm(`Pick ${amount} planken van dit item?`)) return
 
     try {
       const response = await fetch('/api/wood/pick', {
@@ -91,7 +91,6 @@ export default function WoodPickingPage() {
       }
 
       alert('Wood picked successfully!')
-      setPickAmount({ ...pickAmount, [stockItem.id]: 0 })
       await fetchStock()
     } catch (error) {
       console.error('Error picking wood:', error)
@@ -236,22 +235,12 @@ export default function WoodPickingPage() {
                       {item.aantal}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          min="1"
-                          max={item.aantal}
-                          value={pickAmount[item.id] || item.aantal}
-                          onChange={(e) => setPickAmount({ ...pickAmount, [item.id]: parseInt(e.target.value) || item.aantal })}
-                          className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
-                        />
-                        <button
-                          onClick={() => handlePick(item)}
-                          className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
-                        >
-                          Pick
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => handlePick(item)}
+                        className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
+                      >
+                        Pick
+                      </button>
                     </td>
                   </tr>
                 ))
