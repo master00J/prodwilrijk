@@ -8,6 +8,12 @@ interface ScanCheckAirtecProps {
 
 type ScanStatus = 'idle' | 'match' | 'mismatch' | 'error'
 
+const normalizeLot = (value: string) => {
+  const cleaned = value.replace(/[\r\n\t]/g, '').trim().toUpperCase()
+  if (!cleaned) return ''
+  return cleaned.replace(/^(2W|S)/, '')
+}
+
 export default function ScanCheckAirtec({ onMatch }: ScanCheckAirtecProps) {
   const [scanA, setScanA] = useState('')
   const [scanB, setScanB] = useState('')
@@ -31,8 +37,8 @@ export default function ScanCheckAirtec({ onMatch }: ScanCheckAirtecProps) {
   }
 
   const handleCompare = async () => {
-    const a = scanA.trim()
-    const b = scanB.trim()
+    const a = normalizeLot(scanA)
+    const b = normalizeLot(scanB)
     if (!a || !b) return
 
     if (a === b) {

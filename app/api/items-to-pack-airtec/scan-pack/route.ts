@@ -4,7 +4,12 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const lotNumber = String(body?.lot_number || '').trim()
+    const rawLot = String(body?.lot_number || '')
+    const lotNumber = rawLot
+      .replace(/[\r\n\t]/g, '')
+      .trim()
+      .toUpperCase()
+      .replace(/^(2W|S)/, '')
 
     if (!lotNumber) {
       return NextResponse.json(
