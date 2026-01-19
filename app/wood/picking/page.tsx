@@ -129,7 +129,15 @@ export default function WoodPickingPage() {
   return (
     <div className="container mx-auto px-4 py-6">
       <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-4">Wood Picking</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-3xl font-bold text-gray-900">Wood Picking</h1>
+          <button
+            onClick={() => window.print()}
+            className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 font-medium no-print"
+          >
+            🖨️ Print volledige lijst
+          </button>
+        </div>
       </div>
 
       {/* Search Bar */}
