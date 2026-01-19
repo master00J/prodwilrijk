@@ -478,7 +478,7 @@ export default function ItemsToPackPage() {
   const fetchActiveTimeLogs = async () => {
     try {
       // Add timestamp to prevent caching
-      const response = await fetch(`/api/time-logs/active?t=${Date.now()}`, {
+      const response = await fetch(`/api/time-logs/active?type=items_to_pack&t=${Date.now()}`, {
         cache: 'no-store',
         headers: {
           'Cache-Control': 'no-cache',
