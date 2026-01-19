@@ -10,6 +10,8 @@ export default function WoodPickingPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [sortColumn, setSortColumn] = useState<keyof WoodStock | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [edits, setEdits] = useState<Record<number, Partial<WoodStock>>>({})
+  const [savingIds, setSavingIds] = useState<Set<number>>(new Set())
 
   const fetchStock = async () => {
     try {
@@ -142,6 +144,67 @@ export default function WoodPickingPage() {
     }
   }
 
+  const handleFieldChange = (id: number, field: keyof WoodStock, value: string) => {
+    setEdits((prev) => ({
+      ...prev,
+      [id]: {
+        ...prev[id],
+        [field]: value,
+      },
+    }))
+  }
+
+  const handleSaveRow = async (item: WoodStock) => {
+    const rowEdits = edits[item.id]
+    if (!rowEdits || Object.keys(rowEdits).length === 0) return
+
+    const numericFields: Array<keyof WoodStock> = ['dikte', 'breedte', 'lengte', 'aantal']
+    const payload: Partial<WoodStock> = {}
+
+    Object.entries(rowEdits).forEach(([key, value]) => {
+      const field = key as keyof WoodStock
+      if (numericFields.includes(field)) {
+        const numericValue = Number(String(value).replace(',', '.'))
+        payload[field] = Number.isFinite(numericValue) ? (numericValue as any) : (item as any)[field]
+      } else {
+        payload[field] = value as any
+      }
+    })
+
+    setSavingIds((prev) => new Set(prev).add(item.id))
+    try {
+      const response = await fetch('/api/wood/stock', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: item.id, ...payload }),
+      })
+      if (!response.ok) throw new Error('Failed to update stock')
+      await fetchStock()
+      setEdits((prev) => {
+        const next = { ...prev }
+        delete next[item.id]
+        return next
+      })
+    } catch (error) {
+      console.error('Error updating stock:', error)
+      alert('Failed to update stock')
+    } finally {
+      setSavingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(item.id)
+        return next
+      })
+    }
+  }
+
+  const handleCancelRow = (id: number) => {
+    setEdits((prev) => {
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+  }
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-6">
@@ -253,33 +316,76 @@ export default function WoodPickingPage() {
                 sortedStock.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 text-sm font-medium text-gray-900 break-words">
-                      {item.houtsoort}
+                      <input
+                        value={(edits[item.id]?.houtsoort as string) ?? item.houtsoort ?? ''}
+                        onChange={(e) => handleFieldChange(item.id, 'houtsoort', e.target.value)}
+                        className="w-full bg-transparent border-b border-gray-200 focus:border-blue-500 outline-none"
+                      />
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500 break-words">
-                      {item.pakketnummer || '-'}
+                      <input
+                        value={(edits[item.id]?.pakketnummer as string) ?? item.pakketnummer ?? ''}
+                        onChange={(e) => handleFieldChange(item.id, 'pakketnummer', e.target.value)}
+                        className="w-full bg-transparent border-b border-gray-200 focus:border-blue-500 outline-none"
+                      />
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500 break-words">
-                      {item.dikte}
+                      <input
+                        value={String((edits[item.id]?.dikte as number | string | undefined) ?? item.dikte ?? '')}
+                        onChange={(e) => handleFieldChange(item.id, 'dikte', e.target.value)}
+                        className="w-full bg-transparent border-b border-gray-200 focus:border-blue-500 outline-none"
+                      />
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500 break-words">
-                      {item.breedte}
+                      <input
+                        value={String((edits[item.id]?.breedte as number | string | undefined) ?? item.breedte ?? '')}
+                        onChange={(e) => handleFieldChange(item.id, 'breedte', e.target.value)}
+                        className="w-full bg-transparent border-b border-gray-200 focus:border-blue-500 outline-none"
+                      />
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500 break-words">
-                      {item.lengte}
+                      <input
+                        value={String((edits[item.id]?.lengte as number | string | undefined) ?? item.lengte ?? '')}
+                        onChange={(e) => handleFieldChange(item.id, 'lengte', e.target.value)}
+                        className="w-full bg-transparent border-b border-gray-200 focus:border-blue-500 outline-none"
+                      />
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500 break-words">
-                      {item.locatie}
+                      <input
+                        value={(edits[item.id]?.locatie as string) ?? item.locatie ?? ''}
+                        onChange={(e) => handleFieldChange(item.id, 'locatie', e.target.value)}
+                        className="w-full bg-transparent border-b border-gray-200 focus:border-blue-500 outline-none"
+                      />
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500 break-words">
-                      {item.aantal}
+                      <input
+                        value={String((edits[item.id]?.aantal as number | string | undefined) ?? item.aantal ?? '')}
+                        onChange={(e) => handleFieldChange(item.id, 'aantal', e.target.value)}
+                        className="w-full bg-transparent border-b border-gray-200 focus:border-blue-500 outline-none"
+                      />
                     </td>
                     <td className="px-6 py-4 text-sm no-print">
-                      <button
-                        onClick={() => handlePick(item)}
-                        className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
-                      >
-                        Pick
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handlePick(item)}
+                          className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
+                        >
+                          Pick
+                        </button>
+                        <button
+                          onClick={() => handleSaveRow(item)}
+                          disabled={savingIds.has(item.id)}
+                          className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm disabled:opacity-50"
+                        >
+                          Opslaan
+                        </button>
+                        <button
+                          onClick={() => handleCancelRow(item.id)}
+                          className="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
+                        >
+                          Annuleer
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
