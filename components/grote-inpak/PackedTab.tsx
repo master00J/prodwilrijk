@@ -21,7 +21,6 @@ export default function PackedTab() {
     s9: 'MF-4536602',
     indus: 'MF-4581681',
   })
-  const [indusSuffix, setIndusSuffix] = useState('KC')
   const [converting, setConverting] = useState(false)
   const [settingsSaving, setSettingsSaving] = useState(false)
 
@@ -62,7 +61,6 @@ export default function PackedTab() {
             s9: result.data.po_s9 || 'MF-4536602',
             indus: result.data.po_indus || 'MF-4581681',
           })
-          setIndusSuffix(result.data.indus_suffix || 'KC')
         }
       } catch (error) {
         console.error('Error loading packed settings:', error)
@@ -83,7 +81,6 @@ export default function PackedTab() {
           po_s5: poNumbers.s5,
           po_s9: poNumbers.s9,
           po_indus: poNumbers.indus,
-          indus_suffix: indusSuffix,
         }),
       })
       if (!response.ok) {
@@ -276,7 +273,6 @@ export default function PackedTab() {
     filesN.forEach((file) => formData.append('packed_n', file))
     filesY.forEach((file) => formData.append('packed_y', file))
     formData.append('purchase_order', poNumbers.indus)
-    formData.append('item_suffix', indusSuffix)
 
     const response = await fetch('/api/grote-inpak/packed-ny-xml', {
       method: 'POST',
@@ -569,15 +565,6 @@ export default function PackedTab() {
               type="text"
               value={poNumbers.indus}
               onChange={(e) => setPoNumbers({ ...poNumbers, indus: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Item suffix</label>
-            <input
-              type="text"
-              value={indusSuffix}
-              onChange={(e) => setIndusSuffix(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             />
           </div>

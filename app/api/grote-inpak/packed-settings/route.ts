@@ -7,7 +7,6 @@ const DEFAULTS = {
   po_s5: 'MF-4536602',
   po_s9: 'MF-4536602',
   po_indus: 'MF-4581681',
-  indus_suffix: 'KC',
 }
 
 export async function GET() {
@@ -44,7 +43,6 @@ export async function POST(request: NextRequest) {
       po_s5: String(body.po_s5 || '').trim() || DEFAULTS.po_s5,
       po_s9: String(body.po_s9 || '').trim() || DEFAULTS.po_s9,
       po_indus: String(body.po_indus || '').trim() || DEFAULTS.po_indus,
-      indus_suffix: String(body.indus_suffix || '').trim() || DEFAULTS.indus_suffix,
       updated_at: new Date().toISOString(),
     }
 

@@ -71,7 +71,6 @@ export async function POST(request: NextRequest) {
     const packedNFiles = formData.getAll('packed_n').filter((item) => item instanceof File) as File[]
     const packedYFiles = formData.getAll('packed_y').filter((item) => item instanceof File) as File[]
     const purchaseOrder = String(formData.get('purchase_order') || '').trim()
-    const itemSuffix = String(formData.get('item_suffix') || '').trim()
 
     if (packedNFiles.length === 0 && packedYFiles.length === 0) {
       return NextResponse.json({ error: 'At least one file is required' }, { status: 400 })
@@ -111,10 +110,7 @@ export async function POST(request: NextRequest) {
     ]
 
     filtered.forEach((row) => {
-      let itemNumber = String(row.case_type || '')
-      if (itemSuffix && !itemNumber.toUpperCase().endsWith(itemSuffix.toUpperCase())) {
-        itemNumber = `${itemNumber}${itemSuffix}`
-      }
+      const itemNumber = String(row.case_type || '')
       const location = `${row.series || ''}/${row.case_label || ''}`
       const dateStrXml = formatDateXml(row.packed_date)
       parts.push(
