@@ -174,6 +174,15 @@ export default function Navbar() {
                       View Prepack - Confirm Items
                     </Link>
                     <Link
+                      href="/prepack-lading"
+                      onClick={() => setIsPrepackOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/prepack-lading') ? 'bg-blue-50 text-blue-600 font-medium border-l-4 border-blue-500' : 'text-gray-700'
+                      }`}
+                    >
+                      Prepack Lading - Scanner
+                    </Link>
+                    <Link
                       href="/confirmed-items"
                       onClick={() => setIsPrepackOpen(false)}
                       className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
