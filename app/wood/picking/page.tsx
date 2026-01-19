@@ -136,18 +136,12 @@ export default function WoodPickingPage() {
           body {
             background: #fff !important;
           }
-          body > *:not(.print-area) {
-            display: none !important;
-          }
-          .print-area {
-            display: block !important;
-          }
           .no-print {
             display: none !important;
           }
         }
       `}</style>
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
+      <div className="bg-white rounded-lg shadow p-6 mb-6 no-print">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-3xl font-bold text-gray-900">Wood Picking</h1>
           <button
@@ -160,7 +154,7 @@ export default function WoodPickingPage() {
       </div>
 
       {/* Search Bar */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
+      <div className="bg-white rounded-lg shadow p-6 mb-6 no-print">
         <div className="flex items-center gap-2">
           <input
             type="text"
@@ -173,7 +167,7 @@ export default function WoodPickingPage() {
       </div>
 
       {/* Stock Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden mb-6 print-area">
+      <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -220,7 +214,7 @@ export default function WoodPickingPage() {
                 >
                   Amount {sortColumn === 'aantal' && (sortDirection === 'asc' ? '↑' : '↓')}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider no-print">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -254,7 +248,7 @@ export default function WoodPickingPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {item.aantal}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm no-print">
                       <button
                         onClick={() => handlePick(item)}
                         className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
