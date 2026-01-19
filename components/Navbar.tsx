@@ -79,6 +79,7 @@ export default function Navbar() {
   const isWoodPage = 
     pathname.startsWith('/wood/order') ||
     pathname.startsWith('/wood/open-orders') ||
+    pathname.startsWith('/openstaande-bestellingen') ||
     pathname.startsWith('/wood/receive') ||
     pathname.startsWith('/wood/picking') ||
     pathname.startsWith('/wood/consumption')
@@ -131,6 +132,16 @@ export default function Navbar() {
           <div className="flex items-center space-x-4">
             {user && (
               <>
+                <Link
+                  href="/bestellingen-algemeen"
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    isActive('/bestellingen-algemeen')
+                      ? 'bg-blue-500 text-white hover:bg-blue-600'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  Bestellingen Algemeen
+                </Link>
                 {/* Prepack Dropdown */}
             <div className="relative" ref={prepackDropdownRef}>
               <button
@@ -350,6 +361,15 @@ export default function Navbar() {
                       }`}
                     >
                       Open Orders
+                    </Link>
+                    <Link
+                      href="/openstaande-bestellingen"
+                      onClick={() => setIsWoodOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/openstaande-bestellingen') ? 'bg-amber-50 text-amber-600 font-medium border-l-4 border-amber-500' : 'text-gray-700'
+                      }`}
+                    >
+                      Openstaande Bestellingen
                     </Link>
                     <Link
                       href="/wood/receive"
