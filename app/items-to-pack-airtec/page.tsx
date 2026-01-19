@@ -25,7 +25,7 @@ export default function ItemsToPackAirtecPage() {
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
   const [searchTerm, setSearchTerm] = useState('')
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState('')
   const [priorityOnly, setPriorityOnly] = useState(false)
   const [kistnummerFilter, setKistnummerFilter] = useState('')
   const [debouncedKistnummerFilter, setDebouncedKistnummerFilter] = useState('')
@@ -44,7 +44,7 @@ export default function ItemsToPackAirtecPage() {
         pageSize: pageSize.toString(),
       })
 
-      if (debouncedSearchTerm) params.append('search', debouncedSearchTerm)
+      if (appliedSearchTerm) params.append('search', appliedSearchTerm)
       if (priorityOnly) params.append('priority', 'true')
       if (debouncedKistnummerFilter) params.append('kistnummer', debouncedKistnummerFilter)
 
@@ -59,7 +59,7 @@ export default function ItemsToPackAirtecPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentPage, pageSize, debouncedSearchTerm, priorityOnly, debouncedKistnummerFilter])
+  }, [currentPage, pageSize, appliedSearchTerm, priorityOnly, debouncedKistnummerFilter])
 
   const fetchActiveTimeLogs = async () => {
     try {
@@ -95,13 +95,6 @@ export default function ItemsToPackAirtecPage() {
     }, 60000)
     return () => clearInterval(interval)
   }, [fetchItems])
-
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm)
-    }, 300)
-    return () => clearTimeout(timeout)
-  }, [searchTerm])
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -174,6 +167,10 @@ export default function ItemsToPackAirtecPage() {
 
   const handleSearchChange = (value: string) => {
     setSearchTerm(value)
+  }
+
+  const handleSearchSubmit = () => {
+    setAppliedSearchTerm(searchTerm.trim())
     setCurrentPage(1)
   }
 
@@ -438,6 +435,7 @@ export default function ItemsToPackAirtecPage() {
       <FiltersBarAirtec
         searchTerm={searchTerm}
         onSearchChange={handleSearchChange}
+        onSearchSubmit={handleSearchSubmit}
         priorityOnly={priorityOnly}
         onPriorityToggle={handlePriorityToggle}
         kistnummerFilter={kistnummerFilter}

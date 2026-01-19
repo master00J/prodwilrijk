@@ -3,6 +3,7 @@
 interface FiltersBarAirtecProps {
   searchTerm: string
   onSearchChange: (value: string) => void
+  onSearchSubmit: () => void
   priorityOnly: boolean
   onPriorityToggle: () => void
   kistnummerFilter: string
@@ -12,6 +13,7 @@ interface FiltersBarAirtecProps {
 export default function FiltersBarAirtec({
   searchTerm,
   onSearchChange,
+  onSearchSubmit,
   priorityOnly,
   onPriorityToggle,
   kistnummerFilter,
@@ -22,13 +24,27 @@ export default function FiltersBarAirtec({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Search */}
         <div className="relative">
-          <input
-            type="text"
-            placeholder="Search by description, item number, lot number, box number, division..."
-            value={searchTerm}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
-          />
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Search by description, item number, lot number, box number, division..."
+              value={searchTerm}
+              onChange={(e) => onSearchChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  onSearchSubmit()
+                }
+              }}
+              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+            />
+            <button
+              onClick={onSearchSubmit}
+              className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-lg"
+            >
+              Zoek
+            </button>
+          </div>
         </div>
 
         {/* Kistnummer Filter */}
