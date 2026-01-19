@@ -36,6 +36,10 @@ export default function ScanCheckAirtec({ onMatch }: ScanCheckAirtecProps) {
     }
   }
 
+  const MATCH_DISPLAY_MS = 2200
+  const MISMATCH_DISPLAY_MS = 2800
+  const ERROR_DISPLAY_MS = 3500
+
   const handleCompare = async () => {
     const a = normalizeLot(scanA)
     const b = normalizeLot(scanB)
@@ -46,11 +50,11 @@ export default function ScanCheckAirtec({ onMatch }: ScanCheckAirtecProps) {
       setMessage(`Match: ${a}`)
       try {
         await onMatch(a)
-        reset(true)
+        setTimeout(() => reset(true), MATCH_DISPLAY_MS)
       } catch (error: any) {
         setStatus('error')
         setMessage(error?.message || 'Kon lotnummer niet verplaatsen')
-        setTimeout(() => reset(true), 2000)
+        setTimeout(() => reset(true), ERROR_DISPLAY_MS)
       }
       return
     }
@@ -62,7 +66,7 @@ export default function ScanCheckAirtec({ onMatch }: ScanCheckAirtecProps) {
       setStatus('idle')
       setMessage(null)
       inputBRef.current?.focus()
-    }, 1200)
+    }, MISMATCH_DISPLAY_MS)
   }
 
   useEffect(() => {
@@ -71,8 +75,23 @@ export default function ScanCheckAirtec({ onMatch }: ScanCheckAirtecProps) {
     }
   }, [scanA, scanB])
 
+  const overlayClass =
+    status === 'match'
+      ? 'bg-green-500/90'
+      : status === 'mismatch' || status === 'error'
+      ? 'bg-red-500/90'
+      : ''
+
   return (
-    <div className="bg-white rounded-lg shadow p-4 mb-6">
+    <div className="bg-white rounded-lg shadow p-4 mb-6 relative">
+      {(status === 'match' || status === 'mismatch' || status === 'error') && (
+        <div
+          className={`fixed inset-0 z-50 flex items-center justify-center text-white text-4xl font-bold ${overlayClass}`}
+          aria-live="assertive"
+        >
+          {status === 'match' ? 'OK' : 'FOUT'}
+        </div>
+      )}
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-lg font-semibold">Scan controle (Lot Number)</h2>
         <button
