@@ -25,8 +25,10 @@ export default function ItemsToPackAirtecPage() {
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
   const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
   const [priorityOnly, setPriorityOnly] = useState(false)
   const [kistnummerFilter, setKistnummerFilter] = useState('')
+  const [debouncedKistnummerFilter, setDebouncedKistnummerFilter] = useState('')
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set())
   const [showTimeModal, setShowTimeModal] = useState(false)
   const [activeTimeLogs, setActiveTimeLogs] = useState<any[]>([])
@@ -42,9 +44,9 @@ export default function ItemsToPackAirtecPage() {
         pageSize: pageSize.toString(),
       })
 
-      if (searchTerm) params.append('search', searchTerm)
+      if (debouncedSearchTerm) params.append('search', debouncedSearchTerm)
       if (priorityOnly) params.append('priority', 'true')
-      if (kistnummerFilter) params.append('kistnummer', kistnummerFilter)
+      if (debouncedKistnummerFilter) params.append('kistnummer', debouncedKistnummerFilter)
 
       const response = await fetch(`/api/items-to-pack-airtec?${params.toString()}`)
       if (!response.ok) throw new Error('Failed to fetch items')
@@ -57,7 +59,7 @@ export default function ItemsToPackAirtecPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentPage, pageSize, searchTerm, priorityOnly, kistnummerFilter])
+  }, [currentPage, pageSize, debouncedSearchTerm, priorityOnly, debouncedKistnummerFilter])
 
   const fetchActiveTimeLogs = async () => {
     try {
@@ -93,6 +95,20 @@ export default function ItemsToPackAirtecPage() {
     }, 60000)
     return () => clearInterval(interval)
   }, [fetchItems])
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm)
+    }, 300)
+    return () => clearTimeout(timeout)
+  }, [searchTerm])
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setDebouncedKistnummerFilter(kistnummerFilter)
+    }, 300)
+    return () => clearTimeout(timeout)
+  }, [kistnummerFilter])
 
   // Sort items (filtering is now done server-side)
   const sortedItems = useMemo(() => {
