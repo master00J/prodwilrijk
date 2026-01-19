@@ -97,7 +97,7 @@ export default function PrepackLadingPage() {
     } catch {}
   }
 
-  const addEntry = () => {
+  const addEntry = async () => {
     const code = sanitizeCode(barcode)
     if (!code) return
     const ts = timestampEnabled ? formatTimestamp(new Date()) : ''
@@ -112,6 +112,17 @@ export default function PrepackLadingPage() {
     setBarcode('')
     playBeep()
     if (focusEnabled) inputRef.current?.focus()
+    try {
+      await fetch('/api/prepack/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          entries: [{ ts: entry.ts, code: entry.code, location: entry.location, note: entry.note }],
+        }),
+      })
+    } catch (error) {
+      console.error('Sync error:', error)
+    }
   }
 
   const removeEntry = (id: string) => {
