@@ -5,6 +5,7 @@ import { ItemToPackAirtec } from '@/types/database'
 import ItemsTableAirtec from '@/components/items-to-pack-airtec/ItemsTableAirtec'
 import FiltersBarAirtec from '@/components/items-to-pack-airtec/FiltersBarAirtec'
 import ActionsBarAirtec from '@/components/items-to-pack-airtec/ActionsBarAirtec'
+import ScanCheckAirtec from '@/components/items-to-pack-airtec/ScanCheckAirtec'
 import TimeRegistrationModal from '@/components/items-to-pack/TimeRegistrationModal'
 import ActiveTimersCard from '@/components/items-to-pack/ActiveTimersCard'
 import Pagination from '@/components/common/Pagination'
@@ -172,6 +173,19 @@ export default function ItemsToPackAirtecPage() {
   const handleSearchSubmit = () => {
     setAppliedSearchTerm(searchTerm.trim())
     setCurrentPage(1)
+  }
+
+  const handleScanMatch = async (lotNumber: string) => {
+    const response = await fetch('/api/items-to-pack-airtec/scan-pack', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lot_number: lotNumber }),
+    })
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.error || 'Scannen mislukt')
+    }
+    await fetchItems()
   }
 
   const handlePriorityToggle = () => {
@@ -431,6 +445,8 @@ export default function ItemsToPackAirtecPage() {
           onStopAll={handleStopAllTimers}
         />
       )}
+
+      <ScanCheckAirtec onMatch={handleScanMatch} />
 
       <FiltersBarAirtec
         searchTerm={searchTerm}
