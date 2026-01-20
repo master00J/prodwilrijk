@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchPrepackStats } from '@/lib/prepack/stats'
-import XlsxChart from 'xlsx-chart'
 import XlsxPopulate from 'xlsx-populate'
 import { promises as fs } from 'fs'
 import os from 'os'
 import path from 'path'
+import { JSDOM } from 'jsdom'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -24,6 +24,16 @@ function formatDateLabel(value: string) {
 }
 
 async function generateChartFile(options: ChartOptions, targetFile: string) {
+  const dom = new JSDOM('', { pretendToBeVisual: true })
+  const previousWindow = (globalThis as any).window
+  const previousDocument = (globalThis as any).document
+  const previousNavigator = (globalThis as any).navigator
+
+  ;(globalThis as any).window = dom.window
+  ;(globalThis as any).document = dom.window.document
+  ;(globalThis as any).navigator = dom.window.navigator
+
+  const { default: XlsxChart } = await import('xlsx-chart')
   const chart = new (XlsxChart as any)()
   await new Promise<void>((resolve, reject) => {
     const payload = { ...options, file: targetFile }
@@ -32,6 +42,10 @@ async function generateChartFile(options: ChartOptions, targetFile: string) {
       resolve()
     })
   })
+
+  ;(globalThis as any).window = previousWindow
+  ;(globalThis as any).document = previousDocument
+  ;(globalThis as any).navigator = previousNavigator
 }
 
 export async function GET(request: NextRequest) {
