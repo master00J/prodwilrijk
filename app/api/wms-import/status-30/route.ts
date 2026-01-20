@@ -15,13 +15,21 @@ export async function POST(request: NextRequest) {
 
     // Validate and prepare data
     const validItems = items
-      .map((item) => ({
-        item_number: item.item_number?.toString().trim() || null,
-        po_number: item.po_number?.toString().trim() || null,
-        amount: item.amount ? Number(item.amount) : null,
-        wms_line_id: item.wms_line_id?.toString().trim() || null,
-        wms_import_date: new Date().toISOString(),
-      }))
+      .map((item) => {
+        const statusDateRaw = item.status_date?.toString().trim()
+        const statusDateIso = statusDateRaw
+          ? new Date(statusDateRaw).toISOString()
+          : null
+
+        return {
+          item_number: item.item_number?.toString().trim() || null,
+          po_number: item.po_number?.toString().trim() || null,
+          amount: item.amount ? Number(item.amount) : null,
+          wms_line_id: item.wms_line_id?.toString().trim() || null,
+          wms_import_date: new Date().toISOString(),
+          ...(statusDateIso ? { date_added: statusDateIso } : {}),
+        }
+      })
       .filter(
         (item) => item.item_number && item.po_number && item.amount && item.amount > 0
       )
