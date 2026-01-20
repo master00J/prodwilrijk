@@ -186,6 +186,8 @@ export default function WMSImportPage() {
         return null
       }
       
+      const todayStr = new Date().toISOString().slice(0, 10)
+
       const mappedData: Array<{
         item_number: string
         po_number: string
@@ -225,6 +227,9 @@ export default function WMSImportPage() {
         let statusDate: string | null = null
         const dateValue = dateColumnName ? row[dateColumnName] : row.__col_i_date
         statusDate = parseDateValue(dateValue)
+        if (!statusDate || statusDate !== todayStr) {
+          continue
+        }
         
         // Use Pallet as unique identifier
         const wmsLineId = String(poNumber).trim()
