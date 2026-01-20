@@ -5,7 +5,6 @@ import Link from 'next/link'
 import {
   ComposedChart,
   Line,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -287,7 +286,14 @@ export default function PrepackMonitorPage() {
                   }}
                 />
                 <Legend />
-                <Bar dataKey="itemsPacked" fill="#2563eb" name="Items" radius={[6, 6, 0, 0]} />
+                <Line
+                  type="monotone"
+                  dataKey="itemsPacked"
+                  stroke="#2563eb"
+                  strokeWidth={2}
+                  name="Items"
+                  dot={false}
+                />
                 <Line
                   type="monotone"
                   dataKey="manHours"
