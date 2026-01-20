@@ -35,6 +35,33 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // Get incoming goods (items_to_pack)
+    let incomingQuery = supabaseAdmin
+      .from('items_to_pack')
+      .select('amount, date_added')
+
+    if (dateFrom) {
+      const fromDate = new Date(dateFrom)
+      fromDate.setHours(0, 0, 0, 0)
+      incomingQuery = incomingQuery.gte('date_added', fromDate.toISOString())
+    }
+
+    if (dateTo) {
+      const toDate = new Date(dateTo)
+      toDate.setHours(23, 59, 59, 999)
+      incomingQuery = incomingQuery.lte('date_added', toDate.toISOString())
+    }
+
+    const { data: incomingItems, error: incomingError } = await incomingQuery
+
+    if (incomingError) {
+      console.error('Error fetching incoming goods:', incomingError)
+      return NextResponse.json(
+        { error: 'Failed to fetch incoming goods' },
+        { status: 500 }
+      )
+    }
+
     // Get time logs for items_to_pack type
     let timeLogsQuery = supabaseAdmin
       .from('time_logs')
@@ -73,6 +100,7 @@ export async function GET(request: NextRequest) {
 
     const items = packedItems || []
     const logs = timeLogs || []
+    const incoming = incomingItems || []
 
     // Get unique item numbers to fetch prices
     const uniqueItemNumbers = [...new Set(items.map((item: any) => item.item_number).filter(Boolean))]
@@ -104,6 +132,7 @@ export async function GET(request: NextRequest) {
       manHours: number
       employees: Set<string>
       revenue: number
+      incomingItems: number
     }> = {}
 
     // Process packed items
@@ -116,6 +145,7 @@ export async function GET(request: NextRequest) {
           manHours: 0,
           employees: new Set(),
           revenue: 0,
+          incomingItems: 0,
         }
       }
       const amount = item.amount || 0
@@ -143,6 +173,7 @@ export async function GET(request: NextRequest) {
             manHours: 0,
             employees: new Set(),
             revenue: 0,
+            incomingItems: 0,
           }
         }
         
@@ -151,6 +182,23 @@ export async function GET(request: NextRequest) {
           dailyStats[date].employees.add(log.employees.name)
         }
       }
+    })
+
+    // Process incoming goods
+    incoming.forEach((item: any) => {
+      const date = new Date(item.date_added).toISOString().split('T')[0]
+      if (!dailyStats[date]) {
+        dailyStats[date] = {
+          date,
+          itemsPacked: 0,
+          manHours: 0,
+          employees: new Set(),
+          revenue: 0,
+          incomingItems: 0,
+        }
+      }
+      const amount = item.amount || 0
+      dailyStats[date].incomingItems += amount
     })
 
     // Convert to array and sort by date
@@ -162,6 +210,7 @@ export async function GET(request: NextRequest) {
         employeeCount: stat.employees.size,
         itemsPerHour: stat.manHours > 0 ? Number((stat.itemsPacked / stat.manHours).toFixed(2)) : 0,
         revenue: Number(stat.revenue.toFixed(2)),
+        incomingItems: stat.incomingItems,
       }))
       .sort((a, b) => a.date.localeCompare(b.date))
 
@@ -182,6 +231,10 @@ export async function GET(request: NextRequest) {
       const amount = item.amount || 0
       return sum + (price * amount)
     }, 0)
+
+    const totalDaysPacked =
+      dailyStatsArray.filter((stat) => stat.itemsPacked > 0 || stat.manHours > 0).length ||
+      dailyStatsArray.length
 
     // Calculate statistics per person (only track who worked and their hours)
     const personStatsMap: Record<string, {
@@ -242,7 +295,7 @@ export async function GET(request: NextRequest) {
         totalItemsPacked,
         totalManHours: Number(totalManHours.toFixed(2)),
         averageItemsPerHour: totalManHours > 0 ? Number((totalItemsPacked / totalManHours).toFixed(2)) : 0,
-        totalDays: dailyStatsArray.length,
+        totalDays: totalDaysPacked,
         totalRevenue: Number(totalRevenue.toFixed(2)),
       },
       personStats: personStatsArray,

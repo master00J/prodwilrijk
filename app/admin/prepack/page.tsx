@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, ReactNode } from 'react'
 import Link from 'next/link'
 import {
   ComposedChart,
@@ -20,6 +20,7 @@ interface DailyStat {
   employeeCount: number
   itemsPerHour: number
   revenue: number
+  incomingItems: number
 }
 
 interface Totals {
@@ -54,6 +55,52 @@ export default function PrepackMonitorPage() {
   const [totals, setTotals] = useState<Totals | null>(null)
   const [personStats, setPersonStats] = useState<PersonStats[]>([])
   const [detailedItems, setDetailedItems] = useState<DetailedItem[]>([])
+  const [collapsedSections, setCollapsedSections] = useState({
+    filters: false,
+    chartOutput: false,
+    chartRevenue: false,
+    productivity: false,
+    people: false,
+    details: false,
+    daily: false,
+  })
+  type SectionKey = keyof typeof collapsedSections
+
+  const toggleSection = (key: SectionKey) => {
+    setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  const CollapsibleCard = ({
+    id,
+    title,
+    subtitle,
+    children,
+  }: {
+    id: SectionKey
+    title: string
+    subtitle?: string
+    children: ReactNode
+  }) => {
+    const isCollapsed = collapsedSections[id]
+    return (
+      <div className="bg-white rounded-lg shadow p-6">
+        <button
+          type="button"
+          onClick={() => toggleSection(id)}
+          className="w-full flex items-start justify-between gap-4 text-left"
+        >
+          <div>
+            <h2 className="text-xl font-semibold">{title}</h2>
+            {subtitle && <span className="text-xs text-gray-500">{subtitle}</span>}
+          </div>
+          <span className="text-sm text-gray-500 whitespace-nowrap">
+            {isCollapsed ? 'Uitklappen' : 'Inklappen'}
+          </span>
+        </button>
+        {!isCollapsed && <div className="mt-4">{children}</div>}
+      </div>
+    )
+  }
   const kpiStats = useMemo(() => {
     if (!totals) {
       return {
@@ -151,113 +198,115 @@ export default function PrepackMonitorPage() {
       </div>
 
       {/* Date Filters */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <div className="mb-6 flex flex-wrap gap-4 items-end">
-          <div>
-            <label className="block mb-2 font-medium">Vanaf Datum</label>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
+      <div className="mb-6">
+        <CollapsibleCard id="filters" title="Filters & KPI's">
+          <div className="mb-6 flex flex-wrap gap-4 items-end">
+            <div>
+              <label className="block mb-2 font-medium">Vanaf Datum</label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block mb-2 font-medium">Tot Datum</label>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <button
+              onClick={fetchStats}
+              disabled={loading || !dateFrom || !dateTo}
+              className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium"
+            >
+              {loading ? 'Laden...' : 'Vernieuwen'}
+            </button>
           </div>
-          <div>
-            <label className="block mb-2 font-medium">Tot Datum</label>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-          <button
-            onClick={fetchStats}
-            disabled={loading || !dateFrom || !dateTo}
-            className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium"
-          >
-            {loading ? 'Laden...' : 'Vernieuwen'}
-          </button>
-        </div>
 
-        {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-6 gap-4 mb-6">
-          <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
-            <div className="text-sm text-gray-600 mb-1">Items verpakt</div>
-            <div className="text-3xl font-bold text-blue-700">
-              {totals ? totals.totalItemsPacked.toLocaleString('nl-NL') : '-'}
+          {/* KPI Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-6 gap-4 mb-6">
+            <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+              <div className="text-sm text-gray-600 mb-1">Items verpakt</div>
+              <div className="text-3xl font-bold text-blue-700">
+                {totals ? totals.totalItemsPacked.toLocaleString('nl-NL') : '-'}
+              </div>
+            </div>
+            <div className="bg-emerald-50 rounded-lg p-4 border border-emerald-100">
+              <div className="text-sm text-gray-600 mb-1">Totale manuren</div>
+              <div className="text-3xl font-bold text-emerald-700">
+                {totals ? totals.totalManHours.toFixed(2) : '-'}
+              </div>
+            </div>
+            <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-100">
+              <div className="text-sm text-gray-600 mb-1">Items per uur</div>
+              <div className="text-3xl font-bold text-indigo-700">
+                {totals ? totals.averageItemsPerHour.toFixed(2) : '-'}
+              </div>
+            </div>
+            <div className="bg-amber-50 rounded-lg p-4 border border-amber-100">
+              <div className="text-sm text-gray-600 mb-1">Totale omzet</div>
+              <div className="text-3xl font-bold text-amber-700">
+                {totals ? formatCurrency(totals.totalRevenue) : '-'}
+              </div>
+            </div>
+            <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+              <div className="text-sm text-gray-600 mb-1">Gem. items per dag</div>
+              <div className="text-3xl font-bold text-slate-800">
+                {totals ? kpiStats.avgItemsPerDay.toFixed(0) : '-'}
+              </div>
+            </div>
+            <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+              <div className="text-sm text-gray-600 mb-1">Actieve medewerkers</div>
+              <div className="text-3xl font-bold text-slate-800">
+                {totals ? kpiStats.activeEmployees : '-'}
+              </div>
             </div>
           </div>
-          <div className="bg-emerald-50 rounded-lg p-4 border border-emerald-100">
-            <div className="text-sm text-gray-600 mb-1">Totale manuren</div>
-            <div className="text-3xl font-bold text-emerald-700">
-              {totals ? totals.totalManHours.toFixed(2) : '-'}
-            </div>
-          </div>
-          <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-100">
-            <div className="text-sm text-gray-600 mb-1">Items per uur</div>
-            <div className="text-3xl font-bold text-indigo-700">
-              {totals ? totals.averageItemsPerHour.toFixed(2) : '-'}
-            </div>
-          </div>
-          <div className="bg-amber-50 rounded-lg p-4 border border-amber-100">
-            <div className="text-sm text-gray-600 mb-1">Totale omzet</div>
-            <div className="text-3xl font-bold text-amber-700">
-              {totals ? formatCurrency(totals.totalRevenue) : '-'}
-            </div>
-          </div>
-          <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
-            <div className="text-sm text-gray-600 mb-1">Gem. items per dag</div>
-            <div className="text-3xl font-bold text-slate-800">
-              {totals ? kpiStats.avgItemsPerDay.toFixed(0) : '-'}
-            </div>
-          </div>
-          <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
-            <div className="text-sm text-gray-600 mb-1">Actieve medewerkers</div>
-            <div className="text-3xl font-bold text-slate-800">
-              {totals ? kpiStats.activeEmployees : '-'}
-            </div>
-          </div>
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <div className="text-sm text-gray-500 mb-2">Gemiddelde per dag</div>
-            <div className="text-lg font-semibold text-gray-900">
-              {totals ? `${kpiStats.avgManHoursPerDay.toFixed(2)} uur` : '-'}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="text-sm text-gray-500 mb-2">Gemiddelde per dag</div>
+              <div className="text-lg font-semibold text-gray-900">
+                {totals ? `${kpiStats.avgManHoursPerDay.toFixed(2)} uur` : '-'}
+              </div>
+              <div className="text-xs text-gray-500">Manuren per dag</div>
             </div>
-            <div className="text-xs text-gray-500">Manuren per dag</div>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="text-sm text-gray-500 mb-2">Beste productiviteit</div>
+              <div className="text-lg font-semibold text-gray-900">
+                {kpiStats.bestProductivityDay
+                  ? `${kpiStats.bestProductivityDay.itemsPerHour.toFixed(2)} items/uur`
+                  : '-'}
+              </div>
+              <div className="text-xs text-gray-500">
+                {kpiStats.bestProductivityDay ? formatDate(kpiStats.bestProductivityDay.date) : '-'}
+              </div>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="text-sm text-gray-500 mb-2">Piekvolume</div>
+              <div className="text-lg font-semibold text-gray-900">
+                {kpiStats.peakDay ? `${kpiStats.peakDay.itemsPacked} items` : '-'}
+              </div>
+              <div className="text-xs text-gray-500">
+                {kpiStats.peakDay ? formatDate(kpiStats.peakDay.date) : '-'}
+              </div>
+            </div>
           </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <div className="text-sm text-gray-500 mb-2">Beste productiviteit</div>
-            <div className="text-lg font-semibold text-gray-900">
-              {kpiStats.bestProductivityDay
-                ? `${kpiStats.bestProductivityDay.itemsPerHour.toFixed(2)} items/uur`
-                : '-'}
-            </div>
-            <div className="text-xs text-gray-500">
-              {kpiStats.bestProductivityDay ? formatDate(kpiStats.bestProductivityDay.date) : '-'}
-            </div>
-          </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <div className="text-sm text-gray-500 mb-2">Piekvolume</div>
-            <div className="text-lg font-semibold text-gray-900">
-              {kpiStats.peakDay ? `${kpiStats.peakDay.itemsPacked} items` : '-'}
-            </div>
-            <div className="text-xs text-gray-500">
-              {kpiStats.peakDay ? formatDate(kpiStats.peakDay.date) : '-'}
-            </div>
-          </div>
-        </div>
+        </CollapsibleCard>
       </div>
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Output & Manuren</h2>
-            <span className="text-xs text-gray-500">Items en manuren per dag</span>
-          </div>
+        <CollapsibleCard
+          id="chartOutput"
+          title="Output & Manuren"
+          subtitle="Items en manuren per dag"
+        >
           {loading ? (
             <div className="text-center py-8 text-gray-500">Grafiek laden...</div>
           ) : dailyStats.length === 0 ? (
@@ -305,13 +354,9 @@ export default function PrepackMonitorPage() {
               </ComposedChart>
             </ResponsiveContainer>
           )}
-        </div>
+        </CollapsibleCard>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Omzet trend</h2>
-            <span className="text-xs text-gray-500">Dagelijkse omzet</span>
-          </div>
+        <CollapsibleCard id="chartRevenue" title="Omzet trend" subtitle="Dagelijkse omzet">
           {loading ? (
             <div className="text-center py-8 text-gray-500">Grafiek laden...</div>
           ) : dailyStats.length === 0 ? (
@@ -345,15 +390,11 @@ export default function PrepackMonitorPage() {
               </ComposedChart>
             </ResponsiveContainer>
           )}
-        </div>
+        </CollapsibleCard>
       </div>
 
       <div className="grid grid-cols-1 gap-6 mb-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Productiviteit</h2>
-            <span className="text-xs text-gray-500">Items per uur</span>
-          </div>
+        <CollapsibleCard id="productivity" title="Productiviteit" subtitle="Items per uur">
           {loading ? (
             <div className="text-center py-8 text-gray-500">Grafiek laden...</div>
           ) : dailyStats.length === 0 ? (
@@ -387,12 +428,12 @@ export default function PrepackMonitorPage() {
               </ComposedChart>
             </ResponsiveContainer>
           )}
-        </div>
+        </CollapsibleCard>
       </div>
 
       {/* Werkende Personen */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 className="text-2xl font-semibold mb-4">Werkende Personen</h2>
+      <div className="mb-6">
+        <CollapsibleCard id="people" title="Werkende Personen">
         {loading ? (
           <div className="text-center py-8">
             <div className="text-xl">Statistieken laden...</div>
@@ -421,11 +462,12 @@ export default function PrepackMonitorPage() {
             </table>
           </div>
         )}
+        </CollapsibleCard>
       </div>
 
       {/* Detailed Items List */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 className="text-2xl font-semibold mb-4">Gedetailleerde Lijst Verpakte Items</h2>
+      <div className="mb-6">
+        <CollapsibleCard id="details" title="Gedetailleerde Lijst Verpakte Items">
         {loading ? (
           <div className="text-center py-8">
             <div className="text-xl">Items laden...</div>
@@ -474,11 +516,11 @@ export default function PrepackMonitorPage() {
             </table>
           </div>
         )}
+        </CollapsibleCard>
       </div>
 
       {/* Daily Statistics Table */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-2xl font-semibold mb-4">Dagelijkse Statistieken</h2>
+      <CollapsibleCard id="daily" title="Dagelijkse Statistieken">
         {loading ? (
           <div className="text-center py-8">
             <div className="text-xl">Statistieken laden...</div>
@@ -493,6 +535,7 @@ export default function PrepackMonitorPage() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Datum</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Goederen binnen</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Items Verpakt</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Manuren</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Medewerkers</th>
@@ -511,6 +554,9 @@ export default function PrepackMonitorPage() {
                         day: 'numeric' 
                       })}
                     </td>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                      {stat.incomingItems.toLocaleString('nl-NL')}
+                    </td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">{stat.itemsPacked}</td>
                     <td className="px-4 py-3 text-sm text-gray-900">{stat.manHours.toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm text-gray-900">{stat.employeeCount}</td>
@@ -524,7 +570,7 @@ export default function PrepackMonitorPage() {
             </table>
           </div>
         )}
-      </div>
+      </CollapsibleCard>
     </div>
   )
 }
