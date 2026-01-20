@@ -28,6 +28,8 @@ interface ItemsResponse {
 export default function ItemsToPackPage() {
   const [items, setItems] = useState<ItemToPack[]>([])
   const [loading, setLoading] = useState(true)
+  const [isFetching, setIsFetching] = useState(false)
+  const [hasLoaded, setHasLoaded] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize] = useState(100)
   const [total, setTotal] = useState(0)
@@ -54,7 +56,12 @@ export default function ItemsToPackPage() {
 
   // Fetch items
   const fetchItems = useCallback(async () => {
-    setLoading(true)
+    const isInitialLoad = !hasLoaded
+    if (isInitialLoad) {
+      setLoading(true)
+    } else {
+      setIsFetching(true)
+    }
     try {
       const params = new URLSearchParams({
         page: currentPage.toString(),
@@ -76,14 +83,21 @@ export default function ItemsToPackPage() {
     } catch (error) {
       console.error('Error fetching items:', error)
     } finally {
-      setLoading(false)
+      if (isInitialLoad) {
+        setLoading(false)
+        setHasLoaded(true)
+      }
+      setIsFetching(false)
     }
-  }, [currentPage, pageSize, searchTerm, dateFilter, priorityOnly, measurementOnly, problemOnly])
+  }, [currentPage, pageSize, searchTerm, dateFilter, priorityOnly, measurementOnly, problemOnly, hasLoaded])
 
   useEffect(() => {
     fetchItems()
-    fetchActiveTimeLogs()
   }, [fetchItems])
+
+  useEffect(() => {
+    fetchActiveTimeLogs()
+  }, [])
 
   // Sort items (filtering is now done server-side)
   const sortedItems = useMemo(() => {
@@ -151,10 +165,13 @@ export default function ItemsToPackPage() {
     setSearchInput(value)
   }
 
-  const handleSearchSubmit = () => {
-    setSearchTerm(searchInput.trim())
-    setCurrentPage(1) // Reset to first page on new search
-  }
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setSearchTerm(searchInput.trim())
+      setCurrentPage(1) // Reset to first page on new search
+    }, 300)
+    return () => window.clearTimeout(timeoutId)
+  }, [searchInput])
 
   const handleDateFilterChange = (value: string) => {
     setDateFilter(value)
@@ -660,7 +677,7 @@ export default function ItemsToPackPage() {
     }
   }
 
-  if (loading) {
+  if (loading && items.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-xl">Loading...</div>
@@ -685,7 +702,6 @@ export default function ItemsToPackPage() {
       <FiltersBar
         searchValue={searchInput}
         onSearchValueChange={handleSearchInputChange}
-        onSearchSubmit={handleSearchSubmit}
         dateFilter={dateFilter}
         onDateFilterChange={handleDateFilterChange}
         priorityOnly={priorityOnly}
@@ -726,6 +742,12 @@ export default function ItemsToPackPage() {
         onEditProblemComment={handleEditProblemComment}
         onFillMeasurement={handleFillMeasurement}
       />
+
+      {isFetching && (
+        <div className="mt-3 text-sm text-gray-500">
+          Bezig met verversen...
+        </div>
+      )}
 
       {totalPages > 1 && (
         <div className="mt-6">

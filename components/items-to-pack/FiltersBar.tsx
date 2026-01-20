@@ -3,7 +3,6 @@
 interface FiltersBarProps {
   searchValue: string
   onSearchValueChange: (value: string) => void
-  onSearchSubmit: () => void
   dateFilter: string
   onDateFilterChange: (value: string) => void
   priorityOnly: boolean
@@ -18,7 +17,6 @@ interface FiltersBarProps {
 export default function FiltersBar({
   searchValue,
   onSearchValueChange,
-  onSearchSubmit,
   dateFilter,
   onDateFilterChange,
   priorityOnly,
@@ -39,11 +37,6 @@ export default function FiltersBar({
             placeholder="Search..."
             value={searchValue}
             onChange={(e) => onSearchValueChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                onSearchSubmit()
-              }
-            }}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
           />
         </div>
