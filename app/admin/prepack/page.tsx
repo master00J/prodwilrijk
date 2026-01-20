@@ -196,217 +196,23 @@ export default function PrepackMonitorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateFrom, dateTo])
 
-  const buildLineChart = (
-    stats: DailyStat[],
-    title: string,
-    series: Array<{
-      key: keyof DailyStat
-      label: string
-      color: string
-      getValue?: (stat: DailyStat) => number
-    }>
-  ) => {
-    if (stats.length === 0) return null
-    if (typeof document === 'undefined') return null
-    const canvas = document.createElement('canvas')
-    const width = 900
-    const height = 420
-    canvas.width = width
-    canvas.height = height
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return null
-
-    const padding = { left: 70, right: 20, top: 36, bottom: 60 }
-    const plotWidth = width - padding.left - padding.right
-    const plotHeight = height - padding.top - padding.bottom
-    const maxValue = Math.max(
-      1,
-      ...stats.map((stat) =>
-        Math.max(
-          ...series.map((s) => (s.getValue ? s.getValue(stat) : Number(stat[s.key]) || 0))
-        )
-      )
-    )
-
-    ctx.fillStyle = '#ffffff'
-    ctx.fillRect(0, 0, width, height)
-    ctx.fillStyle = '#111827'
-    ctx.font = '14px sans-serif'
-    ctx.fillText(title, padding.left, 20)
-
-    ctx.strokeStyle = '#d1d5db'
-    ctx.lineWidth = 1
-    ctx.beginPath()
-    ctx.moveTo(padding.left, padding.top)
-    ctx.lineTo(padding.left, height - padding.bottom)
-    ctx.lineTo(width - padding.right, height - padding.bottom)
-    ctx.stroke()
-
-    ctx.fillStyle = '#6b7280'
-    ctx.font = '12px sans-serif'
-    const yTicks = 5
-    for (let i = 0; i <= yTicks; i += 1) {
-      const value = Math.round((maxValue * i) / yTicks)
-      const y = padding.top + plotHeight * (1 - i / yTicks)
-      ctx.fillText(value.toString(), 10, y + 4)
-      ctx.strokeStyle = '#f3f4f6'
-      ctx.beginPath()
-      ctx.moveTo(padding.left, y)
-      ctx.lineTo(width - padding.right, y)
-      ctx.stroke()
-    }
-
-    const step = stats.length > 1 ? plotWidth / (stats.length - 1) : 0
-    const labelStep = Math.max(1, Math.ceil(stats.length / 8))
-    stats.forEach((stat, index) => {
-      if (index % labelStep !== 0 && index !== stats.length - 1) return
-      const x = padding.left + step * index
-      const label = new Date(stat.date).toLocaleDateString('nl-NL', {
-        day: 'numeric',
-        month: 'short',
-      })
-      ctx.save()
-      ctx.translate(x, height - padding.bottom + 14)
-      ctx.rotate(-Math.PI / 4)
-      ctx.fillStyle = '#6b7280'
-      ctx.fillText(label, 0, 0)
-      ctx.restore()
-    })
-
-    series.forEach((entry) => {
-      ctx.strokeStyle = entry.color
-      ctx.lineWidth = 2
-      ctx.beginPath()
-      stats.forEach((stat, index) => {
-        const value = entry.getValue ? entry.getValue(stat) : Number(stat[entry.key]) || 0
-        const x = padding.left + step * index
-        const y = padding.top + plotHeight * (1 - value / maxValue)
-        if (index === 0) {
-          ctx.moveTo(x, y)
-        } else {
-          ctx.lineTo(x, y)
-        }
-      })
-      ctx.stroke()
-    })
-
-    let legendX = padding.left
-    const legendY = padding.top + 8
-    series.forEach((entry) => {
-      ctx.fillStyle = entry.color
-      ctx.fillRect(legendX, legendY, 12, 12)
-      ctx.fillStyle = '#111827'
-      ctx.fillText(entry.label, legendX + 18, legendY + 10)
-      legendX += 18 + ctx.measureText(entry.label).width + 24
-    })
-
-    return canvas.toDataURL('image/png')
-  }
-
   const handleExportExcel = async () => {
-    if (dailyStats.length === 0 || exporting) return
+    if (exporting) return
     setExporting(true)
     try {
-      const ExcelJS = await import('exceljs')
-      const workbook = new ExcelJS.Workbook()
-      workbook.creator = 'Prepack Dashboard'
-
-      const dailySheet = workbook.addWorksheet('Dagelijkse stats')
-      dailySheet.columns = [
-        { header: 'Datum', key: 'date', width: 18 },
-        { header: 'Goederen binnen', key: 'incoming', width: 18 },
-        { header: 'Items verpakt', key: 'packed', width: 16 },
-        { header: 'Manuren', key: 'manHours', width: 12 },
-        { header: 'Medewerkers', key: 'employees', width: 14 },
-        { header: 'Items per uur', key: 'itemsPerHour', width: 14 },
-        { header: 'Omzet', key: 'revenue', width: 14 },
-      ]
-
-      dailyStats.forEach((stat) => {
-        dailySheet.addRow({
-          date: formatDate(stat.date),
-          incoming: stat.incomingItems,
-          packed: stat.itemsPacked,
-          manHours: stat.manHours,
-          employees: stat.employeeCount,
-          itemsPerHour: stat.itemsPerHour,
-          revenue: stat.revenue,
-        })
+      const params = new URLSearchParams({
+        date_from: dateFrom,
+        date_to: dateTo,
       })
-
-      const detailSheet = workbook.addWorksheet('Items')
-      detailSheet.columns = [
-        { header: 'Datum verpakt', key: 'packedAt', width: 22 },
-        { header: 'Itemnummer', key: 'itemNumber', width: 18 },
-        { header: 'PO nummer', key: 'poNumber', width: 18 },
-        { header: 'Aantal', key: 'amount', width: 10 },
-        { header: 'Prijs', key: 'price', width: 12 },
-        { header: 'Omzet', key: 'revenue', width: 12 },
-        { header: 'Datum toegevoegd', key: 'addedAt', width: 22 },
-      ]
-
-      detailedItems.forEach((item) => {
-        detailSheet.addRow({
-          packedAt: new Date(item.date_packed).toLocaleString('nl-NL'),
-          itemNumber: item.item_number,
-          poNumber: item.po_number,
-          amount: item.amount,
-          price: item.price,
-          revenue: item.revenue,
-          addedAt: item.date_added ? new Date(item.date_added).toLocaleString('nl-NL') : '',
-        })
-      })
-
-      const chartSheet = workbook.addWorksheet('Grafieken')
-      chartSheet.getRow(1).font = { size: 14, bold: true }
-
-      const charts = [
-        buildLineChart(dailyStats, 'Alles in 1 grafiek', [
-          { key: 'incomingItems', label: 'Goederen binnen', color: '#0ea5e9' },
-          { key: 'itemsPacked', label: 'Items verpakt', color: '#2563eb' },
-          { key: 'manHours', label: 'Manuren', color: '#10b981' },
-          { key: 'itemsPerHour', label: 'Items per uur', color: '#8b5cf6' },
-          {
-            key: 'revenue',
-            label: 'Omzet (x1000)',
-            color: '#f59e0b',
-            getValue: (stat) => stat.revenue / 1000,
-          },
-        ]),
-        buildLineChart(dailyStats, 'Binnengekomen vs verpakt per dag', [
-          { key: 'incomingItems', label: 'Goederen binnen', color: '#0ea5e9' },
-          { key: 'itemsPacked', label: 'Items verpakt', color: '#2563eb' },
-        ]),
-        buildLineChart(dailyStats, 'Manuren per dag', [
-          { key: 'manHours', label: 'Manuren', color: '#10b981' },
-        ]),
-        buildLineChart(dailyStats, 'Omzet per dag', [
-          { key: 'revenue', label: 'Omzet', color: '#f59e0b' },
-        ]),
-        buildLineChart(dailyStats, 'Items per uur', [
-          { key: 'itemsPerHour', label: 'Items per uur', color: '#8b5cf6' },
-        ]),
-      ]
-
-      let currentRow = 1
-      charts.forEach((chartImage) => {
-        if (!chartImage) return
-        const imageId = workbook.addImage({
-          base64: chartImage,
-          extension: 'png',
-        })
-        chartSheet.addImage(imageId, {
-          tl: { col: 0, row: currentRow },
-          ext: { width: 900, height: 420 },
-        })
-        currentRow += 23
-      })
-
-      const filename = `prepack-stats-${dateFrom || 'start'}-tot-${dateTo || 'eind'}.xlsx`
-      const buffer = await workbook.xlsx.writeBuffer()
-      const blob = new Blob([buffer], {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      })
+      const response = await fetch(`/api/admin/prepack-export?${params}`)
+      if (!response.ok) {
+        throw new Error('Export failed')
+      }
+      const blob = await response.blob()
+      const disposition = response.headers.get('Content-Disposition')
+      const match = disposition?.match(/filename="(.+)"/)
+      const filename =
+        match?.[1] || `prepack-stats-${dateFrom || 'start'}-tot-${dateTo || 'eind'}.xlsx`
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url

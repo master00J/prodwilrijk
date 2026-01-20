@@ -27,6 +27,8 @@
     "recharts": "^2.10.3",
     "tesseract.js": "^5.0.4",
     "xlsx": "^0.18.5",
+    "xlsx-chart": "^0.4.3",
+    "xlsx-populate": "^1.21.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {
