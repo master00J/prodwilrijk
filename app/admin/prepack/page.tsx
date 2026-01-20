@@ -196,7 +196,16 @@ export default function PrepackMonitorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateFrom, dateTo])
 
-  const buildIncomingVsPackedChart = (stats: DailyStat[]) => {
+  const buildLineChart = (
+    stats: DailyStat[],
+    title: string,
+    series: Array<{
+      key: keyof DailyStat
+      label: string
+      color: string
+      getValue?: (stat: DailyStat) => number
+    }>
+  ) => {
     if (stats.length === 0) return null
     if (typeof document === 'undefined') return null
     const canvas = document.createElement('canvas')
@@ -207,16 +216,24 @@ export default function PrepackMonitorPage() {
     const ctx = canvas.getContext('2d')
     if (!ctx) return null
 
-    const padding = { left: 70, right: 20, top: 20, bottom: 60 }
+    const padding = { left: 70, right: 20, top: 36, bottom: 60 }
     const plotWidth = width - padding.left - padding.right
     const plotHeight = height - padding.top - padding.bottom
     const maxValue = Math.max(
       1,
-      ...stats.map((stat) => Math.max(stat.incomingItems, stat.itemsPacked))
+      ...stats.map((stat) =>
+        Math.max(
+          ...series.map((s) => (s.getValue ? s.getValue(stat) : Number(stat[s.key]) || 0))
+        )
+      )
     )
 
     ctx.fillStyle = '#ffffff'
     ctx.fillRect(0, 0, width, height)
+    ctx.fillStyle = '#111827'
+    ctx.font = '14px sans-serif'
+    ctx.fillText(title, padding.left, 20)
+
     ctx.strokeStyle = '#d1d5db'
     ctx.lineWidth = 1
     ctx.beginPath()
@@ -256,12 +273,12 @@ export default function PrepackMonitorPage() {
       ctx.restore()
     })
 
-    const drawLine = (key: 'incomingItems' | 'itemsPacked', color: string) => {
-      ctx.strokeStyle = color
+    series.forEach((entry) => {
+      ctx.strokeStyle = entry.color
       ctx.lineWidth = 2
       ctx.beginPath()
       stats.forEach((stat, index) => {
-        const value = stat[key]
+        const value = entry.getValue ? entry.getValue(stat) : Number(stat[entry.key]) || 0
         const x = padding.left + step * index
         const y = padding.top + plotHeight * (1 - value / maxValue)
         if (index === 0) {
@@ -271,20 +288,17 @@ export default function PrepackMonitorPage() {
         }
       })
       ctx.stroke()
-    }
+    })
 
-    drawLine('incomingItems', '#0ea5e9')
-    drawLine('itemsPacked', '#2563eb')
-
-    ctx.fillStyle = '#0ea5e9'
-    ctx.fillRect(padding.left, padding.top + 8, 12, 12)
-    ctx.fillStyle = '#111827'
-    ctx.fillText('Goederen binnen', padding.left + 18, padding.top + 18)
-
-    ctx.fillStyle = '#2563eb'
-    ctx.fillRect(padding.left + 160, padding.top + 8, 12, 12)
-    ctx.fillStyle = '#111827'
-    ctx.fillText('Items verpakt', padding.left + 178, padding.top + 18)
+    let legendX = padding.left
+    const legendY = padding.top + 8
+    series.forEach((entry) => {
+      ctx.fillStyle = entry.color
+      ctx.fillRect(legendX, legendY, 12, 12)
+      ctx.fillStyle = '#111827'
+      ctx.fillText(entry.label, legendX + 18, legendY + 10)
+      legendX += 18 + ctx.measureText(entry.label).width + 24
+    })
 
     return canvas.toDataURL('image/png')
   }
@@ -344,20 +358,49 @@ export default function PrepackMonitorPage() {
       })
 
       const chartSheet = workbook.addWorksheet('Grafieken')
-      chartSheet.addRow(['Binnengekomen vs verpakt per dag'])
       chartSheet.getRow(1).font = { size: 14, bold: true }
 
-      const chartImage = buildIncomingVsPackedChart(dailyStats)
-      if (chartImage) {
+      const charts = [
+        buildLineChart(dailyStats, 'Alles in 1 grafiek', [
+          { key: 'incomingItems', label: 'Goederen binnen', color: '#0ea5e9' },
+          { key: 'itemsPacked', label: 'Items verpakt', color: '#2563eb' },
+          { key: 'manHours', label: 'Manuren', color: '#10b981' },
+          { key: 'itemsPerHour', label: 'Items per uur', color: '#8b5cf6' },
+          {
+            key: 'revenue',
+            label: 'Omzet (x1000)',
+            color: '#f59e0b',
+            getValue: (stat) => stat.revenue / 1000,
+          },
+        ]),
+        buildLineChart(dailyStats, 'Binnengekomen vs verpakt per dag', [
+          { key: 'incomingItems', label: 'Goederen binnen', color: '#0ea5e9' },
+          { key: 'itemsPacked', label: 'Items verpakt', color: '#2563eb' },
+        ]),
+        buildLineChart(dailyStats, 'Manuren per dag', [
+          { key: 'manHours', label: 'Manuren', color: '#10b981' },
+        ]),
+        buildLineChart(dailyStats, 'Omzet per dag', [
+          { key: 'revenue', label: 'Omzet', color: '#f59e0b' },
+        ]),
+        buildLineChart(dailyStats, 'Items per uur', [
+          { key: 'itemsPerHour', label: 'Items per uur', color: '#8b5cf6' },
+        ]),
+      ]
+
+      let currentRow = 1
+      charts.forEach((chartImage) => {
+        if (!chartImage) return
         const imageId = workbook.addImage({
           base64: chartImage,
           extension: 'png',
         })
         chartSheet.addImage(imageId, {
-          tl: { col: 0, row: 2 },
+          tl: { col: 0, row: currentRow },
           ext: { width: 900, height: 420 },
         })
-      }
+        currentRow += 23
+      })
 
       const filename = `prepack-stats-${dateFrom || 'start'}-tot-${dateTo || 'eind'}.xlsx`
       const buffer = await workbook.xlsx.writeBuffer()
