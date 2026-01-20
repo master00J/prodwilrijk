@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import {
   ComposedChart,
@@ -55,7 +55,48 @@ export default function PrepackMonitorPage() {
   const [totals, setTotals] = useState<Totals | null>(null)
   const [personStats, setPersonStats] = useState<PersonStats[]>([])
   const [detailedItems, setDetailedItems] = useState<DetailedItem[]>([])
-  const [chartExpanded, setChartExpanded] = useState(false)
+  const kpiStats = useMemo(() => {
+    if (!totals) {
+      return {
+        avgItemsPerDay: 0,
+        avgRevenuePerDay: 0,
+        avgManHoursPerDay: 0,
+        activeEmployees: 0,
+        peakDay: null as DailyStat | null,
+        bestProductivityDay: null as DailyStat | null,
+      }
+    }
+    const totalDays = totals.totalDays || 1
+    const avgItemsPerDay = totals.totalItemsPacked / totalDays
+    const avgRevenuePerDay = totals.totalRevenue / totalDays
+    const avgManHoursPerDay = totals.totalManHours / totalDays
+    const activeEmployees = personStats.length
+
+    const peakDay = dailyStats.reduce<DailyStat | null>((best, current) => {
+      if (!best || current.itemsPacked > best.itemsPacked) return current
+      return best
+    }, null)
+
+    const bestProductivityDay = dailyStats.reduce<DailyStat | null>((best, current) => {
+      if (!best || current.itemsPerHour > best.itemsPerHour) return current
+      return best
+    }, null)
+
+    return {
+      avgItemsPerDay,
+      avgRevenuePerDay,
+      avgManHoursPerDay,
+      activeEmployees,
+      peakDay,
+      bestProductivityDay,
+    }
+  }, [totals, personStats.length, dailyStats])
+
+  const formatDate = (value: string) =>
+    new Date(value).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' })
+
+  const formatCurrency = (value: number) =>
+    `€${value.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
   // Set default date range to last 7 days
   useEffect(() => {
@@ -112,7 +153,7 @@ export default function PrepackMonitorPage() {
 
       {/* Date Filters */}
       <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <div className="mb-6 flex gap-4 items-end">
+        <div className="mb-6 flex flex-wrap gap-4 items-end">
           <div>
             <label className="block mb-2 font-medium">Vanaf Datum</label>
             <input
@@ -141,138 +182,227 @@ export default function PrepackMonitorPage() {
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-          <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
-            <div className="text-sm text-gray-600 mb-1">Aantal Verpakte Kisten</div>
-            <div className="text-3xl font-bold text-blue-600">
-              {totals ? totals.totalItemsPacked : '-'}
+        <div className="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-6 gap-4 mb-6">
+          <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+            <div className="text-sm text-gray-600 mb-1">Items verpakt</div>
+            <div className="text-3xl font-bold text-blue-700">
+              {totals ? totals.totalItemsPacked.toLocaleString('nl-NL') : '-'}
             </div>
           </div>
-          <div className="bg-green-50 rounded-lg p-4 border-2 border-green-200">
-            <div className="text-sm text-gray-600 mb-1">Totale Manuren</div>
-            <div className="text-3xl font-bold text-green-600">
+          <div className="bg-emerald-50 rounded-lg p-4 border border-emerald-100">
+            <div className="text-sm text-gray-600 mb-1">Totale manuren</div>
+            <div className="text-3xl font-bold text-emerald-700">
               {totals ? totals.totalManHours.toFixed(2) : '-'}
             </div>
           </div>
-          <div className="bg-purple-50 rounded-lg p-4 border-2 border-purple-200">
-            <div className="text-sm text-gray-600 mb-1">Gemiddeld Items/Uur</div>
-            <div className="text-3xl font-bold text-purple-600">
+          <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-100">
+            <div className="text-sm text-gray-600 mb-1">Items per uur</div>
+            <div className="text-3xl font-bold text-indigo-700">
               {totals ? totals.averageItemsPerHour.toFixed(2) : '-'}
             </div>
           </div>
-          <div className="bg-orange-50 rounded-lg p-4 border-2 border-orange-200">
-            <div className="text-sm text-gray-600 mb-1">Totaal Dagen</div>
-            <div className="text-3xl font-bold text-orange-600">
-              {totals ? totals.totalDays : '-'}
+          <div className="bg-amber-50 rounded-lg p-4 border border-amber-100">
+            <div className="text-sm text-gray-600 mb-1">Totale omzet</div>
+            <div className="text-3xl font-bold text-amber-700">
+              {totals ? formatCurrency(totals.totalRevenue) : '-'}
             </div>
           </div>
-          <div className="bg-yellow-50 rounded-lg p-4 border-2 border-yellow-200">
-            <div className="text-sm text-gray-600 mb-1">Totale Omzet</div>
-            <div className="text-3xl font-bold text-yellow-600">
-              {totals ? `€${totals.totalRevenue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+          <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+            <div className="text-sm text-gray-600 mb-1">Gem. items per dag</div>
+            <div className="text-3xl font-bold text-slate-800">
+              {totals ? kpiStats.avgItemsPerDay.toFixed(0) : '-'}
+            </div>
+          </div>
+          <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+            <div className="text-sm text-gray-600 mb-1">Actieve medewerkers</div>
+            <div className="text-3xl font-bold text-slate-800">
+              {totals ? kpiStats.activeEmployees : '-'}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="text-sm text-gray-500 mb-2">Gemiddelde per dag</div>
+            <div className="text-lg font-semibold text-gray-900">
+              {totals ? `${kpiStats.avgManHoursPerDay.toFixed(2)} uur` : '-'}
+            </div>
+            <div className="text-xs text-gray-500">Manuren per dag</div>
+          </div>
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="text-sm text-gray-500 mb-2">Beste productiviteit</div>
+            <div className="text-lg font-semibold text-gray-900">
+              {kpiStats.bestProductivityDay
+                ? `${kpiStats.bestProductivityDay.itemsPerHour.toFixed(2)} items/uur`
+                : '-'}
+            </div>
+            <div className="text-xs text-gray-500">
+              {kpiStats.bestProductivityDay ? formatDate(kpiStats.bestProductivityDay.date) : '-'}
+            </div>
+          </div>
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="text-sm text-gray-500 mb-2">Piekvolume</div>
+            <div className="text-lg font-semibold text-gray-900">
+              {kpiStats.peakDay ? `${kpiStats.peakDay.itemsPacked} items` : '-'}
+            </div>
+            <div className="text-xs text-gray-500">
+              {kpiStats.peakDay ? formatDate(kpiStats.peakDay.date) : '-'}
             </div>
           </div>
         </div>
       </div>
 
       {/* Charts Section */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-semibold">Grafieken</h2>
-          <button
-            onClick={() => setChartExpanded(!chartExpanded)}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-          >
-            {chartExpanded ? '▼ Minimaliseren' : '▶ Uitklappen'}
-          </button>
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Output & Manuren</h2>
+            <span className="text-xs text-gray-500">Items en manuren per dag</span>
+          </div>
+          {loading ? (
+            <div className="text-center py-8 text-gray-500">Grafiek laden...</div>
+          ) : dailyStats.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">Geen data gevonden</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <ComposedChart data={dailyStats}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={(value) =>
+                    new Date(value).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })
+                  }
+                  angle={-35}
+                  textAnchor="end"
+                  height={60}
+                />
+                <YAxis />
+                <Tooltip
+                  labelFormatter={(value) => formatDate(value as string)}
+                  formatter={(value: number, name: string) => {
+                    if (name === 'Manuren') {
+                      return [`${value.toFixed(2)} uur`, 'Manuren']
+                    }
+                    return [value, name]
+                  }}
+                />
+                <Legend />
+                <Bar dataKey="itemsPacked" fill="#2563eb" name="Items" radius={[6, 6, 0, 0]} />
+                <Line
+                  type="monotone"
+                  dataKey="manHours"
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  name="Manuren"
+                  dot={false}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          )}
         </div>
-        {chartExpanded && (
-          <>
-            {loading ? (
-              <div className="text-center py-8">
-                <div className="text-xl">Grafieken laden...</div>
-              </div>
-            ) : dailyStats.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                Geen data gevonden voor de geselecteerde periode
-              </div>
-            ) : (
-              <div className="mt-4">
-                <ResponsiveContainer width="100%" height={400}>
-                  <ComposedChart data={dailyStats}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="date"
-                      tickFormatter={(value) => new Date(value).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })}
-                      angle={-45}
-                      textAnchor="end"
-                      height={80}
-                    />
-                    <YAxis
-                      yAxisId="left"
-                      label={{ value: 'Items / Manuren', angle: -90, position: 'insideLeft' }}
-                    />
-                    <YAxis
-                      yAxisId="right"
-                      orientation="right"
-                      label={{ value: 'Omzet (€)', angle: 90, position: 'insideRight' }}
-                      tickFormatter={(value) => `€${(value / 1000).toFixed(0)}k`}
-                    />
-                    <Tooltip
-                      labelFormatter={(value) => new Date(value).toLocaleDateString('nl-NL', { 
-                        weekday: 'short',
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric'
-                      })}
-                      formatter={(value: number, name: string) => {
-                        if (name === 'Omzet') {
-                          return [`€${value.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'Omzet']
-                        } else if (name === 'Manuren') {
-                          return [`${value.toFixed(2)} uur`, 'Manuren']
-                        } else if (name === 'Items/Uur') {
-                          return [`${value.toFixed(2)} items/uur`, 'Productiviteit']
-                        }
-                        return [value, name]
-                      }}
-                    />
-                    <Legend />
-                    <Bar
-                      yAxisId="left"
-                      dataKey="itemsPacked"
-                      fill="#3b82f6"
-                      name="Items Verpakt"
-                    />
-                    <Bar
-                      yAxisId="left"
-                      dataKey="manHours"
-                      fill="#10b981"
-                      name="Manuren"
-                    />
-                    <Line
-                      yAxisId="right"
-                      type="monotone"
-                      dataKey="revenue"
-                      stroke="#eab308"
-                      strokeWidth={2}
-                      name="Omzet"
-                      dot={{ fill: '#eab308', r: 4 }}
-                    />
-                    <Line
-                      yAxisId="left"
-                      type="monotone"
-                      dataKey="itemsPerHour"
-                      stroke="#8b5cf6"
-                      strokeWidth={2}
-                      name="Items/Uur"
-                      dot={{ fill: '#8b5cf6', r: 4 }}
-                    />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </>
-        )}
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Omzet trend</h2>
+            <span className="text-xs text-gray-500">Dagelijkse omzet</span>
+          </div>
+          {loading ? (
+            <div className="text-center py-8 text-gray-500">Grafiek laden...</div>
+          ) : dailyStats.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">Geen data gevonden</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <ComposedChart data={dailyStats}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={(value) =>
+                    new Date(value).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })
+                  }
+                  angle={-35}
+                  textAnchor="end"
+                  height={60}
+                />
+                <YAxis tickFormatter={(value) => `€${(value / 1000).toFixed(0)}k`} />
+                <Tooltip
+                  labelFormatter={(value) => formatDate(value as string)}
+                  formatter={(value: number) => [formatCurrency(value), 'Omzet']}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="#f59e0b"
+                  strokeWidth={3}
+                  name="Omzet"
+                  dot={{ fill: '#f59e0b', r: 3 }}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+        <div className="bg-white rounded-lg shadow p-6 xl:col-span-2">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Productiviteit</h2>
+            <span className="text-xs text-gray-500">Items per uur</span>
+          </div>
+          {loading ? (
+            <div className="text-center py-8 text-gray-500">Grafiek laden...</div>
+          ) : dailyStats.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">Geen data gevonden</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={260}>
+              <ComposedChart data={dailyStats}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={(value) =>
+                    new Date(value).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })
+                  }
+                  angle={-35}
+                  textAnchor="end"
+                  height={60}
+                />
+                <YAxis />
+                <Tooltip
+                  labelFormatter={(value) => formatDate(value as string)}
+                  formatter={(value: number) => [`${value.toFixed(2)} items/uur`, 'Productiviteit']}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="itemsPerHour"
+                  stroke="#8b5cf6"
+                  strokeWidth={3}
+                  name="Items/uur"
+                  dot={false}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Top medewerkers</h2>
+            <span className="text-xs text-gray-500">Manuren</span>
+          </div>
+          {loading ? (
+            <div className="text-center py-8 text-gray-500">Laden...</div>
+          ) : personStats.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">Geen data</div>
+          ) : (
+            <div className="space-y-3">
+              {personStats.slice(0, 6).map((stat) => (
+                <div key={stat.name} className="flex items-center justify-between">
+                  <div className="text-sm font-medium text-gray-900">{stat.name}</div>
+                  <div className="text-sm text-gray-600">{stat.manHours.toFixed(2)} uur</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Werkende Personen */}
