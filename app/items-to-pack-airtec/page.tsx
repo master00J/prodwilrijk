@@ -35,6 +35,10 @@ export default function ItemsToPackAirtecPage() {
   const [activeTimeLogs, setActiveTimeLogs] = useState<any[]>([])
   const [sortColumn, setSortColumn] = useState<keyof ItemToPackAirtec | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [boxSummary, setBoxSummary] = useState<
+    Array<{ kistnummer: string; count: number; totalQuantity: number }>
+  >([])
+  const [boxSummaryLoading, setBoxSummaryLoading] = useState(false)
 
   // Fetch items
   const fetchItems = useCallback(async () => {
@@ -88,6 +92,30 @@ export default function ItemsToPackAirtecPage() {
     fetchItems()
     fetchActiveTimeLogs()
   }, [fetchItems])
+
+  const fetchBoxSummary = useCallback(async () => {
+    setBoxSummaryLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (appliedSearchTerm) params.append('search', appliedSearchTerm)
+      if (priorityOnly) params.append('priority', 'true')
+      if (debouncedKistnummerFilter) params.append('kistnummer', debouncedKistnummerFilter)
+
+      const response = await fetch(`/api/items-to-pack-airtec/box-summary?${params.toString()}`)
+      if (!response.ok) throw new Error('Failed to fetch box summary')
+      const data = await response.json()
+      setBoxSummary(data.items || [])
+    } catch (error) {
+      console.error('Error fetching box summary:', error)
+      setBoxSummary([])
+    } finally {
+      setBoxSummaryLoading(false)
+    }
+  }, [appliedSearchTerm, priorityOnly, debouncedKistnummerFilter])
+
+  useEffect(() => {
+    fetchBoxSummary()
+  }, [fetchBoxSummary])
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -449,6 +477,26 @@ export default function ItemsToPackAirtecPage() {
         kistnummerFilter={kistnummerFilter}
         onKistnummerFilterChange={handleKistnummerFilterChange}
       />
+
+      <div className="bg-white rounded-lg shadow p-4 mb-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Box overzicht</h2>
+          {boxSummaryLoading && <span className="text-sm text-gray-500">Bezig met laden...</span>}
+        </div>
+        {boxSummary.length === 0 ? (
+          <div className="text-sm text-gray-500 mt-2">Geen boxen gevonden</div>
+        ) : (
+          <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+            {boxSummary.map((row) => (
+              <div key={row.kistnummer} className="border rounded-md p-2">
+                <div className="text-sm font-semibold text-gray-900">{row.kistnummer}</div>
+                <div className="text-xs text-gray-600">{row.count} boxen</div>
+                <div className="text-xs text-gray-500">Qty: {row.totalQuantity}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <ActionsBarAirtec
         selectedCount={selectedItems.size}
