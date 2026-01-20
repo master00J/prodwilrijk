@@ -60,6 +60,9 @@ export default function WMSImportPage() {
           for (let j = 0; j < headers.length && j < currentRecord.length; j++) {
             record[headers[j]] = currentRecord[j]
           }
+          if (currentRecord.length > 8) {
+            record.__col_i_date = currentRecord[8]
+          }
           results.push(record)
         }
         
@@ -75,6 +78,9 @@ export default function WMSImportPage() {
       const record: Record<string, any> = {}
       for (let j = 0; j < headers.length && j < currentRecord.length; j++) {
         record[headers[j]] = currentRecord[j]
+      }
+      if (currentRecord.length > 8) {
+        record.__col_i_date = currentRecord[8]
       }
       results.push(record)
     }
@@ -100,6 +106,7 @@ export default function WMSImportPage() {
 
     try {
       let jsonData: Record<string, any>[]
+      let rawRows: any[] | null = null
       
       // Check if it's a .do file - use custom parser
       if (file.name.toLowerCase().endsWith('.do')) {
@@ -113,6 +120,7 @@ export default function WMSImportPage() {
         const sheetName = workbook.SheetNames[0]
         const worksheet = workbook.Sheets[sheetName]
         jsonData = XLSX.utils.sheet_to_json(worksheet)
+        rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true })
       }
 
       if (jsonData.length === 0) {
@@ -141,8 +149,42 @@ export default function WMSImportPage() {
         }
       }
       
+      // Fallback: use column I (index 8) when header name is missing
+      if (!dateColumnName && rawRows && rawRows.length > 1) {
+        const colIndex = 8
+        for (let i = 0; i < jsonData.length; i++) {
+          const rawRow = rawRows[i + 1] as any[] | undefined
+          if (rawRow && rawRow.length > colIndex) {
+            jsonData[i].__col_i_date = rawRow[colIndex]
+          }
+        }
+        console.log('Using column I for date mapping')
+      }
+
       // Pre-compile regex for date parsing
       const dateRegex = /^(\d{4})-(\d{2})-(\d{2})/
+
+      const parseDateValue = (value: any): string | null => {
+        if (!value) return null
+        if (value instanceof Date && !isNaN(value.getTime())) {
+          return value.toISOString().slice(0, 10)
+        }
+        if (typeof value === 'number') {
+          const parsed = XLSX.SSF.parse_date_code(value)
+          if (parsed && parsed.y && parsed.m && parsed.d) {
+            const yyyy = String(parsed.y).padStart(4, '0')
+            const mm = String(parsed.m).padStart(2, '0')
+            const dd = String(parsed.d).padStart(2, '0')
+            return `${yyyy}-${mm}-${dd}`
+          }
+        }
+        const dateStr = String(value).trim()
+        const match = dateStr.match(dateRegex)
+        if (match) {
+          return match[0]
+        }
+        return null
+      }
       
       const mappedData: Array<{
         item_number: string
@@ -181,16 +223,8 @@ export default function WMSImportPage() {
         
         // Get date from "Laatste status verandering" column
         let statusDate: string | null = null
-        const dateValue = dateColumnName ? row[dateColumnName] : null
-        
-        if (dateValue) {
-          const dateStr = String(dateValue).trim()
-          // Format: "2025-12-03 08:52:45.0" - extract YYYY-MM-DD
-          const match = dateStr.match(dateRegex)
-          if (match) {
-            statusDate = match[0]
-          }
-        }
+        const dateValue = dateColumnName ? row[dateColumnName] : row.__col_i_date
+        statusDate = parseDateValue(dateValue)
         
         // Use Pallet as unique identifier
         const wmsLineId = String(poNumber).trim()
