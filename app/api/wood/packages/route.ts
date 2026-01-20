@@ -40,6 +40,33 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // If linked to an order, ensure there are still open packages
+    let orderData: { id: number; ontvangen_pakken: number | null; aantal_pakken: number } | null = null
+    if (order_id) {
+      const { data: orderRow, error: orderError } = await supabaseAdmin
+        .from('wood_orders')
+        .select('id, ontvangen_pakken, aantal_pakken')
+        .eq('id', order_id)
+        .single()
+
+      if (orderError || !orderRow) {
+        return NextResponse.json(
+          { error: 'Order not found' },
+          { status: 404 }
+        )
+      }
+
+      const received = orderRow.ontvangen_pakken || 0
+      if (received >= orderRow.aantal_pakken) {
+        return NextResponse.json(
+          { error: 'Order already fully received' },
+          { status: 400 }
+        )
+      }
+
+      orderData = orderRow
+    }
+
     const { data, error } = await supabaseAdmin
       .from('wood_packages')
       .insert({
@@ -61,6 +88,21 @@ export async function POST(request: NextRequest) {
         { error: 'Failed to create package', details: error.message },
         { status: 500 }
       )
+    }
+
+    // Update order received count when a package is registered
+    if (orderData) {
+      const { error: updateOrderError } = await supabaseAdmin
+        .from('wood_orders')
+        .update({
+          ontvangen_pakken: (orderData.ontvangen_pakken || 0) + 1,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', orderData.id)
+
+      if (updateOrderError) {
+        console.error('Error updating order received count:', updateOrderError)
+      }
     }
 
     return NextResponse.json({ success: true, data })

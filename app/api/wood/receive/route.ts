@@ -85,31 +85,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Update order received count if order_id exists
-    if (packageData.order_id) {
-      const { error: orderUpdateError } = await supabaseAdmin.rpc('increment_received_packages', {
-        order_id: packageData.order_id,
-      })
-
-      // If RPC doesn't exist, manually update
-      if (orderUpdateError) {
-        const { data: orderData } = await supabaseAdmin
-          .from('wood_orders')
-          .select('ontvangen_pakken')
-          .eq('id', packageData.order_id)
-          .single()
-
-        if (orderData) {
-          await supabaseAdmin
-            .from('wood_orders')
-            .update({
-              ontvangen_pakken: (orderData.ontvangen_pakken || 0) + 1,
-              updated_at: now,
-            })
-            .eq('id', packageData.order_id)
-        }
-      }
-    }
+    // Order counts are updated when packages are registered
 
     return NextResponse.json({ success: true, data: stockData })
   } catch (error) {
