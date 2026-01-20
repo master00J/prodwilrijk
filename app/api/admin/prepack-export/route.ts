@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     })
 
     const tmpFile = path.join(os.tmpdir(), `prepack-export-${Date.now()}.xlsx`)
-    let workbook: XlsxPopulate.Workbook
+    let workbook: any
 
     if (stats.dailyStats.length > 0) {
       const labels = stats.dailyStats.map((stat) => formatDateLabel(stat.date))
