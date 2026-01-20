@@ -1,21 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchPrepackStats } from '@/lib/prepack/stats'
 import XlsxPopulate from 'xlsx-populate'
-import { promises as fs } from 'fs'
-import os from 'os'
 import path from 'path'
-import { JSDOM } from 'jsdom'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-type ChartOptions = {
-  chart: string
-  titles: string[]
-  fields: string[]
-  data: Record<string, number[]>
-  file?: string
-}
 
 function formatDateLabel(value: string) {
   const date = new Date(value)
@@ -23,30 +12,13 @@ function formatDateLabel(value: string) {
   return date.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })
 }
 
-async function generateChartFile(options: ChartOptions, targetFile: string) {
-  const dom = new JSDOM('', { pretendToBeVisual: true })
-  const previousWindow = (globalThis as any).window
-  const previousDocument = (globalThis as any).document
-  const previousNavigator = (globalThis as any).navigator
+const TEMPLATE_PATH = path.join(
+  process.cwd(),
+  'templates',
+  'prepack-export-template.xlsx'
+)
 
-  ;(globalThis as any).window = dom.window
-  ;(globalThis as any).document = dom.window.document
-  ;(globalThis as any).navigator = dom.window.navigator
-
-  const { default: XlsxChart } = await import('xlsx-chart')
-  const chart = new (XlsxChart as any)()
-  await new Promise<void>((resolve, reject) => {
-    const payload = { ...options, file: targetFile }
-    chart.writeFile(payload, (err: Error | null) => {
-      if (err) return reject(err)
-      resolve()
-    })
-  })
-
-  ;(globalThis as any).window = previousWindow
-  ;(globalThis as any).document = previousDocument
-  ;(globalThis as any).navigator = previousNavigator
-}
+const MAX_CHART_POINTS = 366
 
 export async function GET(request: NextRequest) {
   try {
@@ -59,42 +31,52 @@ export async function GET(request: NextRequest) {
       dateTo: dateTo || undefined,
     })
 
-    const tmpFile = path.join(os.tmpdir(), `prepack-export-${Date.now()}.xlsx`)
-    let workbook: any
+    const workbook = await XlsxPopulate.fromFileAsync(TEMPLATE_PATH)
+    const tableSheet = workbook.sheet('Table')
 
-    if (stats.dailyStats.length > 0) {
-      const labels = stats.dailyStats.map((stat) => formatDateLabel(stat.date))
-      const fields = [
-        'Goederen binnen',
-        'Items verpakt',
-        'Manuren',
-        'Items per uur',
-        'Omzet (x1000)',
-      ]
-      const data = {
-        'Goederen binnen': stats.dailyStats.map((stat) => stat.incomingItems),
-        'Items verpakt': stats.dailyStats.map((stat) => stat.itemsPacked),
-        Manuren: stats.dailyStats.map((stat) => stat.manHours),
-        'Items per uur': stats.dailyStats.map((stat) => stat.itemsPerHour),
-        'Omzet (x1000)': stats.dailyStats.map((stat) => Number((stat.revenue / 1000).toFixed(2))),
-      }
+    const labels = stats.dailyStats.map((stat) => formatDateLabel(stat.date))
+    const trimmedLabels = labels.slice(0, MAX_CHART_POINTS)
+    const paddedLabels = trimmedLabels.concat(
+      Array(Math.max(0, MAX_CHART_POINTS - trimmedLabels.length)).fill('')
+    )
 
-      await generateChartFile(
-        {
-          chart: 'line',
-          titles: labels,
-          fields,
-          data,
-        },
-        tmpFile
+    tableSheet.cell('B1').value([paddedLabels])
+
+    const rows = [
+      {
+        label: 'Goederen binnen',
+        values: stats.dailyStats.map((stat) => stat.incomingItems).slice(0, MAX_CHART_POINTS),
+      },
+      {
+        label: 'Items verpakt',
+        values: stats.dailyStats.map((stat) => stat.itemsPacked).slice(0, MAX_CHART_POINTS),
+      },
+      {
+        label: 'Manuren',
+        values: stats.dailyStats.map((stat) => stat.manHours).slice(0, MAX_CHART_POINTS),
+      },
+      {
+        label: 'Items per uur',
+        values: stats.dailyStats.map((stat) => stat.itemsPerHour).slice(0, MAX_CHART_POINTS),
+      },
+      {
+        label: 'Omzet (x1000)',
+        values: stats.dailyStats
+          .map((stat) => Number((stat.revenue / 1000).toFixed(2)))
+          .slice(0, MAX_CHART_POINTS),
+      },
+    ]
+
+    rows.forEach((row, index) => {
+      const rowIndex = index + 2
+      const padded = row.values.concat(
+        Array(Math.max(0, MAX_CHART_POINTS - row.values.length)).fill(0)
       )
+      tableSheet.cell(`A${rowIndex}`).value(row.label)
+      tableSheet.cell(`B${rowIndex}`).value([padded])
+    })
 
-      workbook = await XlsxPopulate.fromFileAsync(tmpFile)
-    } else {
-      workbook = await XlsxPopulate.fromBlankAsync()
-    }
-
-    const dailySheet = workbook.addSheet('Dagelijkse stats')
+    const dailySheet = workbook.sheet('Dagelijkse stats') || workbook.addSheet('Dagelijkse stats')
     const dailyRows = [
       [
         'Datum',
@@ -117,7 +99,7 @@ export async function GET(request: NextRequest) {
     ]
     dailySheet.cell('A1').value(dailyRows)
 
-    const detailSheet = workbook.addSheet('Items')
+    const detailSheet = workbook.sheet('Items') || workbook.addSheet('Items')
     const detailRows = [
       [
         'Datum verpakt',
@@ -141,7 +123,6 @@ export async function GET(request: NextRequest) {
     detailSheet.cell('A1').value(detailRows)
 
     const buffer = await workbook.outputAsync()
-    await fs.unlink(tmpFile).catch(() => undefined)
 
     const fileName = `prepack-stats-${dateFrom || 'start'}-tot-${dateTo || 'eind'}.xlsx`
     return new Response(buffer as BodyInit, {
