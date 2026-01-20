@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, ReactNode } from 'react'
 import Link from 'next/link'
+import * as XLSX from 'xlsx'
 import {
   ComposedChart,
   Line,
@@ -29,6 +30,9 @@ interface Totals {
   averageItemsPerHour: number
   totalDays: number
   totalRevenue: number
+  totalIncoming: number
+  incomingVsPackedRatio: number | null
+  avgLeadTimeHours: number | null
 }
 
 interface PersonStats {
@@ -59,6 +63,7 @@ export default function PrepackMonitorPage() {
     filters: false,
     chartOutput: false,
     chartRevenue: false,
+    chartIncoming: false,
     productivity: false,
     people: false,
     details: false,
@@ -144,6 +149,12 @@ export default function PrepackMonitorPage() {
   const formatCurrency = (value: number) =>
     `€${value.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
+  const formatLeadTime = (hours: number | null) => {
+    if (hours == null) return '-'
+    const days = hours / 24
+    return `${days.toFixed(1)} dagen`
+  }
+
   // Set default date range to last 7 days
   useEffect(() => {
     const today = new Date()
@@ -184,6 +195,38 @@ export default function PrepackMonitorPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateFrom, dateTo])
+
+  const handleExportExcel = () => {
+    const dailyRows = dailyStats.map((stat) => ({
+      Datum: formatDate(stat.date),
+      'Goederen binnen': stat.incomingItems,
+      'Items verpakt': stat.itemsPacked,
+      Manuren: stat.manHours,
+      Medewerkers: stat.employeeCount,
+      'Items per uur': stat.itemsPerHour,
+      Omzet: stat.revenue,
+    }))
+
+    const detailRows = detailedItems.map((item) => ({
+      'Datum verpakt': new Date(item.date_packed).toLocaleString('nl-NL'),
+      Itemnummer: item.item_number,
+      'PO nummer': item.po_number,
+      Aantal: item.amount,
+      Prijs: item.price,
+      Omzet: item.revenue,
+      'Datum toegevoegd': item.date_added ? new Date(item.date_added).toLocaleString('nl-NL') : '',
+    }))
+
+    const workbook = XLSX.utils.book_new()
+    const dailySheet = XLSX.utils.json_to_sheet(dailyRows)
+    const detailSheet = XLSX.utils.json_to_sheet(detailRows)
+
+    XLSX.utils.book_append_sheet(workbook, dailySheet, 'Dagelijkse stats')
+    XLSX.utils.book_append_sheet(workbook, detailSheet, 'Items')
+
+    const filename = `prepack-stats-${dateFrom || 'start'}-tot-${dateTo || 'eind'}.xlsx`
+    XLSX.writeFile(workbook, filename)
+  }
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -226,10 +269,23 @@ export default function PrepackMonitorPage() {
             >
               {loading ? 'Laden...' : 'Vernieuwen'}
             </button>
+            <button
+              onClick={handleExportExcel}
+              disabled={loading || dailyStats.length === 0}
+              className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed font-medium"
+            >
+              Export naar Excel
+            </button>
           </div>
 
           {/* KPI Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-6 gap-4 mb-6">
+            <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+              <div className="text-sm text-gray-600 mb-1">Goederen binnen</div>
+              <div className="text-3xl font-bold text-slate-800">
+                {totals ? totals.totalIncoming.toLocaleString('nl-NL') : '-'}
+              </div>
+            </div>
             <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
               <div className="text-sm text-gray-600 mb-1">Items verpakt</div>
               <div className="text-3xl font-bold text-blue-700">
@@ -261,20 +317,29 @@ export default function PrepackMonitorPage() {
               </div>
             </div>
             <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
-              <div className="text-sm text-gray-600 mb-1">Actieve medewerkers</div>
+              <div className="text-sm text-gray-600 mb-1">Binnen vs verpakt</div>
               <div className="text-3xl font-bold text-slate-800">
-                {totals ? kpiStats.activeEmployees : '-'}
+                {totals && totals.incomingVsPackedRatio != null
+                  ? `${totals.incomingVsPackedRatio.toFixed(2)}x`
+                  : '-'}
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-white rounded-lg border border-gray-200 p-4">
               <div className="text-sm text-gray-500 mb-2">Gemiddelde per dag</div>
               <div className="text-lg font-semibold text-gray-900">
                 {totals ? `${kpiStats.avgManHoursPerDay.toFixed(2)} uur` : '-'}
               </div>
               <div className="text-xs text-gray-500">Manuren per dag</div>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="text-sm text-gray-500 mb-2">Gem. doorlooptijd</div>
+              <div className="text-lg font-semibold text-gray-900">
+                {totals ? formatLeadTime(totals.avgLeadTimeHours) : '-'}
+              </div>
+              <div className="text-xs text-gray-500">Date added → date packed</div>
             </div>
             <div className="bg-white rounded-lg border border-gray-200 p-4">
               <div className="text-sm text-gray-500 mb-2">Beste productiviteit</div>
@@ -295,6 +360,13 @@ export default function PrepackMonitorPage() {
               <div className="text-xs text-gray-500">
                 {kpiStats.peakDay ? formatDate(kpiStats.peakDay.date) : '-'}
               </div>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="text-sm text-gray-500 mb-2">Actieve medewerkers</div>
+              <div className="text-lg font-semibold text-gray-900">
+                {totals ? kpiStats.activeEmployees : '-'}
+              </div>
+              <div className="text-xs text-gray-500">Unieke medewerkers</div>
             </div>
           </div>
         </CollapsibleCard>
@@ -423,6 +495,54 @@ export default function PrepackMonitorPage() {
                   stroke="#8b5cf6"
                   strokeWidth={3}
                   name="Items/uur"
+                  dot={false}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          )}
+        </CollapsibleCard>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 mb-6">
+        <CollapsibleCard
+          id="chartIncoming"
+          title="Binnengekomen vs verpakt"
+          subtitle="Goederen per dag"
+        >
+          {loading ? (
+            <div className="text-center py-8 text-gray-500">Grafiek laden...</div>
+          ) : dailyStats.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">Geen data gevonden</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={260}>
+              <ComposedChart data={dailyStats}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={(value) =>
+                    new Date(value).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })
+                  }
+                  angle={-35}
+                  textAnchor="end"
+                  height={60}
+                />
+                <YAxis />
+                <Tooltip labelFormatter={(value) => formatDate(value as string)} />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="incomingItems"
+                  stroke="#0ea5e9"
+                  strokeWidth={2}
+                  name="Goederen binnen"
+                  dot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="itemsPacked"
+                  stroke="#2563eb"
+                  strokeWidth={2}
+                  name="Items verpakt"
                   dot={false}
                 />
               </ComposedChart>

@@ -33,7 +33,7 @@ export default function AddItemForm({ onItemAdded }: AddItemFormProps) {
 
       setFormData({ item_number: '', po_number: '', amount: '' })
       onItemAdded()
-      alert('Item added successfully')
+      alert('Item toegevoegd en doorgestuurd naar Items to Pack')
     } catch (error) {
       console.error('Error adding item:', error)
       alert('Failed to add item')

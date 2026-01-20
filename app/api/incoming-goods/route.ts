@@ -89,14 +89,14 @@ export async function POST(request: NextRequest) {
     }
 
     const { data, error } = await supabaseAdmin
-      .from('incoming_goods')
+      .from('items_to_pack')
       .insert(validGoods)
-      .select()
+      .select('id')
 
     if (error) {
       console.error('Database error:', error)
       return NextResponse.json(
-        { error: 'Failed to insert items.' },
+        { error: 'Failed to insert items into Items to Pack.' },
         { status: 500 }
       )
     }

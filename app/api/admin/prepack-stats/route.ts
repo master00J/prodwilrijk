@@ -232,6 +232,25 @@ export async function GET(request: NextRequest) {
       return sum + (price * amount)
     }, 0)
 
+    const totalIncoming = incoming.reduce((sum, item: any) => sum + (item.amount || 0), 0)
+    const incomingVsPackedRatio =
+      totalItemsPacked > 0 ? Number((totalIncoming / totalItemsPacked).toFixed(2)) : null
+
+    const leadTimes = items
+      .map((item: any) => {
+        if (!item.date_added || !item.date_packed) return null
+        const added = new Date(item.date_added).getTime()
+        const packed = new Date(item.date_packed).getTime()
+        if (!Number.isFinite(added) || !Number.isFinite(packed) || packed <= added) return null
+        return (packed - added) / 3600000
+      })
+      .filter((value: number | null): value is number => value !== null)
+
+    const avgLeadTimeHours =
+      leadTimes.length > 0
+        ? Number((leadTimes.reduce((sum, value) => sum + value, 0) / leadTimes.length).toFixed(2))
+        : null
+
     const totalDaysPacked =
       dailyStatsArray.filter((stat) => stat.itemsPacked > 0 || stat.manHours > 0).length ||
       dailyStatsArray.length
@@ -297,6 +316,9 @@ export async function GET(request: NextRequest) {
         averageItemsPerHour: totalManHours > 0 ? Number((totalItemsPacked / totalManHours).toFixed(2)) : 0,
         totalDays: totalDaysPacked,
         totalRevenue: Number(totalRevenue.toFixed(2)),
+        totalIncoming,
+        incomingVsPackedRatio,
+        avgLeadTimeHours,
       },
       personStats: personStatsArray,
       detailedItems: detailedItems,
