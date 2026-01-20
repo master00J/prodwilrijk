@@ -342,8 +342,8 @@ export default function PrepackMonitorPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
-        <div className="bg-white rounded-lg shadow p-6 xl:col-span-2">
+      <div className="grid grid-cols-1 gap-6 mb-6">
+        <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold">Productiviteit</h2>
             <span className="text-xs text-gray-500">Items per uur</span>
@@ -380,27 +380,6 @@ export default function PrepackMonitorPage() {
                 />
               </ComposedChart>
             </ResponsiveContainer>
-          )}
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Top medewerkers</h2>
-            <span className="text-xs text-gray-500">Manuren</span>
-          </div>
-          {loading ? (
-            <div className="text-center py-8 text-gray-500">Laden...</div>
-          ) : personStats.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">Geen data</div>
-          ) : (
-            <div className="space-y-3">
-              {personStats.slice(0, 6).map((stat) => (
-                <div key={stat.name} className="flex items-center justify-between">
-                  <div className="text-sm font-medium text-gray-900">{stat.name}</div>
-                  <div className="text-sm text-gray-600">{stat.manHours.toFixed(2)} uur</div>
-                </div>
-              ))}
-            </div>
           )}
         </div>
       </div>
