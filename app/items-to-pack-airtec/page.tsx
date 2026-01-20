@@ -28,16 +28,12 @@ export default function ItemsToPackAirtecPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [appliedSearchTerm, setAppliedSearchTerm] = useState('')
   const [priorityOnly, setPriorityOnly] = useState(false)
-  const [kistnummerFilter, setKistnummerFilter] = useState('')
-  const [debouncedKistnummerFilter, setDebouncedKistnummerFilter] = useState('')
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set())
   const [showTimeModal, setShowTimeModal] = useState(false)
   const [activeTimeLogs, setActiveTimeLogs] = useState<any[]>([])
   const [sortColumn, setSortColumn] = useState<keyof ItemToPackAirtec | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
-  const [boxSummary, setBoxSummary] = useState<
-    Array<{ kistnummer: string; count: number; totalQuantity: number }>
-  >([])
+  const [boxSummary, setBoxSummary] = useState<Array<{ kistnummer: string; count: number }>>([])
   const [boxSummaryLoading, setBoxSummaryLoading] = useState(false)
 
   // Fetch items
@@ -51,7 +47,6 @@ export default function ItemsToPackAirtecPage() {
 
       if (appliedSearchTerm) params.append('search', appliedSearchTerm)
       if (priorityOnly) params.append('priority', 'true')
-      if (debouncedKistnummerFilter) params.append('kistnummer', debouncedKistnummerFilter)
 
       const response = await fetch(`/api/items-to-pack-airtec?${params.toString()}`)
       if (!response.ok) throw new Error('Failed to fetch items')
@@ -64,7 +59,7 @@ export default function ItemsToPackAirtecPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentPage, pageSize, appliedSearchTerm, priorityOnly, debouncedKistnummerFilter])
+  }, [currentPage, pageSize, appliedSearchTerm, priorityOnly])
 
   const fetchActiveTimeLogs = async () => {
     try {
@@ -96,12 +91,7 @@ export default function ItemsToPackAirtecPage() {
   const fetchBoxSummary = useCallback(async () => {
     setBoxSummaryLoading(true)
     try {
-      const params = new URLSearchParams()
-      if (appliedSearchTerm) params.append('search', appliedSearchTerm)
-      if (priorityOnly) params.append('priority', 'true')
-      if (debouncedKistnummerFilter) params.append('kistnummer', debouncedKistnummerFilter)
-
-      const response = await fetch(`/api/items-to-pack-airtec/box-summary?${params.toString()}`)
+      const response = await fetch('/api/items-to-pack-airtec/box-summary')
       if (!response.ok) throw new Error('Failed to fetch box summary')
       const data = await response.json()
       setBoxSummary(data.items || [])
@@ -111,18 +101,11 @@ export default function ItemsToPackAirtecPage() {
     } finally {
       setBoxSummaryLoading(false)
     }
-  }, [appliedSearchTerm, priorityOnly, debouncedKistnummerFilter])
+  }, [])
 
   useEffect(() => {
     fetchBoxSummary()
   }, [fetchBoxSummary])
-
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      setDebouncedKistnummerFilter(kistnummerFilter)
-    }, 300)
-    return () => clearTimeout(timeout)
-  }, [kistnummerFilter])
 
   // Sort items (filtering is now done server-side)
   const sortedItems = useMemo(() => {
@@ -210,11 +193,6 @@ export default function ItemsToPackAirtecPage() {
 
   const handlePriorityToggle = () => {
     setPriorityOnly(!priorityOnly)
-    setCurrentPage(1)
-  }
-
-  const handleKistnummerFilterChange = (value: string) => {
-    setKistnummerFilter(value)
     setCurrentPage(1)
   }
 
@@ -474,29 +452,32 @@ export default function ItemsToPackAirtecPage() {
         onSearchSubmit={handleSearchSubmit}
         priorityOnly={priorityOnly}
         onPriorityToggle={handlePriorityToggle}
-        kistnummerFilter={kistnummerFilter}
-        onKistnummerFilterChange={handleKistnummerFilterChange}
       />
 
-      <div className="bg-white rounded-lg shadow p-4 mb-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Box overzicht</h2>
-          {boxSummaryLoading && <span className="text-sm text-gray-500">Bezig met laden...</span>}
+      <details className="bg-white rounded-lg shadow p-4 mb-4" open>
+        <summary className="cursor-pointer text-lg font-semibold text-gray-900">
+          Box overzicht{' '}
+          <span className="text-sm font-normal text-gray-500">
+            ({boxSummary.reduce((sum, row) => sum + row.count, 0)} boxen • {boxSummary.length} types)
+          </span>
+        </summary>
+        <div className="mt-3">
+          {boxSummaryLoading ? (
+            <div className="text-sm text-gray-500">Bezig met laden...</div>
+          ) : boxSummary.length === 0 ? (
+            <div className="text-sm text-gray-500">Geen boxen gevonden</div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+              {boxSummary.map((row) => (
+                <div key={row.kistnummer} className="border rounded-md p-2">
+                  <div className="text-sm font-semibold text-gray-900">{row.kistnummer}</div>
+                  <div className="text-xs text-gray-600">{row.count} boxen</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-        {boxSummary.length === 0 ? (
-          <div className="text-sm text-gray-500 mt-2">Geen boxen gevonden</div>
-        ) : (
-          <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-            {boxSummary.map((row) => (
-              <div key={row.kistnummer} className="border rounded-md p-2">
-                <div className="text-sm font-semibold text-gray-900">{row.kistnummer}</div>
-                <div className="text-xs text-gray-600">{row.count} boxen</div>
-                <div className="text-xs text-gray-500">Qty: {row.totalQuantity}</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      </details>
 
       <ActionsBarAirtec
         selectedCount={selectedItems.size}

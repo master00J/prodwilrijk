@@ -1,36 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const searchParams = request.nextUrl.searchParams
-    const search = searchParams.get('search') || ''
-    const priorityOnly = searchParams.get('priority') === 'true'
-    const kistnummerFilter = searchParams.get('kistnummer') || ''
-
     let query = supabaseAdmin
       .from('items_to_pack_airtec')
-      .select('kistnummer, quantity.sum(), id.count()')
+      .select('kistnummer, id.count()')
       .eq('packed', false)
       .not('kistnummer', 'is', null)
       .neq('kistnummer', '')
-
-    if (search) {
-      query = query.or(
-        `beschrijving.ilike.%${search}%,item_number.ilike.%${search}%,lot_number.ilike.%${search}%,kistnummer.ilike.%${search}%,divisie.ilike.%${search}%`
-      )
-    }
-
-    if (kistnummerFilter) {
-      query = query.eq('kistnummer', kistnummerFilter)
-    }
-
-    if (priorityOnly) {
-      query = query.eq('priority', true)
-    }
 
     const { data, error } = await query
 
@@ -43,7 +24,6 @@ export async function GET(request: NextRequest) {
       .map((row: any) => ({
         kistnummer: row.kistnummer,
         count: Number(row.id_count ?? row.count ?? 0),
-        totalQuantity: Number(row.quantity_sum ?? 0),
       }))
       .sort((a, b) => b.count - a.count)
 
