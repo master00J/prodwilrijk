@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, ReactNode } from 'react'
 import Link from 'next/link'
+import * as XLSX from 'xlsx'
 import {
   ComposedChart,
   Line,
@@ -196,29 +197,39 @@ export default function PrepackMonitorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateFrom, dateTo])
 
-  const handleExportExcel = async () => {
+  const handleExportExcel = () => {
     if (exporting) return
     setExporting(true)
     try {
-      const params = new URLSearchParams({
-        date_from: dateFrom,
-        date_to: dateTo,
-      })
-      const response = await fetch(`/api/admin/prepack-export?${params}`)
-      if (!response.ok) {
-        throw new Error('Export failed')
-      }
-      const blob = await response.blob()
-      const disposition = response.headers.get('Content-Disposition')
-      const match = disposition?.match(/filename="(.+)"/)
-      const filename =
-        match?.[1] || `prepack-stats-${dateFrom || 'start'}-tot-${dateTo || 'eind'}.xlsx`
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = filename
-      link.click()
-      URL.revokeObjectURL(url)
+      const dailyRows = dailyStats.map((stat) => ({
+        Datum: formatDate(stat.date),
+        'Goederen binnen': stat.incomingItems,
+        'Items verpakt': stat.itemsPacked,
+        Manuren: stat.manHours,
+        Medewerkers: stat.employeeCount,
+        'Items per uur': stat.itemsPerHour,
+        Omzet: stat.revenue,
+      }))
+
+      const detailRows = detailedItems.map((item) => ({
+        'Datum verpakt': new Date(item.date_packed).toLocaleString('nl-NL'),
+        Itemnummer: item.item_number,
+        'PO nummer': item.po_number,
+        Aantal: item.amount,
+        Prijs: item.price,
+        Omzet: item.revenue,
+        'Datum toegevoegd': item.date_added ? new Date(item.date_added).toLocaleString('nl-NL') : '',
+      }))
+
+      const workbook = XLSX.utils.book_new()
+      const dailySheet = XLSX.utils.json_to_sheet(dailyRows)
+      const detailSheet = XLSX.utils.json_to_sheet(detailRows)
+
+      XLSX.utils.book_append_sheet(workbook, dailySheet, 'Dagelijkse stats')
+      XLSX.utils.book_append_sheet(workbook, detailSheet, 'Items')
+
+      const filename = `prepack-stats-${dateFrom || 'start'}-tot-${dateTo || 'eind'}.xlsx`
+      XLSX.writeFile(workbook, filename)
     } catch (error) {
       console.error('Excel export failed:', error)
       alert('Excel export mislukt')
