@@ -454,7 +454,7 @@ export default function ItemsToPackAirtecPage() {
         onPriorityToggle={handlePriorityToggle}
       />
 
-      <details className="bg-white rounded-lg shadow p-4 mb-4" open>
+      <details className="bg-white rounded-lg shadow p-4 mb-4">
         <summary className="cursor-pointer text-lg font-semibold text-gray-900">
           Box overzicht{' '}
           <span className="text-sm font-normal text-gray-500">
