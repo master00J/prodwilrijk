@@ -45,6 +45,46 @@ export interface PrepackStatsResult {
   detailedItems: DetailedItem[]
 }
 
+const isWeekday = (date: Date) => {
+  const day = date.getDay()
+  return day !== 0 && day !== 6
+}
+
+const toStartOfDay = (value: Date) => {
+  const date = new Date(value)
+  date.setHours(0, 0, 0, 0)
+  return date
+}
+
+const toEndOfDay = (value: Date) => {
+  const date = new Date(value)
+  date.setHours(23, 59, 59, 999)
+  return date
+}
+
+const calculateBusinessHours = (start: Date, end: Date) => {
+  if (end <= start) return 0
+  let totalMs = 0
+  let cursor = toStartOfDay(start)
+  const endDay = toStartOfDay(end)
+
+  while (cursor <= endDay) {
+    if (isWeekday(cursor)) {
+      const dayStart = toStartOfDay(cursor)
+      const dayEnd = toEndOfDay(cursor)
+      const rangeStart = cursor.getTime() === dayStart.getTime() ? start : dayStart
+      const rangeEnd = cursor.getTime() === endDay.getTime() ? end : dayEnd
+      const diff = rangeEnd.getTime() - rangeStart.getTime()
+      if (diff > 0) {
+        totalMs += diff
+      }
+    }
+    cursor.setDate(cursor.getDate() + 1)
+  }
+
+  return totalMs / 3600000
+}
+
 export async function fetchPrepackStats({
   dateFrom,
   dateTo,
@@ -258,10 +298,12 @@ export async function fetchPrepackStats({
   const leadTimes = items
     .map((item: any) => {
       if (!item.date_added || !item.date_packed) return null
-      const added = new Date(item.date_added).getTime()
-      const packed = new Date(item.date_packed).getTime()
-      if (!Number.isFinite(added) || !Number.isFinite(packed) || packed <= added) return null
-      return (packed - added) / 3600000
+      const added = new Date(item.date_added)
+      const packed = new Date(item.date_packed)
+      if (!Number.isFinite(added.getTime()) || !Number.isFinite(packed.getTime()) || packed <= added) {
+        return null
+      }
+      return calculateBusinessHours(added, packed)
     })
     .filter((value: number | null): value is number => value !== null)
 
