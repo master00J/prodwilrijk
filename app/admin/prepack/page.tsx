@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo, ReactNode } from 'react'
 import Link from 'next/link'
-import * as XLSX from 'xlsx'
 import {
   ComposedChart,
   Line,
@@ -55,6 +54,7 @@ export default function PrepackMonitorPage() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [loading, setLoading] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [dailyStats, setDailyStats] = useState<DailyStat[]>([])
   const [totals, setTotals] = useState<Totals | null>(null)
   const [personStats, setPersonStats] = useState<PersonStats[]>([])
@@ -196,36 +196,186 @@ export default function PrepackMonitorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateFrom, dateTo])
 
-  const handleExportExcel = () => {
-    const dailyRows = dailyStats.map((stat) => ({
-      Datum: formatDate(stat.date),
-      'Goederen binnen': stat.incomingItems,
-      'Items verpakt': stat.itemsPacked,
-      Manuren: stat.manHours,
-      Medewerkers: stat.employeeCount,
-      'Items per uur': stat.itemsPerHour,
-      Omzet: stat.revenue,
-    }))
+  const buildIncomingVsPackedChart = (stats: DailyStat[]) => {
+    if (stats.length === 0) return null
+    if (typeof document === 'undefined') return null
+    const canvas = document.createElement('canvas')
+    const width = 900
+    const height = 420
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
 
-    const detailRows = detailedItems.map((item) => ({
-      'Datum verpakt': new Date(item.date_packed).toLocaleString('nl-NL'),
-      Itemnummer: item.item_number,
-      'PO nummer': item.po_number,
-      Aantal: item.amount,
-      Prijs: item.price,
-      Omzet: item.revenue,
-      'Datum toegevoegd': item.date_added ? new Date(item.date_added).toLocaleString('nl-NL') : '',
-    }))
+    const padding = { left: 70, right: 20, top: 20, bottom: 60 }
+    const plotWidth = width - padding.left - padding.right
+    const plotHeight = height - padding.top - padding.bottom
+    const maxValue = Math.max(
+      1,
+      ...stats.map((stat) => Math.max(stat.incomingItems, stat.itemsPacked))
+    )
 
-    const workbook = XLSX.utils.book_new()
-    const dailySheet = XLSX.utils.json_to_sheet(dailyRows)
-    const detailSheet = XLSX.utils.json_to_sheet(detailRows)
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, width, height)
+    ctx.strokeStyle = '#d1d5db'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(padding.left, padding.top)
+    ctx.lineTo(padding.left, height - padding.bottom)
+    ctx.lineTo(width - padding.right, height - padding.bottom)
+    ctx.stroke()
 
-    XLSX.utils.book_append_sheet(workbook, dailySheet, 'Dagelijkse stats')
-    XLSX.utils.book_append_sheet(workbook, detailSheet, 'Items')
+    ctx.fillStyle = '#6b7280'
+    ctx.font = '12px sans-serif'
+    const yTicks = 5
+    for (let i = 0; i <= yTicks; i += 1) {
+      const value = Math.round((maxValue * i) / yTicks)
+      const y = padding.top + plotHeight * (1 - i / yTicks)
+      ctx.fillText(value.toString(), 10, y + 4)
+      ctx.strokeStyle = '#f3f4f6'
+      ctx.beginPath()
+      ctx.moveTo(padding.left, y)
+      ctx.lineTo(width - padding.right, y)
+      ctx.stroke()
+    }
 
-    const filename = `prepack-stats-${dateFrom || 'start'}-tot-${dateTo || 'eind'}.xlsx`
-    XLSX.writeFile(workbook, filename)
+    const step = stats.length > 1 ? plotWidth / (stats.length - 1) : 0
+    const labelStep = Math.max(1, Math.ceil(stats.length / 8))
+    stats.forEach((stat, index) => {
+      if (index % labelStep !== 0 && index !== stats.length - 1) return
+      const x = padding.left + step * index
+      const label = new Date(stat.date).toLocaleDateString('nl-NL', {
+        day: 'numeric',
+        month: 'short',
+      })
+      ctx.save()
+      ctx.translate(x, height - padding.bottom + 14)
+      ctx.rotate(-Math.PI / 4)
+      ctx.fillStyle = '#6b7280'
+      ctx.fillText(label, 0, 0)
+      ctx.restore()
+    })
+
+    const drawLine = (key: 'incomingItems' | 'itemsPacked', color: string) => {
+      ctx.strokeStyle = color
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      stats.forEach((stat, index) => {
+        const value = stat[key]
+        const x = padding.left + step * index
+        const y = padding.top + plotHeight * (1 - value / maxValue)
+        if (index === 0) {
+          ctx.moveTo(x, y)
+        } else {
+          ctx.lineTo(x, y)
+        }
+      })
+      ctx.stroke()
+    }
+
+    drawLine('incomingItems', '#0ea5e9')
+    drawLine('itemsPacked', '#2563eb')
+
+    ctx.fillStyle = '#0ea5e9'
+    ctx.fillRect(padding.left, padding.top + 8, 12, 12)
+    ctx.fillStyle = '#111827'
+    ctx.fillText('Goederen binnen', padding.left + 18, padding.top + 18)
+
+    ctx.fillStyle = '#2563eb'
+    ctx.fillRect(padding.left + 160, padding.top + 8, 12, 12)
+    ctx.fillStyle = '#111827'
+    ctx.fillText('Items verpakt', padding.left + 178, padding.top + 18)
+
+    return canvas.toDataURL('image/png')
+  }
+
+  const handleExportExcel = async () => {
+    if (dailyStats.length === 0 || exporting) return
+    setExporting(true)
+    try {
+      const ExcelJS = await import('exceljs')
+      const workbook = new ExcelJS.Workbook()
+      workbook.creator = 'Prepack Dashboard'
+
+      const dailySheet = workbook.addWorksheet('Dagelijkse stats')
+      dailySheet.columns = [
+        { header: 'Datum', key: 'date', width: 18 },
+        { header: 'Goederen binnen', key: 'incoming', width: 18 },
+        { header: 'Items verpakt', key: 'packed', width: 16 },
+        { header: 'Manuren', key: 'manHours', width: 12 },
+        { header: 'Medewerkers', key: 'employees', width: 14 },
+        { header: 'Items per uur', key: 'itemsPerHour', width: 14 },
+        { header: 'Omzet', key: 'revenue', width: 14 },
+      ]
+
+      dailyStats.forEach((stat) => {
+        dailySheet.addRow({
+          date: formatDate(stat.date),
+          incoming: stat.incomingItems,
+          packed: stat.itemsPacked,
+          manHours: stat.manHours,
+          employees: stat.employeeCount,
+          itemsPerHour: stat.itemsPerHour,
+          revenue: stat.revenue,
+        })
+      })
+
+      const detailSheet = workbook.addWorksheet('Items')
+      detailSheet.columns = [
+        { header: 'Datum verpakt', key: 'packedAt', width: 22 },
+        { header: 'Itemnummer', key: 'itemNumber', width: 18 },
+        { header: 'PO nummer', key: 'poNumber', width: 18 },
+        { header: 'Aantal', key: 'amount', width: 10 },
+        { header: 'Prijs', key: 'price', width: 12 },
+        { header: 'Omzet', key: 'revenue', width: 12 },
+        { header: 'Datum toegevoegd', key: 'addedAt', width: 22 },
+      ]
+
+      detailedItems.forEach((item) => {
+        detailSheet.addRow({
+          packedAt: new Date(item.date_packed).toLocaleString('nl-NL'),
+          itemNumber: item.item_number,
+          poNumber: item.po_number,
+          amount: item.amount,
+          price: item.price,
+          revenue: item.revenue,
+          addedAt: item.date_added ? new Date(item.date_added).toLocaleString('nl-NL') : '',
+        })
+      })
+
+      const chartSheet = workbook.addWorksheet('Grafieken')
+      chartSheet.addRow(['Binnengekomen vs verpakt per dag'])
+      chartSheet.getRow(1).font = { size: 14, bold: true }
+
+      const chartImage = buildIncomingVsPackedChart(dailyStats)
+      if (chartImage) {
+        const imageId = workbook.addImage({
+          base64: chartImage,
+          extension: 'png',
+        })
+        chartSheet.addImage(imageId, {
+          tl: { col: 0, row: 2 },
+          ext: { width: 900, height: 420 },
+        })
+      }
+
+      const filename = `prepack-stats-${dateFrom || 'start'}-tot-${dateTo || 'eind'}.xlsx`
+      const buffer = await workbook.xlsx.writeBuffer()
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Excel export failed:', error)
+      alert('Excel export mislukt')
+    } finally {
+      setExporting(false)
+    }
   }
 
   return (
@@ -271,10 +421,10 @@ export default function PrepackMonitorPage() {
             </button>
             <button
               onClick={handleExportExcel}
-              disabled={loading || dailyStats.length === 0}
+              disabled={loading || exporting || dailyStats.length === 0}
               className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed font-medium"
             >
-              Export naar Excel
+              {exporting ? 'Exporteren...' : 'Export naar Excel'}
             </button>
           </div>
 
