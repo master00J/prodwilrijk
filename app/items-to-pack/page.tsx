@@ -33,6 +33,7 @@ export default function ItemsToPackPage() {
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
   const [searchTerm, setSearchTerm] = useState('')
+  const [searchInput, setSearchInput] = useState('')
   const [dateFilter, setDateFilter] = useState('')
   const [priorityOnly, setPriorityOnly] = useState(false)
   const [measurementOnly, setMeasurementOnly] = useState(false)
@@ -146,8 +147,12 @@ export default function ItemsToPackPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const handleSearchChange = (value: string) => {
-    setSearchTerm(value)
+  const handleSearchInputChange = (value: string) => {
+    setSearchInput(value)
+  }
+
+  const handleSearchSubmit = () => {
+    setSearchTerm(searchInput.trim())
     setCurrentPage(1) // Reset to first page on new search
   }
 
@@ -678,8 +683,9 @@ export default function ItemsToPackPage() {
       )}
 
       <FiltersBar
-        searchTerm={searchTerm}
-        onSearchChange={handleSearchChange}
+        searchValue={searchInput}
+        onSearchValueChange={handleSearchInputChange}
+        onSearchSubmit={handleSearchSubmit}
         dateFilter={dateFilter}
         onDateFilterChange={handleDateFilterChange}
         priorityOnly={priorityOnly}
