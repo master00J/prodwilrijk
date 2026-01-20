@@ -15,7 +15,6 @@ import ActiveTimersCard from '@/components/items-to-pack/ActiveTimersCard'
 import ProblemCommentModal from '@/components/items-to-pack/ProblemCommentModal'
 import MarkProblemModal from '@/components/items-to-pack/MarkProblemModal'
 import MeasurementModal from '@/components/items-to-pack/MeasurementModal'
-import Pagination from '@/components/common/Pagination'
 
 interface ItemsResponse {
   items: ItemToPack[]
@@ -31,9 +30,8 @@ export default function ItemsToPackPage() {
   const [isFetching, setIsFetching] = useState(false)
   const [hasLoaded, setHasLoaded] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize] = useState(100)
+  const [pageSize] = useState(100000)
   const [total, setTotal] = useState(0)
-  const [totalPages, setTotalPages] = useState(0)
   const [searchTerm, setSearchTerm] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [dateFilter, setDateFilter] = useState('')
@@ -79,7 +77,6 @@ export default function ItemsToPackPage() {
       const data: ItemsResponse = await response.json()
       setItems(data.items)
       setTotal(data.total)
-      setTotalPages(data.totalPages)
     } catch (error) {
       console.error('Error fetching items:', error)
     } finally {
@@ -154,11 +151,6 @@ export default function ItemsToPackPage() {
     } else {
       setSelectedItems(new Set())
     }
-  }
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const handleSearchInputChange = (value: string) => {
@@ -749,19 +741,6 @@ export default function ItemsToPackPage() {
         </div>
       )}
 
-      {totalPages > 1 && (
-        <div className="mt-6">
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={handlePageChange}
-          />
-          <div className="text-center text-sm text-gray-600 mt-2">
-            Showing {items.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} -{' '}
-            {Math.min(currentPage * pageSize, total)} of {total} items
-          </div>
-        </div>
-      )}
 
       {showScanner && (
         <BarcodeScanner

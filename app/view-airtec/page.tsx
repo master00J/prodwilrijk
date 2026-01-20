@@ -5,7 +5,6 @@ import { IncomingGoodAirtec } from '@/types/database'
 import ViewAirtecTable from '@/components/view-airtec/ViewAirtecTable'
 import ViewAirtecFilters from '@/components/view-airtec/ViewAirtecFilters'
 import AddItemForm from '@/components/view-airtec/AddItemForm'
-import Pagination from '@/components/common/Pagination'
 
 interface IncomingGoodsAirtecResponse {
   items: IncomingGoodAirtec[]
@@ -19,9 +18,7 @@ export default function ViewAirtecPage() {
   const [items, setItems] = useState<IncomingGoodAirtec[]>([])
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize] = useState(100)
-  const [total, setTotal] = useState(0)
-  const [totalPages, setTotalPages] = useState(0)
+  const [pageSize] = useState(100000)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set())
   const [sortColumn, setSortColumn] = useState<keyof IncomingGoodAirtec | null>(null)
@@ -41,8 +38,6 @@ export default function ViewAirtecPage() {
       if (!response.ok) throw new Error('Failed to fetch items')
       const data: IncomingGoodsAirtecResponse = await response.json()
       setItems(data.items)
-      setTotal(data.total)
-      setTotalPages(data.totalPages)
     } catch (error) {
       console.error('Error fetching incoming goods airtec:', error)
     } finally {
@@ -109,11 +104,6 @@ export default function ViewAirtecPage() {
     } else {
       setSelectedItems(new Set())
     }
-  }
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const handleSearchChange = (value: string) => {
@@ -227,19 +217,6 @@ export default function ViewAirtecPage() {
         loading={loading}
       />
 
-      {totalPages > 1 && (
-        <div className="mt-6">
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={handlePageChange}
-          />
-          <div className="text-center text-sm text-gray-600 mt-2">
-            Showing {items.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} -{' '}
-            {Math.min(currentPage * pageSize, total)} of {total} items
-          </div>
-        </div>
-      )}
 
       <AddItemForm onItemAdded={fetchItems} />
     </div>

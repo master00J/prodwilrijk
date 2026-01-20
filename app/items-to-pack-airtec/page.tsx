@@ -8,7 +8,6 @@ import ActionsBarAirtec from '@/components/items-to-pack-airtec/ActionsBarAirtec
 import ScanCheckAirtec from '@/components/items-to-pack-airtec/ScanCheckAirtec'
 import TimeRegistrationModal from '@/components/items-to-pack/TimeRegistrationModal'
 import ActiveTimersCard from '@/components/items-to-pack/ActiveTimersCard'
-import Pagination from '@/components/common/Pagination'
 
 interface ItemsAirtecResponse {
   items: ItemToPackAirtec[]
@@ -22,9 +21,8 @@ export default function ItemsToPackAirtecPage() {
   const [items, setItems] = useState<ItemToPackAirtec[]>([])
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize] = useState(100)
+  const [pageSize] = useState(100000)
   const [total, setTotal] = useState(0)
-  const [totalPages, setTotalPages] = useState(0)
   const [searchTerm, setSearchTerm] = useState('')
   const [appliedSearchTerm, setAppliedSearchTerm] = useState('')
   const [priorityOnly, setPriorityOnly] = useState(false)
@@ -53,7 +51,6 @@ export default function ItemsToPackAirtecPage() {
       const data: ItemsAirtecResponse = await response.json()
       setItems(data.items)
       setTotal(data.total)
-      setTotalPages(data.totalPages)
     } catch (error) {
       console.error('Error fetching items:', error)
     } finally {
@@ -162,11 +159,6 @@ export default function ItemsToPackAirtecPage() {
     } else {
       setSelectedItems(new Set())
     }
-  }
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const handleSearchChange = (value: string) => {
@@ -501,19 +493,6 @@ export default function ItemsToPackAirtecPage() {
         onDelete={handleDelete}
       />
 
-      {totalPages > 1 && (
-        <div className="mt-6">
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={handlePageChange}
-          />
-          <div className="text-center text-sm text-gray-600 mt-2">
-            Showing {items.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} -{' '}
-            {Math.min(currentPage * pageSize, total)} of {total} items
-          </div>
-        </div>
-      )}
 
       {showTimeModal && (
         <TimeRegistrationModal
