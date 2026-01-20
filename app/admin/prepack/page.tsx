@@ -345,7 +345,7 @@ export default function PrepackMonitorPage() {
               <div className="text-xs text-gray-500">Manuren per dag</div>
             </div>
             <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <div className="text-sm text-gray-500 mb-2">Gem. doorlooptijd</div>
+              <div className="text-sm text-gray-500 mb-2">Gem. doorlooptijd (werkdagen)</div>
               <div className="text-lg font-semibold text-gray-900">
                 {totals ? formatLeadTime(totals.avgLeadTimeHours) : '-'}
               </div>
