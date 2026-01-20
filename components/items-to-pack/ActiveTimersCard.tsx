@@ -22,6 +22,7 @@ export default function ActiveTimersCard({
   onStopAll,
 }: ActiveTimersCardProps) {
   const [elapsedTimes, setElapsedTimes] = useState<Map<number, number>>(new Map())
+  const [collapsed, setCollapsed] = useState(false)
 
   useEffect(() => {
     if (timeLogs.length === 0) return
@@ -62,72 +63,82 @@ export default function ActiveTimersCard({
             {timeLogs.length} active timer{timeLogs.length !== 1 ? 's' : ''} running
           </p>
         </div>
-        {timeLogs.length > 1 && (
+        <div className="flex items-center gap-2">
           <button
-            onClick={onStopAll}
-            className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium shadow-md transition-colors"
+            onClick={() => setCollapsed((prev) => !prev)}
+            className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-medium"
           >
-            ⏹️ Stop All ({timeLogs.length})
+            {collapsed ? 'Toon' : 'Minimaliseer'}
           </button>
-        )}
+          {timeLogs.length > 1 && !collapsed && (
+            <button
+              onClick={onStopAll}
+              className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium shadow-md transition-colors"
+            >
+              ⏹️ Stop All ({timeLogs.length})
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="overflow-x-auto bg-white rounded-lg shadow-inner">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">
-                👤 Employee
-              </th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">
-                🕐 Start Time
-              </th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">
-                ⏱️ Elapsed Time
-              </th>
-              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700 uppercase tracking-wider">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {timeLogs.map((log) => {
-              const elapsed = elapsedTimes.get(log.id) || log.elapsed_seconds || 0
-              return (
-                <tr key={log.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                    <div className="flex items-center">
-                      <span className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
-                      {log.employee_name}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-700">
-                    {new Date(log.start_time).toLocaleTimeString('nl-NL', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit',
-                    })}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-blue-100 text-blue-800">
-                      ⏱️ {formatTime(elapsed)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <button
-                      onClick={() => onStop(log.id, log.employee_name)}
-                      className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium text-sm shadow-sm transition-all hover:shadow-md active:scale-95"
-                      title={`Stop timer for ${log.employee_name}`}
-                    >
-                      ⏹️ Stop
-                    </button>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+      {!collapsed && (
+        <div className="overflow-x-auto bg-white rounded-lg shadow-inner">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">
+                  👤 Employee
+                </th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">
+                  🕐 Start Time
+                </th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">
+                  ⏱️ Elapsed Time
+                </th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {timeLogs.map((log) => {
+                const elapsed = elapsedTimes.get(log.id) || log.elapsed_seconds || 0
+                return (
+                  <tr key={log.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                      <div className="flex items-center">
+                        <span className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
+                        {log.employee_name}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-700">
+                      {new Date(log.start_time).toLocaleTimeString('nl-NL', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                      })}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-blue-100 text-blue-800">
+                        ⏱️ {formatTime(elapsed)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <button
+                        onClick={() => onStop(log.id, log.employee_name)}
+                        className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium text-sm shadow-sm transition-all hover:shadow-md active:scale-95"
+                        title={`Stop timer for ${log.employee_name}`}
+                      >
+                        ⏹️ Stop
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }
