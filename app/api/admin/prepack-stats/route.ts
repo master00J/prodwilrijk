@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { calculateWorkedSeconds } from '@/lib/utils/time'
 
 export const dynamic = 'force-dynamic'
 
@@ -132,8 +133,8 @@ export async function GET(request: NextRequest) {
         const endTime = new Date(log.end_time)
         const date = startTime.toISOString().split('T')[0]
         
-        // Calculate hours worked
-        const hours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60)
+        // Calculate hours worked (exclude lunch break)
+        const hours = calculateWorkedSeconds(startTime, endTime) / 3600
         
         if (!dailyStats[date]) {
           dailyStats[date] = {
@@ -170,7 +171,7 @@ export async function GET(request: NextRequest) {
       if (log.start_time && log.end_time) {
         const startTime = new Date(log.start_time)
         const endTime = new Date(log.end_time)
-        return sum + (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60)
+        return sum + calculateWorkedSeconds(startTime, endTime) / 3600
       }
       return sum
     }, 0)
@@ -192,7 +193,7 @@ export async function GET(request: NextRequest) {
       if (log.start_time && log.end_time && log.employees?.name) {
         const startTime = new Date(log.start_time)
         const endTime = new Date(log.end_time)
-        const hours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60)
+        const hours = calculateWorkedSeconds(startTime, endTime) / 3600
         const personName = log.employees.name
 
         // Initialize person stats

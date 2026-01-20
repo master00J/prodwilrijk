@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { calculateWorkedSeconds } from '@/lib/utils/time'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -67,7 +68,7 @@ export async function GET(request: NextRequest) {
     const now = new Date()
     const transformed = timeLogs.map((log: any) => {
       const start = new Date(log.start_time)
-      const elapsed = Math.floor((now.getTime() - start.getTime()) / 1000)
+      const elapsed = calculateWorkedSeconds(start, now)
       const employeeName = employeeMap.get(log.employee_id) || `Employee ${log.employee_id}`
       
       return {
