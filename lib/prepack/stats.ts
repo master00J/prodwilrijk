@@ -56,33 +56,21 @@ const toStartOfDay = (value: Date) => {
   return date
 }
 
-const toEndOfDay = (value: Date) => {
-  const date = new Date(value)
-  date.setHours(23, 59, 59, 999)
-  return date
-}
-
-const calculateBusinessHours = (start: Date, end: Date) => {
+const calculateBusinessDays = (start: Date, end: Date) => {
   if (end <= start) return 0
-  let totalMs = 0
-  let cursor = toStartOfDay(start)
+  const startDay = toStartOfDay(start)
   const endDay = toStartOfDay(end)
+  let cursor = new Date(startDay)
+  let totalDays = 0
 
-  while (cursor <= endDay) {
-    if (isWeekday(cursor)) {
-      const dayStart = toStartOfDay(cursor)
-      const dayEnd = toEndOfDay(cursor)
-      const rangeStart = cursor.getTime() === dayStart.getTime() ? start : dayStart
-      const rangeEnd = cursor.getTime() === endDay.getTime() ? end : dayEnd
-      const diff = rangeEnd.getTime() - rangeStart.getTime()
-      if (diff > 0) {
-        totalMs += diff
-      }
-    }
+  while (cursor < endDay) {
     cursor.setDate(cursor.getDate() + 1)
+    if (isWeekday(cursor)) {
+      totalDays += 1
+    }
   }
 
-  return totalMs / 3600000
+  return totalDays
 }
 
 export async function fetchPrepackStats({
@@ -295,6 +283,7 @@ export async function fetchPrepackStats({
   const incomingVsPackedRatio =
     totalItemsPacked > 0 ? Number((totalIncoming / totalItemsPacked).toFixed(2)) : null
 
+  const filterStart = dateFrom ? toStartOfDay(new Date(dateFrom)) : null
   const leadTimes = items
     .map((item: any) => {
       if (!item.date_added || !item.date_packed) return null
@@ -303,7 +292,10 @@ export async function fetchPrepackStats({
       if (!Number.isFinite(added.getTime()) || !Number.isFinite(packed.getTime()) || packed <= added) {
         return null
       }
-      return calculateBusinessHours(added, packed)
+      const effectiveStart =
+        filterStart && filterStart.getTime() > added.getTime() ? filterStart : added
+      const businessDays = calculateBusinessDays(effectiveStart, packed)
+      return businessDays * 24
     })
     .filter((value: number | null): value is number => value !== null)
 
