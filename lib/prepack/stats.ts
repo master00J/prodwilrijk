@@ -6,7 +6,7 @@ export interface DailyStat {
   itemsPacked: number
   manHours: number
   employeeCount: number
-  itemsPerHour: number
+  itemsPerFte: number
   revenue: number
   incomingItems: number
   fte: number
@@ -15,7 +15,7 @@ export interface DailyStat {
 export interface Totals {
   totalItemsPacked: number
   totalManHours: number
-  averageItemsPerHour: number
+  averageItemsPerFte: number
   totalDays: number
   totalRevenue: number
   totalIncoming: number
@@ -267,14 +267,14 @@ export async function fetchPrepackStats({
       const expectedHours = getExpectedHoursForDay(stat.date)
       const fte =
         expectedHours > 0 ? Number((stat.manHours / expectedHours).toFixed(2)) : 0
+      const itemsPerFte =
+        fte > 0 ? Number((stat.itemsPacked / fte).toFixed(2)) : 0
       return {
         date: stat.date,
         itemsPacked: stat.itemsPacked,
         manHours: Number(stat.manHours.toFixed(2)),
         employeeCount: stat.employees.size,
-        itemsPerHour: stat.manHours > 0
-          ? Number((stat.itemsPacked / stat.manHours).toFixed(2))
-          : 0,
+        itemsPerFte,
         revenue: Number(stat.revenue.toFixed(2)),
         incomingItems: stat.incomingItems,
         fte,
@@ -329,6 +329,7 @@ export async function fetchPrepackStats({
 
   const totalFte = dailyStatsArray.reduce((sum, stat) => sum + stat.fte, 0)
   const avgFtePerDay = totalDaysPacked > 0 ? Number((totalFte / totalDaysPacked).toFixed(2)) : 0
+  const averageItemsPerFte = totalFte > 0 ? Number((totalItemsPacked / totalFte).toFixed(2)) : 0
 
   const personStatsMap: Record<string, { name: string; manHours: number }> = {}
   logs.forEach((log: any) => {
@@ -379,7 +380,7 @@ export async function fetchPrepackStats({
     totals: {
       totalItemsPacked,
       totalManHours: Number(totalManHours.toFixed(2)),
-      averageItemsPerHour: totalManHours > 0 ? Number((totalItemsPacked / totalManHours).toFixed(2)) : 0,
+      averageItemsPerFte,
       totalDays: totalDaysPacked,
       totalRevenue: Number(totalRevenue.toFixed(2)),
       totalIncoming,

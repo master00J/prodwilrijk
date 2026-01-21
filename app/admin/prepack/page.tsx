@@ -19,7 +19,7 @@ interface DailyStat {
   itemsPacked: number
   manHours: number
   employeeCount: number
-  itemsPerHour: number
+  itemsPerFte: number
   revenue: number
   incomingItems: number
   fte: number
@@ -28,7 +28,7 @@ interface DailyStat {
 interface Totals {
   totalItemsPacked: number
   totalManHours: number
-  averageItemsPerHour: number
+  averageItemsPerFte: number
   totalDays: number
   totalRevenue: number
   totalIncoming: number
@@ -134,7 +134,7 @@ export default function PrepackMonitorPage() {
     }, null)
 
     const bestProductivityDay = dailyStats.reduce<DailyStat | null>((best, current) => {
-      if (!best || current.itemsPerHour > best.itemsPerHour) return current
+      if (!best || current.itemsPerFte > best.itemsPerFte) return current
       return best
     }, null)
 
@@ -216,7 +216,7 @@ export default function PrepackMonitorPage() {
         Manuren: stat.manHours,
         FTE: stat.fte,
         Medewerkers: stat.employeeCount,
-        'Items per uur': stat.itemsPerHour,
+        'Items per FTE': stat.itemsPerFte,
         Omzet: stat.revenue,
       }))
 
@@ -332,9 +332,9 @@ export default function PrepackMonitorPage() {
               </div>
             </div>
             <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-100">
-              <div className="text-sm text-gray-600 mb-1">Items per uur</div>
+              <div className="text-sm text-gray-600 mb-1">Items/FTE</div>
               <div className="text-3xl font-bold text-indigo-700">
-                {totals ? totals.averageItemsPerHour.toFixed(2) : '-'}
+                {totals ? totals.averageItemsPerFte.toFixed(2) : '-'}
               </div>
             </div>
             <div className="bg-amber-50 rounded-lg p-4 border border-amber-100">
@@ -385,7 +385,7 @@ export default function PrepackMonitorPage() {
               <div className="text-sm text-gray-500 mb-2">Beste productiviteit</div>
               <div className="text-lg font-semibold text-gray-900">
                 {kpiStats.bestProductivityDay
-                  ? `${kpiStats.bestProductivityDay.itemsPerHour.toFixed(2)} items/uur`
+                  ? `${kpiStats.bestProductivityDay.itemsPerFte.toFixed(2)} items/FTE`
                   : '-'}
               </div>
               <div className="text-xs text-gray-500">
@@ -517,7 +517,7 @@ export default function PrepackMonitorPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 mb-6">
-        <CollapsibleCard id="productivity" title="Productiviteit" subtitle="Items per uur">
+        <CollapsibleCard id="productivity" title="Productiviteit" subtitle="Items per FTE">
           {loading ? (
             <div className="text-center py-8 text-gray-500">Grafiek laden...</div>
           ) : dailyStats.length === 0 ? (
@@ -538,14 +538,14 @@ export default function PrepackMonitorPage() {
                 <YAxis />
                 <Tooltip
                   labelFormatter={(value) => formatDate(value as string)}
-                  formatter={(value: number) => [`${value.toFixed(2)} items/uur`, 'Productiviteit']}
+                  formatter={(value: number) => [`${value.toFixed(2)} items/FTE`, 'Productiviteit']}
                 />
                 <Line
                   type="monotone"
-                  dataKey="itemsPerHour"
+                  dataKey="itemsPerFte"
                   stroke="#8b5cf6"
                   strokeWidth={3}
-                  name="Items/uur"
+                  name="Items/FTE"
                   dot={false}
                 />
               </ComposedChart>
@@ -727,7 +727,7 @@ export default function PrepackMonitorPage() {
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Manuren</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">FTE</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Medewerkers</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Items/Uur</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Items/FTE</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Omzet</th>
                 </tr>
               </thead>
@@ -749,7 +749,7 @@ export default function PrepackMonitorPage() {
                     <td className="px-4 py-3 text-sm text-gray-900">{stat.manHours.toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm text-gray-900">{stat.fte.toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm text-gray-900">{stat.employeeCount}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{stat.itemsPerHour.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{stat.itemsPerFte.toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">
                       €{stat.revenue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
