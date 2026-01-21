@@ -32,6 +32,24 @@ type ControleDetail = {
   fotos: any[]
 }
 
+type ChecklistTemplateItem = {
+  id?: number
+  item_beschrijving: string
+  item_type: string
+  volgorde: number
+  is_verplicht: boolean
+  hulptekst: string
+}
+
+type ChecklistTemplate = {
+  id: number
+  naam: string
+  afdeling: string | null
+  beschrijving: string | null
+  is_actief: boolean
+  checklist_template_items?: { count: number }[]
+}
+
 export default function MonitorControlesPage() {
   const [stats, setStats] = useState<any>(null)
   const [trends, setTrends] = useState<any[]>([])
@@ -49,6 +67,18 @@ export default function MonitorControlesPage() {
     ordernummer: '',
   })
   const [selectedDetail, setSelectedDetail] = useState<ControleDetail | null>(null)
+  const [templates, setTemplates] = useState<ChecklistTemplate[]>([])
+  const [templateLoading, setTemplateLoading] = useState(false)
+  const [templateMessage, setTemplateMessage] = useState<string | null>(null)
+  const [templateError, setTemplateError] = useState<string | null>(null)
+  const [templateForm, setTemplateForm] = useState({
+    id: null as number | null,
+    naam: '',
+    afdeling: '',
+    beschrijving: '',
+    is_actief: true,
+    items: [] as ChecklistTemplateItem[],
+  })
 
   const fetchStats = async () => {
     const response = await fetch('/api/product-inspectie/dashboard/stats')
@@ -78,10 +108,26 @@ export default function MonitorControlesPage() {
     }
   }
 
+  const fetchTemplates = async () => {
+    setTemplateLoading(true)
+    try {
+      const response = await fetch('/api/checklist-beheer/templates?include_item_count=true')
+      if (!response.ok) throw new Error('Failed to fetch templates')
+      const data = await response.json()
+      setTemplates(data || [])
+    } catch (error) {
+      console.error('Error fetching templates:', error)
+      setTemplateError('Kon templates niet laden.')
+    } finally {
+      setTemplateLoading(false)
+    }
+  }
+
   useEffect(() => {
     fetchStats()
     fetchTrends()
     fetchControles()
+    fetchTemplates()
   }, [])
 
   useEffect(() => {
@@ -135,10 +181,169 @@ export default function MonitorControlesPage() {
     window.open(`/api/product-inspectie/export/csv?${params.toString()}`, '_blank')
   }
 
+  const resetTemplateForm = () => {
+    setTemplateForm({
+      id: null,
+      naam: '',
+      afdeling: '',
+      beschrijving: '',
+      is_actief: true,
+      items: [],
+    })
+    setTemplateMessage(null)
+    setTemplateError(null)
+  }
+
+  const loadTemplateDetail = async (templateId: number) => {
+    try {
+      const response = await fetch(`/api/checklist-beheer/templates/${templateId}`)
+      if (!response.ok) throw new Error('Failed to fetch template')
+      const data = await response.json()
+      setTemplateForm({
+        id: data.id,
+        naam: data.naam || '',
+        afdeling: data.afdeling || '',
+        beschrijving: data.beschrijving || '',
+        is_actief: data.is_actief ?? true,
+        items: (data.items || []).map((item: any) => ({
+          id: item.id,
+          item_beschrijving: item.item_beschrijving || '',
+          item_type: item.item_type || 'ok/niet ok/n.v.t.',
+          volgorde: item.volgorde ?? 0,
+          is_verplicht: Boolean(item.is_verplicht),
+          hulptekst: item.hulptekst || '',
+        })),
+      })
+      setTemplateMessage(null)
+      setTemplateError(null)
+    } catch (error) {
+      console.error('Error loading template detail:', error)
+      setTemplateError('Kon template details niet laden.')
+    }
+  }
+
+  const addTemplateItem = () => {
+    setTemplateForm((prev) => ({
+      ...prev,
+      items: [
+        ...prev.items,
+        {
+          item_beschrijving: '',
+          item_type: 'ok/niet ok/n.v.t.',
+          volgorde: prev.items.length,
+          is_verplicht: false,
+          hulptekst: '',
+        },
+      ],
+    }))
+  }
+
+  const updateTemplateItem = (index: number, changes: Partial<ChecklistTemplateItem>) => {
+    setTemplateForm((prev) => {
+      const items = [...prev.items]
+      items[index] = { ...items[index], ...changes }
+      return { ...prev, items }
+    })
+  }
+
+  const removeTemplateItem = (index: number) => {
+    setTemplateForm((prev) => {
+      const items = prev.items.filter((_, i) => i !== index)
+      return { ...prev, items }
+    })
+  }
+
+  const saveTemplate = async () => {
+    setTemplateMessage(null)
+    setTemplateError(null)
+
+    if (!templateForm.naam.trim()) {
+      setTemplateError('Naam van de template is verplicht.')
+      return
+    }
+
+    try {
+      const payload = {
+        naam: templateForm.naam,
+        afdeling: templateForm.afdeling || null,
+        beschrijving: templateForm.beschrijving || null,
+        is_actief: templateForm.is_actief,
+        items: templateForm.items.map((item, index) => ({
+          item_beschrijving: item.item_beschrijving,
+          item_type: item.item_type,
+          volgorde: item.volgorde ?? index,
+          is_verplicht: item.is_verplicht,
+          hulptekst: item.hulptekst || null,
+        })),
+      }
+
+      const response = await fetch(
+        templateForm.id
+          ? `/api/checklist-beheer/templates/${templateForm.id}`
+          : '/api/checklist-beheer/templates',
+        {
+          method: templateForm.id ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      )
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Fout bij opslaan template')
+      }
+
+      setTemplateMessage('Template opgeslagen.')
+      fetchTemplates()
+      if (!templateForm.id) {
+        resetTemplateForm()
+      }
+    } catch (error: any) {
+      console.error('Error saving template:', error)
+      setTemplateError(error.message || 'Fout bij opslaan template.')
+    }
+  }
+
+  const deleteTemplate = async (templateId: number) => {
+    if (!confirm('Ben je zeker dat je deze template wil verwijderen?')) return
+    try {
+      const response = await fetch(`/api/checklist-beheer/templates/${templateId}`, {
+        method: 'DELETE',
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Fout bij verwijderen')
+      }
+      setTemplateMessage('Template verwijderd.')
+      fetchTemplates()
+      if (templateForm.id === templateId) {
+        resetTemplateForm()
+      }
+    } catch (error: any) {
+      console.error('Error deleting template:', error)
+      setTemplateError(error.message || 'Fout bij verwijderen template.')
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
         <h1 className="text-3xl font-bold text-gray-900">Controle Dashboard & Monitor</h1>
+
+        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 flex items-center justify-between">
+          <div>
+            <div className="font-semibold text-indigo-900">Template beheer</div>
+            <div className="text-sm text-indigo-700">
+              Nieuwe templates aanmaken en bestaande bewerken of verwijderen.
+            </div>
+          </div>
+          <button
+            onClick={() => document.getElementById('template-beheer')?.scrollIntoView({ behavior: 'smooth' })}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+          >
+            Ga naar template beheer
+          </button>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-white rounded-lg p-4 border border-gray-200">
@@ -159,7 +364,7 @@ export default function MonitorControlesPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg p-6 border border-gray-200">
+        <div id="template-beheer" className="bg-white rounded-lg p-6 border border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold">Controles trend</h2>
             <div className="flex gap-2">
@@ -190,6 +395,200 @@ export default function MonitorControlesPage() {
                 <Line type="monotone" dataKey="in_behandeling" stroke="#f59e0b" name="In behandeling" />
               </LineChart>
             </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg p-6 border border-gray-200">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Checklist templates beheren</h2>
+            <button
+              onClick={resetTemplateForm}
+              className="px-3 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
+            >
+              Nieuwe template
+            </button>
+          </div>
+
+          {templateError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg mb-3">
+              {templateError}
+            </div>
+          )}
+          {templateMessage && (
+            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-2 rounded-lg mb-3">
+              {templateMessage}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div>
+              <h3 className="font-semibold mb-3">Templates</h3>
+              {templateLoading ? (
+                <div className="text-sm text-gray-500">Laden...</div>
+              ) : (
+                <div className="space-y-3">
+                  {templates.map((template) => {
+                    const itemsCount =
+                      template.checklist_template_items?.[0]?.count ??
+                      (template as any).items_count ??
+                      0
+                    return (
+                      <div key={template.id} className="border border-gray-200 rounded-lg p-3">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="font-medium text-gray-900">{template.naam}</div>
+                            <div className="text-xs text-gray-500">
+                              {template.afdeling ? template.afdeling : 'Algemeen'} · {itemsCount} items
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => loadTemplateDetail(template.id)}
+                              className="text-blue-600 hover:text-blue-800 text-sm"
+                            >
+                              Bewerken
+                            </button>
+                            <button
+                              onClick={() => deleteTemplate(template.id)}
+                              className="text-red-600 hover:text-red-800 text-sm"
+                            >
+                              Verwijderen
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                  {templates.length === 0 && (
+                    <div className="text-sm text-gray-500">Geen templates gevonden.</div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <h3 className="font-semibold mb-3">
+                {templateForm.id ? 'Template bewerken' : 'Nieuwe template'}
+              </h3>
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  placeholder="Naam"
+                  value={templateForm.naam}
+                  onChange={(e) => setTemplateForm({ ...templateForm, naam: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+                <input
+                  type="text"
+                  placeholder="Afdeling (optioneel)"
+                  value={templateForm.afdeling}
+                  onChange={(e) => setTemplateForm({ ...templateForm, afdeling: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+                <textarea
+                  placeholder="Beschrijving"
+                  value={templateForm.beschrijving}
+                  onChange={(e) => setTemplateForm({ ...templateForm, beschrijving: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  rows={3}
+                />
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={templateForm.is_actief}
+                    onChange={(e) => setTemplateForm({ ...templateForm, is_actief: e.target.checked })}
+                  />
+                  Actief
+                </label>
+
+                <div className="border border-gray-200 rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium">Checklist items</span>
+                    <button
+                      onClick={addTemplateItem}
+                      className="text-sm text-blue-600 hover:text-blue-800"
+                    >
+                      + Item toevoegen
+                    </button>
+                  </div>
+                  <div className="space-y-3">
+                    {templateForm.items.map((item, index) => (
+                      <div key={index} className="border border-gray-100 rounded-lg p-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          <input
+                            type="text"
+                            placeholder="Beschrijving"
+                            value={item.item_beschrijving}
+                            onChange={(e) =>
+                              updateTemplateItem(index, { item_beschrijving: e.target.value })
+                            }
+                            className="border border-gray-300 rounded px-3 py-2"
+                          />
+                          <select
+                            value={item.item_type}
+                            onChange={(e) => updateTemplateItem(index, { item_type: e.target.value })}
+                            className="border border-gray-300 rounded px-3 py-2"
+                          >
+                            <option value="ok/niet ok/n.v.t.">OK / Niet OK / N.v.t.</option>
+                            <option value="ja/nee">Ja / Nee</option>
+                            <option value="tekst">Tekst</option>
+                            <option value="numeriek">Numeriek</option>
+                            <option value="datum">Datum</option>
+                            <option value="foto">Foto</option>
+                          </select>
+                          <input
+                            type="number"
+                            placeholder="Volgorde"
+                            value={item.volgorde}
+                            onChange={(e) =>
+                              updateTemplateItem(index, { volgorde: parseInt(e.target.value) || 0 })
+                            }
+                            className="border border-gray-300 rounded px-3 py-2"
+                          />
+                          <input
+                            type="text"
+                            placeholder="Hulptekst"
+                            value={item.hulptekst}
+                            onChange={(e) => updateTemplateItem(index, { hulptekst: e.target.value })}
+                            className="border border-gray-300 rounded px-3 py-2"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between mt-2">
+                          <label className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={item.is_verplicht}
+                              onChange={(e) =>
+                                updateTemplateItem(index, { is_verplicht: e.target.checked })
+                              }
+                            />
+                            Verplicht
+                          </label>
+                          <button
+                            onClick={() => removeTemplateItem(index)}
+                            className="text-sm text-red-600 hover:text-red-800"
+                          >
+                            Verwijderen
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {templateForm.items.length === 0 && (
+                      <div className="text-sm text-gray-500">Nog geen items toegevoegd.</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    onClick={saveTemplate}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    Template opslaan
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
