@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 interface AddItemFormProps {
   onItemAdded: () => void
@@ -17,6 +17,36 @@ export default function AddItemForm({ onItemAdded }: AddItemFormProps) {
     divisie: '',
     quantity: '1',
   })
+  const isCoolerDescription = formData.beschrijving.toLowerCase().includes('cooler')
+
+  useEffect(() => {
+    if (!isCoolerDescription) return
+    setFormData((prev) => ({
+      ...prev,
+      lot_number: '',
+      divisie: '',
+    }))
+  }, [isCoolerDescription])
+
+  useEffect(() => {
+    const itemNumber = formData.item_number.trim()
+    if (!itemNumber) return
+
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/incoming-goods-airtec/lookup?item_number=${encodeURIComponent(itemNumber)}`)
+        if (!response.ok) return
+        const data = await response.json()
+        if (data?.kistnummer && !formData.kistnummer) {
+          setFormData((prev) => ({ ...prev, kistnummer: data.kistnummer }))
+        }
+      } catch (error) {
+        console.error('Error looking up box number:', error)
+      }
+    }, 300)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [formData.item_number, formData.kistnummer])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -87,6 +117,7 @@ export default function AddItemForm({ onItemAdded }: AddItemFormProps) {
             value={formData.lot_number}
             onChange={(e) => setFormData({ ...formData, lot_number: e.target.value })}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            disabled={isCoolerDescription}
           />
         </div>
         <div>
@@ -105,7 +136,6 @@ export default function AddItemForm({ onItemAdded }: AddItemFormProps) {
             value={formData.kistnummer}
             onChange={(e) => setFormData({ ...formData, kistnummer: e.target.value })}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            maxLength={3}
           />
         </div>
         <div>
@@ -115,6 +145,7 @@ export default function AddItemForm({ onItemAdded }: AddItemFormProps) {
             value={formData.divisie}
             onChange={(e) => setFormData({ ...formData, divisie: e.target.value })}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            disabled={isCoolerDescription}
           />
         </div>
         <div>
