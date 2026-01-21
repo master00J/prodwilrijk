@@ -593,7 +593,8 @@ async function removeMissingCases(currentOverview: any[]) {
     const { error: deleteError } = await supabaseAdmin
       .from('grote_inpak_cases')
       .delete()
-      .in('case_label', chunk)    if (deleteError) {
+      .in('case_label', chunk)
+    if (deleteError) {
       throw deleteError
     }
   }
