@@ -122,6 +122,28 @@ export async function fetchAirtecStats({
     throw new Error('Failed to fetch items to pack airtec')
   }
 
+  let incomingPackedQuery = supabaseAdmin
+    .from('packed_items_airtec')
+    .select('quantity, datum_ontvangen')
+
+  if (dateFrom) {
+    const fromDate = new Date(dateFrom)
+    fromDate.setHours(0, 0, 0, 0)
+    incomingPackedQuery = incomingPackedQuery.gte('datum_ontvangen', fromDate.toISOString())
+  }
+
+  if (dateTo) {
+    const toDate = new Date(dateTo)
+    toDate.setHours(23, 59, 59, 999)
+    incomingPackedQuery = incomingPackedQuery.lte('datum_ontvangen', toDate.toISOString())
+  }
+
+  const { data: incomingPackedItems, error: incomingPackedError } = await incomingPackedQuery
+
+  if (incomingPackedError) {
+    throw new Error('Failed to fetch packed items airtec incoming')
+  }
+
   let timeLogsQuery = supabaseAdmin
     .from('time_logs')
     .select(
@@ -157,7 +179,7 @@ export async function fetchAirtecStats({
 
   const items = packedItems || []
   const logs = timeLogs || []
-  const incoming = incomingItems || []
+  const incoming = [...(incomingItems || []), ...(incomingPackedItems || [])]
 
   const uniqueKistnummers = [...new Set(items.map((item: any) => item.kistnummer).filter(Boolean))]
   let pricesMap: Record<string, number> = {}
