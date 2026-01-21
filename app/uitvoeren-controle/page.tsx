@@ -488,7 +488,16 @@ export default function UitvoerenControlePage() {
 
         <div className="bg-white shadow rounded-lg p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Foto&apos;s</h2>
-          <input type="file" multiple accept="image/*" onChange={(e) => handlePhotoChange(e.target.files)} />
+          <input
+            type="file"
+            multiple
+            accept="image/*"
+            capture="environment"
+            onChange={(e) => handlePhotoChange(e.target.files)}
+          />
+          <p className="text-xs text-gray-500 mt-2">
+            Je kan rechtstreeks foto&apos;s nemen of bestanden kiezen vanaf je toestel.
+          </p>
           {photoPreviews.length > 0 && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
               {photoPreviews.map((preview, index) => (
