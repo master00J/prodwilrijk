@@ -44,13 +44,13 @@ export default function Navbar() {
   const [isPrepackOpen, setIsPrepackOpen] = useState(false)
   const [isAirtecOpen, setIsAirtecOpen] = useState(false)
   const [isWoodOpen, setIsWoodOpen] = useState(false)
-  const [isMateriaalOpen, setIsMateriaalOpen] = useState(false)
+  const [isVariaOpen, setIsVariaOpen] = useState(false)
   const [isAdminOpen, setIsAdminOpen] = useState(false)
   const [isCNHOpen, setIsCNHOpen] = useState(false)
   const prepackDropdownRef = useRef<HTMLDivElement>(null)
   const airtecDropdownRef = useRef<HTMLDivElement>(null)
   const woodDropdownRef = useRef<HTMLDivElement>(null)
-  const materiaalDropdownRef = useRef<HTMLDivElement>(null)
+  const variaDropdownRef = useRef<HTMLDivElement>(null)
   const adminDropdownRef = useRef<HTMLDivElement>(null)
   const cnhDropdownRef = useRef<HTMLDivElement>(null)
 
@@ -87,8 +87,9 @@ export default function Navbar() {
     pathname.startsWith('/wood/picking') ||
     pathname.startsWith('/wood/consumption')
 
-  const isMateriaalPage =
-    pathname.startsWith('/materiaal')
+  const isVariaPage =
+    pathname.startsWith('/uitvoeren-controle') ||
+    pathname.startsWith('/materiaal/heftruck-water')
 
   const isCNHPage = 
     pathname.startsWith('/cnh/workflow') ||
@@ -108,8 +109,8 @@ export default function Navbar() {
       if (woodDropdownRef.current && !woodDropdownRef.current.contains(event.target as Node)) {
         setIsWoodOpen(false)
       }
-      if (materiaalDropdownRef.current && !materiaalDropdownRef.current.contains(event.target as Node)) {
-        setIsMateriaalOpen(false)
+      if (variaDropdownRef.current && !variaDropdownRef.current.contains(event.target as Node)) {
+        setIsVariaOpen(false)
       }
       if (adminDropdownRef.current && !adminDropdownRef.current.contains(event.target as Node)) {
         setIsAdminOpen(false)
@@ -119,14 +120,14 @@ export default function Navbar() {
       }
     }
 
-    if (isPrepackOpen || isAirtecOpen || isWoodOpen || isMateriaalOpen || isAdminOpen || isCNHOpen) {
+    if (isPrepackOpen || isAirtecOpen || isWoodOpen || isVariaOpen || isAdminOpen || isCNHOpen) {
       document.addEventListener('mousedown', handleClickOutside)
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [isPrepackOpen, isAirtecOpen, isWoodOpen, isMateriaalOpen, isAdminOpen, isCNHOpen])
+  }, [isPrepackOpen, isAirtecOpen, isWoodOpen, isVariaOpen, isAdminOpen, isCNHOpen])
 
   return (
     <nav className="bg-white shadow-lg border-b border-gray-200 sticky top-0 z-50">
@@ -421,19 +422,19 @@ export default function Navbar() {
               )}
             </div>
 
-            {/* Materiaal Dropdown */}
-            <div className="relative" ref={materiaalDropdownRef}>
+            {/* Varia Dropdown */}
+            <div className="relative" ref={variaDropdownRef}>
               <button
-                onClick={() => setIsMateriaalOpen(!isMateriaalOpen)}
+                onClick={() => setIsVariaOpen(!isVariaOpen)}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center ${
-                  isMateriaalPage
+                  isVariaPage
                     ? 'bg-slate-500 text-white hover:bg-slate-600'
                     : 'text-gray-700 hover:bg-gray-100'
                 }`}
               >
-                Materiaal
+                Varia
                 <svg
-                  className={`ml-2 w-4 h-4 transition-transform ${isMateriaalOpen ? 'rotate-180' : ''}`}
+                  className={`ml-2 w-4 h-4 transition-transform ${isVariaOpen ? 'rotate-180' : ''}`}
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -441,12 +442,23 @@ export default function Navbar() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
-              {isMateriaalOpen && (
+              {isVariaOpen && (
                 <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 z-20">
                   <div className="py-2">
                     <Link
+                      href="/uitvoeren-controle"
+                      onClick={() => setIsVariaOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/uitvoeren-controle')
+                          ? 'bg-slate-50 text-slate-700 font-medium border-l-4 border-slate-500'
+                          : 'text-gray-700'
+                      }`}
+                    >
+                      Uitvoeren controles
+                    </Link>
+                    <Link
                       href="/materiaal/heftruck-water"
-                      onClick={() => setIsMateriaalOpen(false)}
+                      onClick={() => setIsVariaOpen(false)}
                       className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
                         isActive('/materiaal/heftruck-water')
                           ? 'bg-slate-50 text-slate-700 font-medium border-l-4 border-slate-500'
@@ -619,6 +631,15 @@ export default function Navbar() {
                       }`}
                     >
                       Target Stock (Wood)
+                    </Link>
+                    <Link
+                      href="/admin/monitor-controles"
+                      onClick={() => setIsAdminOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/admin/monitor-controles') ? 'bg-purple-50 text-purple-600 font-medium border-l-4 border-purple-500' : 'text-gray-700'
+                      }`}
+                    >
+                      Monitor controles
                     </Link>
                   </div>
                 </div>
