@@ -496,16 +496,20 @@ async function saveCasesToDatabase(cases: any[]) {
     .map((case_) => String(case_.case_label || '').trim())
     .filter((label) => label.length > 0)
 
-  let existingComments = new Map<string, string | null>()
+  let existingCases = new Map<string, { comment: string | null; status: string | null; priority: boolean | null }>()
   if (caseLabels.length > 0) {
     const { data: existingData } = await supabaseAdmin
       .from('grote_inpak_cases')
-      .select('case_label, comment')
+      .select('case_label, comment, status, priority')
       .in('case_label', caseLabels)
 
     if (existingData) {
       existingData.forEach((row: any) => {
-        existingComments.set(String(row.case_label || '').trim(), row.comment ?? null)
+        existingCases.set(String(row.case_label || '').trim(), {
+          comment: row.comment ?? null,
+          status: row.status ?? null,
+          priority: row.priority ?? null,
+        })
       })
     }
   }
@@ -513,21 +517,21 @@ async function saveCasesToDatabase(cases: any[]) {
   // Upsert cases (update if exists, insert if not)
   for (const case_ of cases) {
     const label = String(case_.case_label || '').trim()
-    const existingComment = existingComments.get(label)
-    const nextComment = case_.comment?.toString().trim() || ''
+    const existing = existingCases.get(label)
+
+    const merged = {
+      ...case_,
+      comment: existing?.comment ?? case_.comment,
+      status: existing?.status ?? case_.status,
+      priority: existing?.priority ?? case_.priority,
+    }
 
     await supabaseAdmin
       .from('grote_inpak_cases')
-      .upsert(
-        {
-          ...case_,
-          comment: nextComment ? case_.comment : existingComment,
-        },
-        {
-          onConflict: 'case_label',
-          ignoreDuplicates: false,
-        }
-      )
+      .upsert(merged, {
+        onConflict: 'case_label',
+        ignoreDuplicates: false,
+      })
   }
 }
 async function saveTransportToDatabase(transport: any[]) {
