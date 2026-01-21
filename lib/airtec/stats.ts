@@ -9,6 +9,7 @@ export interface DailyStat {
   itemsPerHour: number
   revenue: number
   incomingItems: number
+  fte: number
 }
 
 export interface Totals {
@@ -20,6 +21,8 @@ export interface Totals {
   totalIncoming: number
   incomingVsPackedRatio: number | null
   avgLeadTimeHours: number | null
+  totalFte: number
+  avgFtePerDay: number
 }
 
 export interface PersonStats {
@@ -71,6 +74,14 @@ const calculateBusinessDays = (start: Date, end: Date) => {
   }
 
   return totalDays
+}
+
+const getExpectedHoursForDay = (dateValue: string) => {
+  const date = new Date(dateValue)
+  const day = date.getDay()
+  if (day === 5) return 7
+  if (day === 0 || day === 6) return 0
+  return 8
 }
 
 export async function fetchAirtecStats({
@@ -272,15 +283,23 @@ export async function fetchAirtecStats({
   })
 
   const dailyStatsArray: DailyStat[] = Object.values(dailyStats)
-    .map((stat) => ({
-      date: stat.date,
-      itemsPacked: stat.itemsPacked,
-      manHours: Number(stat.manHours.toFixed(2)),
-      employeeCount: stat.employees.size,
-      itemsPerHour: stat.manHours > 0 ? Number((stat.itemsPacked / stat.manHours).toFixed(2)) : 0,
-      revenue: Number(stat.revenue.toFixed(2)),
-      incomingItems: stat.incomingItems,
-    }))
+    .map((stat) => {
+      const expectedHours = getExpectedHoursForDay(stat.date)
+      const fte =
+        expectedHours > 0 ? Number((stat.manHours / expectedHours).toFixed(2)) : 0
+      return {
+        date: stat.date,
+        itemsPacked: stat.itemsPacked,
+        manHours: Number(stat.manHours.toFixed(2)),
+        employeeCount: stat.employees.size,
+        itemsPerHour: stat.manHours > 0
+          ? Number((stat.itemsPacked / stat.manHours).toFixed(2))
+          : 0,
+        revenue: Number(stat.revenue.toFixed(2)),
+        incomingItems: stat.incomingItems,
+        fte,
+      }
+    })
     .sort((a, b) => a.date.localeCompare(b.date))
 
   const totalItemsPacked = items.reduce((sum, item: any) => sum + (item.quantity || 0), 0)
@@ -327,6 +346,9 @@ export async function fetchAirtecStats({
   const totalDaysPacked =
     dailyStatsArray.filter((stat) => stat.itemsPacked > 0 || stat.manHours > 0).length ||
     dailyStatsArray.length
+
+  const totalFte = dailyStatsArray.reduce((sum, stat) => sum + stat.fte, 0)
+  const avgFtePerDay = totalDaysPacked > 0 ? Number((totalFte / totalDaysPacked).toFixed(2)) : 0
 
   const personStatsMap: Record<string, { name: string; manHours: number }> = {}
   logs.forEach((log: any) => {
@@ -383,6 +405,8 @@ export async function fetchAirtecStats({
       totalIncoming,
       incomingVsPackedRatio,
       avgLeadTimeHours,
+      totalFte: Number(totalFte.toFixed(2)),
+      avgFtePerDay,
     },
     personStats: personStatsArray,
     detailedItems,

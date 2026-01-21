@@ -22,6 +22,7 @@ interface DailyStat {
   itemsPerHour: number
   revenue: number
   incomingItems: number
+  fte: number
 }
 
 interface Totals {
@@ -33,6 +34,8 @@ interface Totals {
   totalIncoming: number
   incomingVsPackedRatio: number | null
   avgLeadTimeHours: number | null
+  totalFte: number
+  avgFtePerDay: number
 }
 
 interface PersonStats {
@@ -207,6 +210,7 @@ export default function AirtecMonitorPage() {
         'Goederen binnen': stat.incomingItems,
         'Kisten verpakt': stat.itemsPacked,
         Manuren: stat.manHours,
+        FTE: stat.fte,
         Medewerkers: stat.employeeCount,
         'Items per uur': stat.itemsPerHour,
         Omzet: stat.revenue,
@@ -307,6 +311,12 @@ export default function AirtecMonitorPage() {
                 {totals ? totals.totalManHours.toFixed(2) : '-'}
               </div>
             </div>
+            <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+              <div className="text-sm text-gray-600 mb-1">Gem. FTE/dag</div>
+              <div className="text-3xl font-bold text-slate-800">
+                {totals ? totals.avgFtePerDay.toFixed(2) : '-'}
+              </div>
+            </div>
             <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-100">
               <div className="text-sm text-gray-600 mb-1">Items per uur</div>
               <div className="text-3xl font-bold text-indigo-700">
@@ -335,13 +345,20 @@ export default function AirtecMonitorPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div className="bg-white rounded-lg border border-gray-200 p-4">
               <div className="text-sm text-gray-500 mb-2">Gemiddelde per dag</div>
               <div className="text-lg font-semibold text-gray-900">
                 {totals ? `${kpiStats.avgManHoursPerDay.toFixed(2)} uur` : '-'}
               </div>
               <div className="text-xs text-gray-500">Manuren per dag</div>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="text-sm text-gray-500 mb-2">Gem. FTE per dag</div>
+              <div className="text-lg font-semibold text-gray-900">
+                {totals ? totals.avgFtePerDay.toFixed(2) : '-'}
+              </div>
+              <div className="text-xs text-gray-500">Ma–Do 8u, Vr 7u</div>
             </div>
             <div className="bg-white rounded-lg border border-gray-200 p-4">
               <div className="text-sm text-gray-500 mb-2">Gem. doorlooptijd (werkdagen)</div>
@@ -407,12 +424,16 @@ export default function AirtecMonitorPage() {
                     if (name === 'Manuren') {
                       return [`${value.toFixed(2)} uur`, 'Manuren']
                     }
+                    if (name === 'FTE') {
+                      return [value.toFixed(2), 'FTE']
+                    }
                     return [value, name]
                   }}
                 />
                 <Legend />
                 <Line type="monotone" dataKey="itemsPacked" stroke="#2563eb" strokeWidth={2} name="Kisten" dot={false} />
                 <Line type="monotone" dataKey="manHours" stroke="#10b981" strokeWidth={2} name="Manuren" dot={false} />
+                <Line type="monotone" dataKey="fte" stroke="#0f172a" strokeWidth={2} name="FTE" dot={false} />
               </ComposedChart>
             </ResponsiveContainer>
           )}
@@ -613,6 +634,7 @@ export default function AirtecMonitorPage() {
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Goederen binnen</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Kisten verpakt</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Manuren</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">FTE</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Medewerkers</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Items/Uur</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Omzet</th>
@@ -634,6 +656,7 @@ export default function AirtecMonitorPage() {
                     </td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">{stat.itemsPacked}</td>
                     <td className="px-4 py-3 text-sm text-gray-900">{stat.manHours.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{stat.fte.toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm text-gray-900">{stat.employeeCount}</td>
                     <td className="px-4 py-3 text-sm text-gray-900">{stat.itemsPerHour.toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">

@@ -312,6 +312,12 @@ export default function PrepackMonitorPage() {
                 {totals ? totals.totalManHours.toFixed(2) : '-'}
               </div>
             </div>
+            <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+              <div className="text-sm text-gray-600 mb-1">Gem. FTE/dag</div>
+              <div className="text-3xl font-bold text-slate-800">
+                {totals ? totals.avgFtePerDay.toFixed(2) : '-'}
+              </div>
+            </div>
             <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-100">
               <div className="text-sm text-gray-600 mb-1">Items per uur</div>
               <div className="text-3xl font-bold text-indigo-700">
@@ -424,6 +430,9 @@ export default function PrepackMonitorPage() {
                     if (name === 'Manuren') {
                       return [`${value.toFixed(2)} uur`, 'Manuren']
                     }
+                    if (name === 'FTE') {
+                      return [value.toFixed(2), 'FTE']
+                    }
                     return [value, name]
                   }}
                 />
@@ -442,6 +451,14 @@ export default function PrepackMonitorPage() {
                   stroke="#10b981"
                   strokeWidth={2}
                   name="Manuren"
+                  dot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="fte"
+                  stroke="#0f172a"
+                  strokeWidth={2}
+                  name="FTE"
                   dot={false}
                 />
               </ComposedChart>
