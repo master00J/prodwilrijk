@@ -492,17 +492,44 @@ async function buildTransport(overview: any[]): Promise<any[]> {
 }
 
 async function saveCasesToDatabase(cases: any[]) {
+  const caseLabels = cases
+    .map((case_) => String(case_.case_label || '').trim())
+    .filter((label) => label.length > 0)
+
+  let existingComments = new Map<string, string | null>()
+  if (caseLabels.length > 0) {
+    const { data: existingData } = await supabaseAdmin
+      .from('grote_inpak_cases')
+      .select('case_label, comment')
+      .in('case_label', caseLabels)
+
+    if (existingData) {
+      existingData.forEach((row: any) => {
+        existingComments.set(String(row.case_label || '').trim(), row.comment ?? null)
+      })
+    }
+  }
+
   // Upsert cases (update if exists, insert if not)
   for (const case_ of cases) {
+    const label = String(case_.case_label || '').trim()
+    const existingComment = existingComments.get(label)
+    const nextComment = case_.comment?.toString().trim() || ''
+
     await supabaseAdmin
       .from('grote_inpak_cases')
-      .upsert(case_, {
-        onConflict: 'case_label',
-        ignoreDuplicates: false,
-      })
+      .upsert(
+        {
+          ...case_,
+          comment: nextComment ? case_.comment : existingComment,
+        },
+        {
+          onConflict: 'case_label',
+          ignoreDuplicates: false,
+        }
+      )
   }
 }
-
 async function saveTransportToDatabase(transport: any[]) {
   // Upsert transport data
   for (const item of transport) {
@@ -562,9 +589,7 @@ async function removeMissingCases(currentOverview: any[]) {
     const { error: deleteError } = await supabaseAdmin
       .from('grote_inpak_cases')
       .delete()
-      .in('case_label', chunk)
-
-    if (deleteError) {
+      .in('case_label', chunk)    if (deleteError) {
       throw deleteError
     }
   }
