@@ -1,0 +1,1160 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle Dashboard & Monitor | Foresco</title>
+    
+    <!-- PWA Meta Tags - TIJDELIJK UITGESCHAKELD -->
+    <!--
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Foresco">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="Foresco">
+    
+    <link rel="manifest" href="/manifest.json">
+    
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-16x16.png">
+    <link rel="apple-touch-icon" href="/icons/icon-180x180.png">
+    -->
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --light-bg: #f8fafc;
+            --border-color: #e5e7eb;
+            --text-muted: #6b7280;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--light-bg);
+            color: #1f2937;
+            line-height: 1.5;
+            font-size: 14px;
+        }
+
+        .container {
+            max-width: 1400px; /* Larger container for desktop */
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        h1 {
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: #111827;
+        }
+
+        /* Tab Styles - Desktop Optimized */
+        .nav-tabs {
+            border-bottom: 2px solid #dee2e6;
+            margin-bottom: 1.5rem;
+            background: white;
+            border-radius: 8px 8px 0 0;
+            padding: 0 1rem;
+        }
+        
+        .nav-tabs .nav-link {
+            border: none;
+            color: #6c757d;
+            font-weight: 500;
+            padding: 1rem 2rem;
+            margin-right: 0.5rem;
+            border-radius: 0;
+            transition: all 0.3s ease;
+            font-size: 0.95rem;
+        }
+        
+        .nav-tabs .nav-link:hover {
+            border-color: transparent;
+            color: var(--primary-color);
+            background: rgba(37, 99, 235, 0.05);
+        }
+        
+        .nav-tabs .nav-link.active {
+            color: var(--primary-color);
+            border-bottom: 3px solid var(--primary-color);
+            background: none;
+            font-weight: 600;
+        }
+
+        /* Dashboard Styles - Desktop Layout */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr); /* Fixed 4 columns on desktop */
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-color);
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+            min-height: 120px;
+        }
+
+        .stat-card:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--primary-color);
+        }
+
+        .stat-card.success::before { background: var(--success-color); }
+        .stat-card.warning::before { background: var(--warning-color); }
+        .stat-card.danger::before { background: var(--danger-color); }
+
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 1rem;
+        }
+
+        .stat-title {
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .stat-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            background: var(--light-bg);
+            color: var(--primary-color);
+        }
+
+        .stat-card.success .stat-icon { 
+            background: rgba(16, 185, 129, 0.1); 
+            color: var(--success-color); 
+        }
+        .stat-card.warning .stat-icon { 
+            background: rgba(245, 158, 11, 0.1); 
+            color: var(--warning-color); 
+        }
+        .stat-card.danger .stat-icon { 
+            background: rgba(239, 68, 68, 0.1); 
+            color: var(--danger-color); 
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #111827;
+            display: block;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        /* Chart Cards - Desktop Layout */
+        .chart-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-color);
+            margin-bottom: 1.5rem;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .chart-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #111827;
+            margin: 0;
+        }
+
+        .chart-controls {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .chart-control-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border-color);
+            background: white;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .chart-control-btn:hover,
+        .chart-control-btn.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        .chart-container {
+            position: relative;
+            height: 350px; /* Slightly taller for desktop */
+        }
+
+        /* Top Users List */
+        .top-users-list {
+            margin-top: 1rem;
+        }
+
+        .user-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+            background: var(--light-bg);
+            transition: var(--transition);
+        }
+
+        .user-item:hover {
+            background: #e5e7eb;
+        }
+
+        .user-name {
+            font-weight: 500;
+            color: #111827;
+            font-size: 0.9rem;
+        }
+
+        .user-count {
+            background: var(--primary-color);
+            color: white;
+            padding: 0.25rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        /* Quick Actions - Desktop Layout */
+        .quick-actions {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .action-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            background: var(--primary-color);
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: var(--transition);
+            font-size: 0.9rem;
+            border: none;
+            cursor: pointer;
+        }
+
+        .action-btn:hover {
+            background: #1d4ed8;
+            color: white;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .action-btn.secondary {
+            background: white;
+            color: var(--primary-color);
+            border: 1px solid var(--border-color);
+        }
+
+        .action-btn.secondary:hover {
+            background: var(--light-bg);
+            color: var(--primary-color);
+        }
+
+        /* Advanced Filters - Desktop Optimized */
+        .card {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: white;
+        }
+
+        .card-header {
+            background: #f8f9fa;
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 1.5rem;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .card-body {
+            padding: 1.5rem;
+        }
+
+        .form-label {
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .form-control, .form-select {
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 0.6rem 0.8rem;
+            font-size: 0.9rem;
+            transition: var(--transition);
+            height: auto;
+        }
+
+        .form-control:focus, .form-select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+            outline: none;
+        }
+
+        /* Table Styles - Desktop Optimized */
+        .table-responsive-wrapper {
+            background: white;
+            border-radius: 8px;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .controls-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0;
+            font-size: 0.875rem;
+        }
+        
+        .controls-table th {
+            background-color: #f8f9fa;
+            color: #374151;
+            font-weight: 600;
+            padding: 1rem 0.75rem;
+            text-align: left;
+            border-bottom: 2px solid var(--border-color);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .controls-table td {
+            padding: 0.875rem 0.75rem;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+        }
+        
+        .controls-table tbody tr:hover {
+            background-color: #f8fafc;
+        }
+
+        .action-button {
+            background: none;
+            border: none;
+            color: var(--primary-color);
+            text-decoration: none;
+            cursor: pointer;
+            font-weight: 500;
+            padding: 0.4rem 0.8rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            transition: var(--transition);
+        }
+        
+        .action-button:hover {
+            background: rgba(37, 99, 235, 0.1);
+            color: #1d4ed8;
+        }
+
+        /* Status Styles */
+        .status-cell {
+            position: relative;
+        }
+        
+        .status-edit-select {
+            background: none;
+            border: 1px solid transparent;
+            color: inherit;
+            font-weight: 500;
+            padding: 0.4rem 1.5rem 0.4rem 0.6rem;
+            border-radius: 4px;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 0.4rem center;
+            background-size: 12px;
+            font-size: 0.85rem;
+        }
+        
+        .status-edit-select:hover,
+        .status-edit-select:focus {
+            border-color: #ccc;
+            background-color: #f8f9fa;
+        }
+        
+        .status-edit-select option {
+            color: #000;
+            font-weight: normal;
+        }
+        
+        .status-updating {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        .status-goedgekeurd { color: var(--success-color); }
+        .status-afgekeurd { color: var(--danger-color); }
+        .status-in-behandeling { color: var(--warning-color); }
+
+        /* Search and Filter Controls */
+        .filter-search-container {
+            background: white;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-color);
+            margin-bottom: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .search-input {
+            max-width: 350px;
+            width: 100%;
+        }
+
+        .counters {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+            font-size: 0.9rem;
+        }
+
+        .counter-item {
+            color: var(--text-muted);
+        }
+
+        .counter-item strong {
+            color: #111827;
+            font-weight: 600;
+        }
+
+        /* Loading States */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+            color: var(--text-muted);
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 1.5rem;
+            height: 1.5rem;
+            border: 2px solid var(--border-color);
+            border-top-color: var(--primary-color);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Modal Styles - Desktop Optimized */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+        }
+        
+        .modal-content {
+            background-color: #fefefe;
+            margin: 3% auto;
+            padding: 0;
+            border: 1px solid var(--border-color);
+            width: 90%;
+            max-width: 900px;
+            border-radius: 8px;
+            position: relative;
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            background: #f8f9fa;
+            border-radius: 8px 8px 0 0;
+        }
+        
+        .modal-header h2 {
+            margin: 0;
+            color: var(--primary-color);
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+        
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 24px;
+            font-weight: bold;
+            position: absolute;
+            top: 1rem;
+            right: 1.5rem;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        
+        .close-button:hover,
+        .close-button:focus {
+            color: #333;
+            text-decoration: none;
+        }
+        
+        .modal-body {
+            padding: 1.5rem;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        /* Detail Styles */
+        .detail-section { 
+            margin-bottom: 1.5rem; 
+        }
+        
+        .detail-section h3 { 
+            font-size: 1.1rem; 
+            color: var(--primary-color); 
+            margin-bottom: 1rem; 
+            border-bottom: 1px solid #eee; 
+            padding-bottom: 0.5rem;
+            font-weight: 600;
+        }
+        
+        .detail-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
+            gap: 1rem; 
+            margin-bottom: 1rem; 
+        }
+        
+        .detail-item { 
+            background-color: #f8f9fa; 
+            padding: 1rem; 
+            border-radius: 6px; 
+            border: 1px solid #e9ecef; 
+        }
+        
+        .detail-item strong { 
+            display: block; 
+            color: #495057; 
+            margin-bottom: 0.25rem; 
+            font-size: 0.85rem; 
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .detail-item span { 
+            font-size: 0.95rem; 
+            color: #212529;
+        }
+        
+        .checklist-detail-item { 
+            background-color: #fdfdfd; 
+            padding: 1rem; 
+            margin-bottom: 0.75rem; 
+            border: 1px solid #e9e9e9; 
+            border-left: 3px solid var(--primary-color); 
+            border-radius: 6px; 
+        }
+        
+        .checklist-detail-item p { 
+            margin: 0.25rem 0; 
+        }
+        
+        .checklist-detail-item .item-beschrijving { 
+            font-weight: 600; 
+            color: #212529;
+        }
+        
+        .checklist-detail-item .antwoord-waarde { 
+            color: var(--primary-color); 
+            font-weight: 500; 
+        }
+        
+        .checklist-detail-item .opmerking { 
+            font-size: 0.85rem; 
+            color: #6c757d; 
+            background-color: #f8f9fa; 
+            padding: 0.5rem; 
+            border-radius: 4px; 
+            margin-top: 0.5rem; 
+        }
+        
+        .photo-gallery-modal { 
+            display: flex; 
+            flex-wrap: wrap; 
+            gap: 0.75rem; 
+            margin-top: 1rem;
+        }
+        
+        .photo-gallery-modal img { 
+            max-width: 120px; 
+            max-height: 120px; 
+            border: 1px solid #ddd; 
+            border-radius: 6px; 
+            object-fit: cover;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .photo-gallery-modal img:hover {
+            transform: scale(1.05);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .status-badge { 
+            padding: 0.4rem 0.8rem; 
+            border-radius: 4px; 
+            color: white; 
+            font-weight: 600; 
+            display: inline-block; 
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .status-badge.goedgekeurd { background-color: var(--success-color); }
+        .status-badge.afgekeurd { background-color: var(--danger-color); }
+        .status-badge.in-behandeling { background-color: var(--warning-color); }
+
+        /* Lightbox */
+        .lightbox-overlay {
+            position: fixed; 
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9); 
+            display: flex; 
+            align-items: center;
+            justify-content: center;
+            z-index: 1055; 
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        
+        .lightbox-content {
+            position: relative;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            max-width: 95vw; 
+            max-height: 95vh; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .lightbox-content img {
+            max-width: 100%;
+            max-height: calc(95vh - 80px);
+            object-fit: contain;
+            display: block;
+            margin-bottom: 10px;
+            border-radius: 6px;
+        }
+        
+        .lightbox-close-button {
+            position: absolute;
+            top: -15px; 
+            right: -15px; 
+            background-color: white;
+            color: #555;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            line-height: 34px;
+            text-align: center;
+            font-size: 24px; 
+            font-weight: bold;
+            cursor: pointer;
+            border: 2px solid #fff;
+            box-shadow: var(--shadow-md);
+            z-index: 1056;
+            transition: var(--transition);
+        }
+        
+        .lightbox-close-button:hover {
+            background-color: #f1f1f1;
+            color: black;
+        }
+        
+        .lightbox-nav {
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: none;
+            padding: 12px 16px;
+            font-size: 24px;
+            cursor: pointer;
+            border-radius: 6px;
+            position: absolute; 
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 1056;
+            transition: background-color 0.2s ease;
+        }
+        
+        .lightbox-nav:hover {
+            background-color: rgba(0, 0, 0, 0.9);
+        }
+        
+        .lightbox-prev {
+            left: 20px; 
+        }
+        
+        .lightbox-next {
+            right: 20px; 
+        }
+
+        footer {
+            background: white;
+            border-top: 1px solid var(--border-color);
+            padding: 1.5rem 0;
+            text-align: center;
+            color: var(--text-muted);
+            margin-top: 2rem;
+            font-size: 0.9rem;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 0.6rem 1.2rem;
+            border-radius: 6px;
+            font-weight: 500;
+            font-size: 0.9rem;
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        .btn-primary:hover {
+            background: #1d4ed8;
+            border-color: #1d4ed8;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #6c757d;
+            border-color: var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: #f8f9fa;
+            color: #495057;
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+            border-color: var(--success-color);
+        }
+
+        .btn-success:hover {
+            background: #059669;
+            border-color: #059669;
+        }
+
+        .btn-outline-secondary {
+            background: transparent;
+            color: #6c757d;
+            border-color: var(--border-color);
+        }
+
+        .btn-outline-secondary:hover {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 0.4rem 0.8rem;
+            font-size: 0.8rem;
+        }
+
+        /* Remove mobile-specific styles - this is desktop-first now */
+        /* No responsive breakpoints needed for mobile */
+    </style>
+</head>
+<body>
+    <div id="header-placeholder"></div>
+
+    <div class="container">
+        <h1><i class="fas fa-tachometer-alt"></i> Controle Dashboard & Monitor</h1>
+        
+        <!-- Tab Navigation -->
+        <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="dashboard-tab" data-bs-toggle="tab" data-bs-target="#dashboard" type="button" role="tab">
+                    <i class="fas fa-chart-pie"></i> Dashboard
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="monitor-tab" data-bs-toggle="tab" data-bs-target="#monitor" type="button" role="tab">
+                    <i class="fas fa-list"></i> Monitor Controles
+                </button>
+            </li>
+        </ul>
+
+        <!-- Tab Content -->
+        <div class="tab-content" id="mainTabContent">
+            <!-- Dashboard Tab -->
+            <div class="tab-pane fade show active" id="dashboard" role="tabpanel">
+                <!-- Quick Actions -->
+                <div class="quick-actions">
+                    <a href="uitvoeren_controle.html" class="action-btn">
+                        <i class="fas fa-plus"></i>
+                        Nieuwe Controle
+                    </a>
+                    <button class="action-btn secondary" onclick="switchToMonitorTab()">
+                        <i class="fas fa-list"></i>
+                        Alle Controles
+                    </button>
+                </div>
+
+                <!-- Statistics Cards -->
+                <div class="stats-grid" id="statsGrid">
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-title">Controles Vandaag</div>
+                            <div class="stat-icon">
+                                <i class="fas fa-calendar-day"></i>
+                            </div>
+                        </div>
+                        <span class="stat-number" id="statsToday">-</span>
+                        <div class="stat-label">uitgevoerd vandaag</div>
+                    </div>
+
+                    <div class="stat-card success">
+                        <div class="stat-header">
+                            <div class="stat-title">Goedgekeurd</div>
+                            <div class="stat-icon">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                        </div>
+                        <span class="stat-number" id="statsApproved">-</span>
+                        <div class="stat-label">totaal goedgekeurd</div>
+                    </div>
+
+                    <div class="stat-card warning">
+                        <div class="stat-header">
+                            <div class="stat-title">In Behandeling</div>
+                            <div class="stat-icon">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                        </div>
+                        <span class="stat-number" id="statsPending">-</span>
+                        <div class="stat-label">wacht op behandeling</div>
+                    </div>
+
+                    <div class="stat-card danger">
+                        <div class="stat-header">
+                            <div class="stat-title">Afgekeurd</div>
+                            <div class="stat-icon">
+                                <i class="fas fa-times-circle"></i>
+                            </div>
+                        </div>
+                        <span class="stat-number" id="statsRejected">-</span>
+                        <div class="stat-label">totaal afgekeurd</div>
+                    </div>
+                </div>
+
+                <!-- Charts Row -->
+                <div class="row">
+                    <div class="col-lg-8">
+                        <!-- Trends Chart -->
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <h3 class="chart-title">Controles Trend</h3>
+                                <div class="chart-controls">
+                                    <button class="chart-control-btn active" data-period="7d">7 Dagen</button>
+                                    <button class="chart-control-btn" data-period="30d">30 Dagen</button>
+                                    <button class="chart-control-btn" data-period="3m">3 Maanden</button>
+                                </div>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="trendsChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-4">
+                        <!-- Status Distribution -->
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <h3 class="chart-title">Status Verdeling</h3>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="statusChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top Users -->
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Meest Actieve Gebruikers (Deze Week)</h3>
+                    </div>
+                    <div class="top-users-list" id="topUsersList">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            Gebruikers laden...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Monitor Tab -->
+            <div class="tab-pane fade" id="monitor" role="tabpanel">
+                <!-- Geavanceerde Filters -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0"><i class="fas fa-filter"></i> Geavanceerde Filters</h5>
+                                <button class="btn btn-outline-secondary btn-sm" id="toggleFilters">
+                                    <i class="fas fa-chevron-down"></i> Toon Filters
+                                </button>
+                            </div>
+                            <div class="card-body" id="advancedFilters" style="display: none;">
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        <label for="filterDateFrom" class="form-label">Datum Van:</label>
+                                        <input type="date" class="form-control" id="filterDateFrom">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="filterDateTo" class="form-label">Datum Tot:</label>
+                                        <input type="date" class="form-control" id="filterDateTo">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="filterStatus" class="form-label">Status:</label>
+                                        <select class="form-select" id="filterStatus">
+                                            <option value="">Alle statussen</option>
+                                            <option value="goedgekeurd">Goedgekeurd</option>
+                                            <option value="afgekeurd">Afgekeurd</option>
+                                            <option value="in behandeling">In behandeling</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="filterUitgevoerdDoor" class="form-label">Uitgevoerd Door:</label>
+                                        <input type="text" class="form-control" id="filterUitgevoerdDoor" placeholder="Naam zoeken...">
+                                    </div>
+                                </div>
+                                <div class="row mt-3">
+                                    <div class="col-md-3">
+                                        <label for="filterGecontroleerdePersonn" class="form-label">Gecontroleerde Persoon:</label>
+                                        <input type="text" class="form-control" id="filterGecontroleerdePersonn" placeholder="Naam zoeken...">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="filterAfdeling" class="form-label">Afdeling:</label>
+                                        <select class="form-select" id="filterAfdeling">
+                                            <option value="">Alle afdelingen</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="filterProduct" class="form-label">Product:</label>
+                                        <input type="text" class="form-control" id="filterProduct" placeholder="Product zoeken...">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="filterOrdernummer" class="form-label">Ordernummer:</label>
+                                        <input type="text" class="form-control" id="filterOrdernummer" placeholder="Ordernummer...">
+                                    </div>
+                                </div>
+                                <div class="row mt-3">
+                                    <div class="col-12">
+                                        <button class="btn btn-primary" id="applyFilters">
+                                            <i class="fas fa-search"></i> Toepassen
+                                        </button>
+                                        <button class="btn btn-secondary ms-2" id="resetFilters">
+                                            <i class="fas fa-undo"></i> Reset
+                                        </button>
+                                        <button class="btn btn-success ms-2" id="exportFiltered">
+                                            <i class="fas fa-download"></i> Export naar CSV
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick search and counters -->
+                <div class="filter-search-container">
+                    <input type="text" id="filterControles" placeholder="Zoek in controles..." class="form-control search-input">
+                    <div class="counters">
+                        <span class="counter-item">Totaal: <strong id="totalCount">0</strong> controles</span>
+                        <span class="counter-item">Gefilterd: <strong id="filteredCount">0</strong> controles</span>
+                    </div>
+                </div>
+                
+                <!-- Controls Table -->
+                <div class="dashboard-section">
+                    <div class="table-responsive-wrapper">
+                        <div id="controlesContainer">
+                            <p>Bezig met laden van controles...</p>
+                            <table class="controls-table table table-striped table-hover" id="controlesTable">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Productnaam</th>
+                                        <th>Ordernummer</th>
+                                        <th>Datum</th>
+                                        <th>Uitgevoerd door</th>
+                                        <th>Gecontroleerde persoon</th>
+                                        <th>Status</th>
+                                        <th>Template</th>
+                                        <th>Items</th>
+                                        <th>Foto's</th>
+                                        <th>Acties</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="controlesTableBody">
+                                    <!-- Rijen worden hier dynamisch ingevoegd -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div id="errorMessage" class="message error" style="display:none;"></div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>&copy; <span id="currentYear"></span> Foresco</p>
+        </footer>
+    </div>
+
+    <!-- Modal voor controledetails -->
+    <div id="controleDetailModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Details Product Controle</h2>
+                <span class="close-button">&times;</span>
+            </div>
+            <div class="modal-body" id="modalBodyContent">
+                <!-- Details worden hier dynamisch geladen -->
+                <p>Details worden geladen...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Laad header
+            $("#header-placeholder").load("/header.html", function(response, status, xhr) {
+                if (status == "error") {
+                    console.log("Error loading header: " + xhr.status + " " + xhr.statusText);
+                    $("#header-placeholder").html("<p class='text-center text-danger'>Header kon niet geladen worden.</p>");
+                }
+            });
+            document.getElementById("currentYear").textContent = new Date().getFullYear();
+        });
+
+        function switchToMonitorTab() {
+            const monitorTab = new bootstrap.Tab(document.getElementById('monitor-tab'));
+            monitorTab.show();
+        }
+
+        // PWA Service Worker Registration - TIJDELIJK UITGESCHAKELD
+        /*
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', async () => {
+                try {
+                    const registration = await navigator.serviceWorker.register('/sw.js');
+                    console.log('Service Worker registered successfully:', registration.scope);
+                } catch (error) {
+                    console.error('Service Worker registration failed:', error);
+                }
+            });
+        }
+        */
+    </script>
+    <script src="js/monitor_controles.js"></script>
+</body>
+</html>

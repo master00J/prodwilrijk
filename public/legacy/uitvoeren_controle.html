@@ -1,0 +1,1843 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Controle Uitvoeren | Foresco</title>
+    
+    <!-- CSS Dependencies -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --light-bg: #f8fafc;
+            --border-color: #e5e7eb;
+            --text-muted: #6b7280;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--light-bg);
+            color: #1f2937;
+            line-height: 1.6;
+        }
+
+        .page-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        main {
+            flex: 1;
+            padding: 2rem 0;
+        }
+
+        /* Page Header */
+        .page-header {
+            background: white;
+            border-bottom: 1px solid var(--border-color);
+            padding: 1.5rem 0;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .page-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #111827;
+            margin: 0;
+        }
+
+        .page-subtitle {
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+
+        /* Form Sections */
+        .form-section {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+            box-shadow: var(--shadow-sm);
+            transition: var(--transition);
+            border: 1px solid var(--border-color);
+        }
+
+        .form-section:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--light-bg);
+        }
+
+        .section-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--primary-color);
+            color: white;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 1rem;
+            font-size: 1.25rem;
+        }
+
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #111827;
+            margin: 0;
+        }
+
+        /* Form Groups */
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 0.5rem;
+        }
+
+        .form-label .required {
+            color: var(--danger-color);
+            margin-left: 0.25rem;
+        }
+
+        .form-control,
+        .form-select {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+            transition: var(--transition);
+            width: 100%;
+        }
+
+        .form-control:focus,
+        .form-select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+            outline: none;
+        }
+
+        textarea.form-control {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        /* Autocomplete Dropdown */
+        .autocomplete-container {
+            position: relative;
+        }
+
+        .autocomplete-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin-top: 0.25rem;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 10;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .autocomplete-item {
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .autocomplete-item:hover,
+        .autocomplete-item.selected {
+            background-color: var(--light-bg);
+        }
+
+        .autocomplete-item strong {
+            color: var(--primary-color);
+        }
+
+        /* Checklist Items */
+        .checklist-container {
+            margin-top: 1.5rem;
+        }
+
+        .checklist-item {
+            background: var(--light-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            transition: var(--transition);
+            position: relative;
+        }
+
+        .checklist-item:hover {
+            box-shadow: var(--shadow-sm);
+            transform: translateY(-1px);
+        }
+
+        .checklist-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 1rem;
+        }
+
+        .checklist-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            background: var(--primary-color);
+            color: white;
+            border-radius: 50%;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-right: 0.75rem;
+            flex-shrink: 0;
+        }
+
+        .checklist-description {
+            font-weight: 500;
+            color: #111827;
+            flex: 1;
+            line-height: 1.5;
+        }
+
+        .checklist-remove {
+            background: none;
+            border: none;
+            color: var(--danger-color);
+            cursor: pointer;
+            padding: 0.25rem;
+            margin-left: 1rem;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+        }
+
+        .checklist-remove:hover {
+            opacity: 1;
+        }
+
+        .checklist-helptext {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+            font-style: italic;
+        }
+
+        .checklist-inputs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        /* Radio Button Groups */
+        .radio-group {
+            display: inline-flex;
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .radio-group input[type="radio"] {
+            position: absolute;
+            opacity: 0;
+        }
+
+        .radio-group label {
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            transition: var(--transition);
+            border-right: 1px solid var(--border-color);
+            margin: 0;
+        }
+
+        .radio-group label:last-child {
+            border-right: none;
+        }
+
+        .radio-group input[type="radio"]:checked + label {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .radio-group input[type="radio"]:focus + label {
+            box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.5);
+        }
+
+        /* Photo Upload Area */
+        .photo-upload-area {
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            padding: 2rem;
+            text-align: center;
+            transition: var(--transition);
+            cursor: pointer;
+            background: var(--light-bg);
+        }
+
+        .photo-upload-area:hover {
+            border-color: var(--primary-color);
+            background: white;
+        }
+
+        .photo-upload-area.drag-over {
+            border-color: var(--primary-color);
+            background: rgba(37, 99, 235, 0.05);
+        }
+
+        .photo-upload-icon {
+            font-size: 3rem;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+
+        .photo-preview-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .photo-preview {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            background: var(--light-bg);
+            aspect-ratio: 1;
+        }
+
+        .photo-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .photo-preview-remove {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .photo-preview-remove:hover {
+            background: var(--danger-color);
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 1rem;
+            border: none;
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1d4ed8;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: var(--primary-color);
+            border: 1px solid var(--primary-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--light-bg);
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-lg {
+            padding: 1rem 2rem;
+            font-size: 1.125rem;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* Status Select */
+        .status-select {
+            position: relative;
+        }
+
+        .status-select select {
+            padding-left: 2.5rem;
+        }
+
+        .status-icon {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            pointer-events: none;
+        }
+
+        /* Alerts */
+        .alert {
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-1rem);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .alert-success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #6ee7b7;
+        }
+
+        .alert-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+
+        .alert-info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #93c5fd;
+        }
+
+        /* Loading States */
+        .loading {
+            position: relative;
+            pointer-events: none;
+            opacity: 0.7;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 1em;
+            height: 1em;
+            border: 2px solid transparent;
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Modal */
+        .modal-content {
+            border: none;
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .modal-header {
+            border-bottom: 1px solid var(--border-color);
+            padding: 1.5rem;
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
+        .modal-footer {
+            border-top: 1px solid var(--border-color);
+            padding: 1rem 1.5rem;
+        }
+
+        /* Progress Bar */
+        .progress-container {
+            margin-bottom: 2rem;
+        }
+
+        .progress {
+            height: 8px;
+            background: var(--light-bg);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: var(--primary-color);
+            transition: width 0.3s ease;
+        }
+
+        .progress-steps {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 0.5rem;
+        }
+
+        .progress-step {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        .progress-step.active {
+            color: var(--primary-color);
+            font-weight: 500;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .form-section {
+                padding: 1.5rem;
+            }
+
+            .page-title {
+                font-size: 1.5rem;
+            }
+
+            .checklist-inputs {
+                flex-direction: column;
+            }
+
+            .radio-group {
+                width: 100%;
+            }
+
+            .photo-preview-container {
+                grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            }
+        }
+
+        /* Animations */
+        .fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(0.5rem);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Footer */
+        footer {
+            background: white;
+            border-top: 1px solid var(--border-color);
+            padding: 2rem 0;
+            text-align: center;
+            color: var(--text-muted);
+            margin-top: 3rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="page-container">
+        <div id="header-placeholder"></div>
+        
+        <!-- Page Header -->
+        <div class="page-header">
+            <div class="container">
+                <h1 class="page-title">Product Controle Uitvoeren</h1>
+                <p class="page-subtitle">Voer een kwaliteitscontrole uit op producten met behulp van checklist templates</p>
+            </div>
+        </div>
+
+        <main>
+            <div class="container">
+                <!-- Progress Indicator -->
+                <div class="progress-container">
+                    <div class="progress">
+                        <div class="progress-bar" style="width: 25%"></div>
+                    </div>
+                    <div class="progress-steps">
+                        <span class="progress-step active">Algemene Info</span>
+                        <span class="progress-step">Checklist</span>
+                        <span class="progress-step">Foto's</span>
+                        <span class="progress-step">Afronding</span>
+                    </div>
+                </div>
+
+                <!-- Alert Container -->
+                <div id="alert-container"></div>
+
+                <form id="controleForm">
+                    <!-- Section 1: Algemene Informatie -->
+                    <div class="form-section fade-in">
+                        <div class="section-header">
+                            <div class="section-icon">
+                                <i class="fas fa-info-circle"></i>
+                            </div>
+                            <h2 class="section-title">Algemene Informatie</h2>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label">
+                                        Productnaam / Orderreferentie
+                                        <span class="required">*</span>
+                                    </label>
+                                    <input type="text" 
+                                           class="form-control" 
+                                           id="product_naam" 
+                                           name="product_naam" 
+                                           required
+                                           placeholder="Bijv. Product XYZ-123">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label">Ordernummer</label>
+                                    <input type="text" 
+                                           class="form-control" 
+                                           id="order_nummer" 
+                                           name="order_nummer"
+                                           placeholder="Optioneel">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label">
+                                        Uitgevoerd door
+                                        <span class="required">*</span>
+                                    </label>
+                                    <input type="text" 
+                                           class="form-control" 
+                                           id="uitgevoerd_door" 
+                                           name="uitgevoerd_door" 
+                                           required
+                                           placeholder="Uw naam">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label">
+                                        Gecontroleerde persoon
+                                        <span class="required">*</span>
+                                    </label>
+                                    <input type="text" 
+                                           class="form-control" 
+                                           id="gecontroleerde_persoon" 
+                                           name="gecontroleerde_persoon" 
+                                           required
+                                           placeholder="Naam van gecontroleerde persoon">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label">Afdeling</label>
+                                    <div class="autocomplete-container">
+                                        <input type="text" 
+                                               class="form-control" 
+                                               id="afdeling" 
+                                               name="afdeling"
+                                               placeholder="Typ om te zoeken...">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label">Datum controle</label>
+                                    <input type="date" 
+                                           class="form-control" 
+                                           id="controle_datum" 
+                                           name="controle_datum"
+                                           value="">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Selecteer Checklist Template</label>
+                            <select class="form-select" id="checklist_template_id" name="checklist_template_id">
+                                <option value="">-- Selecteer een template --</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Section 2: Checklist Items -->
+                    <div class="form-section fade-in">
+                        <div class="section-header">
+                            <div class="section-icon">
+                                <i class="fas fa-tasks"></i>
+                            </div>
+                            <h2 class="section-title">Checklist Items</h2>
+                        </div>
+
+                        <div id="checklist-container" class="checklist-container">
+                            <div class="text-center text-muted py-5">
+                                <i class="fas fa-clipboard-list fa-3x mb-3"></i>
+                                <p>Selecteer een template of voeg handmatig items toe</p>
+                            </div>
+                        </div>
+
+                        <button type="button" class="btn btn-secondary" id="add-item-btn">
+                            <i class="fas fa-plus"></i>
+                            Handmatig Item Toevoegen
+                        </button>
+                    </div>
+
+                    <!-- Section 3: Foto's -->
+                    <div class="form-section fade-in">
+                        <div class="section-header">
+                            <div class="section-icon">
+                                <i class="fas fa-camera"></i>
+                            </div>
+                            <h2 class="section-title">Foto's Toevoegen</h2>
+                        </div>
+
+                        <div class="photo-upload-area" id="photo-upload-area">
+                            <i class="fas fa-cloud-upload-alt photo-upload-icon"></i>
+                            <h4>Klik of sleep foto's hierheen</h4>
+                            <p class="text-muted">Maximaal 10 foto's (JPG, PNG, GIF)</p>
+                            <input type="file" 
+                                   id="fotos" 
+                                   name="fotos" 
+                                   multiple 
+                                   accept="image/*" 
+                                   style="display: none;">
+                            <button type="button" class="btn btn-secondary mt-3" id="use-camera-btn">
+                                <i class="fas fa-camera"></i> Gebruik Camera
+                            </button>
+                        </div>
+
+                        <div id="camera-section" class="mt-3" style="display: none;">
+                            <video id="camera-feed" playsinline autoplay muted style="width: 100%; border-radius: 8px; background: #333;"></video>
+                            <canvas id="camera-canvas" style="display: none;"></canvas>
+                            <div class="text-center mt-2">
+                                <button type="button" class="btn btn-primary" id="take-photo-btn">
+                                    <i class="fas fa-camera-retro"></i> Foto Nemen
+                                </button>
+                                <button type="button" class="btn btn-danger ms-2" id="close-camera-btn">
+                                    <i class="fas fa-times"></i> Camera Sluiten
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="photo-preview-container" class="photo-preview-container"></div>
+                    </div>
+
+                    <!-- Section 4: Opmerkingen & Status -->
+                    <div class="form-section fade-in">
+                        <div class="section-header">
+                            <div class="section-icon">
+                                <i class="fas fa-comment-dots"></i>
+                            </div>
+                            <h2 class="section-title">Algemene Opmerkingen & Status</h2>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Algemene opmerkingen</label>
+                            <textarea class="form-control" 
+                                      id="algemene_opmerkingen" 
+                                      name="algemene_opmerkingen" 
+                                      rows="4"
+                                      placeholder="Voeg hier eventuele algemene opmerkingen toe..."></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Status</label>
+                            <div class="status-select">
+                                <span class="status-icon" id="status-icon">
+                                    <i class="fas fa-clock text-warning"></i>
+                                </span>
+                                <select class="form-select" id="status" name="status" style="padding-left: 2.5rem;">
+                                    <option value="in behandeling" selected>In behandeling</option>
+                                    <option value="goedgekeurd">Goedgekeurd</option>
+                                    <option value="afgekeurd">Afgekeurd</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="text-center mt-4">
+                            <button type="submit" class="btn btn-primary btn-lg" id="submit-btn">
+                                <i class="fas fa-save"></i>
+                                Controle Opslaan
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </main>
+
+        <footer>
+            <p>&copy; <span id="currentYear"></span> Foresco - Kwaliteit in Controle</p>
+        </footer>
+    </div>
+
+    <!-- Add Item Modal -->
+    <div class="modal fade" id="addItemModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Handmatig Item Toevoegen</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label">Item Beschrijving</label>
+                        <input type="text" class="form-control" id="modal-item-description" placeholder="Bijv. Controle van de afmetingen">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Type Item</label>
+                        <select class="form-select" id="modal-item-type">
+                            <option value="ok/niet ok/n.v.t.">OK / Niet OK / N.v.t.</option>
+                            <option value="ja/nee">Ja / Nee</option>
+                            <option value="tekst">Tekst</option>
+                            <option value="numeriek">Numeriek</option>
+                            <option value="datum">Datum</option>
+                            <option value="foto">Foto</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Hulptekst (optioneel)</label>
+                        <input type="text" class="form-control" id="modal-item-helptext" placeholder="Extra uitleg bij dit item">
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="modal-item-required">
+                        <label class="form-check-label" for="modal-item-required">
+                            Dit item is verplicht
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+                    <button type="button" class="btn btn-primary" id="modal-add-btn">
+                        <i class="fas fa-plus"></i>
+                        Toevoegen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+// Geoptimaliseerde Product Controle Script
+class ProductControle {
+    constructor() {
+        this.elements = this.cacheElements();
+        this.state = {
+            templates: [],
+            checklistItems: [],
+            selectedFiles: [],
+            currentStep: 1,
+            adhocCounter: 0
+        };
+        this.localStorageKey = 'productControleDraft';
+        this.autosaveTimeout = null;
+        this.init();
+    }
+
+    cacheElements() {
+        return {
+            // Form elements
+            form: document.getElementById('controleForm'),
+            productNaam: document.getElementById('product_naam'),
+            orderNummer: document.getElementById('order_nummer'),
+            uitgevoerdDoor: document.getElementById('uitgevoerd_door'),
+            gecontroleerdePersoon: document.getElementById('gecontroleerde_persoon'),
+            afdeling: document.getElementById('afdeling'),
+            templateSelect: document.getElementById('checklist_template_id'),
+            checklistContainer: document.getElementById('checklist-container'),
+            photoUploadArea: document.getElementById('photo-upload-area'),
+            photoInput: document.getElementById('fotos'),
+            photoPreviewContainer: document.getElementById('photo-preview-container'),
+            algemeneOpmerkingen: document.getElementById('algemene_opmerkingen'),
+            status: document.getElementById('status'),
+            statusIcon: document.getElementById('status-icon'),
+            submitBtn: document.getElementById('submit-btn'),
+            
+            // Modal elements
+            addItemBtn: document.getElementById('add-item-btn'),
+            addItemModal: new bootstrap.Modal(document.getElementById('addItemModal')),
+            modalDescription: document.getElementById('modal-item-description'),
+            modalType: document.getElementById('modal-item-type'),
+            modalHelptext: document.getElementById('modal-item-helptext'),
+            modalRequired: document.getElementById('modal-item-required'),
+            modalAddBtn: document.getElementById('modal-add-btn'),
+            
+            // Camera elements
+            useCameraBtn: document.getElementById('use-camera-btn'),
+            cameraSection: document.getElementById('camera-section'),
+            cameraFeed: document.getElementById('camera-feed'),
+            cameraCanvas: document.getElementById('camera-canvas'),
+            takePhotoBtn: document.getElementById('take-photo-btn'),
+            closeCameraBtn: document.getElementById('close-camera-btn'),
+
+            // UI elements
+            alertContainer: document.getElementById('alert-container'),
+            progressBar: document.querySelector('.progress-bar'),
+            progressSteps: document.querySelectorAll('.progress-step'),
+            yearSpan: document.getElementById('currentYear')
+        };
+    }
+
+    init() {
+        this.loadHeader();
+        this.bindEvents();
+        this.loadTemplates();
+        this.elements.yearSpan.textContent = new Date().getFullYear();
+        
+        // Set current date as default
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('controle_datum').value = today;
+        
+        this.updateProgress();
+        this.currentStream = null; 
+        this.checkForDraft(); // Check for draft on initialization
+    }
+
+    loadHeader() {
+        fetch('/header.html')
+            .then(res => res.text())
+            .then(html => document.getElementById('header-placeholder').innerHTML = html)
+            .catch(() => this.showAlert('Header kon niet geladen worden', 'error'));
+    }
+
+    bindEvents() {
+        // Form events
+        this.elements.form.addEventListener('submit', (e) => this.handleSubmit(e));
+        
+        // Template selection
+        this.elements.templateSelect.addEventListener('change', (e) => this.loadChecklistItems(e.target.value));
+        
+        // Photo upload
+        this.elements.photoUploadArea.addEventListener('click', (e) => {
+            // Prevent opening file dialog if the camera button itself was clicked
+            if (e.target !== this.elements.useCameraBtn && !this.elements.useCameraBtn.contains(e.target)) {
+                this.elements.photoInput.click();
+            }
+        });
+        this.elements.photoInput.addEventListener('change', (e) => this.handleFileSelect(e.target.files));
+        
+        // Camera buttons
+        this.elements.useCameraBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent click from bubbling to photoUploadArea
+            this.startCamera();
+        });
+        this.elements.takePhotoBtn.addEventListener('click', () => this.takePhoto());
+        this.elements.closeCameraBtn.addEventListener('click', () => this.stopCamera());
+        
+        // Drag and drop
+        this.setupDragAndDrop();
+        
+        // Status change
+        this.elements.status.addEventListener('change', (e) => this.updateStatusIcon(e.target.value));
+        
+        // Add item modal
+        this.elements.addItemBtn.addEventListener('click', () => this.showAddItemModal());
+        this.elements.modalAddBtn.addEventListener('click', () => this.addAdhocItem());
+        
+        // Progress tracking
+        this.elements.form.addEventListener('input', () => this.updateProgress());
+
+        // Autosave on input changes
+        this.elements.form.addEventListener('input', () => this.scheduleAutosave());
+        this.elements.form.addEventListener('change', () => this.scheduleAutosave()); // For select elements
+    }
+
+    scheduleAutosave() {
+        clearTimeout(this.autosaveTimeout);
+        this.autosaveTimeout = setTimeout(() => this.saveDraft(), 1500); // Autosave after 1.5 seconds of inactivity
+    }
+
+    saveDraft() {
+        const draftData = {
+            product_naam: this.elements.productNaam.value,
+            order_nummer: this.elements.orderNummer.value,
+            uitgevoerd_door: this.elements.uitgevoerdDoor.value,
+            gecontroleerde_persoon: this.elements.gecontroleerdePersoon.value,
+            afdeling: this.elements.afdeling.value,
+            checklist_template_id: this.elements.templateSelect.value,
+            algemene_opmerkingen: this.elements.algemeneOpmerkingen.value,
+            status: this.elements.status.value,
+            checklistItems: [] // We'll populate this carefully
+        };
+
+        // Collect checklist item data
+        document.querySelectorAll('.checklist-item').forEach(itemDiv => {
+            const itemData = {
+                isFromTemplate: !!itemDiv.dataset.templateItemId,
+                templateItemId: itemDiv.dataset.templateItemId || null,
+                item_beschrijving: itemDiv.dataset.itemBeschrijving,
+                item_type: '', // Will be inferred from input type or stored
+                hulptekst: itemDiv.querySelector('.checklist-helptext')?.textContent || '',
+                is_verplicht: itemDiv.querySelector('.checklist-description .required') ? true : false,
+                antwoord_waarde: null,
+                opmerking_bij_antwoord: itemDiv.querySelector('textarea[name$="_opmerking"]')?.value || ''
+            };
+
+            // Determine item_type and antwoord_waarde
+            const radioGroup = itemDiv.querySelector('.radio-group');
+            if (radioGroup) {
+                const checkedRadio = radioGroup.querySelector('input[type="radio"]:checked');
+                itemData.antwoord_waarde = checkedRadio ? checkedRadio.value : null;
+                // Infer item_type based on radio options (simplified, might need refinement)
+                const firstLabel = radioGroup.querySelector('label');
+                if (firstLabel && firstLabel.textContent.toLowerCase().includes('ok')) {
+                    itemData.item_type = 'ok/niet ok/n.v.t.';
+                } else if (firstLabel && firstLabel.textContent.toLowerCase().includes('ja')) {
+                    itemData.item_type = 'ja/nee';
+                }
+            } else {
+                const inputElement = itemDiv.querySelector('input[type="text"], input[type="number"], input[type="date"], textarea.form-control:not([name$="_opmerking"])');
+                if (inputElement) {
+                    itemData.antwoord_waarde = inputElement.value;
+                    if (inputElement.type === 'textarea') itemData.item_type = 'tekst';
+                    else if (inputElement.type === 'number') itemData.item_type = 'numeriek';
+                    else if (inputElement.type === 'date') itemData.item_type = 'datum';
+                    // Note: photo input within checklist item is not autosaved for simplicity
+                }
+            }
+            draftData.checklistItems.push(itemData);
+        });
+        
+        try {
+            localStorage.setItem(this.localStorageKey, JSON.stringify(draftData));
+            console.log('Draft saved to local storage.');
+            // Optionally show a subtle "Draft saved" message
+            // this.showAlert('Concept opgeslagen', 'info', 2000); 
+        } catch (e) {
+            console.error('Error saving draft to local storage:', e);
+            this.showAlert('Fout bij opslaan concept.', 'error');
+        }
+    }
+
+    checkForDraft() {
+        const savedDraft = localStorage.getItem(this.localStorageKey);
+        if (savedDraft) {
+            // Create a more prominent alert for restoring draft
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-info d-flex justify-content-between align-items-center';
+            alertDiv.innerHTML = `
+                <span>Er is een opgeslagen concept gevonden. Wilt u dit herstellen?</span>
+                <div>
+                    <button class="btn btn-sm btn-primary me-2" id="restoreDraftBtn">Herstellen</button>
+                    <button class="btn btn-sm btn-secondary" id="discardDraftBtn">Negeren</button>
+                </div>
+            `;
+            this.elements.alertContainer.prepend(alertDiv); // Prepend to show at top
+
+            document.getElementById('restoreDraftBtn').addEventListener('click', () => {
+                this.loadDraft(JSON.parse(savedDraft));
+                alertDiv.remove();
+            });
+            document.getElementById('discardDraftBtn').addEventListener('click', () => {
+                this.clearDraft();
+                alertDiv.remove();
+            });
+        }
+    }
+
+    loadDraft(draftData) {
+        this.elements.productNaam.value = draftData.product_naam || '';
+        this.elements.orderNummer.value = draftData.order_nummer || '';
+        this.elements.uitgevoerdDoor.value = draftData.uitgevoerd_door || '';
+        this.elements.gecontroleerdePersoon.value = draftData.gecontroleerde_persoon || '';
+        this.elements.afdeling.value = draftData.afdeling || '';
+        
+        if (draftData.checklist_template_id) {
+            this.elements.templateSelect.value = draftData.checklist_template_id;
+            // Important: Need to ensure templates are loaded before trying to set value and load items
+            // This might require waiting for loadTemplates if it's async and not yet complete
+            // For now, assuming templates are loaded or will be shortly.
+            // A robust solution might involve a callback or promise from loadTemplates.
+            this.loadChecklistItems(draftData.checklist_template_id).then(() => {
+                 this.populateChecklistFromDraft(draftData.checklistItems);
+            });
+        } else {
+             this.populateChecklistFromDraft(draftData.checklistItems);
+        }
+
+        this.elements.algemeneOpmerkingen.value = draftData.algemene_opmerkingen || '';
+        this.elements.status.value = draftData.status || 'in behandeling';
+        this.updateStatusIcon(this.elements.status.value);
+        
+        this.updateProgress();
+        this.showAlert('Concept hersteld!', 'success');
+        console.log('Draft loaded.');
+    }
+    
+    populateChecklistFromDraft(checklistItemsFromDraft) {
+        // Clear existing ad-hoc items if any, template items will be re-rendered by loadChecklistItems
+        this.elements.checklistContainer.innerHTML = ''; 
+        this.state.checklistItems = []; // Reset state
+
+        if (checklistItemsFromDraft && checklistItemsFromDraft.length > 0) {
+             // If no template was selected, or if template items were not part of draft, render all as ad-hoc
+            if (!this.elements.templateSelect.value) {
+                checklistItemsFromDraft.forEach((itemData, index) => {
+                    const newItem = {
+                        item_beschrijving: itemData.item_beschrijving,
+                        item_type: itemData.item_type,
+                        hulptekst: itemData.hulptekst,
+                        is_verplicht: itemData.is_verplicht
+                    };
+                    this.state.checklistItems.push(newItem); // Add to state first
+                    const element = this.createChecklistItemElement(newItem, this.state.checklistItems.length - 1, false);
+                    this.elements.checklistContainer.appendChild(element);
+                    this.setChecklistItemValue(element, itemData.antwoord_waarde, itemData.opmerking_bij_antwoord);
+                });
+            } else { 
+                // If a template was loaded, try to match and populate
+                // This part assumes `loadChecklistItems` has finished and rendered template items
+                document.querySelectorAll('.checklist-item').forEach(itemDiv => {
+                    const templateItemId = itemDiv.dataset.templateItemId;
+                    const itemBeschrijving = itemDiv.dataset.itemBeschrijving;
+                    let matchingDraftItem = null;
+
+                    if (templateItemId) {
+                        matchingDraftItem = checklistItemsFromDraft.find(d => d.templateItemId === templateItemId);
+                    } else { // For ad-hoc items that might have been saved
+                        matchingDraftItem = checklistItemsFromDraft.find(d => !d.isFromTemplate && d.item_beschrijving === itemBeschrijving);
+                    }
+                    
+                    if (matchingDraftItem) {
+                        this.setChecklistItemValue(itemDiv, matchingDraftItem.antwoord_waarde, matchingDraftItem.opmerking_bij_antwoord);
+                    }
+                });
+                 // Add any ad-hoc items from draft that weren't part of a template
+                const adhocItemsFromDraft = checklistItemsFromDraft.filter(d => !d.isFromTemplate && !this.state.checklistItems.some(ci => ci.item_beschrijving === d.item_beschrijving));
+                adhocItemsFromDraft.forEach(itemData => {
+                     const newItem = {
+                        item_beschrijving: itemData.item_beschrijving,
+                        item_type: itemData.item_type,
+                        hulptekst: itemData.hulptekst,
+                        is_verplicht: itemData.is_verplicht
+                    };
+                    this.state.checklistItems.push(newItem);
+                    const element = this.createChecklistItemElement(newItem, this.state.checklistItems.length - 1, false);
+                    this.elements.checklistContainer.appendChild(element);
+                    this.setChecklistItemValue(element, itemData.antwoord_waarde, itemData.opmerking_bij_antwoord);
+                });
+            }
+        }
+        if (this.elements.checklistContainer.children.length === 0) {
+            this.clearChecklist(); // Show placeholder if no items
+        }
+    }
+
+    setChecklistItemValue(itemDiv, antwoordWaarde, opmerking) {
+        // Set answer value
+        const radioGroup = itemDiv.querySelector('.radio-group');
+        if (radioGroup && antwoordWaarde !== null) {
+            const radioToSelect = radioGroup.querySelector(`input[type="radio"][value="${antwoordWaarde}"]`);
+            if (radioToSelect) radioToSelect.checked = true;
+        } else {
+            const inputElement = itemDiv.querySelector('input[type="text"], input[type="number"], input[type="date"], textarea.form-control:not([name$="_opmerking"])');
+            if (inputElement && antwoordWaarde !== null) {
+                inputElement.value = antwoordWaarde;
+            }
+        }
+        // Set comment
+        const commentTextarea = itemDiv.querySelector('textarea[name$="_opmerking"]');
+        if (commentTextarea && opmerking !== null) {
+            commentTextarea.value = opmerking;
+        }
+    }
+    
+    clearDraft() {
+        localStorage.removeItem(this.localStorageKey);
+        console.log('Draft cleared from local storage.');
+    }
+
+    setupDragAndDrop() {
+        const area = this.elements.photoUploadArea;
+        
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            area.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+        
+        ['dragenter', 'dragover'].forEach(eventName => {
+            area.addEventListener(eventName, () => area.classList.add('drag-over'));
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            area.addEventListener(eventName, () => area.classList.remove('drag-over'));
+        });
+        
+        area.addEventListener('drop', (e) => {
+            const files = e.dataTransfer.files;
+            this.handleFileSelect(files);
+        });
+    }
+    
+    async loadTemplates() {
+        try {
+            const response = await fetch('/api/checklist-beheer/templates');
+            if (!response.ok) throw new Error('Failed to load templates');
+            
+            this.state.templates = await response.json();
+            this.updateTemplateSelect();
+        } catch (error) {
+            console.error('Error loading templates:', error);
+            this.showAlert('Kon templates niet laden', 'error');
+        }
+    }
+
+    updateTemplateSelect() {
+        const templates = this.state.templates;
+        const select = this.elements.templateSelect;
+        
+        select.innerHTML = '<option value="">-- Selecteer een template --</option>';
+        
+        templates.forEach(template => {
+            const option = document.createElement('option');
+            option.value = template.id;
+            option.textContent = template.naam;
+            if (template.afdeling) {
+                option.textContent += ` (${template.afdeling})`;
+            }
+            select.appendChild(option);
+        });
+    }
+
+    async loadChecklistItems(templateId) {
+        if (!templateId) {
+            this.clearChecklist();
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/checklist-beheer/templates/${templateId}`);
+            if (!response.ok) throw new Error('Failed to load checklist items');
+            
+            const template = await response.json();
+            this.renderChecklistItems(template.items || []);
+            this.updateProgress();
+        } catch (error) {
+            console.error('Error loading checklist items:', error);
+            this.showAlert('Kon checklist items niet laden', 'error');
+        }
+    }
+
+    clearChecklist() {
+        this.elements.checklistContainer.innerHTML = `
+            <div class="text-center text-muted py-5">
+                <i class="fas fa-clipboard-list fa-3x mb-3"></i>
+                <p>Selecteer een template of voeg handmatig items toe</p>
+            </div>
+        `;
+        this.state.checklistItems = [];
+    }
+
+    renderChecklistItems(items) {
+        this.elements.checklistContainer.innerHTML = '';
+        this.state.checklistItems = items;
+        
+        items.forEach((item, index) => {
+            const element = this.createChecklistItemElement(item, index, true);
+            this.elements.checklistContainer.appendChild(element);
+        });
+        
+        if (items.length === 0) {
+            this.clearChecklist();
+        }
+    }
+
+    createChecklistItemElement(item, index, isFromTemplate = false) {
+        const div = document.createElement('div');
+        div.className = 'checklist-item fade-in';
+        
+        // Store metadata
+        if (isFromTemplate && item.id) {
+            div.dataset.templateItemId = item.id;
+        }
+        div.dataset.itemBeschrijving = item.item_beschrijving;
+        div.dataset.itemIndex = index;
+        
+        // Header
+        const header = document.createElement('div');
+        header.className = 'checklist-header';
+        
+        const descWrapper = document.createElement('div');
+        descWrapper.style.display = 'flex';
+        descWrapper.style.alignItems = 'start';
+        
+        const number = document.createElement('span');
+        number.className = 'checklist-number';
+        number.textContent = index + 1;
+        
+        const description = document.createElement('div');
+        description.className = 'checklist-description';
+        description.innerHTML = item.item_beschrijving;
+        if (item.is_verplicht) {
+            description.innerHTML += ' <span class="required">*</span>';
+        }
+        
+        descWrapper.appendChild(number);
+        descWrapper.appendChild(description);
+        header.appendChild(descWrapper);
+        
+        // Add remove button for adhoc items
+        if (!isFromTemplate) {
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'checklist-remove';
+            removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+            removeBtn.onclick = () => this.removeChecklistItem(index);
+            header.appendChild(removeBtn);
+        }
+        
+        div.appendChild(header);
+        
+        // Help text
+        if (item.hulptekst) {
+            const helpText = document.createElement('p');
+            helpText.className = 'checklist-helptext';
+            helpText.textContent = item.hulptekst;
+            div.appendChild(helpText);
+        }
+        
+        // Input fields
+        const inputContainer = document.createElement('div');
+        inputContainer.className = 'checklist-inputs';
+        
+        const uniqueName = `checklist_item_${isFromTemplate ? 'template_' + item.id : 'adhoc_' + index}`;
+        const inputElement = this.createInputElement(item, uniqueName);
+        inputContainer.appendChild(inputElement);
+        
+        div.appendChild(inputContainer);
+        
+        // Comment field
+        const commentLabel = document.createElement('label');
+        commentLabel.className = 'form-label mt-3';
+        commentLabel.textContent = 'Opmerking (optioneel)';
+        div.appendChild(commentLabel);
+        
+        const commentTextarea = document.createElement('textarea');
+        commentTextarea.className = 'form-control';
+        commentTextarea.name = `${uniqueName}_opmerking`;
+        commentTextarea.rows = 2;
+        commentTextarea.placeholder = 'Voeg hier een opmerking toe...';
+        div.appendChild(commentTextarea);
+        
+        return div;
+    }
+
+    createInputElement(item, uniqueName) {
+        const type = (item.item_type || 'ok/niet ok/n.v.t.').toLowerCase();
+        
+        switch (type) {
+            case 'ok/nok':
+            case 'ok/niet ok/n.v.t.':
+                return this.createRadioGroup(uniqueName, ['OK', 'Niet OK', 'N.v.t.'], item.is_verplicht);
+                
+            case 'ja/nee':
+                return this.createRadioGroup(uniqueName, ['Ja', 'Nee'], item.is_verplicht);
+                
+            case 'tekst':
+                const textarea = document.createElement('textarea');
+                textarea.className = 'form-control';
+                textarea.name = uniqueName;
+                textarea.rows = 2;
+                if (item.is_verplicht) textarea.required = true;
+                return textarea;
+                
+            case 'numeriek':
+                const numberInput = document.createElement('input');
+                numberInput.type = 'number';
+                numberInput.className = 'form-control';
+                numberInput.name = uniqueName;
+                numberInput.style.maxWidth = '200px';
+                if (item.is_verplicht) numberInput.required = true;
+                return numberInput;
+                
+            case 'datum':
+                const dateInput = document.createElement('input');
+                dateInput.type = 'date';
+                dateInput.className = 'form-control';
+                dateInput.name = uniqueName;
+                dateInput.style.maxWidth = '200px';
+                if (item.is_verplicht) dateInput.required = true;
+                return dateInput;
+                
+            case 'foto':
+                const fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.className = 'form-control';
+                fileInput.name = uniqueName;
+                fileInput.accept = 'image/*';
+                if (item.is_verplicht) fileInput.required = true;
+                return fileInput;
+                
+            default:
+                const defaultDiv = document.createElement('div');
+                defaultDiv.className = 'text-warning';
+                defaultDiv.textContent = `Onbekend type: ${item.item_type}`;
+                return defaultDiv;
+        }
+    }
+
+    createRadioGroup(name, options, required) {
+        const group = document.createElement('div');
+        group.className = 'radio-group';
+        
+        options.forEach((option, index) => {
+            const value = option.toLowerCase().replace(/\s+/g, '_').replace(/\./g, '');
+            const id = `${name}_${value}`;
+            
+            const input = document.createElement('input');
+            input.type = 'radio';
+            input.name = name;
+            input.value = value;
+            input.id = id;
+            if (required && index === 0) input.required = true;
+            
+            const label = document.createElement('label');
+            label.htmlFor = id;
+            label.textContent = option;
+            
+            group.appendChild(input);
+            group.appendChild(label);
+        });
+        
+        return group;
+    }
+
+    showAddItemModal() {
+        // Reset modal fields
+        this.elements.modalDescription.value = '';
+        this.elements.modalType.value = 'ok/niet ok/n.v.t.';
+        this.elements.modalHelptext.value = '';
+        this.elements.modalRequired.checked = false;
+        
+        this.elements.addItemModal.show();
+        this.elements.modalDescription.focus();
+    }
+
+    addAdhocItem() {
+        const description = this.elements.modalDescription.value.trim();
+        if (!description) {
+            this.elements.modalDescription.classList.add('is-invalid');
+            return;
+        }
+        
+        const newItem = {
+            item_beschrijving: description,
+            item_type: this.elements.modalType.value,
+            hulptekst: this.elements.modalHelptext.value.trim(),
+            is_verplicht: this.elements.modalRequired.checked
+        };
+        
+        // Add to state
+        this.state.checklistItems.push(newItem);
+        
+        // Create and add element
+        const index = this.state.checklistItems.length - 1;
+        const element = this.createChecklistItemElement(newItem, index, false);
+        
+        // Remove placeholder if exists
+        const placeholder = this.elements.checklistContainer.querySelector('.text-center');
+        if (placeholder) placeholder.remove();
+        
+        this.elements.checklistContainer.appendChild(element);
+        
+        // Close modal
+        this.elements.addItemModal.hide();
+        
+        // Update progress
+        this.updateProgress();
+        
+        // Show success message
+        this.showAlert('Item toegevoegd', 'success');
+    }
+
+    removeChecklistItem(index) {
+        // Remove from state
+        this.state.checklistItems.splice(index, 1);
+        
+        // Re-render all items
+        this.elements.checklistContainer.innerHTML = '';
+        this.state.checklistItems.forEach((item, idx) => {
+            const element = this.createChecklistItemElement(item, idx, false);
+            this.elements.checklistContainer.appendChild(element);
+        });
+        
+        if (this.state.checklistItems.length === 0) {
+            this.clearChecklist();
+        }
+        
+        this.updateProgress();
+    }
+
+    handleFileSelect(files) {
+        const validFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+        
+        if (this.state.selectedFiles.length + validFiles.length > 10) {
+            this.showAlert('Je kunt maximaal 10 foto\'s selecteren of nemen.', 'error');
+            return;
+        }
+        
+        validFiles.forEach(file => {
+            this.state.selectedFiles.push(file);
+            this.addPhotoPreview(file);
+        });
+        
+        this.updateProgress();
+    }
+
+    addPhotoPreview(file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const preview = document.createElement('div');
+            preview.className = 'photo-preview fade-in';
+            
+            const img = document.createElement('img');
+            img.src = e.target.result;
+            
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'photo-preview-remove';
+            removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+            removeBtn.onclick = () => this.removePhoto(file, preview);
+            
+            preview.appendChild(img);
+            preview.appendChild(removeBtn);
+            
+            this.elements.photoPreviewContainer.appendChild(preview);
+        };
+        reader.readAsDataURL(file);
+    }
+
+    removePhoto(file, previewElement) {
+        const index = this.state.selectedFiles.indexOf(file);
+        if (index > -1) {
+            this.state.selectedFiles.splice(index, 1);
+        }
+        previewElement.remove();
+        this.updateProgress();
+    }
+
+    updateStatusIcon(status) {
+        const icon = this.elements.statusIcon;
+        icon.className = 'status-icon';
+        
+        switch (status) {
+            case 'goedgekeurd':
+                icon.innerHTML = '<i class="fas fa-check-circle text-success"></i>';
+                break;
+            case 'afgekeurd':
+                icon.innerHTML = '<i class="fas fa-times-circle text-danger"></i>';
+                break;
+            default:
+                icon.innerHTML = '<i class="fas fa-clock text-warning"></i>';
+        }
+    }
+
+    updateProgress() {
+        let completedSteps = 0;
+        const totalSteps = 4;
+        
+        // Step 1: General info
+        if (this.elements.productNaam.value && this.elements.uitgevoerdDoor.value && this.elements.gecontroleerdePersoon.value) {
+            completedSteps++;
+        }
+        
+        // Step 2: Checklist
+        if (this.state.checklistItems.length > 0) {
+            completedSteps++;
+        }
+        
+        // Step 3: Photos (optional, but counts if added)
+        if (this.state.selectedFiles.length > 0) {
+            completedSteps++;
+        }
+        
+        // Step 4: Status
+        if (this.elements.status.value) {
+            completedSteps++;
+        }
+        
+        const percentage = (completedSteps / totalSteps) * 100;
+        this.elements.progressBar.style.width = `${percentage}%`;
+        
+        // Update step indicators
+        this.elements.progressSteps.forEach((step, index) => {
+            if (index < completedSteps) {
+                step.classList.add('active');
+            } else {
+                step.classList.remove('active');
+            }
+        });
+    }
+
+    async handleSubmit(e) {
+        e.preventDefault();
+        
+        // Disable submit button
+        this.elements.submitBtn.disabled = true;
+        this.elements.submitBtn.innerHTML = '<span class="spinner"></span> Bezig met opslaan...';
+        
+        try {
+            const formData = new FormData(this.elements.form);
+            
+            // Collect checklist data
+            const checklistData = this.collectChecklistData();
+            formData.append('checklist_items', JSON.stringify(checklistData));
+            
+            // Add photos
+            this.state.selectedFiles.forEach(file => {
+                formData.append('fotos', file);
+            });
+            
+            // Remove individual checklist fields
+            for (let key of formData.keys()) {
+                if (key.startsWith('checklist_item_')) {
+                    formData.delete(key);
+                }
+            }
+            
+            const response = await fetch('/api/product-inspectie/controles', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                this.showAlert(`Controle succesvol opgeslagen! ID: ${result.controleId}`, 'success');
+                this.resetForm();
+                this.clearDraft(); // Clear draft on successful submission
+            } else {
+                throw new Error(result.message || 'Er is een fout opgetreden');
+            }
+        } catch (error) {
+            console.error('Submit error:', error);
+            this.showAlert(`Fout: ${error.message}`, 'error');
+        } finally {
+            this.elements.submitBtn.disabled = false;
+            this.elements.submitBtn.innerHTML = '<i class="fas fa-save"></i> Controle Opslaan';
+        }
+    }
+
+    collectChecklistData() {
+        const data = [];
+        
+        document.querySelectorAll('.checklist-item').forEach(itemDiv => {
+            const templateItemId = itemDiv.dataset.templateItemId || null;
+            const itemBeschrijving = itemDiv.dataset.itemBeschrijving;
+            let antwoordWaarde = null;
+            
+            // Find the input element
+            const inputs = itemDiv.querySelectorAll('input[type="radio"], input[type="number"], input[type="date"], input[type="file"], textarea');
+            
+            inputs.forEach(input => {
+                if (input.name && !input.name.endsWith('_opmerking')) {
+                    if (input.type === 'radio' && input.checked) {
+                        antwoordWaarde = input.value;
+                    } else if (input.type !== 'radio') {
+                        antwoordWaarde = input.value;
+                    }
+                }
+            });
+            
+            // Get comment
+            const commentTextarea = itemDiv.querySelector('textarea[name$="_opmerking"]');
+            const opmerking = commentTextarea ? commentTextarea.value : null;
+            
+            data.push({
+                template_item_id: templateItemId,
+                item_beschrijving: itemBeschrijving,
+                antwoord_waarde: antwoordWaarde,
+                opmerking_bij_antwoord: opmerking
+            });
+        });
+        
+        return data;
+    }
+
+    resetForm() {
+        this.elements.form.reset();
+        this.clearChecklist();
+        this.state.selectedFiles = [];
+        this.elements.photoPreviewContainer.innerHTML = '';
+        this.updateProgress();
+        this.updateStatusIcon('in behandeling');
+        
+        // Scroll to top
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    showAlert(message, type = 'info', duration = 5000) {
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type} fade-in`;
+        alert.innerHTML = `
+            <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
+            <span>${message}</span>
+        `;
+        
+        this.elements.alertContainer.appendChild(alert);
+        
+        // Auto remove after specified duration
+        setTimeout(() => {
+            alert.style.opacity = '0';
+            setTimeout(() => alert.remove(), 300);
+        }, duration);
+    }
+
+    async startCamera() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            this.showAlert('Camera API is niet beschikbaar op dit apparaat.', 'error');
+            return;
+        }
+
+        const useCameraBtn = this.elements.useCameraBtn;
+        const originalBtnText = useCameraBtn.innerHTML;
+        useCameraBtn.disabled = true;
+        useCameraBtn.innerHTML = '<span class="spinner"></span> Camera starten...';
+
+        try {
+            this.currentStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+            this.elements.cameraFeed.srcObject = this.currentStream;
+            this.elements.cameraSection.style.display = 'block';
+            this.elements.photoUploadArea.style.display = 'none'; 
+            this.showAlert('Camera geactiveerd. Richt op het object en neem een foto.', 'info');
+        } catch (err) {
+            console.error("Error accessing camera: ", err);
+            this.showAlert('Kon camera niet starten. Controleer permissies.', 'error');
+            if (this.currentStream) {
+                this.currentStream.getTracks().forEach(track => track.stop());
+            }
+            this.elements.cameraFeed.srcObject = null;
+            this.elements.cameraSection.style.display = 'none';
+            this.elements.photoUploadArea.style.display = 'block';
+            useCameraBtn.disabled = false; // Re-enable on error
+            useCameraBtn.innerHTML = originalBtnText;
+            this.currentStream = null;
+        }
+    }
+
+    stopCamera() {
+        if (this.currentStream) {
+            this.currentStream.getTracks().forEach(track => track.stop());
+        }
+        this.elements.cameraFeed.srcObject = null;
+        this.elements.cameraSection.style.display = 'none';
+        this.elements.photoUploadArea.style.display = 'block'; 
+        this.currentStream = null;
+
+        // Reset and enable the "Use Camera" button
+        const useCameraBtn = this.elements.useCameraBtn;
+        useCameraBtn.disabled = false;
+        useCameraBtn.innerHTML = '<i class="fas fa-camera"></i> Gebruik Camera';
+    }
+
+    takePhoto() {
+        if (!this.currentStream) {
+            this.showAlert('Camera is niet actief.', 'error');
+            return;
+        }
+
+        const canvas = this.elements.cameraCanvas;
+        const video = this.elements.cameraFeed;
+        
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const context = canvas.getContext('2d');
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        canvas.toBlob(blob => {
+            if (blob) {
+                const fileName = `camera_foto_${Date.now()}.png`;
+                const photoFile = new File([blob], fileName, { type: 'image/png' });
+                this.handleFileSelect([photoFile]);
+                this.showAlert('Foto genomen en toegevoegd!', 'success');
+            } else {
+                this.showAlert('Kon foto niet verwerken.', 'error');
+            }
+            // Optionally stop camera after taking photo, or let user take more.
+            // For now, let's keep it active for multiple shots.
+            // this.stopCamera(); 
+        }, 'image/png');
+    }
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+    window.productControle = new ProductControle();
+});
+    </script>
+</body>
+</html>
