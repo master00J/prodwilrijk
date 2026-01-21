@@ -59,6 +59,7 @@ export default function AirtecMonitorPage() {
   const [dateTo, setDateTo] = useState('')
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const [dailyStats, setDailyStats] = useState<DailyStat[]>([])
   const [totals, setTotals] = useState<Totals | null>(null)
   const [personStats, setPersonStats] = useState<PersonStats[]>([])
@@ -154,6 +155,9 @@ export default function AirtecMonitorPage() {
   const formatCurrency = (value: number) =>
     `€${value.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
+  const formatDateTime = (value: string) =>
+    new Date(value).toLocaleString('nl-NL', { dateStyle: 'medium', timeStyle: 'short' })
+
   const formatLeadTime = (hours: number | null) => {
     if (hours == null) return '-'
     const days = hours / 24
@@ -186,6 +190,7 @@ export default function AirtecMonitorPage() {
       setTotals(data.totals || null)
       setPersonStats(data.personStats || [])
       setDetailedItems(data.detailedItems || [])
+      setLastUpdated(new Date().toISOString())
     } catch (error) {
       console.error('Error fetching stats:', error)
       alert('Failed to load statistics')
@@ -253,6 +258,14 @@ export default function AirtecMonitorPage() {
           ← Terug naar Admin
         </Link>
         <h1 className="text-3xl font-bold">Airtec Flow Monitoring</h1>
+        <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600">
+          <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1">
+            Periode: {dateFrom || '—'} → {dateTo || '—'}
+          </span>
+          <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1">
+            Laatste update: {lastUpdated ? formatDateTime(lastUpdated) : '—'}
+          </span>
+        </div>
       </div>
 
       <div className="mb-6">
