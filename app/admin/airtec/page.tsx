@@ -520,10 +520,19 @@ export default function AirtecMonitorPage() {
                   height={60}
                 />
                 <YAxis />
-                <Tooltip labelFormatter={(value) => formatDate(value as string)} />
+                <Tooltip
+                  labelFormatter={(value) => formatDate(value as string)}
+                  formatter={(value: number, name: string) => {
+                    if (name === 'FTE') {
+                      return [value.toFixed(2), 'FTE']
+                    }
+                    return [value, name]
+                  }}
+                />
                 <Legend />
                 <Line type="monotone" dataKey="incomingItems" stroke="#0ea5e9" strokeWidth={2} name="Goederen binnen" dot={false} />
                 <Line type="monotone" dataKey="itemsPacked" stroke="#2563eb" strokeWidth={2} name="Kisten verpakt" dot={false} />
+                <Line type="monotone" dataKey="fte" stroke="#0f172a" strokeWidth={2} name="FTE" dot={false} />
               </ComposedChart>
             </ResponsiveContainer>
           )}

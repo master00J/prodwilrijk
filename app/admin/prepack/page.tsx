@@ -565,7 +565,15 @@ export default function PrepackMonitorPage() {
                   height={60}
                 />
                 <YAxis />
-                <Tooltip labelFormatter={(value) => formatDate(value as string)} />
+                <Tooltip
+                  labelFormatter={(value) => formatDate(value as string)}
+                  formatter={(value: number, name: string) => {
+                    if (name === 'FTE') {
+                      return [value.toFixed(2), 'FTE']
+                    }
+                    return [value, name]
+                  }}
+                />
                 <Legend />
                 <Line
                   type="monotone"
@@ -581,6 +589,14 @@ export default function PrepackMonitorPage() {
                   stroke="#2563eb"
                   strokeWidth={2}
                   name="Items verpakt"
+                  dot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="fte"
+                  stroke="#0f172a"
+                  strokeWidth={2}
+                  name="FTE"
                   dot={false}
                 />
               </ComposedChart>
