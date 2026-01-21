@@ -514,6 +514,7 @@ export default function OpenOrdersPage() {
       }
 
       alert('Package registered successfully!')
+      await fetchOrders()
       setShowRegisterModal(false)
       setSelectedOrder(null)
       setRegisterData({
