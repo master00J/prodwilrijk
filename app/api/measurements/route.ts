@@ -126,6 +126,60 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// PATCH - Update measurement processed status
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { id, processed } = body
+
+    if (!id || typeof processed !== 'boolean') {
+      return NextResponse.json(
+        { error: 'id and processed are required' },
+        { status: 400 }
+      )
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('measurements')
+      .update({
+        processed,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select('id,item_id,processed')
+      .single()
+
+    if (error || !data) {
+      console.error('Error updating measurement status:', error)
+      return NextResponse.json(
+        { error: 'Failed to update measurement status' },
+        { status: 500 }
+      )
+    }
+
+    const { error: itemError } = await supabaseAdmin
+      .from('items_to_pack')
+      .update({ measurement: !processed })
+      .eq('id', data.item_id)
+
+    if (itemError) {
+      console.error('Error updating item measurement flag:', itemError)
+      return NextResponse.json(
+        { error: 'Failed to update item measurement flag' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ success: true, measurement: data })
+  } catch (error) {
+    console.error('Unexpected error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
 // DELETE - Delete a measurement
 export async function DELETE(request: NextRequest) {
   try {

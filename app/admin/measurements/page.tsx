@@ -11,6 +11,7 @@ interface Measurement {
   dimensions: string | null
   net_weight: number | null
   special_instructions: string | null
+  processed?: boolean
   created_at: string
   updated_at: string
   created_by: string | null
@@ -27,6 +28,7 @@ export default function MeasurementsPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterDate, setFilterDate] = useState('')
+  const [updatingIds, setUpdatingIds] = useState<Set<number>>(new Set())
 
   const fetchMeasurements = useCallback(async () => {
     setLoading(true)
@@ -61,6 +63,39 @@ export default function MeasurementsPage() {
 
     return matchesSearch && matchesDate
   })
+
+  const handleProcessedToggle = async (measurementId: number, nextValue: boolean) => {
+    setUpdatingIds((prev) => new Set(prev).add(measurementId))
+    setMeasurements((prev) =>
+      prev.map((measurement) =>
+        measurement.id === measurementId ? { ...measurement, processed: nextValue } : measurement
+      )
+    )
+
+    try {
+      const response = await fetch('/api/measurements', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: measurementId, processed: nextValue }),
+      })
+
+      if (!response.ok) throw new Error('Failed to update processed status')
+    } catch (error) {
+      console.error('Error updating processed status:', error)
+      setMeasurements((prev) =>
+        prev.map((measurement) =>
+          measurement.id === measurementId ? { ...measurement, processed: !nextValue } : measurement
+        )
+      )
+      alert('Fout bij opslaan van verwerkt-status')
+    } finally {
+      setUpdatingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(measurementId)
+        return next
+      })
+    }
+  }
 
   return (
     <AdminGuard>
@@ -148,6 +183,9 @@ export default function MeasurementsPage() {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Ingevuld op
                     </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Verwerkt
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -198,6 +236,20 @@ export default function MeasurementsPage() {
                           hour: '2-digit',
                           minute: '2-digit',
                         })}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <label className="inline-flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(measurement.processed)}
+                            disabled={updatingIds.has(measurement.id)}
+                            onChange={(e) => handleProcessedToggle(measurement.id, e.target.checked)}
+                            className="w-5 h-5 cursor-pointer"
+                          />
+                          <span className="text-sm text-gray-600">
+                            {measurement.processed ? 'Verwerkt' : 'Open'}
+                          </span>
+                        </label>
                       </td>
                     </tr>
                   ))}
