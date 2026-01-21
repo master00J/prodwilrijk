@@ -22,6 +22,7 @@ interface DailyStat {
   itemsPerHour: number
   revenue: number
   incomingItems: number
+  fte: number
 }
 
 interface Totals {
@@ -33,6 +34,8 @@ interface Totals {
   totalIncoming: number
   incomingVsPackedRatio: number | null
   avgLeadTimeHours: number | null
+  totalFte: number
+  avgFtePerDay: number
 }
 
 interface PersonStats {
@@ -206,6 +209,7 @@ export default function PrepackMonitorPage() {
         'Goederen binnen': stat.incomingItems,
         'Items verpakt': stat.itemsPacked,
         Manuren: stat.manHours,
+        FTE: stat.fte,
         Medewerkers: stat.employeeCount,
         'Items per uur': stat.itemsPerHour,
         Omzet: stat.revenue,
@@ -336,13 +340,20 @@ export default function PrepackMonitorPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div className="bg-white rounded-lg border border-gray-200 p-4">
               <div className="text-sm text-gray-500 mb-2">Gemiddelde per dag</div>
               <div className="text-lg font-semibold text-gray-900">
                 {totals ? `${kpiStats.avgManHoursPerDay.toFixed(2)} uur` : '-'}
               </div>
               <div className="text-xs text-gray-500">Manuren per dag</div>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="text-sm text-gray-500 mb-2">Gem. FTE per dag</div>
+              <div className="text-lg font-semibold text-gray-900">
+                {totals ? totals.avgFtePerDay.toFixed(2) : '-'}
+              </div>
+              <div className="text-xs text-gray-500">Ma–Do 8u, Vr 7u</div>
             </div>
             <div className="bg-white rounded-lg border border-gray-200 p-4">
               <div className="text-sm text-gray-500 mb-2">Gem. doorlooptijd (werkdagen)</div>
@@ -668,6 +679,7 @@ export default function PrepackMonitorPage() {
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Goederen binnen</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Items Verpakt</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Manuren</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">FTE</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Medewerkers</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Items/Uur</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Omzet</th>
@@ -689,6 +701,7 @@ export default function PrepackMonitorPage() {
                     </td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">{stat.itemsPacked}</td>
                     <td className="px-4 py-3 text-sm text-gray-900">{stat.manHours.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{stat.fte.toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm text-gray-900">{stat.employeeCount}</td>
                     <td className="px-4 py-3 text-sm text-gray-900">{stat.itemsPerHour.toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">
