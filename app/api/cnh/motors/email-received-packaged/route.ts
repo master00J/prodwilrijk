@@ -6,6 +6,17 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+const getEmailConfig = () => {
+  const host = process.env.SMTP_HOST || 'mail.prodwilrijk.be'
+  const port = parseInt(process.env.SMTP_PORT || '465')
+  const secure = process.env.SMTP_SECURE === 'true' || port === 465
+  const user = process.env.SMTP_USER || ''
+  const password = process.env.SMTP_PASSWORD || ''
+  const from = process.env.SMTP_FROM || user
+
+  return { host, port, secure, user, password, from }
+}
+
 // POST /api/cnh/motors/email-received-packaged - Send email with overview of motors currently at Foresco
 export async function POST(request: NextRequest) {
   try {
@@ -461,18 +472,26 @@ export async function POST(request: NextRequest) {
     const pdfBytes = await pdfDoc.save()
 
     // 3) Send email
+    const emailConfig = getEmailConfig()
+    if (!emailConfig.user || !emailConfig.password) {
+      return NextResponse.json(
+        { error: 'Email configuratie ontbreekt. Vul SMTP_USER en SMTP_PASSWORD in.' },
+        { status: 500 }
+      )
+    }
+
     const transporter = nodemailer.createTransport({
-      host: 'mail.prodwilrijk.be',
-      port: 465,
-      secure: true,
+      host: emailConfig.host,
+      port: emailConfig.port,
+      secure: emailConfig.secure,
       auth: {
-        user: 'jason@prodwilrijk.be',
-        pass: process.env.EMAIL_PASSWORD || 'prodwilrijk147',
+        user: emailConfig.user,
+        pass: emailConfig.password,
       },
     })
 
     await transporter.sendMail({
-      from: 'jason@prodwilrijk.be',
+      from: emailConfig.from,
       to: toEmail,
       subject: 'Overzicht van motoren momenteel bij Foresco',
       html: `<p>Beste,<br>In bijlage het overzicht van alle motoren die momenteel bij Foresco staan.<br>Groeten,<br>Team Foresco</p>`,
