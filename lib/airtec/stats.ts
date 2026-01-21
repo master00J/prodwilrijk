@@ -101,7 +101,7 @@ export async function fetchAirtecStats({
   }
 
   let incomingQuery = supabaseAdmin
-    .from('incoming_goods_airtec')
+    .from('items_to_pack_airtec')
     .select('quantity, datum_ontvangen')
 
   if (dateFrom) {
@@ -119,7 +119,7 @@ export async function fetchAirtecStats({
   const { data: incomingItems, error: incomingError } = await incomingQuery
 
   if (incomingError) {
-    throw new Error('Failed to fetch incoming goods')
+    throw new Error('Failed to fetch items to pack airtec')
   }
 
   let timeLogsQuery = supabaseAdmin
