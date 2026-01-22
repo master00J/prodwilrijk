@@ -392,7 +392,7 @@ export default function SalesOrdersUploadPage() {
           rawValue !== undefined
             ? parseFlexibleNumber(rawValue)
             : parseFlexibleNumber(material.price)
-        if (!Number.isFinite(parsed) || parsed < 0) return null
+        if (parsed === null || !Number.isFinite(parsed) || parsed < 0) return null
 
         return {
           item_number: material.item_number,
