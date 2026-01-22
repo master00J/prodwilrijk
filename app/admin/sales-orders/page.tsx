@@ -637,8 +637,9 @@ export default function SalesOrdersUploadPage() {
                           <td className="py-2 pr-4">{material.description || '-'}</td>
                           <td className="py-2 pr-4">
                             <input
-                              type="number"
-                              step="0.01"
+                              type="text"
+                              inputMode="decimal"
+                              placeholder="0,00000"
                               value={
                                 materialEdits[material.item_number] ??
                                 (material.price !== null && material.price !== undefined
