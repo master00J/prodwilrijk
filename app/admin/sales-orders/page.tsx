@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import * as XLSX from 'xlsx'
 import AdminGuard from '@/components/AdminGuard'
 
@@ -11,6 +11,11 @@ export default function SalesOrdersUploadPage() {
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dropZoneRef = useRef<HTMLDivElement>(null)
+  const [xmlFile, setXmlFile] = useState<File | null>(null)
+  const [xmlUploading, setXmlUploading] = useState(false)
+  const [xmlMessage, setXmlMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [latestProductionOrder, setLatestProductionOrder] = useState<any>(null)
+  const [materialEdits, setMaterialEdits] = useState<Record<string, string>>({})
 
   const readFileAsArrayBuffer = (file: File): Promise<ArrayBuffer> => {
     return new Promise((resolve, reject) => {
@@ -18,6 +23,15 @@ export default function SalesOrdersUploadPage() {
       reader.onload = (e) => resolve(e.target?.result as ArrayBuffer)
       reader.onerror = reject
       reader.readAsArrayBuffer(file)
+    })
+  }
+
+  const readFileAsText = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = (e) => resolve(String(e.target?.result || ''))
+      reader.onerror = reject
+      reader.readAsText(file)
     })
   }
 
@@ -31,6 +45,37 @@ export default function SalesOrdersUploadPage() {
       return match[1].trim()
     }
     return null
+  }
+
+  const parseDecimal = (value: string | null | undefined): number | null => {
+    if (!value) return null
+    const normalized = String(value).replace(',', '.').trim()
+    const parsed = parseFloat(normalized)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
+  const parseDateMDY = (value: string | null | undefined): string | null => {
+    if (!value) return null
+    const trimmed = String(value).trim()
+    if (!trimmed) return null
+    const parts = trimmed.split('/')
+    if (parts.length !== 3) return null
+    const [month, day, year] = parts.map((part) => part.trim())
+    const monthNum = Number(month)
+    const dayNum = Number(day)
+    const yearNum = Number(year.length === 2 ? `20${year}` : year)
+    if (!monthNum || !dayNum || !yearNum) return null
+    return `${String(yearNum).padStart(4, '0')}-${String(monthNum).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`
+  }
+
+  const parseColumns = (dataItem: Element): Record<string, string> => {
+    const columns = Array.from(dataItem.querySelectorAll(':scope > Columns > Column'))
+    const map: Record<string, string> = {}
+    columns.forEach((column) => {
+      const name = column.getAttribute('name') || ''
+      map[name] = column.textContent || ''
+    })
+    return map
   }
 
   const processFile = async (file: File): Promise<Array<{ item_number: string; price: number; description: string }>> => {
@@ -81,6 +126,86 @@ export default function SalesOrdersUploadPage() {
     }
 
     return validItems
+  }
+
+  const parseProductionOrderXml = async (file: File) => {
+    const xmlText = await readFileAsText(file)
+    const parser = new DOMParser()
+    const xmlDoc = parser.parseFromString(xmlText, 'text/xml')
+    const parserError = xmlDoc.querySelector('parsererror')
+    if (parserError) {
+      throw new Error('Ongeldig XML bestand.')
+    }
+
+    const orderItem = xmlDoc.querySelector('DataItem[name="ProductionOrder"]')
+    if (!orderItem) {
+      throw new Error('Productieorder info niet gevonden in XML.')
+    }
+
+    const orderColumns = parseColumns(orderItem)
+    const orderNumber = orderColumns['No_']?.trim()
+    if (!orderNumber) {
+      throw new Error('Ordernummer ontbreekt in XML.')
+    }
+
+    const lines = Array.from(xmlDoc.querySelectorAll('DataItem[name="ProdOrderLine"]')).map((lineItem, index) => {
+      const lineColumns = parseColumns(lineItem)
+      const lineDescription = lineColumns['Line_Description']?.trim() || ''
+      const extractedItemNumber = extractItemNumber(lineDescription)
+
+      const components = Array.from(lineItem.querySelectorAll(':scope > DataItems > DataItem[name="Component"]')).map(
+        (componentItem) => {
+          const componentColumns = parseColumns(componentItem)
+          const fsgItem = componentItem.querySelector(':scope > DataItems > DataItem[name="ComponentFieldsForGroupingFSG"]')
+          const fsgColumns = fsgItem ? parseColumns(fsgItem) : {}
+
+          return {
+            component_line_no: componentColumns['Component_Line_No_']?.trim() || null,
+            component_item_no: componentColumns['Component_Item_No_']?.trim() || null,
+            component_description: componentColumns['Component_Description']?.trim() || null,
+            component_description_2: componentColumns['Component_Description_2']?.trim() || null,
+            component_length: parseDecimal(componentColumns['Component_Length']),
+            component_width: parseDecimal(componentColumns['Component_Width']),
+            component_thickness: parseDecimal(componentColumns['Component_Thickness']),
+            component_unit: parseDecimal(componentColumns['Component_Unit']),
+            component_group: componentColumns['Component_Group']?.trim() || null,
+            component_group_sortvalue: parseDecimal(componentColumns['Component_Group_SortValue']),
+            component_indentation: componentColumns['Component_Indentation']?.trim() || null,
+            component_margin: componentColumns['Component_Margin']?.trim() || null,
+            fsg_group_code: componentColumns['FSGComponentGroupCode']?.trim() || null,
+            fsg_group_description: componentColumns['FSGComponentGroupDescription']?.trim() || null,
+            fsg_unit: parseDecimal(fsgColumns['FSGComponent_Unit']),
+            fsg_unit_expected: parseDecimal(fsgColumns['FSGComponent_UnitExpected']),
+            fsg_total_volume: parseDecimal(fsgColumns['FSGCompoment_TotalVolume']),
+          }
+        }
+      )
+
+      return {
+        line_no: parseInt(lineColumns['Line_Line_No_'] || `${index + 1}`),
+        item_no: lineColumns['Line_Item_No_']?.trim() || null,
+        variant_code: lineColumns['Line_Variant_Code']?.trim() || null,
+        description: lineDescription || null,
+        description_2: lineColumns['Line_Description_2']?.trim() || null,
+        quantity: parseDecimal(lineColumns['Line_Quantity']) || 0,
+        inside_mass: lineColumns['Line_InsideMass']?.trim() || null,
+        outside_mass: lineColumns['Line_OutsideMass']?.trim() || null,
+        item_number: extractedItemNumber,
+        components,
+      }
+    })
+
+    return {
+      order: {
+        order_number: orderNumber,
+        sales_order_number: orderColumns['SalesHeader_No']?.trim() || null,
+        creation_date: parseDateMDY(orderColumns['Creation_Date']),
+        due_date: parseDateMDY(orderColumns['Due_Date']),
+        starting_date: parseDateMDY(orderColumns['Starting_Date']),
+        source_file_name: file.name,
+      },
+      lines,
+    }
   }
 
   const handleFiles = useCallback((files: FileList | File[]) => {
@@ -195,6 +320,99 @@ export default function SalesOrdersUploadPage() {
     }
   }
 
+  const fetchLatestProductionOrder = useCallback(async () => {
+    try {
+      const response = await fetch('/api/production-orders/latest')
+      if (!response.ok) return
+      const data = await response.json()
+      setLatestProductionOrder(data)
+    } catch (error) {
+      console.error('Error fetching production order:', error)
+    }
+  }, [])
+
+  const handleXmlUpload = async () => {
+    if (!xmlFile) {
+      setXmlMessage({ type: 'error', text: 'Selecteer een XML bestand' })
+      return
+    }
+
+    setXmlUploading(true)
+    setXmlMessage(null)
+
+    try {
+      const parsed = await parseProductionOrderXml(xmlFile)
+      if (!parsed.lines || parsed.lines.length === 0) {
+        throw new Error('Geen productieorder lijnen gevonden in XML.')
+      }
+
+      const response = await fetch('/api/production-orders/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(parsed),
+      })
+
+      const result = await response.json()
+      if (!response.ok) {
+        throw new Error(result.error || 'Fout bij uploaden productieorder')
+      }
+
+      setXmlMessage({
+        type: 'success',
+        text: `Productieorder ${result.order_number} geüpload met ${result.line_count} lijnen.`,
+      })
+      setXmlFile(null)
+      fetchLatestProductionOrder()
+    } catch (error: any) {
+      console.error('Error uploading XML:', error)
+      setXmlMessage({ type: 'error', text: error.message || 'Fout bij uploaden XML' })
+    } finally {
+      setXmlUploading(false)
+    }
+  }
+
+  const handleSaveMaterialPrices = async () => {
+    if (!latestProductionOrder?.materials?.length) return
+    const items = latestProductionOrder.materials
+      .map((material: any) => {
+        const rawValue = materialEdits[material.item_number]
+        if (rawValue === undefined) return null
+        const parsed = parseFloat(rawValue)
+        if (!Number.isFinite(parsed) || parsed < 0) return null
+        return {
+          item_number: material.item_number,
+          price: parsed,
+          description: material.description || null,
+        }
+      })
+      .filter(Boolean)
+
+    if (items.length === 0) {
+      setXmlMessage({ type: 'error', text: 'Geen geldige prijswijzigingen om op te slaan.' })
+      return
+    }
+
+    try {
+      const response = await fetch('/api/material-prices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      })
+      const result = await response.json()
+      if (!response.ok) {
+        throw new Error(result.error || 'Fout bij opslaan prijzen')
+      }
+      setMaterialEdits({})
+      fetchLatestProductionOrder()
+    } catch (error: any) {
+      setXmlMessage({ type: 'error', text: error.message || 'Fout bij opslaan prijzen' })
+    }
+  }
+
+  useEffect(() => {
+    fetchLatestProductionOrder()
+  }, [fetchLatestProductionOrder])
+
   return (
     <AdminGuard>
       <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -307,6 +525,168 @@ export default function SalesOrdersUploadPage() {
           >
             {uploading ? 'Uploaden...' : `Upload ${selectedFiles.length > 0 ? `${selectedFiles.length} bestand(en)` : 'Verkooporders'}`}
           </button>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6 mt-8">
+          <h2 className="text-2xl font-semibold mb-4">Productieorder XML upload</h2>
+
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6 text-sm text-purple-700">
+            Upload een productieorder XML. Itemnummers worden uit de beschrijving gehaald (tussen haakjes).
+          </div>
+
+          {xmlMessage && (
+            <div
+              className={`mb-4 p-4 rounded-lg ${
+                xmlMessage.type === 'success'
+                  ? 'bg-green-100 text-green-800'
+                  : 'bg-red-100 text-red-800'
+              }`}
+            >
+              {xmlMessage.text}
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+            <input
+              type="file"
+              accept=".xml"
+              onChange={(e) => setXmlFile(e.target.files?.[0] || null)}
+              className="block w-full text-sm text-gray-700"
+            />
+            <button
+              type="button"
+              onClick={handleXmlUpload}
+              disabled={xmlUploading}
+              className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-60"
+            >
+              {xmlUploading ? 'Uploaden...' : 'Upload XML'}
+            </button>
+          </div>
+
+          {latestProductionOrder?.order && (
+            <div className="mt-8 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <div className="text-xs text-gray-500">Productieorder</div>
+                  <div className="text-lg font-semibold">{latestProductionOrder.order.order_number}</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Verkooporder: {latestProductionOrder.order.sales_order_number || '-'}
+                  </div>
+                </div>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <div className="text-xs text-gray-500">Lijnen & materialen</div>
+                  <div className="text-lg font-semibold">
+                    {latestProductionOrder.totals?.line_count || 0} lijnen ·{' '}
+                    {latestProductionOrder.totals?.component_count || 0} componenten
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Ontbrekende prijzen: {latestProductionOrder.totals?.missing_price_count || 0}
+                  </div>
+                </div>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <div className="text-xs text-gray-500">Totale materiaalkost</div>
+                  <div className="text-lg font-semibold">
+                    € {Number(latestProductionOrder.totals?.total_material_cost || 0).toFixed(2)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="border border-gray-200 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold">Grondstoffen prijzen</h3>
+                  <button
+                    type="button"
+                    onClick={handleSaveMaterialPrices}
+                    className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
+                  >
+                    Prijzen opslaan
+                  </button>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-gray-500">
+                        <th className="py-2 pr-4">Itemnummer</th>
+                        <th className="py-2 pr-4">Omschrijving</th>
+                        <th className="py-2 pr-4">Prijs / eenheid</th>
+                        <th className="py-2 pr-4">Gebruik</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(latestProductionOrder.materials || []).map((material: any) => (
+                        <tr key={material.item_number} className="border-t">
+                          <td className="py-2 pr-4 font-medium">{material.item_number}</td>
+                          <td className="py-2 pr-4">{material.description || '-'}</td>
+                          <td className="py-2 pr-4">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={
+                                materialEdits[material.item_number] ??
+                                (material.price !== null && material.price !== undefined
+                                  ? String(material.price)
+                                  : '')
+                              }
+                              onChange={(e) =>
+                                setMaterialEdits((prev) => ({
+                                  ...prev,
+                                  [material.item_number]: e.target.value,
+                                }))
+                              }
+                              className="border border-gray-300 rounded px-2 py-1 w-32"
+                            />
+                          </td>
+                          <td className="py-2 pr-4 text-gray-500">{material.usage_count || 0}x</td>
+                        </tr>
+                      ))}
+                      {(!latestProductionOrder.materials || latestProductionOrder.materials.length === 0) && (
+                        <tr>
+                          <td colSpan={4} className="py-3 text-gray-500">
+                            Geen grondstoffen gevonden.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="border border-gray-200 rounded-lg p-4">
+                <h3 className="font-semibold mb-3">Materiaalkost per lijn</h3>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-gray-500">
+                        <th className="py-2 pr-4">Lijn</th>
+                        <th className="py-2 pr-4">Omschrijving</th>
+                        <th className="py-2 pr-4">Aantal</th>
+                        <th className="py-2 pr-4">Kost per stuk</th>
+                        <th className="py-2 pr-4">Totale kost</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(latestProductionOrder.lines || []).map((line: any) => (
+                        <tr key={`${line.id}-${line.line_no}`} className="border-t">
+                          <td className="py-2 pr-4">{line.item_number || line.item_no || '-'}</td>
+                          <td className="py-2 pr-4">{line.description || '-'}</td>
+                          <td className="py-2 pr-4">{line.quantity || 0}</td>
+                          <td className="py-2 pr-4">€ {Number(line.cost_per_item || 0).toFixed(2)}</td>
+                          <td className="py-2 pr-4">€ {Number(line.total_cost || 0).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                      {(!latestProductionOrder.lines || latestProductionOrder.lines.length === 0) && (
+                        <tr>
+                          <td colSpan={5} className="py-3 text-gray-500">
+                            Geen lijnen gevonden.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </AdminGuard>
