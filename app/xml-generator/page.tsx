@@ -86,14 +86,16 @@ export default function XMLGeneratorPage() {
     return result
   }
 
-  const generateSingleXML = (index: number = 0, totalQuantity: number = 1): string => {
-    let poNumber = purchaseOrderNumber
-
-    // Als er meer dan 1 stuk is, voeg volgnummer toe
+  const getPurchaseOrderWithSequence = (index: number = 0, totalQuantity: number = 1): string => {
     if (totalQuantity > 1) {
       const sequenceNumber = String(index + 1).padStart(3, '0')
-      poNumber = `${sequenceNumber}${poNumber}`
+      return `${sequenceNumber}${purchaseOrderNumber}`
     }
+    return purchaseOrderNumber
+  }
+
+  const generateSingleXML = (index: number = 0, totalQuantity: number = 1): string => {
+    const poNumber = getPurchaseOrderWithSequence(index, totalQuantity)
 
     const xmlDivision = divisionXmlMap[division] || division
     const unitOf = 'PC  ' // Standaardwaarde met spaties
@@ -200,6 +202,7 @@ export default function XMLGeneratorPage() {
   const generateLabel = (parcelIndex: number = 0): string => {
     const labelQuantity = '1'
     const currentDate = getCurrentDate()
+    const poNumber = getPurchaseOrderWithSequence(parcelIndex, quantity)
 
     // Random nummers genereren
     const deliveryNotice = generateRandomNumberString(6)
@@ -207,7 +210,7 @@ export default function XMLGeneratorPage() {
     const shopOrder = '000000' // Blijft placeholder
 
     // Prefixen toevoegen
-    const prefixedPO = `K${purchaseOrderNumber}`
+    const prefixedPO = `K${poNumber}`
     const prefixedItem = `P${itemNumber}`
     const prefixedSupplier = `V${prepackVendorCode}`
     const prefixedQuantity = `Q${labelQuantity}`
@@ -216,7 +219,7 @@ export default function XMLGeneratorPage() {
     const parcelNumber = `${prepackVendorCode}${randomParcelSuffix}01`
 
     // Barcodes
-    const poBarcode = generateBarcodeWithPrefix('K', purchaseOrderNumber, 1.8, 30)
+    const poBarcode = generateBarcodeWithPrefix('K', poNumber, 1.8, 30)
     const partBarcode = generateBarcodeWithPrefix('P', itemNumber, 1.8, 30)
     const supplierBarcode = generateBarcodeWithPrefix('V', prepackVendorCode, 1.8, 25)
     const quantityBarcode = generateBarcodeWithPrefix('Q', labelQuantity, 1.5, 20)
