@@ -66,10 +66,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ item_number: itemNumber, lines: [] })
     }
 
+    const firstProductionOrder: any = (lines[0] as any)?.production_orders
     const latestUploadedAt =
-      (Array.isArray(lines[0]?.production_orders)
-        ? lines[0]?.production_orders?.[0]?.uploaded_at
-        : lines[0]?.production_orders?.uploaded_at) || null
+      (Array.isArray(firstProductionOrder)
+        ? firstProductionOrder?.[0]?.uploaded_at
+        : firstProductionOrder?.uploaded_at) || null
     const latestLines = latestUploadedAt
       ? lines.filter((line: any) => {
           const uploadedAt = Array.isArray(line.production_orders)
