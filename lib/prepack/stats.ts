@@ -8,6 +8,7 @@ export interface DailyStat {
   employeeCount: number
   itemsPerFte: number
   revenue: number
+  materialCost: number
   incomingItems: number
   fte: number
 }
@@ -18,6 +19,7 @@ export interface Totals {
   averageItemsPerFte: number
   totalDays: number
   totalRevenue: number
+  totalMaterialCost: number
   totalIncoming: number
   incomingVsPackedRatio: number | null
   avgLeadTimeHours: number | null
@@ -37,6 +39,8 @@ export interface DetailedItem {
   amount: number
   price: number
   revenue: number
+  materialCostUnit: number
+  materialCostTotal: number
   date_packed: string
   date_added: string
 }
@@ -82,6 +86,24 @@ const getExpectedHoursForDay = (dateValue: string) => {
   if (day === 5) return 7
   if (day === 0 || day === 6) return 0
   return 8
+}
+
+const getMaterialCostForComponent = (component: any, price: number, unitOfMeasure: string) => {
+  const unitCount = Number(component.component_unit) || 0
+  if (unitOfMeasure === 'm3') {
+    const length = Number(component.component_length) || 0
+    const width = Number(component.component_width) || 0
+    const thickness = Number(component.component_thickness) || 0
+    const volume = (length * width * thickness) / 1_000_000_000
+    return volume * unitCount * price
+  }
+  if (unitOfMeasure === 'm2') {
+    const length = Number(component.component_length) || 0
+    const width = Number(component.component_width) || 0
+    const area = (length * width) / 1_000_000
+    return area * unitCount * price
+  }
+  return unitCount * price
 }
 
 export async function fetchPrepackStats({
@@ -189,6 +211,93 @@ export async function fetchPrepackStats({
     }
   }
 
+  let materialCostMap: Record<string, number> = {}
+  if (uniqueItemNumbers.length > 0) {
+    const { data: lines, error: linesError } = await supabaseAdmin
+      .from('production_order_lines')
+      .select(
+        `
+          id,
+          item_number,
+          production_order_id,
+          production_orders (uploaded_at),
+          production_order_components (
+            component_item_no,
+            component_unit,
+            component_length,
+            component_width,
+            component_thickness
+          )
+        `
+      )
+      .in('item_number', uniqueItemNumbers)
+
+    if (!linesError && lines) {
+      const componentItemNumbers = new Set<string>()
+      lines.forEach((line: any) => {
+        const components = line.production_order_components || []
+        components.forEach((component: any) => {
+          if (component.component_item_no) {
+            componentItemNumbers.add(component.component_item_no)
+          }
+        })
+      })
+
+      let materialPriceMap: Record<string, number> = {}
+      let materialUnitMap: Record<string, string> = {}
+      if (componentItemNumbers.size > 0) {
+        const { data: materialPrices } = await supabaseAdmin
+          .from('material_prices')
+          .select('item_number, price, unit_of_measure')
+          .in('item_number', Array.from(componentItemNumbers))
+
+        if (materialPrices) {
+          materialPrices.forEach((item: any) => {
+            materialPriceMap[item.item_number] = Number(item.price) || 0
+            if (item.unit_of_measure) {
+              materialUnitMap[item.item_number] = String(item.unit_of_measure).trim()
+            }
+          })
+        }
+      }
+
+      const latestCosts: Record<string, { cost: number; uploadedAt: string }> = {}
+      lines.forEach((line: any) => {
+        if (!line.item_number) return
+        const uploadedAt =
+          line.production_orders?.uploaded_at ||
+          line.production_orders?.[0]?.uploaded_at ||
+          ''
+        if (!uploadedAt) return
+
+        const components = line.production_order_components || []
+        let costPerItem = 0
+        let hasAnyCost = false
+        components.forEach((component: any) => {
+          const componentItemNo = component.component_item_no
+          if (!componentItemNo) return
+          const price = materialPriceMap[componentItemNo]
+          if (price === undefined) return
+          hasAnyCost = true
+          const unitOfMeasure = materialUnitMap[componentItemNo] || 'stuks'
+          costPerItem += getMaterialCostForComponent(component, price, unitOfMeasure)
+        })
+
+        if (!hasAnyCost) return
+
+        const existing = latestCosts[line.item_number]
+        if (!existing || new Date(uploadedAt) > new Date(existing.uploadedAt)) {
+          latestCosts[line.item_number] = { cost: costPerItem, uploadedAt }
+        }
+      })
+
+      materialCostMap = Object.keys(latestCosts).reduce((acc: Record<string, number>, key) => {
+        acc[key] = latestCosts[key].cost
+        return acc
+      }, {})
+    }
+  }
+
   const dailyStats: Record<
     string,
     {
@@ -197,6 +306,7 @@ export async function fetchPrepackStats({
       manHours: number
       employees: Set<string>
       revenue: number
+      materialCost: number
       incomingItems: number
     }
   > = {}
@@ -210,6 +320,7 @@ export async function fetchPrepackStats({
         manHours: 0,
         employees: new Set(),
         revenue: 0,
+        materialCost: 0,
         incomingItems: 0,
       }
     }
@@ -218,6 +329,9 @@ export async function fetchPrepackStats({
 
     const price = pricesMap[item.item_number] || 0
     dailyStats[date].revenue += price * amount
+
+    const materialUnitCost = materialCostMap[item.item_number] || 0
+    dailyStats[date].materialCost += materialUnitCost * amount
   })
 
   logs.forEach((log: any) => {
@@ -235,6 +349,7 @@ export async function fetchPrepackStats({
           manHours: 0,
           employees: new Set(),
           revenue: 0,
+          materialCost: 0,
           incomingItems: 0,
         }
       }
@@ -255,6 +370,7 @@ export async function fetchPrepackStats({
         manHours: 0,
         employees: new Set(),
         revenue: 0,
+        materialCost: 0,
         incomingItems: 0,
       }
     }
@@ -276,6 +392,7 @@ export async function fetchPrepackStats({
         employeeCount: stat.employees.size,
         itemsPerFte,
         revenue: Number(stat.revenue.toFixed(2)),
+        materialCost: Number(stat.materialCost.toFixed(2)),
         incomingItems: stat.incomingItems,
         fte,
       }
@@ -296,6 +413,12 @@ export async function fetchPrepackStats({
     const price = pricesMap[item.item_number] || 0
     const amount = item.amount || 0
     return sum + price * amount
+  }, 0)
+
+  const totalMaterialCost = items.reduce((sum, item: any) => {
+    const unitCost = materialCostMap[item.item_number] || 0
+    const amount = item.amount || 0
+    return sum + unitCost * amount
   }, 0)
 
   const totalIncoming = incoming.reduce((sum, item: any) => sum + (item.amount || 0), 0)
@@ -361,6 +484,8 @@ export async function fetchPrepackStats({
       const price = pricesMap[item.item_number] || 0
       const amount = item.amount || 0
       const revenue = price * amount
+      const materialUnitCost = materialCostMap[item.item_number] || 0
+      const materialCostTotal = materialUnitCost * amount
 
       return {
         id: item.id,
@@ -369,6 +494,8 @@ export async function fetchPrepackStats({
         amount,
         price: Number(price.toFixed(2)),
         revenue: Number(revenue.toFixed(2)),
+        materialCostUnit: Number(materialUnitCost.toFixed(2)),
+        materialCostTotal: Number(materialCostTotal.toFixed(2)),
         date_packed: item.date_packed,
         date_added: item.date_added,
       }
@@ -383,6 +510,7 @@ export async function fetchPrepackStats({
       averageItemsPerFte,
       totalDays: totalDaysPacked,
       totalRevenue: Number(totalRevenue.toFixed(2)),
+      totalMaterialCost: Number(totalMaterialCost.toFixed(2)),
       totalIncoming,
       incomingVsPackedRatio,
       avgLeadTimeHours,

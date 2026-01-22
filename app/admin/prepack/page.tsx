@@ -21,6 +21,7 @@ interface DailyStat {
   employeeCount: number
   itemsPerFte: number
   revenue: number
+  materialCost: number
   incomingItems: number
   fte: number
 }
@@ -31,6 +32,7 @@ interface Totals {
   averageItemsPerFte: number
   totalDays: number
   totalRevenue: number
+  totalMaterialCost: number
   totalIncoming: number
   incomingVsPackedRatio: number | null
   avgLeadTimeHours: number | null
@@ -50,6 +52,8 @@ interface DetailedItem {
   amount: number
   price: number
   revenue: number
+  materialCostUnit: number
+  materialCostTotal: number
   date_packed: string
   date_added: string
 }
@@ -68,6 +72,7 @@ export default function PrepackMonitorPage() {
     filters: false,
     chartOutput: false,
     chartRevenue: false,
+    chartMaterial: false,
     chartIncoming: false,
     productivity: false,
     people: false,
@@ -116,6 +121,7 @@ export default function PrepackMonitorPage() {
       return {
         avgItemsPerDay: 0,
         avgRevenuePerDay: 0,
+        avgMaterialCostPerDay: 0,
         avgManHoursPerDay: 0,
         activeEmployees: 0,
         peakDay: null as DailyStat | null,
@@ -125,6 +131,7 @@ export default function PrepackMonitorPage() {
     const totalDays = totals.totalDays || 1
     const avgItemsPerDay = totals.totalItemsPacked / totalDays
     const avgRevenuePerDay = totals.totalRevenue / totalDays
+    const avgMaterialCostPerDay = totals.totalMaterialCost / totalDays
     const avgManHoursPerDay = totals.totalManHours / totalDays
     const activeEmployees = personStats.length
 
@@ -141,6 +148,7 @@ export default function PrepackMonitorPage() {
     return {
       avgItemsPerDay,
       avgRevenuePerDay,
+      avgMaterialCostPerDay,
       avgManHoursPerDay,
       activeEmployees,
       peakDay,
@@ -218,6 +226,7 @@ export default function PrepackMonitorPage() {
         Medewerkers: stat.employeeCount,
         'Items per FTE': stat.itemsPerFte,
         Omzet: stat.revenue,
+        Materiaalkost: stat.materialCost,
       }))
 
       const detailRows = detailedItems.map((item) => ({
@@ -227,6 +236,8 @@ export default function PrepackMonitorPage() {
         Aantal: item.amount,
         Prijs: item.price,
         Omzet: item.revenue,
+        'Materiaalkost/stuk': item.materialCostUnit,
+        'Materiaalkost totaal': item.materialCostTotal,
         'Datum toegevoegd': item.date_added ? new Date(item.date_added).toLocaleString('nl-NL') : '',
       }))
 
@@ -343,6 +354,12 @@ export default function PrepackMonitorPage() {
                 {totals ? formatCurrency(totals.totalRevenue) : '-'}
               </div>
             </div>
+            <div className="bg-rose-50 rounded-lg p-4 border border-rose-100">
+              <div className="text-sm text-gray-600 mb-1">Totale materiaalkost</div>
+              <div className="text-3xl font-bold text-rose-700">
+                {totals ? formatCurrency(totals.totalMaterialCost) : '-'}
+              </div>
+            </div>
             <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
               <div className="text-sm text-gray-600 mb-1">Gem. items per dag</div>
               <div className="text-3xl font-bold text-slate-800">
@@ -373,6 +390,13 @@ export default function PrepackMonitorPage() {
                 {totals ? totals.avgFtePerDay.toFixed(2) : '-'}
               </div>
               <div className="text-xs text-gray-500">Ma–Do 8u, Vr 7u</div>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="text-sm text-gray-500 mb-2">Gem. materiaalkost/dag</div>
+              <div className="text-lg font-semibold text-gray-900">
+                {totals ? formatCurrency(kpiStats.avgMaterialCostPerDay) : '-'}
+              </div>
+              <div className="text-xs text-gray-500">Op basis van BOM</div>
             </div>
             <div className="bg-white rounded-lg border border-gray-200 p-4">
               <div className="text-sm text-gray-500 mb-2">Gem. doorlooptijd (werkdagen)</div>
@@ -509,6 +533,44 @@ export default function PrepackMonitorPage() {
                   strokeWidth={3}
                   name="Omzet"
                   dot={{ fill: '#f59e0b', r: 3 }}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          )}
+        </CollapsibleCard>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 mb-6">
+        <CollapsibleCard id="chartMaterial" title="Materiaalkost trend" subtitle="Dagelijkse materiaalkost">
+          {loading ? (
+            <div className="text-center py-8 text-gray-500">Grafiek laden...</div>
+          ) : dailyStats.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">Geen data gevonden</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={260}>
+              <ComposedChart data={dailyStats}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={(value) =>
+                    new Date(value).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })
+                  }
+                  angle={-35}
+                  textAnchor="end"
+                  height={60}
+                />
+                <YAxis tickFormatter={(value) => `€${(value / 1000).toFixed(0)}k`} />
+                <Tooltip
+                  labelFormatter={(value) => formatDate(value as string)}
+                  formatter={(value: number) => [formatCurrency(value), 'Materiaalkost']}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="materialCost"
+                  stroke="#f43f5e"
+                  strokeWidth={3}
+                  name="Materiaalkost"
+                  dot={{ fill: '#f43f5e', r: 3 }}
                 />
               </ComposedChart>
             </ResponsiveContainer>
@@ -674,6 +736,8 @@ export default function PrepackMonitorPage() {
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Aantal</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Prijs</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Omzet</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Materiaalkost/stuk</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Materiaalkost</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -696,6 +760,16 @@ export default function PrepackMonitorPage() {
                     </td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">
                       {item.revenue > 0 ? `€${item.revenue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      {item.materialCostUnit > 0
+                        ? `€${item.materialCostUnit.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                      {item.materialCostTotal > 0
+                        ? `€${item.materialCostTotal.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        : '-'}
                     </td>
                   </tr>
                 ))}
@@ -729,6 +803,7 @@ export default function PrepackMonitorPage() {
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Medewerkers</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Items/FTE</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Omzet</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Materiaalkost</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -752,6 +827,9 @@ export default function PrepackMonitorPage() {
                     <td className="px-4 py-3 text-sm text-gray-900">{stat.itemsPerFte.toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">
                       €{stat.revenue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                      €{stat.materialCost.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                   </tr>
                 ))}
