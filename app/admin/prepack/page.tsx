@@ -68,6 +68,9 @@ export default function PrepackMonitorPage() {
   const [totals, setTotals] = useState<Totals | null>(null)
   const [personStats, setPersonStats] = useState<PersonStats[]>([])
   const [detailedItems, setDetailedItems] = useState<DetailedItem[]>([])
+  const [bomLoading, setBomLoading] = useState(false)
+  const [bomError, setBomError] = useState<string | null>(null)
+  const [bomDetail, setBomDetail] = useState<any | null>(null)
   const [collapsedSections, setCollapsedSections] = useState({
     filters: false,
     chartOutput: false,
@@ -256,6 +259,29 @@ export default function PrepackMonitorPage() {
     } finally {
       setExporting(false)
     }
+  }
+
+  const openBomDetail = async (itemNumber: string) => {
+    setBomLoading(true)
+    setBomError(null)
+    try {
+      const response = await fetch(`/api/production-orders/breakdown?item_number=${encodeURIComponent(itemNumber)}`)
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Fout bij laden BOM detail')
+      }
+      setBomDetail(data)
+    } catch (error: any) {
+      setBomError(error.message || 'Fout bij laden BOM detail')
+      setBomDetail(null)
+    } finally {
+      setBomLoading(false)
+    }
+  }
+
+  const closeBomDetail = () => {
+    setBomDetail(null)
+    setBomError(null)
   }
 
   return (
@@ -738,6 +764,7 @@ export default function PrepackMonitorPage() {
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Omzet</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Materiaalkost/stuk</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Materiaalkost</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">BOM</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -771,6 +798,15 @@ export default function PrepackMonitorPage() {
                         ? `€${item.materialCostTotal.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                         : '-'}
                     </td>
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      <button
+                        type="button"
+                        onClick={() => openBomDetail(item.item_number)}
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        Bekijk
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -779,6 +815,83 @@ export default function PrepackMonitorPage() {
         )}
         </CollapsibleCard>
       </div>
+
+      {bomDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[85vh] overflow-y-auto">
+            <div className="p-4 border-b flex items-center justify-between">
+              <div>
+                <div className="text-lg font-semibold">BOM detail</div>
+                <div className="text-sm text-gray-500">
+                  Itemnummer: {bomDetail.item_number}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closeBomDetail}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                Sluiten
+              </button>
+            </div>
+            <div className="p-4 space-y-6">
+              {bomError && <div className="text-sm text-red-600">{bomError}</div>}
+              {bomLoading ? (
+                <div className="text-sm text-gray-500">Laden...</div>
+              ) : (
+                bomDetail.lines?.map((line: any) => (
+                  <div key={line.line_no || line.description} className="border rounded-lg p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <div className="font-medium">
+                          {line.description || '-'} {line.order_number ? `(${line.order_number})` : ''}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Aantal: {line.quantity} · Kost/stuk: €{Number(line.cost_per_item || 0).toFixed(2)}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-gray-500">
+                            <th className="py-1 pr-3">Component</th>
+                            <th className="py-1 pr-3">Eenheid</th>
+                            <th className="py-1 pr-3">Prijs</th>
+                            <th className="py-1 pr-3">Aantal</th>
+                            <th className="py-1 pr-3">Afmetingen (mm)</th>
+                            <th className="py-1 pr-3">Kost</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {line.components?.map((component: any, idx: number) => (
+                            <tr key={`${component.component_item_no}-${idx}`} className="border-t">
+                              <td className="py-1 pr-3">
+                                {component.component_item_no || '-'} {component.description || ''}
+                              </td>
+                              <td className="py-1 pr-3">{component.unit_of_measure || 'stuks'}</td>
+                              <td className="py-1 pr-3">
+                                {component.price !== undefined && component.price !== null
+                                  ? `€${Number(component.price).toFixed(5)}`
+                                  : '-'}
+                              </td>
+                              <td className="py-1 pr-3">{component.unit_count}</td>
+                              <td className="py-1 pr-3">
+                                {component.length}×{component.width}×{component.thickness}
+                              </td>
+                              <td className="py-1 pr-3">€{Number(component.cost || 0).toFixed(4)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Daily Statistics Table */}
       <CollapsibleCard id="daily" title="Dagelijkse Statistieken">
