@@ -49,12 +49,19 @@ export async function POST(request: NextRequest) {
         const itemNumber = item.item_number ? String(item.item_number).trim() : null
         const price = Number(item.price)
         if (!itemNumber || !Number.isFinite(price) || price < 0) return null
-        return {
+
+        const entry: any = {
           item_number: itemNumber,
           price,
           description: item.description ? String(item.description).trim() : null,
           updated_at: new Date().toISOString(),
         }
+
+        if (item.unit_of_measure !== undefined && item.unit_of_measure !== null) {
+          entry.unit_of_measure = String(item.unit_of_measure).trim()
+        }
+
+        return entry
       })
       .filter(Boolean)
 

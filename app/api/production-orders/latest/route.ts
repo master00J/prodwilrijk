@@ -37,7 +37,10 @@ export async function GET(_request: NextRequest) {
             component_item_no,
             component_description,
             component_description_2,
-            component_unit
+            component_unit,
+            component_length,
+            component_width,
+            component_thickness
           )
         `
       )
@@ -70,10 +73,11 @@ export async function GET(_request: NextRequest) {
     })
 
     let priceMap: Record<string, number> = {}
+    let unitMap: Record<string, string> = {}
     if (componentItemNumbers.size > 0) {
       const { data: prices, error: priceError } = await supabaseAdmin
         .from('material_prices')
-        .select('item_number, price, description')
+        .select('item_number, price, description, unit_of_measure')
         .in('item_number', Array.from(componentItemNumbers))
 
       if (priceError) {
@@ -87,6 +91,31 @@ export async function GET(_request: NextRequest) {
         }
         return acc
       }, {})
+
+      unitMap = (prices || []).reduce((acc: Record<string, string>, item: any) => {
+        if (item.unit_of_measure) {
+          acc[item.item_number] = String(item.unit_of_measure).trim()
+        }
+        return acc
+      }, {})
+    }
+
+    const getUnitCost = (component: any, price: number, unit: string) => {
+      const unitValue = Number(component.component_unit) || 0
+      if (unit === 'm3') {
+        const length = Number(component.component_length) || 0
+        const width = Number(component.component_width) || 0
+        const thickness = Number(component.component_thickness) || 0
+        const volume = (length * width * thickness) / 1_000_000_000
+        return volume * unitValue * price
+      }
+      if (unit === 'm2') {
+        const length = Number(component.component_length) || 0
+        const width = Number(component.component_width) || 0
+        const area = (length * width) / 1_000_000
+        return area * unitValue * price
+      }
+      return unitValue * price
     }
 
     let totalMaterialCost = 0
@@ -107,7 +136,8 @@ export async function GET(_request: NextRequest) {
           missingPrice = true
           return
         }
-        costPerItem += unit * price
+        const unitOfMeasure = itemNo && unitMap[itemNo] ? unitMap[itemNo] : 'stuks'
+        costPerItem += getUnitCost(component, price, unitOfMeasure)
       })
 
       if (missingPrice) {
@@ -130,6 +160,7 @@ export async function GET(_request: NextRequest) {
       description: meta.description,
       usage_count: meta.usageCount,
       price: priceMap[itemNumber] !== undefined ? priceMap[itemNumber] : null,
+      unit_of_measure: unitMap[itemNumber] || 'stuks',
     }))
 
     return NextResponse.json({

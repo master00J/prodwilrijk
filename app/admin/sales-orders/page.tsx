@@ -16,6 +16,7 @@ export default function SalesOrdersUploadPage() {
   const [xmlMessage, setXmlMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [latestProductionOrder, setLatestProductionOrder] = useState<any>(null)
   const [materialEdits, setMaterialEdits] = useState<Record<string, string>>({})
+  const [materialUnitEdits, setMaterialUnitEdits] = useState<Record<string, string>>({})
 
   const readFileAsArrayBuffer = (file: File): Promise<ArrayBuffer> => {
     return new Promise((resolve, reject) => {
@@ -376,13 +377,18 @@ export default function SalesOrdersUploadPage() {
     const items = latestProductionOrder.materials
       .map((material: any) => {
         const rawValue = materialEdits[material.item_number]
-        if (rawValue === undefined) return null
-        const parsed = parseFloat(rawValue)
+        const unitEdit = materialUnitEdits[material.item_number]
+
+        if (rawValue === undefined && unitEdit === undefined) return null
+
+        const parsed = rawValue !== undefined ? parseFloat(rawValue) : Number(material.price)
         if (!Number.isFinite(parsed) || parsed < 0) return null
+
         return {
           item_number: material.item_number,
           price: parsed,
           description: material.description || null,
+          unit_of_measure: unitEdit !== undefined ? unitEdit : material.unit_of_measure || 'stuks',
         }
       })
       .filter(Boolean)
@@ -403,6 +409,7 @@ export default function SalesOrdersUploadPage() {
         throw new Error(result.error || 'Fout bij opslaan prijzen')
       }
       setMaterialEdits({})
+      setMaterialUnitEdits({})
       fetchLatestProductionOrder()
     } catch (error: any) {
       setXmlMessage({ type: 'error', text: error.message || 'Fout bij opslaan prijzen' })
@@ -609,6 +616,7 @@ export default function SalesOrdersUploadPage() {
                         <th className="py-2 pr-4">Itemnummer</th>
                         <th className="py-2 pr-4">Omschrijving</th>
                         <th className="py-2 pr-4">Prijs / eenheid</th>
+                        <th className="py-2 pr-4">Eenheid</th>
                         <th className="py-2 pr-4">Gebruik</th>
                       </tr>
                     </thead>
@@ -636,12 +644,28 @@ export default function SalesOrdersUploadPage() {
                               className="border border-gray-300 rounded px-2 py-1 w-32"
                             />
                           </td>
+                          <td className="py-2 pr-4">
+                            <select
+                              value={materialUnitEdits[material.item_number] ?? material.unit_of_measure ?? 'stuks'}
+                              onChange={(e) =>
+                                setMaterialUnitEdits((prev) => ({
+                                  ...prev,
+                                  [material.item_number]: e.target.value,
+                                }))
+                              }
+                              className="border border-gray-300 rounded px-2 py-1"
+                            >
+                              <option value="stuks">stuks</option>
+                              <option value="m2">m²</option>
+                              <option value="m3">m³</option>
+                            </select>
+                          </td>
                           <td className="py-2 pr-4 text-gray-500">{material.usage_count || 0}x</td>
                         </tr>
                       ))}
                       {(!latestProductionOrder.materials || latestProductionOrder.materials.length === 0) && (
                         <tr>
-                          <td colSpan={4} className="py-3 text-gray-500">
+                          <td colSpan={5} className="py-3 text-gray-500">
                             Geen grondstoffen gevonden.
                           </td>
                         </tr>
