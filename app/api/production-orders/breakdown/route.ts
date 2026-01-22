@@ -66,9 +66,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ item_number: itemNumber, lines: [] })
     }
 
-    const latestUploadedAt = lines[0]?.production_orders?.uploaded_at
+    const latestUploadedAt =
+      (Array.isArray(lines[0]?.production_orders)
+        ? lines[0]?.production_orders?.[0]?.uploaded_at
+        : lines[0]?.production_orders?.uploaded_at) || null
     const latestLines = latestUploadedAt
-      ? lines.filter((line: any) => line.production_orders?.uploaded_at === latestUploadedAt)
+      ? lines.filter((line: any) => {
+          const uploadedAt = Array.isArray(line.production_orders)
+            ? line.production_orders?.[0]?.uploaded_at
+            : line.production_orders?.uploaded_at
+          return uploadedAt === latestUploadedAt
+        })
       : lines
 
     const componentItemNumbers = new Set<string>()
@@ -128,8 +136,12 @@ export async function GET(request: NextRequest) {
         line_no: line.line_no,
         description: line.description,
         quantity: Number(line.quantity) || 0,
-        order_number: line.production_orders?.order_number || null,
-        uploaded_at: line.production_orders?.uploaded_at || null,
+        order_number: Array.isArray(line.production_orders)
+          ? line.production_orders?.[0]?.order_number || null
+          : line.production_orders?.order_number || null,
+        uploaded_at: Array.isArray(line.production_orders)
+          ? line.production_orders?.[0]?.uploaded_at || null
+          : line.production_orders?.uploaded_at || null,
         components,
         cost_per_item: totalCost,
       }
