@@ -55,6 +55,13 @@ export default function SalesOrdersUploadPage() {
     return Number.isFinite(parsed) ? parsed : null
   }
 
+  const parseFlexibleNumber = (value: string | null | undefined): number | null => {
+    if (value === null || value === undefined) return null
+    const normalized = String(value).replace(/\s/g, '').replace(',', '.')
+    const parsed = parseFloat(normalized)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
   const parseDateMDY = (value: string | null | undefined): string | null => {
     if (!value) return null
     const trimmed = String(value).trim()
@@ -381,7 +388,10 @@ export default function SalesOrdersUploadPage() {
 
         if (rawValue === undefined && unitEdit === undefined) return null
 
-        const parsed = rawValue !== undefined ? parseFloat(rawValue) : Number(material.price)
+        const parsed =
+          rawValue !== undefined
+            ? parseFlexibleNumber(rawValue)
+            : parseFlexibleNumber(material.price)
         if (!Number.isFinite(parsed) || parsed < 0) return null
 
         return {

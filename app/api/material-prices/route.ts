@@ -3,6 +3,13 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
+const parseFlexibleNumber = (value: any): number | null => {
+  if (value === null || value === undefined) return null
+  const normalized = String(value).replace(/\s/g, '').replace(',', '.')
+  const parsed = parseFloat(normalized)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -47,8 +54,8 @@ export async function POST(request: NextRequest) {
     const payload = items
       .map((item: any) => {
         const itemNumber = item.item_number ? String(item.item_number).trim() : null
-        const price = Number(item.price)
-        if (!itemNumber || !Number.isFinite(price) || price < 0) return null
+        const price = parseFlexibleNumber(item.price)
+        if (!itemNumber || price === null || price < 0) return null
 
         const entry: any = {
           item_number: itemNumber,
