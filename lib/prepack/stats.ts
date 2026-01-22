@@ -425,7 +425,6 @@ export async function fetchPrepackStats({
   const incomingVsPackedRatio =
     totalItemsPacked > 0 ? Number((totalIncoming / totalItemsPacked).toFixed(2)) : null
 
-  const filterStart = dateFrom ? toStartOfDay(new Date(dateFrom)) : null
   const leadTimes = items
     .map((item: any) => {
       if (!item.date_added || !item.date_packed) return null
@@ -434,9 +433,7 @@ export async function fetchPrepackStats({
       if (!Number.isFinite(added.getTime()) || !Number.isFinite(packed.getTime()) || packed <= added) {
         return null
       }
-      const effectiveStart =
-        filterStart && filterStart.getTime() > added.getTime() ? filterStart : added
-      const businessDays = calculateBusinessDays(effectiveStart, packed)
+      const businessDays = calculateBusinessDays(added, packed)
       return businessDays * 24
     })
     .filter((value: number | null): value is number => value !== null)

@@ -322,7 +322,6 @@ export async function fetchAirtecStats({
   const incomingVsPackedRatio =
     totalItemsPacked > 0 ? Number((totalIncoming / totalItemsPacked).toFixed(2)) : null
 
-  const filterStart = dateFrom ? toStartOfDay(new Date(dateFrom)) : null
   const leadTimes = items
     .map((item: any) => {
       if (!item.datum_ontvangen || !item.date_packed) return null
@@ -331,9 +330,7 @@ export async function fetchAirtecStats({
       if (!Number.isFinite(received.getTime()) || !Number.isFinite(packed.getTime()) || packed <= received) {
         return null
       }
-      const effectiveStart =
-        filterStart && filterStart.getTime() > received.getTime() ? filterStart : received
-      const businessDays = calculateBusinessDays(effectiveStart, packed)
+      const businessDays = calculateBusinessDays(received, packed)
       return businessDays * 24
     })
     .filter((value: number | null): value is number => value !== null)
