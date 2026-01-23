@@ -106,6 +106,7 @@ export default function CNHDashboardPage() {
   const [editingPackSession, setEditingPackSession] = useState<CNHSession | null>(null)
   const [editingLoadSession, setEditingLoadSession] = useState<CNHSession | null>(null)
   const [editingTemplate, setEditingTemplate] = useState<CNHTemplate | null>(null)
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null)
 
   const showStatus = useCallback((text: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
     setStatusMessage({ text, type })
@@ -293,6 +294,11 @@ export default function CNHDashboardPage() {
     const diffMs = end - start
     if (diffMs <= 0) return 0
     return Math.round(diffMs / 60000)
+  }
+
+  const resolveDurationMinutes = (storedMinutes?: number, startedAt?: string, stoppedAt?: string) => {
+    if (storedMinutes && storedMinutes > 0) return storedMinutes
+    return calculateDurationMinutes(startedAt, stoppedAt)
   }
 
   const formatDate = (dateString?: string) => {
@@ -608,8 +614,7 @@ export default function CNHDashboardPage() {
                       <td className="px-4 py-2">{formatDate(session.stopped_at)}</td>
                       <td className="px-4 py-2">
                         {formatDuration(
-                          session.packaging_minutes ??
-                            calculateDurationMinutes(session.started_at, session.stopped_at)
+                          resolveDurationMinutes(session.packaging_minutes, session.started_at, session.stopped_at)
                         )}
                       </td>
                       <td className="px-4 py-2">{session.packaging_count || 0}</td>
@@ -669,21 +674,19 @@ export default function CNHDashboardPage() {
                       <td className="px-4 py-2">{formatDate(session.stopped_at)}</td>
                       <td className="px-4 py-2">
                         {formatDuration(
-                          session.loading_minutes ??
-                            calculateDurationMinutes(session.started_at, session.stopped_at)
+                          resolveDurationMinutes(session.loading_minutes, session.started_at, session.stopped_at)
                         )}
                       </td>
                       <td className="px-4 py-2">{session.loading_count || 0}</td>
                       <td className="px-4 py-2">
                         {session.container_photo_url ? (
-                          <a
-                            href={session.container_photo_url}
-                            target="_blank"
-                            rel="noreferrer"
+                          <button
+                            type="button"
+                            onClick={() => setPhotoPreviewUrl(session.container_photo_url || null)}
                             className="text-blue-600 hover:text-blue-800"
                           >
                             Bekijk foto
-                          </a>
+                          </button>
                         ) : (
                           <span className="text-gray-400">-</span>
                         )}
@@ -715,6 +718,31 @@ export default function CNHDashboardPage() {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* Photo Preview Modal */}
+        {photoPreviewUrl && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+            <div className="bg-white rounded-lg shadow-lg max-w-3xl w-full p-4">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold">Foto lading</h3>
+                <button
+                  type="button"
+                  onClick={() => setPhotoPreviewUrl(null)}
+                  className="text-gray-600 hover:text-gray-900"
+                >
+                  Sluiten
+                </button>
+              </div>
+              <div className="flex justify-center">
+                <img
+                  src={photoPreviewUrl}
+                  alt="Lading foto"
+                  className="max-h-[70vh] w-auto rounded"
+                />
+              </div>
             </div>
           </div>
         )}
