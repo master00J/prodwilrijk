@@ -298,31 +298,43 @@ export async function POST(request: NextRequest) {
       },
     ]
 
-    // Add container photo if available
-    if (session.container_photo_url) {
-      try {
-        // Download photo from Supabase Storage
-        const photoUrl = session.container_photo_url
-        // Extract path from URL if it's a Supabase storage URL
-        const urlParts = photoUrl.split('/')
-        const bucketName = 'cnh-photos'
-        const filePath = urlParts.slice(urlParts.indexOf(bucketName) + 1).join('/')
+    const { data: sessionPhotos } = await supabaseAdmin
+      .from('cnh_session_photos')
+      .select('photo_url')
+      .eq('session_id', sessionId)
+      .order('created_at', { ascending: true })
 
-        const { data: photoData, error: photoError } = await supabaseAdmin.storage
-          .from(bucketName)
-          .download(filePath)
+    const photoUrls =
+      sessionPhotos && sessionPhotos.length > 0
+        ? sessionPhotos.map((p) => p.photo_url)
+        : session.container_photo_url
+          ? [session.container_photo_url]
+          : []
 
-        if (!photoError && photoData) {
-          const arrayBuffer = await photoData.arrayBuffer()
-          const buffer = Buffer.from(arrayBuffer)
-          attachments.push({
-            filename: `container_photo_${sessionId}.jpg`,
-            content: buffer,
-          })
+    // Add container photo(s) if available
+    if (photoUrls.length > 0) {
+      const bucketName = 'cnh-photos'
+      for (let i = 0; i < photoUrls.length; i += 1) {
+        const photoUrl = photoUrls[i]
+        try {
+          const urlParts = photoUrl.split('/')
+          const filePath = urlParts.slice(urlParts.indexOf(bucketName) + 1).join('/')
+
+          const { data: photoData, error: photoError } = await supabaseAdmin.storage
+            .from(bucketName)
+            .download(filePath)
+
+          if (!photoError && photoData) {
+            const arrayBuffer = await photoData.arrayBuffer()
+            const buffer = Buffer.from(arrayBuffer)
+            attachments.push({
+              filename: `container_photo_${sessionId}_${i + 1}.jpg`,
+              content: buffer,
+            })
+          }
+        } catch (photoErr) {
+          console.error('Error downloading container photo:', photoErr)
         }
-      } catch (photoErr) {
-        console.error('Error downloading container photo:', photoErr)
-        // Continue without photo
       }
     }
 

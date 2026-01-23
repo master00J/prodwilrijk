@@ -20,6 +20,21 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    const sessionIds = (sessions || []).map((session) => session.id)
+
+    const { data: allPhotos } = await supabaseAdmin
+      .from('cnh_session_photos')
+      .select('session_id, photo_url, created_at')
+      .in('session_id', sessionIds.length > 0 ? sessionIds : [-1])
+      .order('created_at', { ascending: true })
+
+    const photosBySession = new Map<number, string[]>()
+    for (const photo of allPhotos || []) {
+      const list = photosBySession.get(photo.session_id) || []
+      list.push(photo.photo_url)
+      photosBySession.set(photo.session_id, list)
+    }
+
     // Get motors for each session
     const sessionsWithMotors = await Promise.all(
       (sessions || []).map(async (session) => {
@@ -38,6 +53,7 @@ export async function GET(request: NextRequest) {
         return {
           ...session,
           motors: motors || [],
+          photo_urls: photosBySession.get(session.id) || [],
         }
       })
     )

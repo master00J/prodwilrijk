@@ -40,6 +40,7 @@ interface CNHSession {
   your_ref?: string
   container_tarra?: number
   container_photo_url?: string
+  photo_urls?: string[]
   motors?: CNHMotor[]
 }
 
@@ -106,7 +107,7 @@ export default function CNHDashboardPage() {
   const [editingPackSession, setEditingPackSession] = useState<CNHSession | null>(null)
   const [editingLoadSession, setEditingLoadSession] = useState<CNHSession | null>(null)
   const [editingTemplate, setEditingTemplate] = useState<CNHTemplate | null>(null)
-  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<{ urls: string[]; index: number } | null>(null)
 
   const showStatus = useCallback((text: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
     setStatusMessage({ text, type })
@@ -679,17 +680,28 @@ export default function CNHDashboardPage() {
                       </td>
                       <td className="px-4 py-2">{session.loading_count || 0}</td>
                       <td className="px-4 py-2">
-                        {session.container_photo_url ? (
-                          <button
-                            type="button"
-                            onClick={() => setPhotoPreviewUrl(session.container_photo_url || null)}
-                            className="text-blue-600 hover:text-blue-800"
-                          >
-                            Bekijk foto
-                          </button>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
+                        {(() => {
+                          const urls =
+                            session.photo_urls && session.photo_urls.length > 0
+                              ? session.photo_urls
+                              : session.container_photo_url
+                                ? [session.container_photo_url]
+                                : []
+
+                          if (urls.length === 0) {
+                            return <span className="text-gray-400">-</span>
+                          }
+
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => setPhotoPreview({ urls, index: 0 })}
+                              className="text-blue-600 hover:text-blue-800"
+                            >
+                              Bekijk foto{urls.length > 1 ? ` (${urls.length})` : ''}
+                            </button>
+                          )
+                        })()}
                       </td>
                       <td className="px-4 py-2">
                         <div className="flex gap-2">
@@ -723,14 +735,14 @@ export default function CNHDashboardPage() {
         )}
 
         {/* Photo Preview Modal */}
-        {photoPreviewUrl && (
+        {photoPreview && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
             <div className="bg-white rounded-lg shadow-lg max-w-3xl w-full p-4">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold">Foto lading</h3>
                 <button
                   type="button"
-                  onClick={() => setPhotoPreviewUrl(null)}
+                  onClick={() => setPhotoPreview(null)}
                   className="text-gray-600 hover:text-gray-900"
                 >
                   Sluiten
@@ -738,11 +750,44 @@ export default function CNHDashboardPage() {
               </div>
               <div className="flex justify-center">
                 <img
-                  src={photoPreviewUrl}
+                  src={photoPreview.urls[photoPreview.index]}
                   alt="Lading foto"
                   className="max-h-[70vh] w-auto rounded"
                 />
               </div>
+              {photoPreview.urls.length > 1 && (
+                <div className="mt-4 flex items-center justify-between gap-4">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPhotoPreview({
+                        urls: photoPreview.urls,
+                        index:
+                          (photoPreview.index - 1 + photoPreview.urls.length) %
+                          photoPreview.urls.length,
+                      })
+                    }
+                    className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
+                  >
+                    Vorige
+                  </button>
+                  <div className="text-sm text-gray-600">
+                    {photoPreview.index + 1} / {photoPreview.urls.length}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPhotoPreview({
+                        urls: photoPreview.urls,
+                        index: (photoPreview.index + 1) % photoPreview.urls.length,
+                      })
+                    }
+                    className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
+                  >
+                    Volgende
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}

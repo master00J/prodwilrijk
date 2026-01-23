@@ -91,8 +91,8 @@ export default function CNHWorkflowPage() {
   const [bookingRef, setBookingRef] = useState('')
   const [yourRef, setYourRef] = useState('')
   const [containerTarra, setContainerTarra] = useState('')
-  const [containerPhoto, setContainerPhoto] = useState<File | null>(null)
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [containerPhotos, setContainerPhotos] = useState<File[]>([])
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([])
   const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false)
   const [templateName, setTemplateName] = useState('')
   const [editingMotor, setEditingMotor] = useState<CNHMotor | null>(null)
@@ -1137,14 +1137,16 @@ export default function CNHWorkflowPage() {
       showStatus('Geen lopende laadsessie (er is geen sessionId opgeslagen).', 'warning')
       return
     }
-    if (!containerPhoto) {
+    if (containerPhotos.length === 0) {
       showStatus('Geen foto geselecteerd', 'warning')
       return
     }
 
     const formData = new FormData()
     formData.append('sessionId', loadSessionId.toString())
-    formData.append('photo', containerPhoto)
+    containerPhotos.forEach((photo) => {
+      formData.append('photos', photo)
+    })
 
     try {
       const resp = await fetch('/api/cnh/sessions/upload-container-photo', {
@@ -1156,8 +1158,8 @@ export default function CNHWorkflowPage() {
         throw new Error(data.error || 'Fout bij uploaden foto')
       }
       showStatus('✅ Containerfoto succesvol geüpload en gekoppeld aan laadsessie!', 'success')
-      setContainerPhoto(null)
-      setPhotoPreview(null)
+      setContainerPhotos([])
+      setPhotoPreviews([])
       // Clear file input
       const fileInput = document.getElementById('containerPhotoInput') as HTMLInputElement
       if (fileInput) {
@@ -1167,18 +1169,23 @@ export default function CNHWorkflowPage() {
       console.error(e)
       showStatus('❌ Fout bij uploaden foto: ' + e.message, 'error')
     }
-  }, [loadSessionId, containerPhoto, showStatus])
+  }, [loadSessionId, containerPhotos, showStatus])
 
   const handlePhotoChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      setContainerPhoto(file)
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        setPhotoPreview(event.target?.result as string)
-      }
-      reader.readAsDataURL(file)
-    }
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
+
+    setContainerPhotos(files)
+    Promise.all(
+      files.map(
+        (file) =>
+          new Promise<string>((resolve) => {
+            const reader = new FileReader()
+            reader.onload = (event) => resolve((event.target?.result as string) || '')
+            reader.readAsDataURL(file)
+          })
+      )
+    ).then((previews) => setPhotoPreviews(previews.filter(Boolean)))
   }, [])
 
   const sendLoadEmail = useCallback(async () => {
@@ -1935,21 +1942,29 @@ export default function CNHWorkflowPage() {
                 <input
                   type="file"
                   accept="image/*"
+                  multiple
                   onChange={handlePhotoChange}
                   id="containerPhotoInput"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                {photoPreview && (
-                  <div className="mt-2">
-                    <img src={photoPreview} alt="Preview" className="max-h-48 rounded" />
+                {photoPreviews.length > 0 && (
+                  <div className="mt-2 grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {photoPreviews.map((preview, index) => (
+                      <img
+                        key={`${preview}-${index}`}
+                        src={preview}
+                        alt={`Preview ${index + 1}`}
+                        className="max-h-32 w-auto rounded border"
+                      />
+                    ))}
                   </div>
                 )}
                 <button
                   onClick={uploadContainerPhoto}
-                  disabled={!containerPhoto}
+                  disabled={containerPhotos.length === 0}
                   className="mt-2 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
-                  Upload Foto
+                  Upload Foto{containerPhotos.length > 1 ? "'s" : ''}
                 </button>
               </div>
             )}
