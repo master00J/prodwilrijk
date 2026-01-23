@@ -285,6 +285,16 @@ export default function CNHDashboardPage() {
     return `${h}:${String(m).padStart(2, '0')}`
   }
 
+  const calculateDurationMinutes = (startedAt?: string, stoppedAt?: string) => {
+    if (!startedAt || !stoppedAt) return undefined
+    const start = new Date(startedAt).getTime()
+    const end = new Date(stoppedAt).getTime()
+    if (Number.isNaN(start) || Number.isNaN(end)) return undefined
+    const diffMs = end - start
+    if (diffMs <= 0) return 0
+    return Math.round(diffMs / 60000)
+  }
+
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'N/A'
     return new Date(dateString).toLocaleString('nl-NL')
@@ -596,7 +606,12 @@ export default function CNHDashboardPage() {
                       <td className="px-4 py-2">{session.location || 'N/A'}</td>
                       <td className="px-4 py-2">{formatDate(session.started_at)}</td>
                       <td className="px-4 py-2">{formatDate(session.stopped_at)}</td>
-                      <td className="px-4 py-2">{formatDuration(session.packaging_minutes)}</td>
+                      <td className="px-4 py-2">
+                        {formatDuration(
+                          session.packaging_minutes ??
+                            calculateDurationMinutes(session.started_at, session.stopped_at)
+                        )}
+                      </td>
                       <td className="px-4 py-2">{session.packaging_count || 0}</td>
                       <td className="px-4 py-2">{session.packaging_persons || 0}</td>
                       <td className="px-4 py-2">{formatDuration(session.operator_minutes)}</td>
@@ -639,6 +654,7 @@ export default function CNHDashboardPage() {
                     <th className="px-4 py-2 text-left border-b">Gestopt</th>
                     <th className="px-4 py-2 text-left border-b">Tijd</th>
                     <th className="px-4 py-2 text-left border-b">Aantal</th>
+                    <th className="px-4 py-2 text-left border-b">Foto</th>
                     <th className="px-4 py-2 text-left border-b">Acties</th>
                   </tr>
                 </thead>
@@ -651,8 +667,27 @@ export default function CNHDashboardPage() {
                       <td className="px-4 py-2">{session.container_no || 'N/A'}</td>
                       <td className="px-4 py-2">{formatDate(session.started_at)}</td>
                       <td className="px-4 py-2">{formatDate(session.stopped_at)}</td>
-                      <td className="px-4 py-2">{formatDuration(session.loading_minutes)}</td>
+                      <td className="px-4 py-2">
+                        {formatDuration(
+                          session.loading_minutes ??
+                            calculateDurationMinutes(session.started_at, session.stopped_at)
+                        )}
+                      </td>
                       <td className="px-4 py-2">{session.loading_count || 0}</td>
+                      <td className="px-4 py-2">
+                        {session.container_photo_url ? (
+                          <a
+                            href={session.container_photo_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-blue-600 hover:text-blue-800"
+                          >
+                            Bekijk foto
+                          </a>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
                       <td className="px-4 py-2">
                         <div className="flex gap-2">
                           <button
@@ -673,7 +708,7 @@ export default function CNHDashboardPage() {
                   ))}
                   {loadSessions.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
                         Geen lading-sessies gevonden
                       </td>
                     </tr>
