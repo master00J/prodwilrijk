@@ -298,8 +298,10 @@ export default function CNHDashboardPage() {
   }
 
   const resolveDurationMinutes = (storedMinutes?: number, startedAt?: string, stoppedAt?: string) => {
+    const computed = calculateDurationMinutes(startedAt, stoppedAt)
+    if (computed !== undefined) return computed
     if (storedMinutes && storedMinutes > 0) return storedMinutes
-    return calculateDurationMinutes(startedAt, stoppedAt)
+    return storedMinutes
   }
 
   const formatDate = (dateString?: string) => {
