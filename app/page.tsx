@@ -115,9 +115,7 @@ export default function Home() {
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 mb-4 sm:mb-6 leading-tight px-2">
               Prodwilrijk <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">V2</span>
             </h1>
-            <p className="text-lg sm:text-xl md:text-2xl text-gray-600 mb-6 sm:mb-8 max-w-2xl mx-auto leading-relaxed px-2">
-              Modern warehouse management system designed for efficiency and productivity
-            </p>
+            <div className="mb-6 sm:mb-8"></div>
             <div className="flex flex-wrap justify-center gap-3 sm:gap-4 px-2">
               {quickActions.map((action) => {
                 const Icon = action.icon
@@ -144,9 +142,7 @@ export default function Home() {
           <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 mb-3 sm:mb-4">
             Complete Workflow Management
           </h2>
-          <p className="text-base sm:text-lg md:text-xl text-gray-600 max-w-2xl mx-auto px-2">
-            Streamline your warehouse operations with our integrated modules
-          </p>
+          <div className="h-2"></div>
         </div>
 
         <div className="grid sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8 max-w-7xl mx-auto">
@@ -202,31 +198,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Stats/Info Section */}
-      <section className="bg-gradient-to-r from-gray-900 to-gray-800 text-white py-12 sm:py-16">
-        <div className="container mx-auto px-2 sm:px-4">
-          <div className="grid sm:grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 max-w-5xl mx-auto text-center">
-            <div>
-              <div className="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-                Streamlined
-              </div>
-              <p className="text-gray-300">Complete workflow from upload to shipment</p>
-            </div>
-            <div>
-              <div className="text-4xl font-bold mb-2 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-                Efficient
-              </div>
-              <p className="text-gray-300">Real-time tracking and management</p>
-            </div>
-            <div>
-              <div className="text-4xl font-bold mb-2 bg-gradient-to-r from-orange-400 to-amber-400 bg-clip-text text-transparent">
-                Reliable
-              </div>
-              <p className="text-gray-300">Built for modern warehouse operations</p>
-            </div>
-          </div>
-        </div>
-      </section>
     </div>
   )
 }
