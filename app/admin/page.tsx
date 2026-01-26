@@ -40,6 +40,13 @@ export default function AdminPage() {
       icon: '⬆️',
       color: 'green',
     },
+    {
+      title: 'Prepack Legacy Import',
+      description: 'Importeer oude SQL dumps voor Prepack KPI’s',
+      href: '/admin/prepack-legacy-import',
+      icon: '⬆️',
+      color: 'blue',
+    },
     // Toekomstige flows kunnen hier worden toegevoegd
   ]
 

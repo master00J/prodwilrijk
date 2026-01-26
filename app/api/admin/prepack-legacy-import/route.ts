@@ -138,12 +138,6 @@ const parseEmployeeIds = (value: unknown) => {
   return [] as number[]
 }
 
-const normalizeKistnummer = (value: unknown) => {
-  if (value === null || value === undefined) return null
-  const trimmed = String(value).trim()
-  return trimmed.length > 0 ? trimmed : null
-}
-
 const chunkArray = <T,>(items: T[], size: number) => {
   const chunks: T[][] = []
   for (let i = 0; i < items.length; i += size) {
@@ -167,31 +161,28 @@ export async function POST(request: NextRequest) {
     const packedSql = await packedFile.text()
     const timelogSql = await timelogsFile.text()
 
-    const packedBlocks = parseInsertBlocks(packedSql, 'packed_items_airtec')
+    const packedBlocks = parseInsertBlocks(packedSql, 'packed_items')
     const packedRows = packedBlocks.flatMap(parseValuesBlock)
     const packedItems = packedRows.map((row) => {
-      const received = normalizeDate(row[7]) || normalizeDate(row[8]) || new Date().toISOString()
-      const packed = normalizeDate(row[8]) || received
-      const quantity = Number.isFinite(row[9]) ? Number(row[9]) : 1
+      const added = normalizeDate(row[4]) || new Date().toISOString()
+      const packed = normalizeDate(row[5]) || added
+      const amount = Number.isFinite(row[3]) ? Number(row[3]) : 1
       return {
-        beschrijving: row[1] ?? null,
-        item_number: row[2] ?? null,
-        lot_number: row[3] ?? null,
-        datum_opgestuurd: normalizeDate(row[4]),
-        kistnummer: normalizeKistnummer(row[5]),
-        divisie: row[6] ?? null,
-        datum_ontvangen: received,
+        item_number: row[1] ?? null,
+        po_number: row[2] ?? null,
+        amount,
+        date_added: added,
         date_packed: packed,
-        quantity,
+        original_id: row[6] ?? null,
       }
     })
 
-    const timelogBlocks = parseInsertBlocks(timelogSql, 'airtec_timelogs')
+    const timelogBlocks = parseInsertBlocks(timelogSql, 'prepack_timelogs')
     const timelogRows = timelogBlocks.flatMap(parseValuesBlock)
     const legacyTimeLogs = timelogRows.map((row) => ({
-      employeeIds: parseEmployeeIds(row[3]),
-      start_time: normalizeDate(row[1]),
-      end_time: normalizeDate(row[2]),
+      employeeIds: parseEmployeeIds(row[2]),
+      start_time: normalizeDate(row[3]),
+      end_time: normalizeDate(row[4]),
     }))
     const legacyEmployeeIds = [
       ...new Set(legacyTimeLogs.flatMap((row) => row.employeeIds).filter(Boolean)),
@@ -199,17 +190,17 @@ export async function POST(request: NextRequest) {
 
     if (truncate && !dryRun) {
       const { error: packedDeleteError } = await supabaseAdmin
-        .from('packed_items_airtec')
+        .from('packed_items')
         .delete()
         .neq('id', 0)
       if (packedDeleteError) {
-        throw new Error(`Wissen packed_items_airtec mislukt: ${packedDeleteError.message}`)
+        throw new Error(`Wissen packed_items mislukt: ${packedDeleteError.message}`)
       }
 
       const { error: timeDeleteError } = await supabaseAdmin
         .from('time_logs')
         .delete()
-        .eq('type', 'items_to_pack_airtec')
+        .eq('type', 'items_to_pack')
       if (timeDeleteError) {
         throw new Error(`Wissen time_logs mislukt: ${timeDeleteError.message}`)
       }
@@ -219,9 +210,9 @@ export async function POST(request: NextRequest) {
 
     if (!dryRun) {
       for (const chunk of chunkArray(packedItems, 500)) {
-        const { error } = await supabaseAdmin.from('packed_items_airtec').insert(chunk)
+        const { error } = await supabaseAdmin.from('packed_items').insert(chunk)
         if (error) {
-          throw new Error(`Insert packed_items_airtec mislukt: ${error.message}`)
+          throw new Error(`Insert packed_items mislukt: ${error.message}`)
         }
       }
 
@@ -272,7 +263,7 @@ export async function POST(request: NextRequest) {
           .filter(Boolean)
           .map((employeeId) => ({
             employee_id: employeeId,
-            type: 'items_to_pack_airtec',
+            type: 'items_to_pack',
             start_time: row.start_time,
             end_time: row.end_time,
             is_paused: false,
@@ -296,7 +287,7 @@ export async function POST(request: NextRequest) {
       createdEmployees,
     })
   } catch (error: any) {
-    console.error('Airtec legacy import error:', error)
+    console.error('Prepack legacy import error:', error)
     return NextResponse.json(
       { error: error.message || 'Import mislukt' },
       { status: 500 }

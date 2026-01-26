@@ -13,6 +13,12 @@ const parseFlexibleNumber = (value: unknown) => {
   return 0
 }
 
+const normalizeKistnummer = (value: unknown) => {
+  if (value === null || value === undefined) return null
+  const trimmed = String(value).trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
 export interface DailyStat {
   date: string
   itemsPacked: number
@@ -216,7 +222,9 @@ export async function fetchAirtecStats({
   const logs = timeLogs || []
   const incoming = [...(incomingItems || []), ...(incomingPackedItems || [])]
 
-  const uniqueKistnummers = [...new Set(items.map((item: any) => item.kistnummer).filter(Boolean))]
+  const uniqueKistnummers = [
+    ...new Set(items.map((item: any) => normalizeKistnummer(item.kistnummer)).filter(Boolean)),
+  ]
   let pricesMap: Record<string, number> = {}
   let costMap: Record<string, number> = {}
 
@@ -228,12 +236,13 @@ export async function fetchAirtecStats({
 
     if (prices) {
       prices.forEach((price: any) => {
-        if (price?.kistnummer) {
-          pricesMap[price.kistnummer] = parseFlexibleNumber(price.price)
+        const key = normalizeKistnummer(price?.kistnummer)
+        if (key) {
+          pricesMap[key] = parseFlexibleNumber(price.price)
           const assembly = parseFlexibleNumber(price.assembly_cost)
           const material = parseFlexibleNumber(price.material_cost)
           const transport = parseFlexibleNumber(price.transport_cost)
-          costMap[price.kistnummer] = assembly + material + transport
+          costMap[key] = assembly + material + transport
         }
       })
     }
@@ -253,7 +262,7 @@ export async function fetchAirtecStats({
   > = {}
 
   items.forEach((item: any) => {
-    const date = toDateKey(item.date_packed)
+    const date = toDateKey(item.date_packed) || toDateKey(item.datum_ontvangen)
     if (!date) return
     if (!dailyStats[date]) {
       dailyStats[date] = {
@@ -269,9 +278,10 @@ export async function fetchAirtecStats({
     const quantity = item.quantity || 0
     dailyStats[date].itemsPacked += quantity
 
-    const price = item.kistnummer ? pricesMap[item.kistnummer] || 0 : 0
+    const kistnummerKey = normalizeKistnummer(item.kistnummer)
+    const price = kistnummerKey ? pricesMap[kistnummerKey] || 0 : 0
     dailyStats[date].revenue += price * quantity
-    const costUnit = item.kistnummer ? costMap[item.kistnummer] || 0 : 0
+    const costUnit = kistnummerKey ? costMap[kistnummerKey] || 0 : 0
     dailyStats[date].materialCost += costUnit * quantity
   })
 
@@ -354,7 +364,8 @@ export async function fetchAirtecStats({
   }, 0)
 
   const totalRevenue = items.reduce((sum, item: any) => {
-    const price = item.kistnummer ? pricesMap[item.kistnummer] || 0 : 0
+    const kistnummerKey = normalizeKistnummer(item.kistnummer)
+    const price = kistnummerKey ? pricesMap[kistnummerKey] || 0 : 0
     const quantity = item.quantity || 0
     return sum + price * quantity
   }, 0)
@@ -416,8 +427,9 @@ export async function fetchAirtecStats({
 
   const detailedItems: DetailedItem[] = items
     .map((item: any) => {
-      const price = item.kistnummer ? pricesMap[item.kistnummer] || 0 : 0
-      const costUnit = item.kistnummer ? costMap[item.kistnummer] || 0 : 0
+      const kistnummerKey = normalizeKistnummer(item.kistnummer)
+      const price = kistnummerKey ? pricesMap[kistnummerKey] || 0 : 0
+      const costUnit = kistnummerKey ? costMap[kistnummerKey] || 0 : 0
       const quantity = item.quantity || 0
       const revenue = price * quantity
       const costTotal = costUnit * quantity
