@@ -4,6 +4,17 @@ export const dynamic = 'force-dynamic'
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import {
+  CartesianGrid,
+  ComposedChart,
+  Legend,
+  Line,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+  Bar,
+} from 'recharts'
 
 interface PrepackDailyStat {
   date: string
@@ -192,6 +203,27 @@ export default function PrepackAirtecOverviewPage() {
     ]
   }, [prepackTotals, airtecTotals])
 
+  const prepackChartData = useMemo(
+    () =>
+      prepackDaily.map((row) => ({
+        date: formatDate(row.date),
+        itemsPacked: row.itemsPacked,
+        revenue: row.revenue,
+        materialCost: row.materialCost,
+      })),
+    [prepackDaily]
+  )
+
+  const airtecChartData = useMemo(
+    () =>
+      airtecDaily.map((row) => ({
+        date: formatDate(row.date),
+        itemsPacked: row.itemsPacked,
+        revenue: row.revenue,
+      })),
+    [airtecDaily]
+  )
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
@@ -313,37 +345,24 @@ export default function PrepackAirtecOverviewPage() {
             </table>
           </div>
 
-          <h3 className="text-sm font-semibold mb-2">Laatste items</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="px-3 py-2 text-left">Item</th>
-                  <th className="px-3 py-2 text-left">PO</th>
-                  <th className="px-3 py-2 text-left">Aantal</th>
-                  <th className="px-3 py-2 text-left">Omzet</th>
-                  <th className="px-3 py-2 text-left">Datum</th>
-                </tr>
-              </thead>
-              <tbody>
-                {prepackDetails.slice(0, 8).map((item) => (
-                  <tr key={item.id} className="border-b">
-                    <td className="px-3 py-2">{item.item_number}</td>
-                    <td className="px-3 py-2">{item.po_number}</td>
-                    <td className="px-3 py-2">{item.amount}</td>
-                    <td className="px-3 py-2">{formatCurrency(item.revenue)}</td>
-                    <td className="px-3 py-2">{formatDate(item.date_packed)}</td>
-                  </tr>
-                ))}
-                {prepackDetails.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-3 py-3 text-gray-500 text-center">
-                      Geen details.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+          <h3 className="text-sm font-semibold mb-2">KPI grafiek</h3>
+          <div className="h-64">
+            {prepackChartData.length === 0 ? (
+              <p className="text-sm text-gray-500">Geen data voor grafiek.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={prepackChartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="itemsPacked" name="Items" fill="#2563eb" />
+                  <Line dataKey="revenue" name="Omzet" stroke="#16a34a" strokeWidth={2} />
+                  <Line dataKey="materialCost" name="Materiaalkost" stroke="#f97316" strokeWidth={2} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -394,37 +413,23 @@ export default function PrepackAirtecOverviewPage() {
             </table>
           </div>
 
-          <h3 className="text-sm font-semibold mb-2">Laatste items</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="px-3 py-2 text-left">Kist</th>
-                  <th className="px-3 py-2 text-left">Item</th>
-                  <th className="px-3 py-2 text-left">Aantal</th>
-                  <th className="px-3 py-2 text-left">Omzet</th>
-                  <th className="px-3 py-2 text-left">Datum</th>
-                </tr>
-              </thead>
-              <tbody>
-                {airtecDetails.slice(0, 8).map((item) => (
-                  <tr key={item.id} className="border-b">
-                    <td className="px-3 py-2">{item.kistnummer || '-'}</td>
-                    <td className="px-3 py-2">{item.item_number || '-'}</td>
-                    <td className="px-3 py-2">{item.quantity}</td>
-                    <td className="px-3 py-2">{formatCurrency(item.revenue)}</td>
-                    <td className="px-3 py-2">{formatDate(item.date_packed)}</td>
-                  </tr>
-                ))}
-                {airtecDetails.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-3 py-3 text-gray-500 text-center">
-                      Geen details.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+          <h3 className="text-sm font-semibold mb-2">KPI grafiek</h3>
+          <div className="h-64">
+            {airtecChartData.length === 0 ? (
+              <p className="text-sm text-gray-500">Geen data voor grafiek.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={airtecChartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="itemsPacked" name="Items" fill="#7c3aed" />
+                  <Line dataKey="revenue" name="Omzet" stroke="#16a34a" strokeWidth={2} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
       </div>
