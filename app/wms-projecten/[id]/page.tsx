@@ -100,6 +100,18 @@ export default function WmsProjectDetailPage() {
     return map
   }, [lines])
 
+  const linesByPackageId = useMemo(() => {
+    const map = new Map<number, WmsProjectLine[]>()
+    lines.forEach((line) => {
+      if (!line.package_id) return
+      if (!map.has(line.package_id)) {
+        map.set(line.package_id, [])
+      }
+      map.get(line.package_id)!.push(line)
+    })
+    return map
+  }, [lines])
+
   const updateLineStatus = async (lineId: number, status: string) => {
     try {
       const response = await fetch(`/api/wms-projects/lines/${lineId}`, {
@@ -437,6 +449,7 @@ export default function WmsProjectDetailPage() {
                   <th className="px-3 py-2 text-left">Opslag m2</th>
                   <th className="px-3 py-2 text-left">Locatie</th>
                   <th className="px-3 py-2 text-left">Artikelen</th>
+                  <th className="px-3 py-2 text-left">Foto&apos;s</th>
                 </tr>
               </thead>
               <tbody>
@@ -490,6 +503,19 @@ export default function WmsProjectDetailPage() {
                       />
                     </td>
                     <td className="px-3 py-2">
+                      <div className="text-xs text-gray-600 mb-2">
+                        {(linesByPackageId.get(pkg.id) || []).length} artikel(en)
+                      </div>
+                      {(linesByPackageId.get(pkg.id) || []).length > 0 && (
+                        <div className="text-xs text-gray-700 mb-2 space-y-1">
+                          {(linesByPackageId.get(pkg.id) || []).map((line) => (
+                            <div key={line.id}>
+                              {line.article_no || line.packing_no || '-'}
+                              {line.description ? ` · ${line.description}` : ''}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       <details className="text-sm">
                         <summary className="cursor-pointer text-blue-600">
                           Selecteer artikelen
@@ -516,6 +542,38 @@ export default function WmsProjectDetailPage() {
                           )}
                         </div>
                       </details>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex gap-2 items-center">
+                        <button
+                          onClick={() => handleImageUpload(pkg.id, 'wms_package')}
+                          className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+                          title="Upload foto"
+                        >
+                          📷
+                        </button>
+                        {pkg.images && pkg.images.length > 0 && (
+                          <div className="flex gap-1">
+                            {pkg.images.slice(0, 3).map((img, idx) => (
+                              <div key={idx} className="relative w-10 h-10">
+                                <Image
+                                  src={img}
+                                  alt={`Pakketfoto ${idx + 1}`}
+                                  fill
+                                  className="object-cover rounded cursor-pointer hover:scale-105 transition-transform"
+                                  onClick={() => window.open(img, '_blank')}
+                                  unoptimized
+                                />
+                              </div>
+                            ))}
+                            {pkg.images.length > 3 && (
+                              <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center text-xs">
+                                +{pkg.images.length - 3}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

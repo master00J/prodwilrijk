@@ -188,6 +188,7 @@ export interface WmsPackage {
   storage_m2?: number | null
   created_at?: string
   updated_at?: string
+  images?: string[]
 }
 
 export interface WmsPackageLine {

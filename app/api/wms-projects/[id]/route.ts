@@ -94,17 +94,39 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       }
     })
 
+    const packageIds = (packages || []).map((pkg: any) => pkg.id)
+    const packageImagesById = new Map<number, string[]>()
+    if (packageIds.length > 0) {
+      const { data: packageImages } = await supabaseAdmin
+        .from('item_images')
+        .select('item_id, image_url')
+        .eq('item_type', 'wms_package')
+        .in('item_id', packageIds)
+
+      packageImages?.forEach((img: any) => {
+        if (!packageImagesById.has(img.item_id)) {
+          packageImagesById.set(img.item_id, [])
+        }
+        packageImagesById.get(img.item_id)!.push(img.image_url)
+      })
+    }
+
     const linesWithImages = (lines || []).map((line: any) => ({
       ...line,
       images: lineImagesById.get(line.id) || [],
       package_id: packageByLineId.get(line.id) || null,
     }))
 
+    const packagesWithImages = (packages || []).map((pkg: any) => ({
+      ...pkg,
+      images: packageImagesById.get(pkg.id) || [],
+    }))
+
     const response = NextResponse.json({
       project,
       lines: linesWithImages,
       projectImages,
-      packages: packages || [],
+      packages: packagesWithImages,
     })
     response.headers.set('Cache-Control', 'no-store, must-revalidate')
     return response
