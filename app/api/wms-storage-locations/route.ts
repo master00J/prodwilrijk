@@ -16,7 +16,19 @@ export async function GET() {
       return NextResponse.json({ error: 'Failed to fetch locations' }, { status: 500 })
     }
 
-    const response = NextResponse.json({ locations: data || [] })
+    const { data: lineStorage } = await supabaseAdmin
+      .from('wms_project_lines')
+      .select('storage_location, storage_m2')
+
+    const usageByLocation: Record<string, number> = {}
+    lineStorage?.forEach((line: any) => {
+      const location = String(line.storage_location || '').trim()
+      if (!location) return
+      const m2 = Number(line.storage_m2 || 0)
+      usageByLocation[location] = (usageByLocation[location] || 0) + m2
+    })
+
+    const response = NextResponse.json({ locations: data || [], usageByLocation })
     response.headers.set('Cache-Control', 'no-store, must-revalidate')
     return response
   } catch (error) {
