@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Image from 'next/image'
 import ImageUploadModal from '@/components/items-to-pack/ImageUploadModal'
-import type { WmsProject, WmsProjectLine, WmsPackage } from '@/types/database'
+import type { WmsProject, WmsProjectLine, WmsPackage, WmsStorageLocation } from '@/types/database'
 
 const STATUS_OPTIONS = [
   { value: 'open', label: 'Open' },
@@ -23,11 +23,17 @@ export default function WmsProjectDetailPage() {
   const [lines, setLines] = useState<WmsProjectLine[]>([])
   const [projectImages, setProjectImages] = useState<string[]>([])
   const [packages, setPackages] = useState<WmsPackage[]>([])
+  const [storageLocations, setStorageLocations] = useState<WmsStorageLocation[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('all')
   const [imageTarget, setImageTarget] = useState<{ id: number; type: string } | null>(null)
   const [newPackageNo, setNewPackageNo] = useState('')
   const [creatingPackage, setCreatingPackage] = useState(false)
+  const [activeTab, setActiveTab] = useState<'overview' | 'storage'>('overview')
+  const [newLocationName, setNewLocationName] = useState('')
+  const [newLocationCapacity, setNewLocationCapacity] = useState('')
+  const [newLocationNotes, setNewLocationNotes] = useState('')
+  const [creatingLocation, setCreatingLocation] = useState(false)
 
   const fetchProject = useCallback(async () => {
     if (!Number.isFinite(projectId)) return
@@ -47,9 +53,24 @@ export default function WmsProjectDetailPage() {
     }
   }, [projectId])
 
+  const fetchStorageLocations = useCallback(async () => {
+    try {
+      const response = await fetch('/api/wms-storage-locations')
+      if (!response.ok) throw new Error('Failed to fetch locations')
+      const data = await response.json()
+      setStorageLocations(data.locations || [])
+    } catch (error) {
+      console.error('Error fetching storage locations:', error)
+    }
+  }, [])
+
   useEffect(() => {
     fetchProject()
   }, [fetchProject])
+
+  useEffect(() => {
+    fetchStorageLocations()
+  }, [fetchStorageLocations])
 
   const filteredLines = useMemo(() => {
     if (statusFilter === 'all') return lines
@@ -62,6 +83,16 @@ export default function WmsProjectDetailPage() {
     () => lines.reduce((sum, line) => sum + (line.storage_m2 || 0), 0),
     [lines]
   )
+
+  const storageUsageByLocation = useMemo(() => {
+    const map = new Map<string, number>()
+    lines.forEach((line) => {
+      const location = (line.storage_location || '').trim()
+      if (!location) return
+      map.set(location, (map.get(location) || 0) + (line.storage_m2 || 0))
+    })
+    return map
+  }, [lines])
 
   const updateLineStatus = async (lineId: number, status: string) => {
     try {
@@ -155,6 +186,68 @@ export default function WmsProjectDetailPage() {
     }
   }
 
+  const createStorageLocation = async () => {
+    const name = newLocationName.trim()
+    if (!name) {
+      alert('Vul een locatienaam in')
+      return
+    }
+    setCreatingLocation(true)
+    try {
+      const response = await fetch('/api/wms-storage-locations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          capacity_m2: newLocationCapacity === '' ? null : Number(newLocationCapacity),
+          notes: newLocationNotes || null,
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Locatie aanmaken mislukt')
+      setStorageLocations((prev) => [...prev, data.location])
+      setNewLocationName('')
+      setNewLocationCapacity('')
+      setNewLocationNotes('')
+    } catch (error: any) {
+      console.error('Error creating storage location:', error)
+      alert(error.message || 'Locatie aanmaken mislukt')
+    } finally {
+      setCreatingLocation(false)
+    }
+  }
+
+  const updateStorageLocation = async (locationId: number, fields: Partial<WmsStorageLocation>) => {
+    try {
+      const response = await fetch(`/api/wms-storage-locations/${locationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fields),
+      })
+      if (!response.ok) throw new Error('Update failed')
+      setStorageLocations((prev) =>
+        prev.map((loc) => (loc.id === locationId ? { ...loc, ...fields } : loc))
+      )
+    } catch (error) {
+      console.error('Error updating storage location:', error)
+      alert('Locatie bijwerken mislukt')
+    }
+  }
+
+  const deleteStorageLocation = async (locationId: number) => {
+    if (!confirm('Locatie verwijderen?')) return
+    try {
+      const response = await fetch(`/api/wms-storage-locations/${locationId}`, {
+        method: 'DELETE',
+      })
+      if (!response.ok) throw new Error('Delete failed')
+      setStorageLocations((prev) => prev.filter((loc) => loc.id !== locationId))
+    } catch (error) {
+      console.error('Error deleting storage location:', error)
+      alert('Locatie verwijderen mislukt')
+    }
+  }
+
   const handleImageUpload = (id: number, type: string) => {
     setImageTarget({ id, type })
   }
@@ -189,7 +282,32 @@ export default function WmsProjectDetailPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <div className="flex flex-wrap gap-2 mb-6">
+        <button
+          onClick={() => setActiveTab('overview')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium ${
+            activeTab === 'overview'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          Overzicht
+        </button>
+        <button
+          onClick={() => setActiveTab('storage')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium ${
+            activeTab === 'storage'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          Opslag
+        </button>
+      </div>
+
+      {activeTab === 'overview' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div className="bg-white rounded-lg shadow p-4">
           <h2 className="text-xl font-semibold mb-3">Algemene info</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
@@ -212,9 +330,9 @@ export default function WmsProjectDetailPage() {
             <div><span className="font-medium">Hal:</span> {project.measuring_hall || '-'}</div>
           </div>
         </div>
-      </div>
+          </div>
 
-      <div className="bg-white rounded-lg shadow p-4 mb-6">
+          <div className="bg-white rounded-lg shadow p-4 mb-6">
         <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
           <h2 className="text-xl font-semibold">Projectfoto&apos;s</h2>
           <button
@@ -242,9 +360,9 @@ export default function WmsProjectDetailPage() {
             ))}
           </div>
         )}
-      </div>
+          </div>
 
-      <div className="bg-white rounded-lg shadow p-4 mb-6">
+          <div className="bg-white rounded-lg shadow p-4 mb-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
           <h2 className="text-xl font-semibold">Verpakkingen</h2>
           <div className="flex flex-wrap gap-2 items-center">
@@ -326,6 +444,7 @@ export default function WmsProjectDetailPage() {
                         type="text"
                         value={pkg.storage_location || ''}
                         onChange={(e) => updatePackage(pkg.id, { storage_location: e.target.value })}
+                        list="storage-locations-datalist"
                         className="px-2 py-1 border border-gray-300 rounded text-sm"
                       />
                     </td>
@@ -335,9 +454,9 @@ export default function WmsProjectDetailPage() {
             </table>
           </div>
         )}
-      </div>
+          </div>
 
-      <div className="bg-white rounded-lg shadow p-4">
+          <div className="bg-white rounded-lg shadow p-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
           <h2 className="text-xl font-semibold">Verpakkingslijnen</h2>
           <div className="flex items-center gap-2">
@@ -410,6 +529,7 @@ export default function WmsProjectDetailPage() {
                       type="text"
                       value={line.storage_location || ''}
                       onChange={(e) => updateLineFields(line.id, { storage_location: e.target.value })}
+                      list="storage-locations-datalist"
                       className="px-2 py-1 border border-gray-300 rounded text-sm"
                     />
                   </td>
@@ -496,7 +616,136 @@ export default function WmsProjectDetailPage() {
             </tbody>
           </table>
         </div>
-      </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'storage' && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-lg shadow p-4">
+            <h2 className="text-xl font-semibold mb-4">Opslaglocaties beheren</h2>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+              <input
+                type="text"
+                value={newLocationName}
+                onChange={(e) => setNewLocationName(e.target.value)}
+                placeholder="Locatienaam"
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+              <input
+                type="number"
+                step="0.01"
+                value={newLocationCapacity}
+                onChange={(e) => setNewLocationCapacity(e.target.value)}
+                placeholder="Capaciteit m2"
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+              <input
+                type="text"
+                value={newLocationNotes}
+                onChange={(e) => setNewLocationNotes(e.target.value)}
+                placeholder="Opmerking"
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+              <button
+                onClick={createStorageLocation}
+                disabled={creatingLocation}
+                className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm disabled:bg-gray-300"
+              >
+                {creatingLocation ? 'Bezig...' : 'Locatie toevoegen'}
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-500 mb-3">
+              Gebruik is berekend op basis van de lijnen in dit project.
+            </p>
+            {storageLocations.length === 0 ? (
+              <p className="text-sm text-gray-500">Nog geen opslaglocaties.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="px-3 py-2 text-left">Locatie</th>
+                      <th className="px-3 py-2 text-left">Capaciteit m2</th>
+                      <th className="px-3 py-2 text-left">In gebruik (project)</th>
+                      <th className="px-3 py-2 text-left">Vrij</th>
+                      <th className="px-3 py-2 text-left">Actief</th>
+                      <th className="px-3 py-2 text-left">Opmerking</th>
+                      <th className="px-3 py-2 text-left">Acties</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {storageLocations.map((loc) => {
+                      const used = storageUsageByLocation.get(loc.name) || 0
+                      const capacity = loc.capacity_m2 ?? null
+                      const free = capacity !== null ? capacity - used : null
+                      return (
+                        <tr key={loc.id} className="border-b">
+                          <td className="px-3 py-2">
+                            <input
+                              type="text"
+                              value={loc.name}
+                              onChange={(e) => updateStorageLocation(loc.id, { name: e.target.value })}
+                              className="px-2 py-1 border border-gray-300 rounded text-sm"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={loc.capacity_m2 ?? ''}
+                              onChange={(e) =>
+                                updateStorageLocation(loc.id, {
+                                  capacity_m2: e.target.value === '' ? null : Number(e.target.value),
+                                })
+                              }
+                              className="px-2 py-1 border border-gray-300 rounded text-sm w-24"
+                            />
+                          </td>
+                          <td className="px-3 py-2">{used.toFixed(2)}</td>
+                          <td className="px-3 py-2">{free !== null ? free.toFixed(2) : '-'}</td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(loc.active)}
+                              onChange={(e) => updateStorageLocation(loc.id, { active: e.target.checked })}
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="text"
+                              value={loc.notes || ''}
+                              onChange={(e) => updateStorageLocation(loc.id, { notes: e.target.value })}
+                              className="px-2 py-1 border border-gray-300 rounded text-sm"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <button
+                              onClick={() => deleteStorageLocation(loc.id)}
+                              className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
+                            >
+                              Verwijderen
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {storageLocations.length > 0 && (
+        <datalist id="storage-locations-datalist">
+          {storageLocations.map((loc) => (
+            <option key={loc.id} value={loc.name} />
+          ))}
+        </datalist>
+      )}
 
       {imageTarget && (
         <ImageUploadModal

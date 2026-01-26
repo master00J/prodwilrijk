@@ -195,6 +195,16 @@ export interface WmsPackageLine {
   created_at?: string
 }
 
+export interface WmsStorageLocation {
+  id: number
+  name: string
+  capacity_m2?: number | null
+  notes?: string | null
+  active?: boolean | null
+  created_at?: string
+  updated_at?: string
+}
+
 export interface PackedItem {
   id: number
   item_number: string
