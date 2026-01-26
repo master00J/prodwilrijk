@@ -88,6 +88,14 @@ const getExpectedHoursForDay = (dateValue: string) => {
   return 8
 }
 
+const toDateKey = (value: unknown) => {
+  const date = new Date(value as string)
+  if (!Number.isFinite(date.getTime())) {
+    return null
+  }
+  return date.toISOString().split('T')[0]
+}
+
 const getMaterialCostForComponent = (component: any, price: number, unitOfMeasure: string) => {
   const unitCount = Number(component.component_unit) || 0
   if (unitOfMeasure === 'm3') {
@@ -155,6 +163,28 @@ export async function fetchPrepackStats({
     throw new Error('Failed to fetch incoming goods')
   }
 
+  let incomingPackedQuery = supabaseAdmin
+    .from('packed_items')
+    .select('amount, date_added, date_packed')
+
+  if (dateFrom) {
+    const fromDate = new Date(dateFrom)
+    fromDate.setHours(0, 0, 0, 0)
+    incomingPackedQuery = incomingPackedQuery.gte('date_added', fromDate.toISOString())
+  }
+
+  if (dateTo) {
+    const toDate = new Date(dateTo)
+    toDate.setHours(23, 59, 59, 999)
+    incomingPackedQuery = incomingPackedQuery.lte('date_added', toDate.toISOString())
+  }
+
+  const { data: incomingPackedItems, error: incomingPackedError } = await incomingPackedQuery
+
+  if (incomingPackedError) {
+    throw new Error('Failed to fetch packed items incoming')
+  }
+
   let timeLogsQuery = supabaseAdmin
     .from('time_logs')
     .select(`
@@ -188,7 +218,7 @@ export async function fetchPrepackStats({
 
   const items = packedItems || []
   const logs = timeLogs || []
-  const incoming = incomingItems || []
+  const incoming = [...(incomingItems || []), ...(incomingPackedItems || [])]
 
   const uniqueItemNumbers = [
     ...new Set(items.map((item: any) => item.item_number).filter(Boolean)),
@@ -362,7 +392,8 @@ export async function fetchPrepackStats({
   })
 
   incoming.forEach((item: any) => {
-    const date = new Date(item.date_added).toISOString().split('T')[0]
+    const date = toDateKey(item.date_added) || toDateKey(item.date_packed)
+    if (!date) return
     if (!dailyStats[date]) {
       dailyStats[date] = {
         date,
