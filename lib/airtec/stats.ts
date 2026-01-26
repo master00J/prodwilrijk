@@ -167,16 +167,30 @@ export async function fetchAirtecStats({
     .from('packed_items_airtec')
     .select('quantity, datum_ontvangen, datum_opgestuurd')
 
-  if (dateFrom) {
+  if (dateFrom && dateTo) {
     const fromDate = new Date(dateFrom)
     fromDate.setHours(0, 0, 0, 0)
-    incomingPackedQuery = incomingPackedQuery.gte('datum_ontvangen', fromDate.toISOString())
-  }
-
-  if (dateTo) {
     const toDate = new Date(dateTo)
     toDate.setHours(23, 59, 59, 999)
-    incomingPackedQuery = incomingPackedQuery.lte('datum_ontvangen', toDate.toISOString())
+    const fromIso = fromDate.toISOString()
+    const toIso = toDate.toISOString()
+    incomingPackedQuery = incomingPackedQuery.or(
+      `and(datum_opgestuurd.gte.${fromIso},datum_opgestuurd.lte.${toIso}),and(datum_ontvangen.gte.${fromIso},datum_ontvangen.lte.${toIso})`
+    )
+  } else if (dateFrom) {
+    const fromDate = new Date(dateFrom)
+    fromDate.setHours(0, 0, 0, 0)
+    const fromIso = fromDate.toISOString()
+    incomingPackedQuery = incomingPackedQuery.or(
+      `datum_opgestuurd.gte.${fromIso},datum_ontvangen.gte.${fromIso}`
+    )
+  } else if (dateTo) {
+    const toDate = new Date(dateTo)
+    toDate.setHours(23, 59, 59, 999)
+    const toIso = toDate.toISOString()
+    incomingPackedQuery = incomingPackedQuery.or(
+      `datum_opgestuurd.lte.${toIso},datum_ontvangen.lte.${toIso}`
+    )
   }
 
   const { data: incomingPackedItems, error: incomingPackedError } = await incomingPackedQuery

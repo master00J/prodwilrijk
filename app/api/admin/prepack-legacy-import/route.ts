@@ -242,9 +242,17 @@ export async function POST(request: NextRequest) {
           }))
           createdEmployees = missingEmployees.length
           for (const chunk of chunkArray(missingEmployees, 500)) {
-            const { data, error } = await supabaseAdmin.from('employees').insert(chunk).select('id, name')
+            const { error } = await supabaseAdmin
+              .from('employees')
+              .upsert(chunk, { onConflict: 'name' })
             if (error) {
               throw new Error(`Employees insert mislukt: ${error.message}`)
+            }
+          }
+          for (const chunk of chunkArray(legacyNames, 500)) {
+            const { data, error } = await supabaseAdmin.from('employees').select('id, name').in('name', chunk)
+            if (error) {
+              throw new Error(`Employees ophalen mislukt: ${error.message}`)
             }
             data?.forEach((row) => {
               const match = row.name?.replace('Legacy ', '')
