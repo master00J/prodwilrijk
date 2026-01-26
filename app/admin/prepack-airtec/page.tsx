@@ -169,6 +169,29 @@ export default function PrepackAirtecOverviewPage() {
     ]
   }, [airtecTotals])
 
+  const combinedSummary = useMemo(() => {
+    if (!prepackTotals || !airtecTotals) return null
+    const totalItemsPacked = prepackTotals.totalItemsPacked + airtecTotals.totalItemsPacked
+    const totalRevenue = prepackTotals.totalRevenue + airtecTotals.totalRevenue
+    const totalMaterialCost = prepackTotals.totalMaterialCost
+    const totalManHours = prepackTotals.totalManHours + airtecTotals.totalManHours
+    const totalIncoming = prepackTotals.totalIncoming + airtecTotals.totalIncoming
+    const weightedLeadTimeHours =
+      (prepackTotals.avgLeadTimeHours || 0) * prepackTotals.totalItemsPacked +
+      (airtecTotals.avgLeadTimeHours || 0) * airtecTotals.totalItemsPacked
+    const leadTimeHours =
+      totalItemsPacked > 0 ? weightedLeadTimeHours / totalItemsPacked : null
+
+    return [
+      { label: 'Items ingepakt', value: totalItemsPacked },
+      { label: 'Omzet', value: formatCurrency(totalRevenue) },
+      { label: 'Materiaalkost', value: formatCurrency(totalMaterialCost) },
+      { label: 'Manuren', value: totalManHours.toFixed(1) },
+      { label: 'Instroom', value: totalIncoming },
+      { label: 'Gem. doorlooptijd', value: formatLeadTime(leadTimeHours) },
+    ]
+  }, [prepackTotals, airtecTotals])
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
@@ -222,6 +245,23 @@ export default function PrepackAirtecOverviewPage() {
         </div>
         {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
       </div>
+
+      {combinedSummary && (
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Gezamenlijke KPI&apos;s</h2>
+            <span className="text-xs text-gray-500">Prepack + Airtec</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 text-sm">
+            {combinedSummary.map((item) => (
+              <div key={item.label} className="bg-gray-50 rounded-lg px-3 py-2">
+                <div className="text-xs text-gray-500">{item.label}</div>
+                <div className="font-semibold">{item.value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg shadow p-6">
