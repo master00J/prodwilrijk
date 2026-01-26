@@ -9,6 +9,8 @@ export default function WmsProjectImportPage() {
   const [uploading, setUploading] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [projectId, setProjectId] = useState<number | null>(null)
+  const [dragActive, setDragActive] = useState(false)
+  const [selectedFileName, setSelectedFileName] = useState<string | null>(null)
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -43,6 +45,7 @@ export default function WmsProjectImportPage() {
         text: `Project ${data.projectNo} geïmporteerd (${data.insertedLines} lijnen).`,
       })
       setProjectId(data.projectId)
+      setSelectedFileName(null)
       input.value = ''
     } catch (error: any) {
       console.error('Error importing WMS project:', error)
@@ -50,6 +53,27 @@ export default function WmsProjectImportPage() {
     } finally {
       setUploading(false)
     }
+  }
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    setSelectedFileName(file ? file.name : null)
+  }
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setDragActive(false)
+
+    const file = event.dataTransfer.files?.[0]
+    if (!file) return
+
+    const input = document.getElementById('wms-project-file-input') as HTMLInputElement | null
+    if (!input) return
+
+    const dataTransfer = new DataTransfer()
+    dataTransfer.items.add(file)
+    input.files = dataTransfer.files
+    setSelectedFileName(file.name)
   }
 
   return (
@@ -64,11 +88,38 @@ export default function WmsProjectImportPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block font-medium mb-2">Excel-bestand</label>
-            <input
-              type="file"
-              accept=".xlsx,.xls"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-            />
+            <div
+              onDragOver={(event) => {
+                event.preventDefault()
+                setDragActive(true)
+              }}
+              onDragLeave={() => setDragActive(false)}
+              onDrop={handleDrop}
+              className={`w-full border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+              }`}
+            >
+              <input
+                id="wms-project-file-input"
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+              <p className="text-sm text-gray-600 mb-2">
+                Sleep je Excel-bestand hierheen of klik om te kiezen.
+              </p>
+              <button
+                type="button"
+                onClick={() => document.getElementById('wms-project-file-input')?.click()}
+                className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 text-sm font-medium"
+              >
+                Bestand kiezen
+              </button>
+              {selectedFileName && (
+                <p className="mt-3 text-sm text-green-700">Geselecteerd: {selectedFileName}</p>
+              )}
+            </div>
           </div>
           <button
             type="submit"
