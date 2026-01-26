@@ -59,6 +59,7 @@ interface AirtecTotals {
   averageItemsPerFte: number
   totalDays: number
   totalRevenue: number
+  totalMaterialCost: number
   totalIncoming: number
   incomingVsPackedRatio: number | null
   avgLeadTimeHours: number | null
@@ -174,6 +175,7 @@ export default function PrepackAirtecOverviewPage() {
     return [
       { label: 'Items ingepakt', value: airtecTotals.totalItemsPacked },
       { label: 'Omzet', value: formatCurrency(airtecTotals.totalRevenue) },
+      { label: 'Kostprijs', value: formatCurrency(airtecTotals.totalMaterialCost) },
       { label: 'Manuren', value: airtecTotals.totalManHours.toFixed(1) },
       { label: 'Instroom', value: airtecTotals.totalIncoming },
       { label: 'Gem. doorlooptijd', value: formatLeadTime(airtecTotals.avgLeadTimeHours) },
@@ -184,7 +186,7 @@ export default function PrepackAirtecOverviewPage() {
     if (!prepackTotals || !airtecTotals) return null
     const totalItemsPacked = prepackTotals.totalItemsPacked + airtecTotals.totalItemsPacked
     const totalRevenue = prepackTotals.totalRevenue + airtecTotals.totalRevenue
-    const totalMaterialCost = prepackTotals.totalMaterialCost
+    const totalMaterialCost = prepackTotals.totalMaterialCost + airtecTotals.totalMaterialCost
     const totalManHours = prepackTotals.totalManHours + airtecTotals.totalManHours
     const totalIncoming = prepackTotals.totalIncoming + airtecTotals.totalIncoming
     const weightedLeadTimeHours =
@@ -220,6 +222,7 @@ export default function PrepackAirtecOverviewPage() {
         date: formatDate(row.date),
         itemsPacked: row.itemsPacked,
         revenue: row.revenue,
+        materialCost: row.materialCost,
       })),
     [airtecDaily]
   )
@@ -427,6 +430,7 @@ export default function PrepackAirtecOverviewPage() {
                   <Legend />
                   <Bar dataKey="itemsPacked" name="Items" fill="#7c3aed" />
                   <Line dataKey="revenue" name="Omzet" stroke="#16a34a" strokeWidth={2} />
+                  <Line dataKey="materialCost" name="Kostprijs" stroke="#f97316" strokeWidth={2} />
                 </ComposedChart>
               </ResponsiveContainer>
             )}
