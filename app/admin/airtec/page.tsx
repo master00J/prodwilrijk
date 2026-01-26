@@ -159,8 +159,15 @@ export default function AirtecMonitorPage() {
   const formatDate = (value: string) =>
     new Date(value).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' })
 
-  const formatCurrency = (value: number) =>
-    `€${value.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const formatCurrency = (value: number | null | undefined) => {
+    if (!Number.isFinite(value ?? NaN)) return '-'
+    return `€${Number(value).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  }
+
+  const formatNumber = (value: number | null | undefined) => {
+    if (!Number.isFinite(value ?? NaN)) return '-'
+    return Number(value).toLocaleString('nl-NL')
+  }
 
   const formatDateTime = (value: string) =>
     new Date(value).toLocaleString('nl-NL', { dateStyle: 'medium', timeStyle: 'short' })
@@ -321,13 +328,13 @@ export default function AirtecMonitorPage() {
             <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
               <div className="text-sm text-gray-600 mb-1">Goederen binnen</div>
               <div className="text-3xl font-bold text-slate-800">
-                {totals ? totals.totalIncoming.toLocaleString('nl-NL') : '-'}
+                {formatNumber(totals?.totalIncoming)}
               </div>
             </div>
             <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
               <div className="text-sm text-gray-600 mb-1">Kisten verpakt</div>
               <div className="text-3xl font-bold text-blue-700">
-                {totals ? totals.totalItemsPacked.toLocaleString('nl-NL') : '-'}
+                {formatNumber(totals?.totalItemsPacked)}
               </div>
             </div>
             <div className="bg-emerald-50 rounded-lg p-4 border border-emerald-100">
@@ -651,13 +658,13 @@ export default function AirtecMonitorPage() {
                     <td className="px-4 py-3 text-sm text-gray-900">{item.item_number || '-'}</td>
                     <td className="px-4 py-3 text-sm text-gray-900">{item.quantity}</td>
                     <td className="px-4 py-3 text-sm text-gray-900">
-                      {item.price > 0 ? `€${item.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                      {formatCurrency(item.price)}
                     </td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                      {item.revenue > 0 ? `€${item.revenue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                      {formatCurrency(item.revenue)}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-900">
-                      {item.materialCostTotal > 0 ? `€${item.materialCostTotal.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                      {formatCurrency(item.materialCostTotal)}
                     </td>
                   </tr>
                 ))}
@@ -704,7 +711,7 @@ export default function AirtecMonitorPage() {
                       })}
                     </td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                      {stat.incomingItems.toLocaleString('nl-NL')}
+                      {formatNumber(stat.incomingItems)}
                     </td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">{stat.itemsPacked}</td>
                     <td className="px-4 py-3 text-sm text-gray-900">{stat.manHours.toFixed(2)}</td>
@@ -712,7 +719,7 @@ export default function AirtecMonitorPage() {
                     <td className="px-4 py-3 text-sm text-gray-900">{stat.employeeCount}</td>
                     <td className="px-4 py-3 text-sm text-gray-900">{stat.itemsPerFte.toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                      €{stat.revenue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {formatCurrency(stat.revenue)}
                     </td>
                   </tr>
                 ))}
