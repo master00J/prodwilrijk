@@ -75,6 +75,14 @@ const toStartOfDay = (value: Date) => {
   return date
 }
 
+const toDateKey = (value: unknown) => {
+  const date = new Date(value as string)
+  if (!Number.isFinite(date.getTime())) {
+    return null
+  }
+  return date.toISOString().split('T')[0]
+}
+
 const calculateBusinessDays = (start: Date, end: Date) => {
   if (end <= start) return 0
   const startDay = toStartOfDay(start)
@@ -245,7 +253,8 @@ export async function fetchAirtecStats({
   > = {}
 
   items.forEach((item: any) => {
-    const date = new Date(item.date_packed).toISOString().split('T')[0]
+    const date = toDateKey(item.date_packed)
+    if (!date) return
     if (!dailyStats[date]) {
       dailyStats[date] = {
         date,
@@ -270,6 +279,9 @@ export async function fetchAirtecStats({
     if (log.start_time && log.end_time) {
       const startTime = new Date(log.start_time)
       const endTime = new Date(log.end_time)
+      if (!Number.isFinite(startTime.getTime()) || !Number.isFinite(endTime.getTime())) {
+        return
+      }
       const date = startTime.toISOString().split('T')[0]
 
       const hours = calculateWorkedSeconds(startTime, endTime) / 3600
@@ -294,7 +306,8 @@ export async function fetchAirtecStats({
   })
 
   incoming.forEach((item: any) => {
-    const date = new Date(item.datum_ontvangen).toISOString().split('T')[0]
+    const date = toDateKey(item.datum_ontvangen)
+    if (!date) return
     if (!dailyStats[date]) {
       dailyStats[date] = {
         date,
@@ -422,7 +435,13 @@ export async function fetchAirtecStats({
         date_received: item.datum_ontvangen || null,
       }
     })
-    .sort((a, b) => new Date(b.date_packed).getTime() - new Date(a.date_packed).getTime())
+    .sort((a, b) => {
+      const left = new Date(b.date_packed).getTime()
+      const right = new Date(a.date_packed).getTime()
+      const safeLeft = Number.isFinite(left) ? left : 0
+      const safeRight = Number.isFinite(right) ? right : 0
+      return safeLeft - safeRight
+    })
 
   const totalMaterialCost = detailedItems.reduce((sum, item) => sum + item.materialCostTotal, 0)
 
