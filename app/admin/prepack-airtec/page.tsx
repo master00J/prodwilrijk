@@ -112,8 +112,10 @@ export default function PrepackAirtecOverviewPage() {
   const formatDate = (value: string) =>
     new Date(value).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' })
 
-  const formatCurrency = (value: number) =>
-    `€${value.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const formatCurrency = (value: number | null | undefined) => {
+    if (!Number.isFinite(value ?? NaN)) return '-'
+    return `€${Number(value).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  }
 
   const formatLeadTime = (hours: number | null) => {
     if (hours == null) return '-'
