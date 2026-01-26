@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Image from 'next/image'
 import ImageUploadModal from '@/components/items-to-pack/ImageUploadModal'
-import type { WmsProject, WmsProjectLine } from '@/types/database'
+import type { WmsProject, WmsProjectLine, WmsPackage } from '@/types/database'
 
 const STATUS_OPTIONS = [
   { value: 'open', label: 'Open' },
@@ -22,9 +22,12 @@ export default function WmsProjectDetailPage() {
   const [project, setProject] = useState<WmsProject | null>(null)
   const [lines, setLines] = useState<WmsProjectLine[]>([])
   const [projectImages, setProjectImages] = useState<string[]>([])
+  const [packages, setPackages] = useState<WmsPackage[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('all')
   const [imageTarget, setImageTarget] = useState<{ id: number; type: string } | null>(null)
+  const [newPackageNo, setNewPackageNo] = useState('')
+  const [creatingPackage, setCreatingPackage] = useState(false)
 
   const fetchProject = useCallback(async () => {
     if (!Number.isFinite(projectId)) return
@@ -36,6 +39,7 @@ export default function WmsProjectDetailPage() {
       setProject(data.project)
       setLines(data.lines || [])
       setProjectImages(data.projectImages || [])
+      setPackages(data.packages || [])
     } catch (error) {
       console.error('Error fetching WMS project:', error)
     } finally {
@@ -54,6 +58,10 @@ export default function WmsProjectDetailPage() {
 
   const openCount = useMemo(() => lines.filter((line) => line.status !== 'packed' && line.status !== 'shipped').length, [lines])
   const packedCount = useMemo(() => lines.filter((line) => line.status === 'packed' || line.status === 'shipped').length, [lines])
+  const totalStorageM2 = useMemo(
+    () => lines.reduce((sum, line) => sum + (line.storage_m2 || 0), 0),
+    [lines]
+  )
 
   const updateLineStatus = async (lineId: number, status: string) => {
     try {
@@ -67,6 +75,83 @@ export default function WmsProjectDetailPage() {
     } catch (error) {
       console.error('Error updating line status:', error)
       alert('Status bijwerken mislukt')
+    }
+  }
+
+  const updateLineFields = async (lineId: number, fields: Partial<WmsProjectLine>) => {
+    try {
+      const response = await fetch(`/api/wms-projects/lines/${lineId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fields),
+      })
+      if (!response.ok) throw new Error('Update failed')
+      setLines((prev) => prev.map((line) => (line.id === lineId ? { ...line, ...fields } : line)))
+    } catch (error) {
+      console.error('Error updating line fields:', error)
+      alert('Bijwerken mislukt')
+    }
+  }
+
+  const assignLineToPackage = async (lineId: number, packageId: number | null) => {
+    try {
+      const response = await fetch('/api/wms-packages/assign-line', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lineId, packageId }),
+      })
+      if (!response.ok) throw new Error('Assign failed')
+      setLines((prev) => prev.map((line) => (line.id === lineId ? { ...line, package_id: packageId } : line)))
+    } catch (error) {
+      console.error('Error assigning line:', error)
+      alert('Toewijzen mislukt')
+    }
+  }
+
+  const createPackage = async () => {
+    const trimmed = newPackageNo.trim()
+    if (!trimmed) {
+      alert('Vul een pakketnummer in')
+      return
+    }
+    setCreatingPackage(true)
+    try {
+      const response = await fetch('/api/wms-packages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_id: projectId,
+          package_no: trimmed,
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Pakket aanmaken mislukt')
+      }
+      setPackages((prev) => [...prev, data.package])
+      setNewPackageNo('')
+    } catch (error: any) {
+      console.error('Error creating package:', error)
+      alert(error.message || 'Pakket aanmaken mislukt')
+    } finally {
+      setCreatingPackage(false)
+    }
+  }
+
+  const updatePackage = async (packageId: number, fields: Partial<WmsPackage>) => {
+    try {
+      const response = await fetch(`/api/wms-packages/${packageId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fields),
+      })
+      if (!response.ok) throw new Error('Update failed')
+      setPackages((prev) =>
+        prev.map((pkg) => (pkg.id === packageId ? { ...pkg, ...fields } : pkg))
+      )
+    } catch (error) {
+      console.error('Error updating package:', error)
+      alert('Pakket bijwerken mislukt')
     }
   }
 
@@ -97,6 +182,9 @@ export default function WmsProjectDetailPage() {
           </div>
           <div className="bg-green-50 text-green-700 px-4 py-2 rounded-lg">
             Ingepakt: <span className="font-semibold">{packedCount}</span>
+          </div>
+          <div className="bg-purple-50 text-purple-700 px-4 py-2 rounded-lg">
+            Opslag m2: <span className="font-semibold">{totalStorageM2.toFixed(2)}</span>
           </div>
         </div>
       </div>
@@ -156,6 +244,99 @@ export default function WmsProjectDetailPage() {
         )}
       </div>
 
+      <div className="bg-white rounded-lg shadow p-4 mb-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+          <h2 className="text-xl font-semibold">Verpakkingen</h2>
+          <div className="flex flex-wrap gap-2 items-center">
+            <input
+              type="text"
+              value={newPackageNo}
+              onChange={(e) => setNewPackageNo(e.target.value)}
+              placeholder="Pakketnummer"
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            />
+            <button
+              onClick={createPackage}
+              disabled={creatingPackage}
+              className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm disabled:bg-gray-300"
+            >
+              {creatingPackage ? 'Bezig...' : 'Pakket aanmaken'}
+            </button>
+          </div>
+        </div>
+
+        {packages.length === 0 ? (
+          <p className="text-sm text-gray-500">Nog geen verpakkingen.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="px-3 py-2 text-left">Pakket</th>
+                  <th className="px-3 py-2 text-left">Datum ontvangen</th>
+                  <th className="px-3 py-2 text-left">In laden</th>
+                  <th className="px-3 py-2 text-left">Uit laden</th>
+                  <th className="px-3 py-2 text-left">Opslag m2</th>
+                  <th className="px-3 py-2 text-left">Locatie</th>
+                </tr>
+              </thead>
+              <tbody>
+                {packages.map((pkg) => (
+                  <tr key={pkg.id} className="border-b">
+                    <td className="px-3 py-2 font-medium">{pkg.package_no}</td>
+                    <td className="px-3 py-2">
+                      <input
+                        type="date"
+                        value={pkg.received_at || ''}
+                        onChange={(e) => updatePackage(pkg.id, { received_at: e.target.value })}
+                        className="px-2 py-1 border border-gray-300 rounded text-sm"
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        type="date"
+                        value={pkg.load_in_at || ''}
+                        onChange={(e) => updatePackage(pkg.id, { load_in_at: e.target.value })}
+                        className="px-2 py-1 border border-gray-300 rounded text-sm"
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        type="date"
+                        value={pkg.load_out_at || ''}
+                        onChange={(e) => updatePackage(pkg.id, { load_out_at: e.target.value })}
+                        className="px-2 py-1 border border-gray-300 rounded text-sm"
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={pkg.storage_m2 ?? ''}
+                        onChange={(e) =>
+                          updatePackage(pkg.id, {
+                            storage_m2: e.target.value === '' ? null : Number(e.target.value),
+                          })
+                        }
+                        className="px-2 py-1 border border-gray-300 rounded text-sm w-24"
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        type="text"
+                        value={pkg.storage_location || ''}
+                        onChange={(e) => updatePackage(pkg.id, { storage_location: e.target.value })}
+                        className="px-2 py-1 border border-gray-300 rounded text-sm"
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       <div className="bg-white rounded-lg shadow p-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
           <h2 className="text-xl font-semibold">Verpakkingslijnen</h2>
@@ -185,6 +366,10 @@ export default function WmsProjectDetailPage() {
                 <th className="px-3 py-2 text-left">Artikel</th>
                 <th className="px-3 py-2 text-left">Qty</th>
                 <th className="px-3 py-2 text-left">Afmetingen</th>
+                <th className="px-3 py-2 text-left">Opslag m2</th>
+                <th className="px-3 py-2 text-left">Locatie</th>
+                <th className="px-3 py-2 text-left">Afm OK</th>
+                <th className="px-3 py-2 text-left">Pakket</th>
                 <th className="px-3 py-2 text-left">Status</th>
                 <th className="px-3 py-2 text-left">Foto&apos;s</th>
               </tr>
@@ -206,6 +391,53 @@ export default function WmsProjectDetailPage() {
                     ) : (
                       '-'
                     )}
+                  </td>
+                  <td className="px-3 py-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={line.storage_m2 ?? ''}
+                      onChange={(e) =>
+                        updateLineFields(line.id, {
+                          storage_m2: e.target.value === '' ? null : Number(e.target.value),
+                        })
+                      }
+                      className="px-2 py-1 border border-gray-300 rounded text-sm w-24"
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <input
+                      type="text"
+                      value={line.storage_location || ''}
+                      onChange={(e) => updateLineFields(line.id, { storage_location: e.target.value })}
+                      className="px-2 py-1 border border-gray-300 rounded text-sm"
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(line.dimensions_confirmed)}
+                      onChange={(e) => updateLineFields(line.id, { dimensions_confirmed: e.target.checked })}
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <select
+                      value={line.package_id ?? ''}
+                      onChange={(e) =>
+                        assignLineToPackage(
+                          line.id,
+                          e.target.value ? Number(e.target.value) : null
+                        )
+                      }
+                      className="px-2 py-1 border border-gray-300 rounded text-sm"
+                    >
+                      <option value="">Geen</option>
+                      {packages.map((pkg) => (
+                        <option key={pkg.id} value={pkg.id}>
+                          {pkg.package_no}
+                        </option>
+                      ))}
+                    </select>
                   </td>
                   <td className="px-3 py-2">
                     <select
@@ -256,7 +488,7 @@ export default function WmsProjectDetailPage() {
               ))}
               {filteredLines.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-3 py-6 text-center text-gray-500">
+                  <td colSpan={11} className="px-3 py-6 text-center text-gray-500">
                     Geen lijnen voor deze filter.
                   </td>
                 </tr>

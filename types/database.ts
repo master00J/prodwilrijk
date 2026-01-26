@@ -166,9 +166,33 @@ export interface WmsProjectLine {
   status: string
   status_updated_at?: string | null
   notes?: string | null
+  storage_m2?: number | null
+  storage_location?: string | null
+  dimensions_confirmed?: boolean | null
+  package_id?: number | null
   created_at?: string
   updated_at?: string
   images?: string[]
+}
+
+export interface WmsPackage {
+  id: number
+  project_id: number
+  package_no: string
+  received_at?: string | null
+  load_in_at?: string | null
+  load_out_at?: string | null
+  storage_location?: string | null
+  storage_m2?: number | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface WmsPackageLine {
+  id: number
+  package_id: number
+  line_id: number
+  created_at?: string
 }
 
 export interface PackedItem {
