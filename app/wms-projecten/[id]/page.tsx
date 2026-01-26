@@ -425,6 +425,7 @@ export default function WmsProjectDetailPage() {
                   <th className="px-3 py-2 text-left">Uit laden</th>
                   <th className="px-3 py-2 text-left">Opslag m2</th>
                   <th className="px-3 py-2 text-left">Locatie</th>
+                  <th className="px-3 py-2 text-left">Artikelen</th>
                 </tr>
               </thead>
               <tbody>
@@ -476,6 +477,34 @@ export default function WmsProjectDetailPage() {
                         list="storage-locations-datalist"
                         className="px-2 py-1 border border-gray-300 rounded text-sm"
                       />
+                    </td>
+                    <td className="px-3 py-2">
+                      <details className="text-sm">
+                        <summary className="cursor-pointer text-blue-600">
+                          Selecteer artikelen
+                        </summary>
+                        <div className="mt-2 max-h-56 overflow-y-auto border border-gray-200 rounded p-2 space-y-1">
+                          {lines.map((line) => {
+                            const label = `${line.article_no || line.packing_no || '-'}${line.description ? ` · ${line.description}` : ''}`
+                            const checked = line.package_id === pkg.id
+                            return (
+                              <label key={line.id} className="flex items-center gap-2 text-xs">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) =>
+                                    assignLineToPackage(line.id, e.target.checked ? pkg.id : null)
+                                  }
+                                />
+                                <span>{label}</span>
+                              </label>
+                            )
+                          })}
+                          {lines.length === 0 && (
+                            <p className="text-xs text-gray-500">Geen lijnen beschikbaar.</p>
+                          )}
+                        </div>
+                      </details>
                     </td>
                   </tr>
                 ))}
