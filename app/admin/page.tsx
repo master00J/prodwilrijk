@@ -33,6 +33,13 @@ export default function AdminPage() {
       icon: '📏',
       color: 'orange',
     },
+    {
+      title: 'Airtec Legacy Import',
+      description: 'Importeer oude SQL dumps voor Airtec KPI’s',
+      href: '/admin/airtec-legacy-import',
+      icon: '⬆️',
+      color: 'green',
+    },
     // Toekomstige flows kunnen hier worden toegevoegd
   ]
 

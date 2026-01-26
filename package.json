@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
-    "match-stock": "node scripts/match-stock-erp-link.js"
+    "match-stock": "node scripts/match-stock-erp-link.js",
+    "import-airtec-legacy": "node scripts/import-airtec-legacy.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
