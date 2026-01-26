@@ -233,6 +233,29 @@ export default function WmsProjectDetailPage() {
     }
   }
 
+  const markPackageShipped = async (packageId: number) => {
+    const shippedAt = new Date().toISOString().slice(0, 10)
+    try {
+      const response = await fetch(`/api/wms-packages/${packageId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mark_shipped: true, shipped_at: shippedAt }),
+      })
+      if (!response.ok) throw new Error('Update failed')
+      setPackages((prev) =>
+        prev.map((pkg) => (pkg.id === packageId ? { ...pkg, load_out_at: shippedAt } : pkg))
+      )
+      setLines((prev) =>
+        prev.map((line) =>
+          line.package_id === packageId ? { ...line, shipped_at: shippedAt } : line
+        )
+      )
+    } catch (error) {
+      console.error('Error marking package shipped:', error)
+      alert('Pakket verzenden mislukt')
+    }
+  }
+
   const createStorageLocation = async () => {
     const name = newLocationName.trim()
     if (!name) {
@@ -415,7 +438,7 @@ export default function WmsProjectDetailPage() {
           </div>
 
           <div className="bg-white rounded-lg shadow p-4 mb-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-2">
           <h2 className="text-xl font-semibold">Verpakkingen</h2>
           <div className="flex flex-wrap gap-2 items-center">
             <input
@@ -434,6 +457,9 @@ export default function WmsProjectDetailPage() {
             </button>
           </div>
         </div>
+        <p className="text-xs text-gray-500 mb-4">
+          Datum ontvangen staat op artikelniveau.
+        </p>
 
         {packages.length === 0 ? (
           <p className="text-sm text-gray-500">Nog geen verpakkingen.</p>
@@ -443,35 +469,18 @@ export default function WmsProjectDetailPage() {
               <thead className="bg-gray-100">
                 <tr>
                   <th className="px-3 py-2 text-left">Pakket</th>
-                  <th className="px-3 py-2 text-left">Datum ontvangen</th>
-                  <th className="px-3 py-2 text-left">In laden</th>
                   <th className="px-3 py-2 text-left">Uit laden</th>
                   <th className="px-3 py-2 text-left">Opslag m2</th>
                   <th className="px-3 py-2 text-left">Locatie</th>
                   <th className="px-3 py-2 text-left">Artikelen</th>
                   <th className="px-3 py-2 text-left">Foto&apos;s</th>
+                  <th className="px-3 py-2 text-left">Verzonden</th>
                 </tr>
               </thead>
               <tbody>
                 {packages.map((pkg) => (
                   <tr key={pkg.id} className="border-b">
                     <td className="px-3 py-2 font-medium">{pkg.package_no}</td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="date"
-                        value={pkg.received_at || ''}
-                        onChange={(e) => updatePackage(pkg.id, { received_at: e.target.value })}
-                        className="px-2 py-1 border border-gray-300 rounded text-sm"
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="date"
-                        value={pkg.load_in_at || ''}
-                        onChange={(e) => updatePackage(pkg.id, { load_in_at: e.target.value })}
-                        className="px-2 py-1 border border-gray-300 rounded text-sm"
-                      />
-                    </td>
                     <td className="px-3 py-2">
                       <input
                         type="date"
@@ -574,6 +583,14 @@ export default function WmsProjectDetailPage() {
                           </div>
                         )}
                       </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <button
+                        onClick={() => markPackageShipped(pkg.id)}
+                        className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
+                      >
+                        Markeer verzonden
+                      </button>
                     </td>
                   </tr>
                 ))}
