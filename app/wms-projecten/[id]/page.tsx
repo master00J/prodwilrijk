@@ -129,15 +129,24 @@ export default function WmsProjectDetailPage() {
     return (lengthValue / 100) * (widthValue / 100)
   }
 
+  const getLengthCmValue = (line: WmsProjectLine) =>
+    line.length_cm ?? (line.length_mm ? line.length_mm / 10 : null)
+  const getWidthCmValue = (line: WmsProjectLine) =>
+    line.width_cm ?? (line.width_mm ? line.width_mm / 10 : null)
+
   const updateDimensions = (line: WmsProjectLine, nextLength: number | null, nextWidth: number | null) => {
     updateLineFields(line.id, {
       length_cm: nextLength,
       width_cm: nextWidth,
+      length_mm: null,
+      width_mm: null,
     })
   }
 
   const confirmDimensions = (line: WmsProjectLine, confirmed: boolean) => {
-    const m2 = confirmed ? calculateStorageM2(line.length_cm ?? null, line.width_cm ?? null) : line.storage_m2 ?? null
+    const length = getLengthCmValue(line)
+    const width = getWidthCmValue(line)
+    const m2 = confirmed ? calculateStorageM2(length ?? null, width ?? null) : line.storage_m2 ?? null
     updateLineFields(line.id, {
       dimensions_confirmed: confirmed,
       storage_m2: m2,
@@ -527,10 +536,10 @@ export default function WmsProjectDetailPage() {
                       <input
                         type="number"
                         step="0.01"
-                        value={line.length_cm ?? ''}
+                        value={getLengthCmValue(line) ?? ''}
                         onChange={(e) => {
                           const value = e.target.value === '' ? null : Number(e.target.value)
-                          updateDimensions(line, value, line.width_cm ?? null)
+                          updateDimensions(line, value, getWidthCmValue(line))
                         }}
                         placeholder="L (cm)"
                         className="px-2 py-1 border border-gray-300 rounded text-xs w-20"
@@ -539,10 +548,10 @@ export default function WmsProjectDetailPage() {
                       <input
                         type="number"
                         step="0.01"
-                        value={line.width_cm ?? ''}
+                        value={getWidthCmValue(line) ?? ''}
                         onChange={(e) => {
                           const value = e.target.value === '' ? null : Number(e.target.value)
-                          updateDimensions(line, line.length_cm ?? null, value)
+                          updateDimensions(line, getLengthCmValue(line), value)
                         }}
                         placeholder="B (cm)"
                         className="px-2 py-1 border border-gray-300 rounded text-xs w-20"
