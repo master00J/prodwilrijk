@@ -128,16 +128,16 @@ export default function WmsProjectDetailPage() {
 
       <div className="bg-white rounded-lg shadow p-4 mb-6">
         <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-          <h2 className="text-xl font-semibold">Projectfoto's</h2>
+          <h2 className="text-xl font-semibold">Projectfoto&apos;s</h2>
           <button
             onClick={() => handleImageUpload(project.id, 'wms_project')}
             className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm"
           >
-            Foto's uploaden
+            Foto&apos;s uploaden
           </button>
         </div>
         {projectImages.length === 0 ? (
-          <p className="text-sm text-gray-500">Nog geen foto's toegevoegd.</p>
+          <p className="text-sm text-gray-500">Nog geen foto&apos;s toegevoegd.</p>
         ) : (
           <div className="flex gap-2 flex-wrap">
             {projectImages.map((url, idx) => (
@@ -186,7 +186,7 @@ export default function WmsProjectDetailPage() {
                 <th className="px-3 py-2 text-left">Qty</th>
                 <th className="px-3 py-2 text-left">Afmetingen</th>
                 <th className="px-3 py-2 text-left">Status</th>
-                <th className="px-3 py-2 text-left">Foto's</th>
+                <th className="px-3 py-2 text-left">Foto&apos;s</th>
               </tr>
             </thead>
             <tbody>
