@@ -49,6 +49,7 @@ interface AirtecDailyStat {
   employeeCount: number
   itemsPerFte: number
   revenue: number
+  materialCost: number
   incomingItems: number
   fte: number
 }
