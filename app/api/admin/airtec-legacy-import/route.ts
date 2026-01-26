@@ -98,16 +98,31 @@ const parseValuesBlock = (block: string) => {
   return rows
 }
 
+const excelSerialToIso = (serial: number) => {
+  const base = Date.UTC(1899, 11, 30)
+  const millis = serial * 86400000
+  const date = new Date(base + millis)
+  if (!Number.isFinite(date.getTime())) return null
+  return date.toISOString()
+}
+
 const normalizeDate = (value: unknown) => {
-  if (!value) return null
+  if (value === null || value === undefined || value === '') return null
+  if (typeof value === 'number') {
+    return excelSerialToIso(value)
+  }
   if (typeof value === 'string') {
     const trimmed = value.trim()
     if (!trimmed || trimmed === '0000-00-00' || trimmed === '0000-00-00 00:00:00') {
       return null
     }
+    if (/^\d+(\.\d+)?$/.test(trimmed)) {
+      const serial = Number(trimmed)
+      return excelSerialToIso(serial)
+    }
     return trimmed
   }
-  return value as string
+  return null
 }
 
 const parseEmployeeIds = (value: unknown) => {
