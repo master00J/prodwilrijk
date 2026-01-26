@@ -24,6 +24,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { lineId
       length_mm,
       width_mm,
       height_mm,
+      received_at,
+      shipped_at,
     } = body || {}
     const updateData: Record<string, any> = {}
 
@@ -54,6 +56,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { lineId
     if (length_mm !== undefined) updateData.length_mm = length_mm === '' ? null : length_mm
     if (width_mm !== undefined) updateData.width_mm = width_mm === '' ? null : width_mm
     if (height_mm !== undefined) updateData.height_mm = height_mm === '' ? null : height_mm
+
+    if (received_at !== undefined) updateData.received_at = received_at || null
+    if (shipped_at !== undefined) updateData.shipped_at = shipped_at || null
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: 'No valid updates provided' }, { status: 400 })

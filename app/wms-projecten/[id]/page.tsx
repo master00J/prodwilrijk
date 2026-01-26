@@ -513,6 +513,8 @@ export default function WmsProjectDetailPage() {
                 <th className="px-3 py-2 text-left">Omschrijving</th>
                 <th className="px-3 py-2 text-left">Artikel</th>
                 <th className="px-3 py-2 text-left">Qty</th>
+                <th className="px-3 py-2 text-left">Ontvangen</th>
+                <th className="px-3 py-2 text-left">Verzonden</th>
                 <th className="px-3 py-2 text-left">Afmetingen</th>
                 <th className="px-3 py-2 text-left">Opslag m2</th>
                 <th className="px-3 py-2 text-left">Locatie</th>
@@ -531,6 +533,22 @@ export default function WmsProjectDetailPage() {
                   <td className="px-3 py-2">{line.description || '-'}</td>
                   <td className="px-3 py-2">{line.article_no || '-'}</td>
                   <td className="px-3 py-2">{line.qty ?? '-'}</td>
+                  <td className="px-3 py-2">
+                    <input
+                      type="date"
+                      value={line.received_at || ''}
+                      onChange={(e) => updateLineFields(line.id, { received_at: e.target.value })}
+                      className="px-2 py-1 border border-gray-300 rounded text-sm"
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <input
+                      type="date"
+                      value={line.shipped_at || ''}
+                      onChange={(e) => updateLineFields(line.id, { shipped_at: e.target.value })}
+                      className="px-2 py-1 border border-gray-300 rounded text-sm"
+                    />
+                  </td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-1">
                       <input
@@ -655,7 +673,7 @@ export default function WmsProjectDetailPage() {
               ))}
               {filteredLines.length === 0 && (
                 <tr>
-                  <td colSpan={11} className="px-3 py-6 text-center text-gray-500">
+                  <td colSpan={13} className="px-3 py-6 text-center text-gray-500">
                     Geen lijnen voor deze filter.
                   </td>
                 </tr>

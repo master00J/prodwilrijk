@@ -163,6 +163,8 @@ export interface WmsProjectLine {
   weight_gross_kg?: number | null
   weight_measured_kg?: number | null
   label_qty?: number | null
+  received_at?: string | null
+  shipped_at?: string | null
   status: string
   status_updated_at?: string | null
   notes?: string | null
