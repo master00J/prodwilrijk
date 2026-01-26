@@ -124,6 +124,30 @@ export default function WmsProjectDetailPage() {
     }
   }
 
+  const calculateStorageM2 = (lengthValue?: number | null, widthValue?: number | null, unit?: 'cm' | 'mm') => {
+    if (!lengthValue || !widthValue) return null
+    if (unit === 'mm') {
+      return (lengthValue / 1000) * (widthValue / 1000)
+    }
+    return (lengthValue / 100) * (widthValue / 100)
+  }
+
+  const updateDimensions = (
+    line: WmsProjectLine,
+    nextLength: number | null,
+    nextWidth: number | null,
+    unit: 'cm' | 'mm'
+  ) => {
+    const m2 = calculateStorageM2(nextLength, nextWidth, unit)
+    updateLineFields(line.id, {
+      length_cm: unit === 'cm' ? nextLength : line.length_cm ?? null,
+      width_cm: unit === 'cm' ? nextWidth : line.width_cm ?? null,
+      length_mm: unit === 'mm' ? nextLength : line.length_mm ?? null,
+      width_mm: unit === 'mm' ? nextWidth : line.width_mm ?? null,
+      storage_m2: m2,
+    })
+  }
+
   const assignLineToPackage = async (lineId: number, packageId: number | null) => {
     try {
       const response = await fetch('/api/wms-packages/assign-line', {
@@ -503,13 +527,58 @@ export default function WmsProjectDetailPage() {
                   <td className="px-3 py-2">{line.article_no || '-'}</td>
                   <td className="px-3 py-2">{line.qty ?? '-'}</td>
                   <td className="px-3 py-2">
-                    {line.length_cm || line.length_mm ? (
-                      <span>
-                        {line.length_cm ?? line.length_mm} x {line.width_cm ?? line.width_mm} x {line.height_cm ?? line.height_mm}
-                      </span>
-                    ) : (
-                      '-'
-                    )}
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={line.length_cm ?? ''}
+                          onChange={(e) => {
+                            const value = e.target.value === '' ? null : Number(e.target.value)
+                            updateDimensions(line, value, line.width_cm ?? null, 'cm')
+                          }}
+                          placeholder="L (cm)"
+                          className="px-2 py-1 border border-gray-300 rounded text-xs w-20"
+                        />
+                        <span className="text-xs">x</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={line.width_cm ?? ''}
+                          onChange={(e) => {
+                            const value = e.target.value === '' ? null : Number(e.target.value)
+                            updateDimensions(line, line.length_cm ?? null, value, 'cm')
+                          }}
+                          placeholder="B (cm)"
+                          className="px-2 py-1 border border-gray-300 rounded text-xs w-20"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          step="1"
+                          value={line.length_mm ?? ''}
+                          onChange={(e) => {
+                            const value = e.target.value === '' ? null : Number(e.target.value)
+                            updateDimensions(line, value, line.width_mm ?? null, 'mm')
+                          }}
+                          placeholder="L (mm)"
+                          className="px-2 py-1 border border-gray-300 rounded text-xs w-20"
+                        />
+                        <span className="text-xs">x</span>
+                        <input
+                          type="number"
+                          step="1"
+                          value={line.width_mm ?? ''}
+                          onChange={(e) => {
+                            const value = e.target.value === '' ? null : Number(e.target.value)
+                            updateDimensions(line, line.length_mm ?? null, value, 'mm')
+                          }}
+                          placeholder="B (mm)"
+                          className="px-2 py-1 border border-gray-300 rounded text-xs w-20"
+                        />
+                      </div>
+                    </div>
                   </td>
                   <td className="px-3 py-2">
                     <input

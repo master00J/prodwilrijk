@@ -12,7 +12,19 @@ export async function PATCH(request: NextRequest, { params }: { params: { lineId
     }
 
     const body = await request.json()
-    const { status, notes } = body || {}
+    const {
+      status,
+      notes,
+      storage_m2,
+      storage_location,
+      dimensions_confirmed,
+      length_cm,
+      width_cm,
+      height_cm,
+      length_mm,
+      width_mm,
+      height_mm,
+    } = body || {}
     const updateData: Record<string, any> = {}
 
     if (typeof status === 'string' && status.trim()) {
@@ -23,6 +35,25 @@ export async function PATCH(request: NextRequest, { params }: { params: { lineId
     if (typeof notes === 'string') {
       updateData.notes = notes
     }
+
+    if (storage_m2 !== undefined) {
+      updateData.storage_m2 = storage_m2 === null || storage_m2 === '' ? null : storage_m2
+    }
+
+    if (storage_location !== undefined) {
+      updateData.storage_location = storage_location || null
+    }
+
+    if (dimensions_confirmed !== undefined) {
+      updateData.dimensions_confirmed = Boolean(dimensions_confirmed)
+    }
+
+    if (length_cm !== undefined) updateData.length_cm = length_cm === '' ? null : length_cm
+    if (width_cm !== undefined) updateData.width_cm = width_cm === '' ? null : width_cm
+    if (height_cm !== undefined) updateData.height_cm = height_cm === '' ? null : height_cm
+    if (length_mm !== undefined) updateData.length_mm = length_mm === '' ? null : length_mm
+    if (width_mm !== undefined) updateData.width_mm = width_mm === '' ? null : width_mm
+    if (height_mm !== undefined) updateData.height_mm = height_mm === '' ? null : height_mm
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: 'No valid updates provided' }, { status: 400 })
