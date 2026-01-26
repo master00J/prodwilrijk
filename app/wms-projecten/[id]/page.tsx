@@ -620,51 +620,51 @@ export default function WmsProjectDetailPage() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="w-full">
+          <table className="w-full text-[11px] table-fixed">
             <thead className="bg-gray-100">
               <tr>
-                <th className="px-3 py-2 text-left">Type</th>
-                <th className="px-3 py-2 text-left">Omschrijving</th>
-                <th className="px-3 py-2 text-left">Artikel</th>
-                <th className="px-3 py-2 text-left">Qty</th>
-                <th className="px-3 py-2 text-left">Ontvangen</th>
-                <th className="px-3 py-2 text-left">Verzonden</th>
-                <th className="px-3 py-2 text-left">Afmetingen</th>
-                <th className="px-3 py-2 text-left">Opslag m2</th>
-                <th className="px-3 py-2 text-left">Locatie</th>
-                <th className="px-3 py-2 text-left">Afm OK</th>
-                <th className="px-3 py-2 text-left">Pakket</th>
-                <th className="px-3 py-2 text-left">Status</th>
-                <th className="px-3 py-2 text-left">Foto&apos;s</th>
+                <th className="px-2 py-1 text-left w-12">Type</th>
+                <th className="px-2 py-1 text-left">Omschrijving</th>
+                <th className="px-2 py-1 text-left w-16">Artikel</th>
+                <th className="px-2 py-1 text-left w-10">Qty</th>
+                <th className="px-2 py-1 text-left w-28">Ontvangen</th>
+                <th className="px-2 py-1 text-left w-28">Verzonden</th>
+                <th className="px-2 py-1 text-left w-32">Afmetingen</th>
+                <th className="px-2 py-1 text-left w-20">Opslag m2</th>
+                <th className="px-2 py-1 text-left w-24">Locatie</th>
+                <th className="px-2 py-1 text-left w-12">Afm OK</th>
+                <th className="px-2 py-1 text-left w-20">Pakket</th>
+                <th className="px-2 py-1 text-left w-20">Status</th>
+                <th className="px-2 py-1 text-left w-16">Foto&apos;s</th>
               </tr>
             </thead>
             <tbody>
               {filteredLines.map((line) => (
                 <tr key={line.id} className="border-b hover:bg-gray-50">
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1">
                     {line.line_type === 'outer_packing' ? 'Outer' : 'Part'}
                   </td>
-                  <td className="px-3 py-2">{line.description || '-'}</td>
-                  <td className="px-3 py-2">{line.article_no || '-'}</td>
-                  <td className="px-3 py-2">{line.qty ?? '-'}</td>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1 break-words">{line.description || '-'}</td>
+                  <td className="px-2 py-1">{line.article_no || '-'}</td>
+                  <td className="px-2 py-1">{line.qty ?? '-'}</td>
+                  <td className="px-2 py-1">
                     <input
                       type="date"
                       value={line.received_at || ''}
                       onChange={(e) => updateLineFields(line.id, { received_at: e.target.value })}
-                      className="px-2 py-1 border border-gray-300 rounded text-sm"
+                      className="px-2 py-1 border border-gray-300 rounded text-[11px] w-28"
                     />
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1">
                     <input
                       type="date"
                       value={line.shipped_at || ''}
                       onChange={(e) => updateLineFields(line.id, { shipped_at: e.target.value })}
-                      className="px-2 py-1 border border-gray-300 rounded text-sm"
+                      className="px-2 py-1 border border-gray-300 rounded text-[11px] w-28"
                     />
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1">
                     <div className="flex items-center gap-1">
                       <input
                         type="number"
@@ -675,7 +675,7 @@ export default function WmsProjectDetailPage() {
                           updateDimensions(line, value, getWidthMmValue(line))
                         }}
                         placeholder="L (mm)"
-                        className="px-2 py-1 border border-gray-300 rounded text-xs w-20"
+                        className="px-2 py-1 border border-gray-300 rounded text-[11px] w-14"
                       />
                       <span className="text-xs">x</span>
                       <input
@@ -687,11 +687,11 @@ export default function WmsProjectDetailPage() {
                           updateDimensions(line, getLengthMmValue(line), value)
                         }}
                         placeholder="B (mm)"
-                        className="px-2 py-1 border border-gray-300 rounded text-xs w-20"
+                        className="px-2 py-1 border border-gray-300 rounded text-[11px] w-14"
                       />
                     </div>
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1">
                     <input
                       type="number"
                       step="0.01"
@@ -701,26 +701,26 @@ export default function WmsProjectDetailPage() {
                           storage_m2: e.target.value === '' ? null : Number(e.target.value),
                         })
                       }
-                      className="px-2 py-1 border border-gray-300 rounded text-sm w-24"
+                      className="px-2 py-1 border border-gray-300 rounded text-[11px] w-20"
                     />
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1">
                     <input
                       type="text"
                       value={line.storage_location || ''}
                       onChange={(e) => updateLineFields(line.id, { storage_location: e.target.value })}
                       list="storage-locations-datalist"
-                      className="px-2 py-1 border border-gray-300 rounded text-sm"
+                      className="px-2 py-1 border border-gray-300 rounded text-[11px] w-24"
                     />
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1">
                     <input
                       type="checkbox"
                       checked={Boolean(line.dimensions_confirmed)}
                       onChange={(e) => confirmDimensions(line, e.target.checked)}
                     />
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1">
                     <select
                       value={line.package_id ?? ''}
                       onChange={(e) =>
@@ -729,7 +729,7 @@ export default function WmsProjectDetailPage() {
                           e.target.value ? Number(e.target.value) : null
                         )
                       }
-                      className="px-2 py-1 border border-gray-300 rounded text-sm"
+                      className="px-2 py-1 border border-gray-300 rounded text-[11px] w-20"
                     >
                       <option value="">Geen</option>
                       {packages.map((pkg) => (
@@ -739,11 +739,11 @@ export default function WmsProjectDetailPage() {
                       ))}
                     </select>
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1">
                     <select
                       value={line.status}
                       onChange={(e) => updateLineStatus(line.id, e.target.value)}
-                      className="px-2 py-1 border border-gray-300 rounded text-sm"
+                      className="px-2 py-1 border border-gray-300 rounded text-[11px] w-20"
                     >
                       {STATUS_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -752,7 +752,7 @@ export default function WmsProjectDetailPage() {
                       ))}
                     </select>
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1">
                     <div className="flex gap-2 items-center">
                       <button
                         onClick={() => handleImageUpload(line.id, 'wms_project_line')}
