@@ -625,7 +625,7 @@ export default function WmsProjectDetailPage() {
             <thead className="bg-gray-100">
               <tr>
                 <th className="px-2 py-1 text-left w-12">Type</th>
-                <th className="px-2 py-1 text-left">Omschrijving</th>
+                <th className="px-2 py-1 text-left w-20">Omschrijving</th>
                 <th className="px-2 py-1 text-left w-16">Artikel</th>
                 <th className="px-2 py-1 text-left w-10">Qty</th>
                 <th className="px-2 py-1 text-left w-28">Ontvangen</th>
@@ -645,7 +645,7 @@ export default function WmsProjectDetailPage() {
                   <td className="px-2 py-1">
                     {line.line_type === 'outer_packing' ? 'Outer' : 'Part'}
                   </td>
-                  <td className="px-2 py-1 break-words">{line.description || '-'}</td>
+                  <td className="px-2 py-1 break-words w-20">{line.description || '-'}</td>
                   <td className="px-2 py-1">{line.article_no || '-'}</td>
                   <td className="px-2 py-1">{line.qty ?? '-'}</td>
                   <td className="px-2 py-1">
