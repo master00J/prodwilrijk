@@ -157,6 +157,7 @@ const parseLinesFromSheet = (rows: any[][], sourceSheet: string) => {
 
         const description = headerMap.description !== undefined ? dataRow[headerMap.description] : null
         const articleNo = headerMap.article_no !== undefined ? dataRow[headerMap.article_no] : null
+        const packingNo = headerMap.packing_no !== undefined ? dataRow[headerMap.packing_no] : null
         const qty = headerMap.qty !== undefined ? dataRow[headerMap.qty] : null
 
         if (!description && !articleNo && !qty) {
@@ -170,9 +171,13 @@ const parseLinesFromSheet = (rows: any[][], sourceSheet: string) => {
           sort_order: sortOrder++,
           truck_or_container: headerMap.truck_or_container !== undefined ? String(dataRow[headerMap.truck_or_container] || '').trim() || null : null,
           outer_pack_no: headerMap.outer_pack_no !== undefined ? String(dataRow[headerMap.outer_pack_no] || '').trim() || null : null,
-          packing_no: headerMap.packing_no !== undefined ? String(dataRow[headerMap.packing_no] || '').trim() || null : null,
+          packing_no: packingNo ? String(packingNo).trim() : null,
           label_item_no: headerMap.label_item_no !== undefined ? String(dataRow[headerMap.label_item_no] || '').trim() || null : null,
-          article_no: headerMap.article_no !== undefined ? String(dataRow[headerMap.article_no] || '').trim() || null : null,
+          article_no: articleNo
+            ? String(articleNo).trim()
+            : packingNo
+            ? String(packingNo).trim()
+            : null,
           description: description ? String(description).trim() : null,
           qty: parseNumber(qty),
           part_of: headerMap.part_of !== undefined ? String(dataRow[headerMap.part_of] || '').trim() || null : null,
