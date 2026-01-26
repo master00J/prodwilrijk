@@ -130,6 +130,20 @@ const isHeaderRow = (row: any[]) => {
   return Object.keys(map).length >= 5
 }
 
+const detectLineType = (row: any[], headerMap: Record<string, number>) => {
+  const descriptionCell =
+    headerMap.description !== undefined ? normalize(row[headerMap.description]) : ''
+  if (descriptionCell.includes('machine parts')) return 'machine_part'
+  const rowText = row.map((cell) => normalize(cell)).join(' ')
+  if (rowText.includes('machine parts')) return 'machine_part'
+  return 'skip'
+}
+
+const isIgnoredPackingNo = (value: any) => {
+  const cleaned = String(value ?? '').trim().toLowerCase()
+  return cleaned === '' || cleaned === 'x' || cleaned === 'nbr'
+}
+
 const parseLinesFromSheet = (rows: any[][], sourceSheet: string) => {
   const lines: any[] = []
   let i = 0
@@ -144,10 +158,15 @@ const parseLinesFromSheet = (rows: any[][], sourceSheet: string) => {
 
     if (isHeaderRow(row)) {
       const headerMap = getHeaderIndexMap(row)
-      const descriptionHeader = normalize(row[headerMap.description])
-      const lineType = descriptionHeader.includes('outer packing') ? 'outer_packing' : 'machine_part'
+      const lineType = detectLineType(row, headerMap)
 
       i += 1
+      if (lineType !== 'machine_part') {
+        while (i < rows.length && !isHeaderRow(rows[i])) {
+          i += 1
+        }
+        continue
+      }
       while (i < rows.length && !isHeaderRow(rows[i])) {
         const dataRow = rows[i]
         if (!dataRow || isEmptyRow(dataRow)) {
@@ -161,6 +180,11 @@ const parseLinesFromSheet = (rows: any[][], sourceSheet: string) => {
         const qty = headerMap.qty !== undefined ? dataRow[headerMap.qty] : null
 
         if (!description && !articleNo && !qty) {
+          i += 1
+          continue
+        }
+
+        if (isIgnoredPackingNo(packingNo)) {
           i += 1
           continue
         }
