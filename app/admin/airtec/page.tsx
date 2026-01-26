@@ -21,6 +21,7 @@ interface DailyStat {
   employeeCount: number
   itemsPerFte: number
   revenue: number
+  materialCost: number
   incomingItems: number
   fte: number
 }
@@ -31,6 +32,7 @@ interface Totals {
   averageItemsPerFte: number
   totalDays: number
   totalRevenue: number
+  totalMaterialCost: number
   totalIncoming: number
   incomingVsPackedRatio: number | null
   avgLeadTimeHours: number | null
@@ -50,6 +52,8 @@ interface DetailedItem {
   quantity: number
   price: number
   revenue: number
+  materialCostUnit: number
+  materialCostTotal: number
   date_packed: string
   date_received: string | null
 }
@@ -117,6 +121,7 @@ export default function AirtecMonitorPage() {
       return {
         avgItemsPerDay: 0,
         avgRevenuePerDay: 0,
+        avgMaterialCostPerDay: 0,
         avgManHoursPerDay: 0,
         activeEmployees: 0,
         peakDay: null as DailyStat | null,
@@ -126,6 +131,7 @@ export default function AirtecMonitorPage() {
     const totalDays = totals.totalDays || 1
     const avgItemsPerDay = totals.totalItemsPacked / totalDays
     const avgRevenuePerDay = totals.totalRevenue / totalDays
+    const avgMaterialCostPerDay = totals.totalMaterialCost / totalDays
     const avgManHoursPerDay = totals.totalManHours / totalDays
     const activeEmployees = personStats.length
 
@@ -142,6 +148,7 @@ export default function AirtecMonitorPage() {
     return {
       avgItemsPerDay,
       avgRevenuePerDay,
+      avgMaterialCostPerDay,
       avgManHoursPerDay,
       activeEmployees,
       peakDay,
@@ -219,6 +226,7 @@ export default function AirtecMonitorPage() {
         Medewerkers: stat.employeeCount,
         'Items per FTE': stat.itemsPerFte,
         Omzet: stat.revenue,
+        Kostprijs: stat.materialCost,
       }))
 
       const detailRows = detailedItems.map((item) => ({
@@ -228,6 +236,7 @@ export default function AirtecMonitorPage() {
         Aantal: item.quantity,
         Prijs: item.price,
         Omzet: item.revenue,
+        Kostprijs: item.materialCostTotal,
         'Datum ontvangen': item.date_received ? new Date(item.date_received).toLocaleString('nl-NL') : '',
       }))
 
@@ -264,6 +273,9 @@ export default function AirtecMonitorPage() {
           </span>
           <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1">
             Laatste update: {lastUpdated ? formatDateTime(lastUpdated) : '—'}
+          </span>
+          <span className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-orange-700">
+            Totale kostprijs: {totals ? formatCurrency(totals.totalMaterialCost) : '—'}
           </span>
         </div>
       </div>
@@ -342,6 +354,12 @@ export default function AirtecMonitorPage() {
                 {totals ? formatCurrency(totals.totalRevenue) : '-'}
               </div>
             </div>
+            <div className="bg-orange-50 rounded-lg p-4 border border-orange-100">
+              <div className="text-sm text-gray-600 mb-1">Totale kostprijs</div>
+              <div className="text-3xl font-bold text-orange-700">
+                {totals ? formatCurrency(totals.totalMaterialCost) : '-'}
+              </div>
+            </div>
             <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
               <div className="text-sm text-gray-600 mb-1">Gem. kisten per dag</div>
               <div className="text-3xl font-bold text-slate-800">
@@ -358,13 +376,20 @@ export default function AirtecMonitorPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
             <div className="bg-white rounded-lg border border-gray-200 p-4">
               <div className="text-sm text-gray-500 mb-2">Gemiddelde per dag</div>
               <div className="text-lg font-semibold text-gray-900">
                 {totals ? `${kpiStats.avgManHoursPerDay.toFixed(2)} uur` : '-'}
               </div>
               <div className="text-xs text-gray-500">Manuren per dag</div>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="text-sm text-gray-500 mb-2">Gem. kostprijs per dag</div>
+              <div className="text-lg font-semibold text-gray-900">
+                {totals ? formatCurrency(kpiStats.avgMaterialCostPerDay) : '-'}
+              </div>
+              <div className="text-xs text-gray-500">Op basis van kisttype</div>
             </div>
             <div className="bg-white rounded-lg border border-gray-200 p-4">
               <div className="text-sm text-gray-500 mb-2">Gem. FTE per dag</div>
@@ -452,7 +477,7 @@ export default function AirtecMonitorPage() {
           )}
         </CollapsibleCard>
 
-        <CollapsibleCard id="chartRevenue" title="Omzet trend" subtitle="Dagelijkse omzet">
+        <CollapsibleCard id="chartRevenue" title="Omzet & kostprijs" subtitle="Dagelijkse omzet en kostprijs">
           {loading ? (
             <div className="text-center py-8 text-gray-500">Grafiek laden...</div>
           ) : dailyStats.length === 0 ? (
@@ -473,9 +498,10 @@ export default function AirtecMonitorPage() {
                 <YAxis tickFormatter={(value) => `€${(value / 1000).toFixed(0)}k`} />
                 <Tooltip
                   labelFormatter={(value) => formatDate(value as string)}
-                  formatter={(value: number) => [formatCurrency(value), 'Omzet']}
+                  formatter={(value: number, name: string) => [formatCurrency(value), name]}
                 />
                 <Line type="monotone" dataKey="revenue" stroke="#f59e0b" strokeWidth={3} name="Omzet" dot={{ fill: '#f59e0b', r: 3 }} />
+                <Line type="monotone" dataKey="materialCost" stroke="#f97316" strokeWidth={3} name="Kostprijs" dot={{ fill: '#f97316', r: 3 }} />
               </ComposedChart>
             </ResponsiveContainer>
           )}
@@ -606,6 +632,7 @@ export default function AirtecMonitorPage() {
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Aantal</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Prijs</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Omzet</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Kostprijs</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -628,6 +655,9 @@ export default function AirtecMonitorPage() {
                     </td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">
                       {item.revenue > 0 ? `€${item.revenue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      {item.materialCostTotal > 0 ? `€${item.materialCostTotal.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
                     </td>
                   </tr>
                 ))}
