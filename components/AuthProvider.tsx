@@ -80,9 +80,15 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           userVerified = verifiedData.verified || false
         }
         
-        // If not verified and not already on pending page, redirect
-        if (!userVerified && pathname !== '/pending-verification') {
-          router.push('/pending-verification')
+        // If not verified, sign out and redirect
+        if (!userVerified) {
+          await supabase.auth.signOut()
+          setUser(null)
+          setIsAdmin(false)
+          setIsVerified(false)
+          if (pathname !== '/pending-verification') {
+            router.push('/pending-verification')
+          }
           return
         }
       } else {
@@ -92,8 +98,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       
       setLoading(false)
 
-      // Redirect to login if not authenticated and not on login/signup page
-      if (!session && !pathname.startsWith('/login') && !pathname.startsWith('/signup')) {
+      // Redirect to login if not authenticated and not on login/signup/pending page
+      if (
+        !session &&
+        !pathname.startsWith('/login') &&
+        !pathname.startsWith('/signup') &&
+        !pathname.startsWith('/pending-verification')
+      ) {
         const redirectUrl = `/login?redirect=${encodeURIComponent(pathname)}`
         router.push(redirectUrl)
       }
@@ -119,9 +130,15 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           userVerified = verifiedData.verified || false
         }
         
-        // If not verified and not already on pending page, redirect
-        if (!userVerified && pathname !== '/pending-verification') {
-          router.push('/pending-verification')
+        // If not verified, sign out and redirect
+        if (!userVerified) {
+          await supabase.auth.signOut()
+          setUser(null)
+          setIsAdmin(false)
+          setIsVerified(false)
+          if (pathname !== '/pending-verification') {
+            router.push('/pending-verification')
+          }
           return
         }
       } else {
@@ -129,7 +146,12 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         setIsVerified(false)
       }
       
-      if (!session && !pathname.startsWith('/login') && !pathname.startsWith('/signup')) {
+      if (
+        !session &&
+        !pathname.startsWith('/login') &&
+        !pathname.startsWith('/signup') &&
+        !pathname.startsWith('/pending-verification')
+      ) {
         const redirectUrl = `/login?redirect=${encodeURIComponent(pathname)}`
         router.push(redirectUrl)
       } else if (session && (pathname === '/login' || pathname === '/signup')) {
@@ -139,6 +161,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           if (verifiedResponse.ok) {
             const verifiedData = await verifiedResponse.json()
             if (!verifiedData.verified) {
+              await supabase.auth.signOut()
+              setUser(null)
+              setIsAdmin(false)
+              setIsVerified(false)
               router.push('/pending-verification')
               return
             }
