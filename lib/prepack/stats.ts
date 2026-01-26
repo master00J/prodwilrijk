@@ -121,18 +121,17 @@ export async function fetchPrepackStats({
   dateFrom?: string
   dateTo?: string
 }): Promise<PrepackStatsResult> {
+  const fromValue = dateFrom ? `${dateFrom} 00:00:00` : null
+  const toValue = dateTo ? `${dateTo} 23:59:59` : null
+
   let packedQuery = supabaseAdmin.from('packed_items').select('*')
 
-  if (dateFrom) {
-    const fromDate = new Date(dateFrom)
-    fromDate.setHours(0, 0, 0, 0)
-    packedQuery = packedQuery.gte('date_packed', fromDate.toISOString())
+  if (fromValue) {
+    packedQuery = packedQuery.gte('date_packed', fromValue)
   }
 
-  if (dateTo) {
-    const toDate = new Date(dateTo)
-    toDate.setHours(23, 59, 59, 999)
-    packedQuery = packedQuery.lte('date_packed', toDate.toISOString())
+  if (toValue) {
+    packedQuery = packedQuery.lte('date_packed', toValue)
   }
 
   const { data: packedItems, error: packedError } = await packedQuery
@@ -145,16 +144,12 @@ export async function fetchPrepackStats({
     .from('items_to_pack')
     .select('amount, date_added')
 
-  if (dateFrom) {
-    const fromDate = new Date(dateFrom)
-    fromDate.setHours(0, 0, 0, 0)
-    incomingQuery = incomingQuery.gte('date_added', fromDate.toISOString())
+  if (fromValue) {
+    incomingQuery = incomingQuery.gte('date_added', fromValue)
   }
 
-  if (dateTo) {
-    const toDate = new Date(dateTo)
-    toDate.setHours(23, 59, 59, 999)
-    incomingQuery = incomingQuery.lte('date_added', toDate.toISOString())
+  if (toValue) {
+    incomingQuery = incomingQuery.lte('date_added', toValue)
   }
 
   const { data: incomingItems, error: incomingError } = await incomingQuery
@@ -167,16 +162,12 @@ export async function fetchPrepackStats({
     .from('packed_items')
     .select('amount, date_added, date_packed')
 
-  if (dateFrom) {
-    const fromDate = new Date(dateFrom)
-    fromDate.setHours(0, 0, 0, 0)
-    incomingPackedQuery = incomingPackedQuery.gte('date_added', fromDate.toISOString())
+  if (fromValue) {
+    incomingPackedQuery = incomingPackedQuery.gte('date_added', fromValue)
   }
 
-  if (dateTo) {
-    const toDate = new Date(dateTo)
-    toDate.setHours(23, 59, 59, 999)
-    incomingPackedQuery = incomingPackedQuery.lte('date_added', toDate.toISOString())
+  if (toValue) {
+    incomingPackedQuery = incomingPackedQuery.lte('date_added', toValue)
   }
 
   const { data: incomingPackedItems, error: incomingPackedError } = await incomingPackedQuery
@@ -198,16 +189,12 @@ export async function fetchPrepackStats({
     .eq('type', 'items_to_pack')
     .not('end_time', 'is', null)
 
-  if (dateFrom) {
-    const fromDate = new Date(dateFrom)
-    fromDate.setHours(0, 0, 0, 0)
-    timeLogsQuery = timeLogsQuery.gte('start_time', fromDate.toISOString())
+  if (fromValue) {
+    timeLogsQuery = timeLogsQuery.gte('start_time', fromValue)
   }
 
-  if (dateTo) {
-    const toDate = new Date(dateTo)
-    toDate.setHours(23, 59, 59, 999)
-    timeLogsQuery = timeLogsQuery.lte('start_time', toDate.toISOString())
+  if (toValue) {
+    timeLogsQuery = timeLogsQuery.lte('start_time', toValue)
   }
 
   const { data: timeLogs, error: timeLogsError } = await timeLogsQuery
