@@ -126,26 +126,26 @@ export default function WmsProjectDetailPage() {
 
   const calculateStorageM2 = (lengthValue?: number | null, widthValue?: number | null) => {
     if (!lengthValue || !widthValue) return null
-    return (lengthValue / 100) * (widthValue / 100)
+    return (lengthValue / 1000) * (widthValue / 1000)
   }
 
-  const getLengthCmValue = (line: WmsProjectLine) =>
-    line.length_cm ?? (line.length_mm ? line.length_mm / 10 : null)
-  const getWidthCmValue = (line: WmsProjectLine) =>
-    line.width_cm ?? (line.width_mm ? line.width_mm / 10 : null)
+  const getLengthMmValue = (line: WmsProjectLine) =>
+    line.length_mm ?? (line.length_cm ? line.length_cm * 10 : null)
+  const getWidthMmValue = (line: WmsProjectLine) =>
+    line.width_mm ?? (line.width_cm ? line.width_cm * 10 : null)
 
   const updateDimensions = (line: WmsProjectLine, nextLength: number | null, nextWidth: number | null) => {
     updateLineFields(line.id, {
-      length_cm: nextLength,
-      width_cm: nextWidth,
-      length_mm: null,
-      width_mm: null,
+      length_mm: nextLength,
+      width_mm: nextWidth,
+      length_cm: null,
+      width_cm: null,
     })
   }
 
   const confirmDimensions = (line: WmsProjectLine, confirmed: boolean) => {
-    const length = getLengthCmValue(line)
-    const width = getWidthCmValue(line)
+    const length = getLengthMmValue(line)
+    const width = getWidthMmValue(line)
     const m2 = confirmed ? calculateStorageM2(length ?? null, width ?? null) : line.storage_m2 ?? null
     updateLineFields(line.id, {
       dimensions_confirmed: confirmed,
@@ -553,25 +553,25 @@ export default function WmsProjectDetailPage() {
                     <div className="flex items-center gap-1">
                       <input
                         type="number"
-                        step="0.01"
-                        value={getLengthCmValue(line) ?? ''}
+                        step="1"
+                        value={getLengthMmValue(line) ?? ''}
                         onChange={(e) => {
                           const value = e.target.value === '' ? null : Number(e.target.value)
-                          updateDimensions(line, value, getWidthCmValue(line))
+                          updateDimensions(line, value, getWidthMmValue(line))
                         }}
-                        placeholder="L (cm)"
+                        placeholder="L (mm)"
                         className="px-2 py-1 border border-gray-300 rounded text-xs w-20"
                       />
                       <span className="text-xs">x</span>
                       <input
                         type="number"
-                        step="0.01"
-                        value={getWidthCmValue(line) ?? ''}
+                        step="1"
+                        value={getWidthMmValue(line) ?? ''}
                         onChange={(e) => {
                           const value = e.target.value === '' ? null : Number(e.target.value)
-                          updateDimensions(line, getLengthCmValue(line), value)
+                          updateDimensions(line, getLengthMmValue(line), value)
                         }}
-                        placeholder="B (cm)"
+                        placeholder="B (mm)"
                         className="px-2 py-1 border border-gray-300 rounded text-xs w-20"
                       />
                     </div>
