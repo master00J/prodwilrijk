@@ -37,7 +37,10 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('Error creating WMS package:', error)
-      return NextResponse.json({ error: 'Pakket aanmaken mislukt' }, { status: 500 })
+      return NextResponse.json(
+        { error: 'Pakket aanmaken mislukt', details: error.message },
+        { status: 500 }
+      )
     }
 
     return NextResponse.json({ package: data })

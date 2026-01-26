@@ -25,6 +25,7 @@ export default function WmsProjectDetailPage() {
   const [packages, setPackages] = useState<WmsPackage[]>([])
   const [storageLocations, setStorageLocations] = useState<WmsStorageLocation[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState('all')
   const [imageTarget, setImageTarget] = useState<{ id: number; type: string } | null>(null)
   const [newPackageNo, setNewPackageNo] = useState('')
@@ -38,9 +39,13 @@ export default function WmsProjectDetailPage() {
   const fetchProject = useCallback(async () => {
     if (!Number.isFinite(projectId)) return
     setLoading(true)
+    setLoadError(null)
     try {
       const response = await fetch(`/api/wms-projects/${projectId}`)
-      if (!response.ok) throw new Error('Failed to fetch project')
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}))
+        throw new Error(errorBody?.details || errorBody?.error || 'Failed to fetch project')
+      }
       const data = await response.json()
       setProject(data.project)
       setLines(data.lines || [])
@@ -48,6 +53,7 @@ export default function WmsProjectDetailPage() {
       setPackages(data.packages || [])
     } catch (error) {
       console.error('Error fetching WMS project:', error)
+      setLoadError(error instanceof Error ? error.message : 'Project ophalen mislukt')
     } finally {
       setLoading(false)
     }
@@ -293,6 +299,11 @@ export default function WmsProjectDetailPage() {
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-7xl">
+      {loadError && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {loadError}
+        </div>
+      )}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-3xl font-bold">Project {project.project_no}</h1>

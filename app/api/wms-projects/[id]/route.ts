@@ -60,15 +60,51 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 
     projectImages = (projectImagesData || []).map((img: any) => img.image_url)
 
+    const { data: packages, error: packagesError } = await supabaseAdmin
+      .from('wms_packages')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: true })
+
+    if (packagesError) {
+      console.error('Error fetching WMS packages:', packagesError)
+      return NextResponse.json(
+        { error: 'Failed to fetch packages', details: packagesError.message },
+        { status: 500 }
+      )
+    }
+
+    const { data: packageLines, error: packageLinesError } = await supabaseAdmin
+      .from('wms_package_lines')
+      .select('line_id, package_id')
+      .in('line_id', lineIds)
+
+    if (packageLinesError) {
+      console.error('Error fetching WMS package lines:', packageLinesError)
+      return NextResponse.json(
+        { error: 'Failed to fetch package lines', details: packageLinesError.message },
+        { status: 500 }
+      )
+    }
+
+    const packageByLineId = new Map<number, number>()
+    packageLines?.forEach((pl: any) => {
+      if (pl.line_id && pl.package_id) {
+        packageByLineId.set(pl.line_id, pl.package_id)
+      }
+    })
+
     const linesWithImages = (lines || []).map((line: any) => ({
       ...line,
       images: lineImagesById.get(line.id) || [],
+      package_id: packageByLineId.get(line.id) || null,
     }))
 
     const response = NextResponse.json({
       project,
       lines: linesWithImages,
       projectImages,
+      packages: packages || [],
     })
     response.headers.set('Cache-Control', 'no-store, must-revalidate')
     return response
