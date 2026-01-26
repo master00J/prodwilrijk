@@ -1,6 +1,18 @@
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { calculateWorkedSeconds } from '@/lib/utils/time'
 
+const parseFlexibleNumber = (value: unknown) => {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : 0
+  }
+  if (typeof value === 'string') {
+    const normalized = value.replace(/\s+/g, '').replace(',', '.')
+    const parsed = Number(normalized)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+  return 0
+}
+
 export interface DailyStat {
   date: string
   itemsPacked: number
@@ -8,6 +20,7 @@ export interface DailyStat {
   employeeCount: number
   itemsPerFte: number
   revenue: number
+  materialCost: number
   incomingItems: number
   fte: number
 }
@@ -18,6 +31,7 @@ export interface Totals {
   averageItemsPerFte: number
   totalDays: number
   totalRevenue: number
+  totalMaterialCost: number
   totalIncoming: number
   incomingVsPackedRatio: number | null
   avgLeadTimeHours: number | null
@@ -37,6 +51,8 @@ export interface DetailedItem {
   quantity: number
   price: number
   revenue: number
+  materialCostUnit: number
+  materialCostTotal: number
   date_packed: string
   date_received: string | null
 }
@@ -194,17 +210,22 @@ export async function fetchAirtecStats({
 
   const uniqueKistnummers = [...new Set(items.map((item: any) => item.kistnummer).filter(Boolean))]
   let pricesMap: Record<string, number> = {}
+  let costMap: Record<string, number> = {}
 
   if (uniqueKistnummers.length > 0) {
     const { data: prices } = await supabaseAdmin
       .from('airtec_prices')
-      .select('kistnummer, price')
+      .select('kistnummer, price, assembly_cost, material_cost, transport_cost')
       .in('kistnummer', uniqueKistnummers)
 
     if (prices) {
       prices.forEach((price: any) => {
         if (price?.kistnummer) {
-          pricesMap[price.kistnummer] = parseFloat(price.price) || 0
+          pricesMap[price.kistnummer] = parseFlexibleNumber(price.price)
+          const assembly = parseFlexibleNumber(price.assembly_cost)
+          const material = parseFlexibleNumber(price.material_cost)
+          const transport = parseFlexibleNumber(price.transport_cost)
+          costMap[price.kistnummer] = assembly + material + transport
         }
       })
     }
@@ -218,6 +239,7 @@ export async function fetchAirtecStats({
       manHours: number
       employees: Set<string>
       revenue: number
+      materialCost: number
       incomingItems: number
     }
   > = {}
@@ -231,6 +253,7 @@ export async function fetchAirtecStats({
         manHours: 0,
         employees: new Set(),
         revenue: 0,
+        materialCost: 0,
         incomingItems: 0,
       }
     }
@@ -239,6 +262,8 @@ export async function fetchAirtecStats({
 
     const price = item.kistnummer ? pricesMap[item.kistnummer] || 0 : 0
     dailyStats[date].revenue += price * quantity
+    const costUnit = item.kistnummer ? costMap[item.kistnummer] || 0 : 0
+    dailyStats[date].materialCost += costUnit * quantity
   })
 
   logs.forEach((log: any) => {
@@ -256,6 +281,7 @@ export async function fetchAirtecStats({
           manHours: 0,
           employees: new Set(),
           revenue: 0,
+          materialCost: 0,
           incomingItems: 0,
         }
       }
@@ -276,6 +302,7 @@ export async function fetchAirtecStats({
         manHours: 0,
         employees: new Set(),
         revenue: 0,
+        materialCost: 0,
         incomingItems: 0,
       }
     }
@@ -296,6 +323,7 @@ export async function fetchAirtecStats({
         employeeCount: stat.employees.size,
         itemsPerFte,
         revenue: Number(stat.revenue.toFixed(2)),
+        materialCost: Number(stat.materialCost.toFixed(2)),
         incomingItems: stat.incomingItems,
         fte,
       }
@@ -376,8 +404,10 @@ export async function fetchAirtecStats({
   const detailedItems: DetailedItem[] = items
     .map((item: any) => {
       const price = item.kistnummer ? pricesMap[item.kistnummer] || 0 : 0
+      const costUnit = item.kistnummer ? costMap[item.kistnummer] || 0 : 0
       const quantity = item.quantity || 0
       const revenue = price * quantity
+      const costTotal = costUnit * quantity
 
       return {
         id: item.id,
@@ -386,11 +416,15 @@ export async function fetchAirtecStats({
         quantity,
         price: Number(price.toFixed(2)),
         revenue: Number(revenue.toFixed(2)),
+        materialCostUnit: Number(costUnit.toFixed(2)),
+        materialCostTotal: Number(costTotal.toFixed(2)),
         date_packed: item.date_packed,
         date_received: item.datum_ontvangen || null,
       }
     })
     .sort((a, b) => new Date(b.date_packed).getTime() - new Date(a.date_packed).getTime())
+
+  const totalMaterialCost = detailedItems.reduce((sum, item) => sum + item.materialCostTotal, 0)
 
   return {
     dailyStats: dailyStatsArray,
@@ -400,6 +434,7 @@ export async function fetchAirtecStats({
       averageItemsPerFte,
       totalDays: totalDaysPacked,
       totalRevenue: Number(totalRevenue.toFixed(2)),
+      totalMaterialCost: Number(totalMaterialCost.toFixed(2)),
       totalIncoming,
       incomingVsPackedRatio,
       avgLeadTimeHours,
