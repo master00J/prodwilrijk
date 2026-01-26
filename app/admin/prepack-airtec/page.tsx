@@ -178,7 +178,7 @@ export default function PrepackAirtecOverviewPage() {
     return [
       { label: 'Items ingepakt', value: airtecTotals.totalItemsPacked },
       { label: 'Omzet', value: formatCurrency(airtecTotals.totalRevenue) },
-      { label: 'Kostprijs', value: formatCurrency(airtecTotals.totalMaterialCost) },
+      { label: 'Materiaalkost', value: formatCurrency(airtecTotals.totalMaterialCost) },
       { label: 'Manuren', value: airtecTotals.totalManHours.toFixed(1) },
       { label: 'Instroom', value: airtecTotals.totalIncoming },
       { label: 'Gem. doorlooptijd', value: formatLeadTime(airtecTotals.avgLeadTimeHours) },
@@ -433,7 +433,7 @@ export default function PrepackAirtecOverviewPage() {
                   <Legend />
                   <Bar dataKey="itemsPacked" name="Items" fill="#7c3aed" />
                   <Line dataKey="revenue" name="Omzet" stroke="#16a34a" strokeWidth={2} />
-                  <Line dataKey="materialCost" name="Kostprijs" stroke="#f97316" strokeWidth={2} />
+                  <Line dataKey="materialCost" name="Materiaalkost" stroke="#f97316" strokeWidth={2} />
                 </ComposedChart>
               </ResponsiveContainer>
             )}

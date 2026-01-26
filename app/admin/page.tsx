@@ -75,6 +75,39 @@ export default function AdminPage() {
           <p className="text-gray-600">Selecteer een flow om te monitoren:</p>
         </div>
 
+        <div className="mb-6">
+          <div className="border-2 border-indigo-200 bg-indigo-50 rounded-lg p-6">
+            <div className="flex items-start justify-between mb-3">
+              <div className="text-3xl">🧩</div>
+              <div className="text-indigo-600 font-semibold">Beide flows</div>
+            </div>
+            <h2 className="text-xl font-semibold text-indigo-700 mb-1">Prepack + Airtec</h2>
+            <p className="text-gray-600 text-sm mb-4">
+              Snelle links naar beide monitoring flows.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/admin/prepack"
+                className="px-4 py-2 rounded-md bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-100 transition"
+              >
+                Prepack
+              </Link>
+              <Link
+                href="/admin/airtec"
+                className="px-4 py-2 rounded-md bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-100 transition"
+              >
+                Airtec
+              </Link>
+              <Link
+                href="/admin/prepack-airtec"
+                className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition"
+              >
+                Gecombineerd overzicht
+              </Link>
+            </div>
+          </div>
+        </div>
+
         {/* Flow Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {flows.map((flow) => {

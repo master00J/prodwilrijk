@@ -233,7 +233,7 @@ export default function AirtecMonitorPage() {
         Medewerkers: stat.employeeCount,
         'Items per FTE': stat.itemsPerFte,
         Omzet: stat.revenue,
-        Kostprijs: stat.materialCost,
+        Materiaalkost: stat.materialCost,
       }))
 
       const detailRows = detailedItems.map((item) => ({
@@ -243,7 +243,7 @@ export default function AirtecMonitorPage() {
         Aantal: item.quantity,
         Prijs: item.price,
         Omzet: item.revenue,
-        Kostprijs: item.materialCostTotal,
+        Materiaalkost: item.materialCostTotal,
         'Datum ontvangen': item.date_received ? new Date(item.date_received).toLocaleString('nl-NL') : '',
       }))
 
@@ -282,7 +282,7 @@ export default function AirtecMonitorPage() {
             Laatste update: {lastUpdated ? formatDateTime(lastUpdated) : '—'}
           </span>
           <span className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-orange-700">
-            Totale kostprijs: {totals ? formatCurrency(totals.totalMaterialCost) : '—'}
+            Totale materiaalkost: {totals ? formatCurrency(totals.totalMaterialCost) : '—'}
           </span>
         </div>
       </div>
@@ -362,7 +362,7 @@ export default function AirtecMonitorPage() {
               </div>
             </div>
             <div className="bg-orange-50 rounded-lg p-4 border border-orange-100">
-              <div className="text-sm text-gray-600 mb-1">Totale kostprijs</div>
+              <div className="text-sm text-gray-600 mb-1">Totale materiaalkost</div>
               <div className="text-3xl font-bold text-orange-700">
                 {totals ? formatCurrency(totals.totalMaterialCost) : '-'}
               </div>
@@ -392,7 +392,7 @@ export default function AirtecMonitorPage() {
               <div className="text-xs text-gray-500">Manuren per dag</div>
             </div>
             <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <div className="text-sm text-gray-500 mb-2">Gem. kostprijs per dag</div>
+              <div className="text-sm text-gray-500 mb-2">Gem. materiaalkost per dag</div>
               <div className="text-lg font-semibold text-gray-900">
                 {totals ? formatCurrency(kpiStats.avgMaterialCostPerDay) : '-'}
               </div>
@@ -484,7 +484,7 @@ export default function AirtecMonitorPage() {
           )}
         </CollapsibleCard>
 
-        <CollapsibleCard id="chartRevenue" title="Omzet & kostprijs" subtitle="Dagelijkse omzet en kostprijs">
+        <CollapsibleCard id="chartRevenue" title="Omzet & materiaalkost" subtitle="Dagelijkse omzet en materiaalkost">
           {loading ? (
             <div className="text-center py-8 text-gray-500">Grafiek laden...</div>
           ) : dailyStats.length === 0 ? (
@@ -508,7 +508,7 @@ export default function AirtecMonitorPage() {
                   formatter={(value: number, name: string) => [formatCurrency(value), name]}
                 />
                 <Line type="monotone" dataKey="revenue" stroke="#f59e0b" strokeWidth={3} name="Omzet" dot={{ fill: '#f59e0b', r: 3 }} />
-                <Line type="monotone" dataKey="materialCost" stroke="#f97316" strokeWidth={3} name="Kostprijs" dot={{ fill: '#f97316', r: 3 }} />
+                <Line type="monotone" dataKey="materialCost" stroke="#f97316" strokeWidth={3} name="Materiaalkost" dot={{ fill: '#f97316', r: 3 }} />
               </ComposedChart>
             </ResponsiveContainer>
           )}
@@ -639,7 +639,7 @@ export default function AirtecMonitorPage() {
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Aantal</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Prijs</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Omzet</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Kostprijs</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Materiaalkost</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
