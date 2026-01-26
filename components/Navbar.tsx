@@ -63,6 +63,7 @@ export default function Navbar() {
     pathname.startsWith('/bestellingen-algemeen') ||
     pathname.startsWith('/confirmed-items') || 
     pathname.startsWith('/wms-import') || 
+    pathname.startsWith('/wms-projecten') ||
     pathname.startsWith('/items-to-pack') || 
     pathname.startsWith('/packed-items') ||
     pathname.startsWith('/returned-items')
@@ -239,6 +240,15 @@ export default function Navbar() {
                       }`}
                     >
                       WMS Import - Status 30
+                    </Link>
+                    <Link
+                      href="/wms-projecten"
+                      onClick={() => setIsPrepackOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/wms-projecten') ? 'bg-blue-50 text-blue-600 font-medium border-l-4 border-blue-500' : 'text-gray-700'
+                      }`}
+                    >
+                      WMS Projecten
                     </Link>
                     <Link
                       href="/items-to-pack"
@@ -640,6 +650,15 @@ export default function Navbar() {
                       }`}
                     >
                       Monitor controles
+                    </Link>
+                    <Link
+                      href="/admin/wms-projecten-import"
+                      onClick={() => setIsAdminOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/admin/wms-projecten-import') ? 'bg-purple-50 text-purple-600 font-medium border-l-4 border-purple-500' : 'text-gray-700'
+                      }`}
+                    >
+                      WMS Project import
                     </Link>
                   </div>
                 </div>

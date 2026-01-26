@@ -117,6 +117,60 @@ export interface ConfirmedIncomingGood {
   created_at?: string
 }
 
+export interface WmsProject {
+  id: number
+  project_no: string
+  machine_type?: string | null
+  modality?: string | null
+  production_location?: string | null
+  packing_company?: string | null
+  packing_company_reference?: string | null
+  transport_week_contract?: string | null
+  vmi_ref_no?: string | null
+  vmi_employee?: string | null
+  date?: string | null
+  measuring_location?: string | null
+  measuring_date_requested?: string | null
+  measuring_contact_person?: string | null
+  measuring_team?: string | null
+  measuring_hall?: string | null
+  source_file_name?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface WmsProjectLine {
+  id: number
+  project_id: number
+  line_type: string
+  source_sheet?: string | null
+  sort_order?: number | null
+  truck_or_container?: string | null
+  outer_pack_no?: string | null
+  packing_no?: string | null
+  label_item_no?: string | null
+  article_no?: string | null
+  description?: string | null
+  qty?: number | null
+  part_of?: string | null
+  length_mm?: number | null
+  width_mm?: number | null
+  height_mm?: number | null
+  length_cm?: number | null
+  width_cm?: number | null
+  height_cm?: number | null
+  weight_netto_kg?: number | null
+  weight_gross_kg?: number | null
+  weight_measured_kg?: number | null
+  label_qty?: number | null
+  status: string
+  status_updated_at?: string | null
+  notes?: string | null
+  created_at?: string
+  updated_at?: string
+  images?: string[]
+}
+
 export interface PackedItem {
   id: number
   item_number: string
