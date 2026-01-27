@@ -292,35 +292,41 @@ export default function StorageRentalsPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4">Klanten</h2>
-            <form onSubmit={handleCustomerSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Bedrijfsnaam</label>
-                <input
-                  value={customerName}
-                  onChange={(event) => setCustomerName(event.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
-              </div>
-              <div className="md:col-span-2 flex items-center gap-3">
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold">Klanten</h2>
+              <span className="text-xs text-gray-500">{customers.length} totaal</span>
+            </div>
+            <details className="mb-4">
+              <summary className="cursor-pointer text-sm font-medium text-blue-600 hover:text-blue-700">
+                {editingCustomer ? 'Klant aanpassen' : 'Nieuwe klant toevoegen'}
+              </summary>
+              <form onSubmit={handleCustomerSubmit} className="mt-3 flex flex-wrap items-end gap-3">
+                <div className="flex-1 min-w-[220px]">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Bedrijfsnaam</label>
+                  <input
+                    value={customerName}
+                    onChange={(event) => setCustomerName(event.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  />
+                </div>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
                 >
-                  {editingCustomer ? 'Klant bijwerken' : 'Klant toevoegen'}
+                  {editingCustomer ? 'Bijwerken' : 'Toevoegen'}
                 </button>
                 {editingCustomer && (
                   <button
                     type="button"
                     onClick={resetCustomerForm}
-                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                    className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
                   >
                     Annuleer
                   </button>
                 )}
-              </div>
-            </form>
+              </form>
+            </details>
 
             <div className="mt-6 overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
@@ -387,43 +393,49 @@ export default function StorageRentalsPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4">Locaties</h2>
-            <form onSubmit={handleLocationSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Naam</label>
-                <input
-                  value={locationName}
-                  onChange={(event) => setLocationName(event.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Capaciteit (m²)</label>
-                <input
-                  value={locationCapacity}
-                  onChange={(event) => setLocationCapacity(event.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
-              </div>
-              <div className="md:col-span-2 flex items-center gap-3">
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold">Locaties</h2>
+              <span className="text-xs text-gray-500">{locations.length} totaal</span>
+            </div>
+            <details className="mb-4">
+              <summary className="cursor-pointer text-sm font-medium text-blue-600 hover:text-blue-700">
+                {editingLocation ? 'Locatie aanpassen' : 'Nieuwe locatie toevoegen'}
+              </summary>
+              <form onSubmit={handleLocationSubmit} className="mt-3 flex flex-wrap items-end gap-3">
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Naam</label>
+                  <input
+                    value={locationName}
+                    onChange={(event) => setLocationName(event.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  />
+                </div>
+                <div className="min-w-[140px]">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Capaciteit (m²)</label>
+                  <input
+                    value={locationCapacity}
+                    onChange={(event) => setLocationCapacity(event.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  />
+                </div>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
                 >
-                  {editingLocation ? 'Locatie bijwerken' : 'Locatie toevoegen'}
+                  {editingLocation ? 'Bijwerken' : 'Toevoegen'}
                 </button>
                 {editingLocation && (
                   <button
                     type="button"
                     onClick={resetLocationForm}
-                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                    className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
                   >
                     Annuleer
                   </button>
                 )}
-              </div>
-            </form>
+              </form>
+            </details>
 
             <div className="mt-6 overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
