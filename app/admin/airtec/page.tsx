@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, ReactNode } from 'react'
+import { useState, useEffect, useMemo, useRef, ReactNode } from 'react'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
 import {
@@ -68,6 +68,7 @@ export default function AirtecMonitorPage() {
   const [totals, setTotals] = useState<Totals | null>(null)
   const [personStats, setPersonStats] = useState<PersonStats[]>([])
   const [detailedItems, setDetailedItems] = useState<DetailedItem[]>([])
+  const initialFetchDone = useRef(false)
   const [collapsedSections, setCollapsedSections] = useState({
     filters: false,
     chartOutput: false,
@@ -214,7 +215,8 @@ export default function AirtecMonitorPage() {
   }
 
   useEffect(() => {
-    if (dateFrom && dateTo) {
+    if (!initialFetchDone.current && dateFrom && dateTo) {
+      initialFetchDone.current = true
       fetchStats()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
