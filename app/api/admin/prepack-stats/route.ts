@@ -8,9 +8,11 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const dateFrom = searchParams.get('date_from') || ''
     const dateTo = searchParams.get('date_to') || ''
+    const includeDetails = searchParams.get('include_details') !== 'false'
     const data = await fetchPrepackStats({
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
+      includeDetails,
     })
 
     return NextResponse.json(data)

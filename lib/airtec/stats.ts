@@ -68,6 +68,7 @@ export interface AirtecStatsResult {
   totals: Totals
   personStats: PersonStats[]
   detailedItems: DetailedItem[]
+  detailsLimited?: boolean
 }
 
 const isWeekday = (date: Date) => {
@@ -138,10 +139,20 @@ const getExpectedHoursForDay = (dateValue: string) => {
 export async function fetchAirtecStats({
   dateFrom,
   dateTo,
+  includeDetails = true,
 }: {
   dateFrom?: string
   dateTo?: string
+  includeDetails?: boolean
 }): Promise<AirtecStatsResult> {
+  const maxDetailsDays = 120
+  const fromDate = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null
+  const toDate = dateTo ? new Date(`${dateTo}T00:00:00`) : null
+  const rangeDays =
+    fromDate && toDate && Number.isFinite(fromDate.getTime()) && Number.isFinite(toDate.getTime())
+      ? Math.ceil((toDate.getTime() - fromDate.getTime()) / 86400000)
+      : 0
+  const skipDetails = !includeDetails || (rangeDays > maxDetailsDays && includeDetails)
   const packedItems = await fetchAllRows<any>(async (from, to) => {
     let packedQuery = supabaseAdmin.from('packed_items_airtec').select('*').range(from, to)
 
@@ -455,35 +466,37 @@ export async function fetchAirtecStats({
     }))
     .sort((a, b) => b.manHours - a.manHours)
 
-  const detailedItems: DetailedItem[] = items
-    .map((item: any) => {
-      const kistnummerKey = normalizeKistnummer(item.kistnummer)
-      const price = kistnummerKey ? pricesMap[kistnummerKey] || 0 : 0
-      const costUnit = kistnummerKey ? costMap[kistnummerKey] || 0 : 0
-      const quantity = item.quantity || 0
-      const revenue = price * quantity
-      const costTotal = costUnit * quantity
+  const detailedItems: DetailedItem[] = skipDetails
+    ? []
+    : items
+        .map((item: any) => {
+          const kistnummerKey = normalizeKistnummer(item.kistnummer)
+          const price = kistnummerKey ? pricesMap[kistnummerKey] || 0 : 0
+          const costUnit = kistnummerKey ? costMap[kistnummerKey] || 0 : 0
+          const quantity = item.quantity || 0
+          const revenue = price * quantity
+          const costTotal = costUnit * quantity
 
-      return {
-        id: item.id,
-        kistnummer: item.kistnummer || null,
-        item_number: item.item_number || null,
-        quantity,
-        price: Number(price.toFixed(2)),
-        revenue: Number(revenue.toFixed(2)),
-        materialCostUnit: Number(costUnit.toFixed(2)),
-        materialCostTotal: Number(costTotal.toFixed(2)),
-        date_packed: item.date_packed,
-        date_received: item.datum_ontvangen || null,
-      }
-    })
-    .sort((a, b) => {
-      const left = new Date(b.date_packed).getTime()
-      const right = new Date(a.date_packed).getTime()
-      const safeLeft = Number.isFinite(left) ? left : 0
-      const safeRight = Number.isFinite(right) ? right : 0
-      return safeLeft - safeRight
-    })
+          return {
+            id: item.id,
+            kistnummer: item.kistnummer || null,
+            item_number: item.item_number || null,
+            quantity,
+            price: Number(price.toFixed(2)),
+            revenue: Number(revenue.toFixed(2)),
+            materialCostUnit: Number(costUnit.toFixed(2)),
+            materialCostTotal: Number(costTotal.toFixed(2)),
+            date_packed: item.date_packed,
+            date_received: item.datum_ontvangen || null,
+          }
+        })
+        .sort((a, b) => {
+          const left = new Date(b.date_packed).getTime()
+          const right = new Date(a.date_packed).getTime()
+          const safeLeft = Number.isFinite(left) ? left : 0
+          const safeRight = Number.isFinite(right) ? right : 0
+          return safeLeft - safeRight
+        })
 
   const totalMaterialCost = detailedItems.reduce((sum, item) => sum + item.materialCostTotal, 0)
 
@@ -504,5 +517,6 @@ export async function fetchAirtecStats({
     },
     personStats: personStatsArray,
     detailedItems,
+    detailsLimited: skipDetails,
   }
 }

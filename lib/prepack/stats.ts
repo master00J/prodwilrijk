@@ -50,6 +50,7 @@ export interface PrepackStatsResult {
   totals: Totals
   personStats: PersonStats[]
   detailedItems: DetailedItem[]
+  detailsLimited?: boolean
 }
 
 const isWeekday = (date: Date) => {
@@ -138,10 +139,20 @@ const getMaterialCostForComponent = (component: any, price: number, unitOfMeasur
 export async function fetchPrepackStats({
   dateFrom,
   dateTo,
+  includeDetails = true,
 }: {
   dateFrom?: string
   dateTo?: string
+  includeDetails?: boolean
 }): Promise<PrepackStatsResult> {
+  const maxDetailsDays = 120
+  const fromDate = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null
+  const toDate = dateTo ? new Date(`${dateTo}T00:00:00`) : null
+  const rangeDays =
+    fromDate && toDate && Number.isFinite(fromDate.getTime()) && Number.isFinite(toDate.getTime())
+      ? Math.ceil((toDate.getTime() - fromDate.getTime()) / 86400000)
+      : 0
+  const skipDetails = !includeDetails || (rangeDays > maxDetailsDays && includeDetails)
   const fromValue = dateFrom ? `${dateFrom} 00:00:00` : null
   const toValue = dateTo ? `${dateTo} 23:59:59` : null
 
@@ -500,28 +511,30 @@ export async function fetchPrepackStats({
     }))
     .sort((a, b) => b.manHours - a.manHours)
 
-  const detailedItems: DetailedItem[] = items
-    .map((item: any) => {
-      const price = pricesMap[item.item_number] || 0
-      const amount = item.amount || 0
-      const revenue = price * amount
-      const materialUnitCost = materialCostMap[item.item_number] || 0
-      const materialCostTotal = materialUnitCost * amount
+  const detailedItems: DetailedItem[] = skipDetails
+    ? []
+    : items
+        .map((item: any) => {
+          const price = pricesMap[item.item_number] || 0
+          const amount = item.amount || 0
+          const revenue = price * amount
+          const materialUnitCost = materialCostMap[item.item_number] || 0
+          const materialCostTotal = materialUnitCost * amount
 
-      return {
-        id: item.id,
-        item_number: item.item_number,
-        po_number: item.po_number,
-        amount,
-        price: Number(price.toFixed(2)),
-        revenue: Number(revenue.toFixed(2)),
-        materialCostUnit: Number(materialUnitCost.toFixed(2)),
-        materialCostTotal: Number(materialCostTotal.toFixed(2)),
-        date_packed: item.date_packed,
-        date_added: item.date_added,
-      }
-    })
-    .sort((a, b) => new Date(b.date_packed).getTime() - new Date(a.date_packed).getTime())
+          return {
+            id: item.id,
+            item_number: item.item_number,
+            po_number: item.po_number,
+            amount,
+            price: Number(price.toFixed(2)),
+            revenue: Number(revenue.toFixed(2)),
+            materialCostUnit: Number(materialUnitCost.toFixed(2)),
+            materialCostTotal: Number(materialCostTotal.toFixed(2)),
+            date_packed: item.date_packed,
+            date_added: item.date_added,
+          }
+        })
+        .sort((a, b) => new Date(b.date_packed).getTime() - new Date(a.date_packed).getTime())
 
   return {
     dailyStats: dailyStatsArray,
@@ -540,5 +553,6 @@ export async function fetchPrepackStats({
     },
     personStats: personStatsArray,
     detailedItems,
+    detailsLimited: skipDetails,
   }
 }

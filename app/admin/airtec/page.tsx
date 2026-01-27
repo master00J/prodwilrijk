@@ -68,6 +68,7 @@ export default function AirtecMonitorPage() {
   const [totals, setTotals] = useState<Totals | null>(null)
   const [personStats, setPersonStats] = useState<PersonStats[]>([])
   const [detailedItems, setDetailedItems] = useState<DetailedItem[]>([])
+  const [detailsLimited, setDetailsLimited] = useState(false)
   const dateFromInputRef = useRef<HTMLInputElement>(null)
   const dateToInputRef = useRef<HTMLInputElement>(null)
   const [collapsedSections, setCollapsedSections] = useState({
@@ -215,6 +216,7 @@ export default function AirtecMonitorPage() {
       setTotals(data.totals || null)
       setPersonStats(data.personStats || [])
       setDetailedItems(data.detailedItems || [])
+      setDetailsLimited(Boolean(data.detailsLimited))
       setLastUpdated(new Date().toISOString())
     } catch (error) {
       console.error('Error fetching stats:', error)
@@ -631,6 +633,11 @@ export default function AirtecMonitorPage() {
 
       <div className="mb-6">
         <CollapsibleCard id="details" title="Gedetailleerde Lijst Verpakte Kisten">
+        {detailsLimited && (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700">
+            Detailtabel is ingeklapt voor deze grote periode. Beperk de periode om details te tonen.
+          </div>
+        )}
         {loading ? (
           <div className="text-center py-8">
             <div className="text-xl">Items laden...</div>

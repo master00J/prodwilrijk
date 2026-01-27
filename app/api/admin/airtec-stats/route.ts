@@ -8,10 +8,12 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const dateFrom = searchParams.get('date_from') || ''
     const dateTo = searchParams.get('date_to') || ''
+    const includeDetails = searchParams.get('include_details') !== 'false'
 
     const stats = await fetchAirtecStats({
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
+      includeDetails,
     })
 
     return NextResponse.json({
@@ -19,6 +21,7 @@ export async function GET(request: NextRequest) {
       totals: stats.totals,
       personStats: stats.personStats,
       detailedItems: stats.detailedItems,
+      detailsLimited: stats.detailsLimited,
     })
   } catch (error) {
     console.error('Unexpected error:', error)
