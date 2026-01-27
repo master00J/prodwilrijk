@@ -22,14 +22,12 @@ export default function StorageRentalsPage() {
 
   const [editingCustomer, setEditingCustomer] = useState<StorageRentalCustomer | null>(null)
   const [customerName, setCustomerName] = useState('')
-  const [customerNotes, setCustomerNotes] = useState('')
-  const [customerActive, setCustomerActive] = useState(true)
+  const [customerNotes] = useState('')
 
   const [editingLocation, setEditingLocation] = useState<StorageRentalLocation | null>(null)
   const [locationName, setLocationName] = useState('')
   const [locationCapacity, setLocationCapacity] = useState('')
-  const [locationNotes, setLocationNotes] = useState('')
-  const [locationActive, setLocationActive] = useState(true)
+  const [locationNotes] = useState('')
 
   const [editingItem, setEditingItem] = useState<StorageRentalItem | null>(null)
   const [itemCustomerId, setItemCustomerId] = useState('')
@@ -97,16 +95,12 @@ export default function StorageRentalsPage() {
   const resetCustomerForm = () => {
     setEditingCustomer(null)
     setCustomerName('')
-    setCustomerNotes('')
-    setCustomerActive(true)
   }
 
   const resetLocationForm = () => {
     setEditingLocation(null)
     setLocationName('')
     setLocationCapacity('')
-    setLocationNotes('')
-    setLocationActive(true)
   }
 
   const resetItemForm = () => {
@@ -131,8 +125,6 @@ export default function StorageRentalsPage() {
     const payload = {
       id: editingCustomer?.id,
       name: customerName.trim(),
-      notes: customerNotes.trim() || null,
-      active: customerActive,
     }
 
     const response = await fetch('/api/storage-rentals/customers', {
@@ -163,8 +155,6 @@ export default function StorageRentalsPage() {
       id: editingLocation?.id,
       name: locationName.trim(),
       capacity_m2: capacityValue,
-      notes: locationNotes.trim() || null,
-      active: locationActive,
     }
 
     const response = await fetch('/api/storage-rentals/locations', {
@@ -313,26 +303,6 @@ export default function StorageRentalsPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Actief</label>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={customerActive}
-                    onChange={(event) => setCustomerActive(event.target.checked)}
-                    className="w-4 h-4"
-                  />
-                  Actief
-                </label>
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notities</label>
-                <input
-                  value={customerNotes}
-                  onChange={(event) => setCustomerNotes(event.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
-              </div>
               <div className="md:col-span-2 flex items-center gap-3">
                 <button
                   type="submit"
@@ -381,8 +351,6 @@ export default function StorageRentalsPage() {
                               onClick={() => {
                                 setEditingCustomer(customer)
                                 setCustomerName(customer.name)
-                                setCustomerNotes(customer.notes || '')
-                                setCustomerActive(customer.active !== false)
                               }}
                               className="px-2 py-1 bg-blue-500 text-white rounded text-xs"
                             >
@@ -435,26 +403,6 @@ export default function StorageRentalsPage() {
                 <input
                   value={locationCapacity}
                   onChange={(event) => setLocationCapacity(event.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Actief</label>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={locationActive}
-                    onChange={(event) => setLocationActive(event.target.checked)}
-                    className="w-4 h-4"
-                  />
-                  Actief
-                </label>
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notities</label>
-                <input
-                  value={locationNotes}
-                  onChange={(event) => setLocationNotes(event.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
               </div>
@@ -511,8 +459,6 @@ export default function StorageRentalsPage() {
                                 setEditingLocation(location)
                                 setLocationName(location.name)
                                 setLocationCapacity(location.capacity_m2?.toString() || '')
-                                setLocationNotes(location.notes || '')
-                                setLocationActive(location.active !== false)
                               }}
                               className="px-2 py-1 bg-blue-500 text-white rounded text-xs"
                             >
