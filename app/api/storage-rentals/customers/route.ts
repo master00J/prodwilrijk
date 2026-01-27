@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, contact_name, phone, email, notes, active } = body || {}
+    const { name, notes, active } = body || {}
 
     if (!name || String(name).trim() === '') {
       return NextResponse.json({ error: 'Naam is verplicht' }, { status: 400 })
@@ -42,9 +42,6 @@ export async function POST(request: NextRequest) {
       .from('storage_rental_customers')
       .insert({
         name: String(name).trim(),
-        contact_name: contact_name || null,
-        phone: phone || null,
-        email: email || null,
         notes: notes || null,
         active: active ?? true,
       })
@@ -66,7 +63,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-    const { id, name, contact_name, phone, email, notes, active } = body || {}
+    const { id, name, notes, active } = body || {}
 
     if (!id) {
       return NextResponse.json({ error: 'ID is verplicht' }, { status: 400 })
@@ -79,9 +76,6 @@ export async function PUT(request: NextRequest) {
       }
       updateData.name = String(name).trim()
     }
-    if (contact_name !== undefined) updateData.contact_name = contact_name || null
-    if (phone !== undefined) updateData.phone = phone || null
-    if (email !== undefined) updateData.email = email || null
     if (notes !== undefined) updateData.notes = notes || null
     if (active !== undefined) updateData.active = active
 

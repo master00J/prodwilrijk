@@ -22,9 +22,6 @@ export default function StorageRentalsPage() {
 
   const [editingCustomer, setEditingCustomer] = useState<StorageRentalCustomer | null>(null)
   const [customerName, setCustomerName] = useState('')
-  const [customerContact, setCustomerContact] = useState('')
-  const [customerPhone, setCustomerPhone] = useState('')
-  const [customerEmail, setCustomerEmail] = useState('')
   const [customerNotes, setCustomerNotes] = useState('')
   const [customerActive, setCustomerActive] = useState(true)
 
@@ -100,9 +97,6 @@ export default function StorageRentalsPage() {
   const resetCustomerForm = () => {
     setEditingCustomer(null)
     setCustomerName('')
-    setCustomerContact('')
-    setCustomerPhone('')
-    setCustomerEmail('')
     setCustomerNotes('')
     setCustomerActive(true)
   }
@@ -137,9 +131,6 @@ export default function StorageRentalsPage() {
     const payload = {
       id: editingCustomer?.id,
       name: customerName.trim(),
-      contact_name: customerContact.trim() || null,
-      phone: customerPhone.trim() || null,
-      email: customerEmail.trim() || null,
       notes: customerNotes.trim() || null,
       active: customerActive,
     }
@@ -323,30 +314,6 @@ export default function StorageRentalsPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Contactpersoon</label>
-                <input
-                  value={customerContact}
-                  onChange={(event) => setCustomerContact(event.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Telefoon</label>
-                <input
-                  value={customerPhone}
-                  onChange={(event) => setCustomerPhone(event.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">E-mail</label>
-                <input
-                  value={customerEmail}
-                  onChange={(event) => setCustomerEmail(event.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
-              </div>
-              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Actief</label>
                 <label className="flex items-center gap-2 text-sm">
                   <input
@@ -390,7 +357,6 @@ export default function StorageRentalsPage() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Klant</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Acties</th>
                   </tr>
@@ -398,7 +364,7 @@ export default function StorageRentalsPage() {
                 <tbody className="divide-y divide-gray-200 bg-white">
                   {customers.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-3 py-4 text-sm text-gray-500 text-center">
+                      <td colSpan={3} className="px-3 py-4 text-sm text-gray-500 text-center">
                         Geen klanten
                       </td>
                     </tr>
@@ -406,9 +372,6 @@ export default function StorageRentalsPage() {
                     customers.map((customer) => (
                       <tr key={customer.id} className={customer.active === false ? 'bg-gray-50' : ''}>
                         <td className="px-3 py-2 text-sm">{customer.name}</td>
-                        <td className="px-3 py-2 text-sm text-gray-600">
-                          {customer.contact_name || '-'}
-                        </td>
                         <td className="px-3 py-2 text-sm">
                           {customer.active !== false ? 'Actief' : 'Inactief'}
                         </td>
@@ -418,9 +381,6 @@ export default function StorageRentalsPage() {
                               onClick={() => {
                                 setEditingCustomer(customer)
                                 setCustomerName(customer.name)
-                                setCustomerContact(customer.contact_name || '')
-                                setCustomerPhone(customer.phone || '')
-                                setCustomerEmail(customer.email || '')
                                 setCustomerNotes(customer.notes || '')
                                 setCustomerActive(customer.active !== false)
                               }}
