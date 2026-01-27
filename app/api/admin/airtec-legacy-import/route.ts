@@ -251,9 +251,7 @@ export async function POST(request: NextRequest) {
           }))
           createdEmployees = missingEmployees.length
           for (const chunk of chunkArray(missingEmployees, 500)) {
-            const { error } = await supabaseAdmin
-              .from('employees')
-              .upsert(chunk, { onConflict: 'name' })
+            const { error } = await supabaseAdmin.from('employees').insert(chunk)
             if (error) {
               throw new Error(`Employees insert mislukt: ${error.message}`)
             }
