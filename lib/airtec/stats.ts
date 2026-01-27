@@ -89,6 +89,27 @@ const toDateKey = (value: unknown) => {
   return date.toISOString().split('T')[0]
 }
 
+const fetchAllRows = async <T,>(
+  buildQuery: (from: number, to: number) => Promise<{ data: T[] | null; error: any }>
+) => {
+  const pageSize = 1000
+  let from = 0
+  const allRows: T[] = []
+
+  while (true) {
+    const { data, error } = await buildQuery(from, from + pageSize - 1)
+    if (error) {
+      throw error
+    }
+    const rows = (data || []) as T[]
+    allRows.push(...rows)
+    if (rows.length < pageSize) break
+    from += pageSize
+  }
+
+  return allRows
+}
+
 const calculateBusinessDays = (start: Date, end: Date) => {
   if (end <= start) return 0
   const startDay = toStartOfDay(start)
@@ -121,88 +142,85 @@ export async function fetchAirtecStats({
   dateFrom?: string
   dateTo?: string
 }): Promise<AirtecStatsResult> {
-  let packedQuery = supabaseAdmin.from('packed_items_airtec').select('*')
+  const packedItems = await fetchAllRows<any>(async (from, to) => {
+    let packedQuery = supabaseAdmin.from('packed_items_airtec').select('*').range(from, to)
 
-  if (dateFrom) {
-    const fromDate = new Date(dateFrom)
-    fromDate.setHours(0, 0, 0, 0)
-    packedQuery = packedQuery.gte('date_packed', fromDate.toISOString())
-  }
+    if (dateFrom) {
+      const fromDate = new Date(dateFrom)
+      fromDate.setHours(0, 0, 0, 0)
+      packedQuery = packedQuery.gte('date_packed', fromDate.toISOString())
+    }
 
-  if (dateTo) {
-    const toDate = new Date(dateTo)
-    toDate.setHours(23, 59, 59, 999)
-    packedQuery = packedQuery.lte('date_packed', toDate.toISOString())
-  }
+    if (dateTo) {
+      const toDate = new Date(dateTo)
+      toDate.setHours(23, 59, 59, 999)
+      packedQuery = packedQuery.lte('date_packed', toDate.toISOString())
+    }
 
-  const { data: packedItems, error: packedError } = await packedQuery
+    return await packedQuery
+  })
 
-  if (packedError) {
-    throw new Error('Failed to fetch packed items')
-  }
+  const incomingItems = await fetchAllRows<any>(async (from, to) => {
+    let incomingQuery = supabaseAdmin
+      .from('items_to_pack_airtec')
+      .select('quantity, datum_ontvangen')
+      .range(from, to)
 
-  let incomingQuery = supabaseAdmin
-    .from('items_to_pack_airtec')
-    .select('quantity, datum_ontvangen')
+    if (dateFrom) {
+      const fromDate = new Date(dateFrom)
+      fromDate.setHours(0, 0, 0, 0)
+      incomingQuery = incomingQuery.gte('datum_ontvangen', fromDate.toISOString())
+    }
 
-  if (dateFrom) {
-    const fromDate = new Date(dateFrom)
-    fromDate.setHours(0, 0, 0, 0)
-    incomingQuery = incomingQuery.gte('datum_ontvangen', fromDate.toISOString())
-  }
+    if (dateTo) {
+      const toDate = new Date(dateTo)
+      toDate.setHours(23, 59, 59, 999)
+      incomingQuery = incomingQuery.lte('datum_ontvangen', toDate.toISOString())
+    }
 
-  if (dateTo) {
-    const toDate = new Date(dateTo)
-    toDate.setHours(23, 59, 59, 999)
-    incomingQuery = incomingQuery.lte('datum_ontvangen', toDate.toISOString())
-  }
+    return await incomingQuery
+  })
 
-  const { data: incomingItems, error: incomingError } = await incomingQuery
+  const incomingPackedItems = await fetchAllRows<any>(async (from, to) => {
+    let incomingPackedQuery = supabaseAdmin
+      .from('packed_items_airtec')
+      .select('quantity, datum_ontvangen, datum_opgestuurd')
+      .range(from, to)
 
-  if (incomingError) {
-    throw new Error('Failed to fetch items to pack airtec')
-  }
+    if (dateFrom && dateTo) {
+      const fromDate = new Date(dateFrom)
+      fromDate.setHours(0, 0, 0, 0)
+      const toDate = new Date(dateTo)
+      toDate.setHours(23, 59, 59, 999)
+      const fromIso = fromDate.toISOString()
+      const toIso = toDate.toISOString()
+      incomingPackedQuery = incomingPackedQuery.or(
+        `and(datum_opgestuurd.gte.${fromIso},datum_opgestuurd.lte.${toIso}),and(datum_ontvangen.gte.${fromIso},datum_ontvangen.lte.${toIso})`
+      )
+    } else if (dateFrom) {
+      const fromDate = new Date(dateFrom)
+      fromDate.setHours(0, 0, 0, 0)
+      const fromIso = fromDate.toISOString()
+      incomingPackedQuery = incomingPackedQuery.or(
+        `datum_opgestuurd.gte.${fromIso},datum_ontvangen.gte.${fromIso}`
+      )
+    } else if (dateTo) {
+      const toDate = new Date(dateTo)
+      toDate.setHours(23, 59, 59, 999)
+      const toIso = toDate.toISOString()
+      incomingPackedQuery = incomingPackedQuery.or(
+        `datum_opgestuurd.lte.${toIso},datum_ontvangen.lte.${toIso}`
+      )
+    }
 
-  let incomingPackedQuery = supabaseAdmin
-    .from('packed_items_airtec')
-    .select('quantity, datum_ontvangen, datum_opgestuurd')
+    return await incomingPackedQuery
+  })
 
-  if (dateFrom && dateTo) {
-    const fromDate = new Date(dateFrom)
-    fromDate.setHours(0, 0, 0, 0)
-    const toDate = new Date(dateTo)
-    toDate.setHours(23, 59, 59, 999)
-    const fromIso = fromDate.toISOString()
-    const toIso = toDate.toISOString()
-    incomingPackedQuery = incomingPackedQuery.or(
-      `and(datum_opgestuurd.gte.${fromIso},datum_opgestuurd.lte.${toIso}),and(datum_ontvangen.gte.${fromIso},datum_ontvangen.lte.${toIso})`
-    )
-  } else if (dateFrom) {
-    const fromDate = new Date(dateFrom)
-    fromDate.setHours(0, 0, 0, 0)
-    const fromIso = fromDate.toISOString()
-    incomingPackedQuery = incomingPackedQuery.or(
-      `datum_opgestuurd.gte.${fromIso},datum_ontvangen.gte.${fromIso}`
-    )
-  } else if (dateTo) {
-    const toDate = new Date(dateTo)
-    toDate.setHours(23, 59, 59, 999)
-    const toIso = toDate.toISOString()
-    incomingPackedQuery = incomingPackedQuery.or(
-      `datum_opgestuurd.lte.${toIso},datum_ontvangen.lte.${toIso}`
-    )
-  }
-
-  const { data: incomingPackedItems, error: incomingPackedError } = await incomingPackedQuery
-
-  if (incomingPackedError) {
-    throw new Error('Failed to fetch packed items airtec incoming')
-  }
-
-  let timeLogsQuery = supabaseAdmin
-    .from('time_logs')
-    .select(
-      `
+  const timeLogs = await fetchAllRows<any>(async (from, to) => {
+    let timeLogsQuery = supabaseAdmin
+      .from('time_logs')
+      .select(
+        `
         id,
         employee_id,
         start_time,
@@ -210,27 +228,25 @@ export async function fetchAirtecStats({
         type,
         employees(id, name)
       `
-    )
-    .eq('type', 'items_to_pack_airtec')
-    .not('end_time', 'is', null)
+      )
+      .eq('type', 'items_to_pack_airtec')
+      .not('end_time', 'is', null)
+      .range(from, to)
 
-  if (dateFrom) {
-    const fromDate = new Date(dateFrom)
-    fromDate.setHours(0, 0, 0, 0)
-    timeLogsQuery = timeLogsQuery.gte('start_time', fromDate.toISOString())
-  }
+    if (dateFrom) {
+      const fromDate = new Date(dateFrom)
+      fromDate.setHours(0, 0, 0, 0)
+      timeLogsQuery = timeLogsQuery.gte('start_time', fromDate.toISOString())
+    }
 
-  if (dateTo) {
-    const toDate = new Date(dateTo)
-    toDate.setHours(23, 59, 59, 999)
-    timeLogsQuery = timeLogsQuery.lte('start_time', toDate.toISOString())
-  }
+    if (dateTo) {
+      const toDate = new Date(dateTo)
+      toDate.setHours(23, 59, 59, 999)
+      timeLogsQuery = timeLogsQuery.lte('start_time', toDate.toISOString())
+    }
 
-  const { data: timeLogs, error: timeLogsError } = await timeLogsQuery
-
-  if (timeLogsError) {
-    throw new Error('Failed to fetch time logs')
-  }
+    return await timeLogsQuery
+  })
 
   const items = packedItems || []
   const logs = timeLogs || []
