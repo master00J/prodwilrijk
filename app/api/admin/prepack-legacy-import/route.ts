@@ -179,11 +179,17 @@ export async function POST(request: NextRequest) {
 
     const timelogBlocks = parseInsertBlocks(timelogSql, 'prepack_timelogs')
     const timelogRows = timelogBlocks.flatMap(parseValuesBlock)
-    const legacyTimeLogs = timelogRows.map((row) => ({
-      employeeIds: parseEmployeeIds(row[2]),
-      start_time: normalizeDate(row[3]),
-      end_time: normalizeDate(row[4]),
-    }))
+    const legacyTimeLogs = timelogRows.map((row) => {
+      const durationMinutes = Number.isFinite(row[5]) ? Number(row[5]) : null
+      const totalEmployeeMinutes = Number.isFinite(row[7]) ? Number(row[7]) : null
+      return {
+        employeeIds: parseEmployeeIds(row[2]),
+        start_time: normalizeDate(row[3]),
+        end_time: normalizeDate(row[4]),
+        durationMinutes,
+        totalEmployeeMinutes,
+      }
+    })
     const legacyEmployeeIds = [
       ...new Set(legacyTimeLogs.flatMap((row) => row.employeeIds).filter(Boolean)),
     ]
@@ -294,7 +300,16 @@ export async function POST(request: NextRequest) {
         const mappedEmployees = row.employeeIds
           .map((legacyId) => legacyIdToEmployeeId.get(legacyId))
           .filter(Boolean) as number[]
-        const employeeIds = mappedEmployees.length > 0 ? mappedEmployees : unknownEmployeeId ? [unknownEmployeeId] : []
+
+        let employeeIds = mappedEmployees
+        if (employeeIds.length === 0 && unknownEmployeeId) {
+          let inferredCount = 1
+          if (row.durationMinutes && row.totalEmployeeMinutes) {
+            inferredCount = Math.max(1, Math.round(row.totalEmployeeMinutes / row.durationMinutes))
+          }
+          employeeIds = Array.from({ length: inferredCount }, () => unknownEmployeeId!)
+        }
+
         return employeeIds.map((employeeId) => ({
           employee_id: employeeId,
           type: 'items_to_pack',
