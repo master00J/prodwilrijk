@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { customer_id, location_id, description, m2, start_date, end_date, active, notes } = body || {}
+    const { customer_id, location_id, description, m2, price_per_m2, start_date, end_date, active, notes } = body || {}
 
     if (!customer_id) {
       return NextResponse.json({ error: 'Klant is verplicht' }, { status: 400 })
@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
         location_id: location_id ?? null,
         description: description || null,
         m2: m2 ?? null,
+        price_per_m2: price_per_m2 ?? null,
         start_date: start_date || null,
         end_date: end_date || null,
         active: active ?? true,
@@ -68,7 +69,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-    const { id, customer_id, location_id, description, m2, start_date, end_date, active, notes } = body || {}
+    const { id, customer_id, location_id, description, m2, price_per_m2, start_date, end_date, active, notes } = body || {}
 
     if (!id) {
       return NextResponse.json({ error: 'ID is verplicht' }, { status: 400 })
@@ -79,6 +80,7 @@ export async function PUT(request: NextRequest) {
     if (location_id !== undefined) updateData.location_id = location_id ?? null
     if (description !== undefined) updateData.description = description || null
     if (m2 !== undefined) updateData.m2 = m2 ?? null
+    if (price_per_m2 !== undefined) updateData.price_per_m2 = price_per_m2 ?? null
     if (start_date !== undefined) updateData.start_date = start_date || null
     if (end_date !== undefined) updateData.end_date = end_date || null
     if (active !== undefined) updateData.active = active

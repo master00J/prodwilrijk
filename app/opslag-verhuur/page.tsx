@@ -34,6 +34,7 @@ export default function StorageRentalsPage() {
   const [itemLocationId, setItemLocationId] = useState('')
   const [itemDescription, setItemDescription] = useState('')
   const [itemM2, setItemM2] = useState('')
+  const [itemPricePerM2, setItemPricePerM2] = useState('')
   const [itemStartDate, setItemStartDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [itemEndDate, setItemEndDate] = useState('')
   const [itemNotes, setItemNotes] = useState('')
@@ -79,6 +80,14 @@ export default function StorageRentalsPage() {
     () => activeItems.reduce((sum, item) => sum + Number(item.m2 || 0), 0),
     [activeItems]
   )
+  const totalRevenue = useMemo(
+    () =>
+      activeItems.reduce(
+        (sum, item) => sum + Number(item.m2 || 0) * Number(item.price_per_m2 || 0),
+        0
+      ),
+    [activeItems]
+  )
   const totalCapacityM2 = useMemo(
     () =>
       locations
@@ -109,6 +118,7 @@ export default function StorageRentalsPage() {
     setItemLocationId('')
     setItemDescription('')
     setItemM2('')
+    setItemPricePerM2('')
     setItemStartDate(new Date().toISOString().slice(0, 10))
     setItemEndDate('')
     setItemNotes('')
@@ -184,6 +194,7 @@ export default function StorageRentalsPage() {
       alert('Geef een geldig m² in')
       return
     }
+    const priceValue = parseNumber(itemPricePerM2)
 
     const payload = {
       id: editingItem?.id,
@@ -191,6 +202,7 @@ export default function StorageRentalsPage() {
       location_id: itemLocationId ? Number(itemLocationId) : null,
       description: itemDescription.trim() || null,
       m2: m2Value,
+      price_per_m2: priceValue,
       start_date: itemStartDate || null,
       end_date: itemEndDate || null,
       notes: itemNotes.trim() || null,
@@ -278,6 +290,12 @@ export default function StorageRentalsPage() {
           <div className="bg-white rounded-lg shadow p-4">
             <div className="text-sm text-gray-500">Bezet m²</div>
             <div className="text-2xl font-semibold">{totalUsedM2.toFixed(2)}</div>
+          </div>
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="text-sm text-gray-500">Rendement</div>
+            <div className="text-2xl font-semibold">
+              {totalRevenue.toLocaleString('nl-BE', { style: 'currency', currency: 'EUR' })}
+            </div>
           </div>
           <div className="bg-white rounded-lg shadow p-4">
             <div className="text-sm text-gray-500">Capaciteit m²</div>
@@ -550,6 +568,14 @@ export default function StorageRentalsPage() {
               />
             </div>
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Prijs/m²</label>
+              <input
+                value={itemPricePerM2}
+                onChange={(event) => setItemPricePerM2(event.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+            </div>
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Actief</label>
               <label className="flex items-center gap-2 text-sm">
                 <input
@@ -622,6 +648,8 @@ export default function StorageRentalsPage() {
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Locatie</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Omschrijving</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">m²</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Prijs/m²</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Rendement</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Periode</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Acties</th>
@@ -630,7 +658,7 @@ export default function StorageRentalsPage() {
               <tbody className="divide-y divide-gray-200 bg-white">
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-3 py-4 text-sm text-gray-500 text-center">
+                    <td colSpan={9} className="px-3 py-4 text-sm text-gray-500 text-center">
                       Geen opslagrecords
                     </td>
                   </tr>
@@ -645,6 +673,14 @@ export default function StorageRentalsPage() {
                       </td>
                       <td className="px-3 py-2 text-sm text-gray-600">{item.description || '-'}</td>
                       <td className="px-3 py-2 text-sm">{item.m2 ? Number(item.m2).toFixed(2) : '-'}</td>
+                      <td className="px-3 py-2 text-sm">
+                        {item.price_per_m2 ? Number(item.price_per_m2).toFixed(2) : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-sm">
+                        {item.m2 && item.price_per_m2
+                          ? (Number(item.m2) * Number(item.price_per_m2)).toFixed(2)
+                          : '-'}
+                      </td>
                       <td className="px-3 py-2 text-sm text-gray-600">
                         {item.start_date || '-'} → {item.end_date || '-'}
                       </td>
@@ -660,6 +696,7 @@ export default function StorageRentalsPage() {
                               setItemLocationId(item.location_id ? String(item.location_id) : '')
                               setItemDescription(item.description || '')
                               setItemM2(item.m2?.toString() || '')
+                              setItemPricePerM2(item.price_per_m2?.toString() || '')
                               setItemStartDate(item.start_date || new Date().toISOString().slice(0, 10))
                               setItemEndDate(item.end_date || '')
                               setItemNotes(item.notes || '')

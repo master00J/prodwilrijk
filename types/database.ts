@@ -236,6 +236,7 @@ export interface StorageRentalItem {
   location_id?: number | null
   description?: string | null
   m2?: number | null
+  price_per_m2?: number | null
   start_date?: string | null
   end_date?: string | null
   active?: boolean | null

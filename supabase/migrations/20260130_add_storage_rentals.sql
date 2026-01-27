@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS storage_rental_items (
   location_id BIGINT REFERENCES storage_rental_locations(id) ON DELETE SET NULL,
   description TEXT,
   m2 NUMERIC,
+  price_per_m2 NUMERIC,
   start_date DATE,
   end_date DATE,
   active BOOLEAN DEFAULT TRUE,
