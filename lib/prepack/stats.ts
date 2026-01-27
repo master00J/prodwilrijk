@@ -96,6 +96,27 @@ const toDateKey = (value: unknown) => {
   return date.toISOString().split('T')[0]
 }
 
+const fetchAllRows = async <T,>(
+  buildQuery: (from: number, to: number) => ReturnType<typeof supabaseAdmin.from>
+) => {
+  const pageSize = 1000
+  let from = 0
+  const allRows: T[] = []
+
+  while (true) {
+    const { data, error } = await buildQuery(from, from + pageSize - 1)
+    if (error) {
+      throw error
+    }
+    const rows = (data || []) as T[]
+    allRows.push(...rows)
+    if (rows.length < pageSize) break
+    from += pageSize
+  }
+
+  return allRows
+}
+
 const getMaterialCostForComponent = (component: any, price: number, unitOfMeasure: string) => {
   const unitCount = Number(component.component_unit) || 0
   if (unitOfMeasure === 'm3') {
@@ -124,84 +145,69 @@ export async function fetchPrepackStats({
   const fromValue = dateFrom ? `${dateFrom} 00:00:00` : null
   const toValue = dateTo ? `${dateTo} 23:59:59` : null
 
-  let packedQuery = supabaseAdmin.from('packed_items').select('*')
+  const packedItems = await fetchAllRows<any>((from, to) => {
+    let query = supabaseAdmin.from('packed_items').select('*').range(from, to)
+    if (fromValue) {
+      query = query.gte('date_packed', fromValue)
+    }
+    if (toValue) {
+      query = query.lte('date_packed', toValue)
+    }
+    return query
+  })
 
-  if (fromValue) {
-    packedQuery = packedQuery.gte('date_packed', fromValue)
-  }
+  const incomingItems = await fetchAllRows<any>((from, to) => {
+    let query = supabaseAdmin
+      .from('items_to_pack')
+      .select('amount, date_added')
+      .range(from, to)
+    if (fromValue) {
+      query = query.gte('date_added', fromValue)
+    }
+    if (toValue) {
+      query = query.lte('date_added', toValue)
+    }
+    return query
+  })
 
-  if (toValue) {
-    packedQuery = packedQuery.lte('date_packed', toValue)
-  }
+  const incomingPackedItems = await fetchAllRows<any>((from, to) => {
+    let query = supabaseAdmin
+      .from('packed_items')
+      .select('amount, date_added, date_packed')
+      .range(from, to)
+    if (fromValue) {
+      query = query.gte('date_added', fromValue)
+    }
+    if (toValue) {
+      query = query.lte('date_added', toValue)
+    }
+    return query
+  })
 
-  const { data: packedItems, error: packedError } = await packedQuery
-
-  if (packedError) {
-    throw new Error('Failed to fetch packed items')
-  }
-
-  let incomingQuery = supabaseAdmin
-    .from('items_to_pack')
-    .select('amount, date_added')
-
-  if (fromValue) {
-    incomingQuery = incomingQuery.gte('date_added', fromValue)
-  }
-
-  if (toValue) {
-    incomingQuery = incomingQuery.lte('date_added', toValue)
-  }
-
-  const { data: incomingItems, error: incomingError } = await incomingQuery
-
-  if (incomingError) {
-    throw new Error('Failed to fetch incoming goods')
-  }
-
-  let incomingPackedQuery = supabaseAdmin
-    .from('packed_items')
-    .select('amount, date_added, date_packed')
-
-  if (fromValue) {
-    incomingPackedQuery = incomingPackedQuery.gte('date_added', fromValue)
-  }
-
-  if (toValue) {
-    incomingPackedQuery = incomingPackedQuery.lte('date_added', toValue)
-  }
-
-  const { data: incomingPackedItems, error: incomingPackedError } = await incomingPackedQuery
-
-  if (incomingPackedError) {
-    throw new Error('Failed to fetch packed items incoming')
-  }
-
-  let timeLogsQuery = supabaseAdmin
-    .from('time_logs')
-    .select(`
+  const timeLogs = await fetchAllRows<any>((from, to) => {
+    let query = supabaseAdmin
+      .from('time_logs')
+      .select(
+        `
         id,
         employee_id,
         start_time,
         end_time,
         type,
         employees(id, name)
-      `)
-    .eq('type', 'items_to_pack')
-    .not('end_time', 'is', null)
-
-  if (fromValue) {
-    timeLogsQuery = timeLogsQuery.gte('start_time', fromValue)
-  }
-
-  if (toValue) {
-    timeLogsQuery = timeLogsQuery.lte('start_time', toValue)
-  }
-
-  const { data: timeLogs, error: timeLogsError } = await timeLogsQuery
-
-  if (timeLogsError) {
-    throw new Error('Failed to fetch time logs')
-  }
+      `
+      )
+      .eq('type', 'items_to_pack')
+      .not('end_time', 'is', null)
+      .range(from, to)
+    if (fromValue) {
+      query = query.gte('start_time', fromValue)
+    }
+    if (toValue) {
+      query = query.lte('start_time', toValue)
+    }
+    return query
+  })
 
   const items = packedItems || []
   const logs = timeLogs || []
