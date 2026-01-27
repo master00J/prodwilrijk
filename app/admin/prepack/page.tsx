@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, ReactNode } from 'react'
+import { useState, useEffect, useMemo, useRef, ReactNode } from 'react'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
 import {
@@ -71,6 +71,7 @@ export default function PrepackMonitorPage() {
   const [bomLoading, setBomLoading] = useState(false)
   const [bomError, setBomError] = useState<string | null>(null)
   const [bomDetail, setBomDetail] = useState<any | null>(null)
+  const initialFetchDone = useRef(false)
   const [collapsedSections, setCollapsedSections] = useState({
     filters: false,
     chartOutput: false,
@@ -210,7 +211,8 @@ export default function PrepackMonitorPage() {
   }
 
   useEffect(() => {
-    if (dateFrom && dateTo) {
+    if (!initialFetchDone.current && dateFrom && dateTo) {
+      initialFetchDone.current = true
       fetchStats()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
