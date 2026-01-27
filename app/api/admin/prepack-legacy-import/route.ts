@@ -187,6 +187,7 @@ export async function POST(request: NextRequest) {
     const legacyEmployeeIds = [
       ...new Set(legacyTimeLogs.flatMap((row) => row.employeeIds).filter(Boolean)),
     ]
+    const unknownEmployeeName = 'Legacy onbekend'
 
     if (truncate && !dryRun) {
       const { error: packedDeleteError } = await supabaseAdmin
@@ -207,6 +208,7 @@ export async function POST(request: NextRequest) {
     }
 
     let createdEmployees = 0
+    let unknownEmployeeId: number | null = null
 
     if (!dryRun) {
       for (const chunk of chunkArray(packedItems, 500)) {
@@ -265,18 +267,44 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      const timeLogs = legacyTimeLogs.flatMap((row) =>
-        row.employeeIds
+      const { data: unknownEmployee, error: unknownEmployeeError } = await supabaseAdmin
+        .from('employees')
+        .select('id, name')
+        .eq('name', unknownEmployeeName)
+        .maybeSingle()
+
+      if (unknownEmployeeError) {
+        throw new Error(`Employees ophalen mislukt: ${unknownEmployeeError.message}`)
+      }
+
+      if (unknownEmployee?.id) {
+        unknownEmployeeId = unknownEmployee.id
+      } else {
+        const { data: createdUnknown, error: createUnknownError } = await supabaseAdmin
+          .from('employees')
+          .insert({ name: unknownEmployeeName, active: false })
+          .select('id')
+          .single()
+        if (createUnknownError) {
+          throw new Error(`Employees insert mislukt: ${createUnknownError.message}`)
+        }
+        unknownEmployeeId = createdUnknown?.id ?? null
+        createdEmployees += 1
+      }
+
+      const timeLogs = legacyTimeLogs.flatMap((row) => {
+        const mappedEmployees = row.employeeIds
           .map((legacyId) => legacyIdToEmployeeId.get(legacyId))
-          .filter(Boolean)
-          .map((employeeId) => ({
-            employee_id: employeeId,
-            type: 'items_to_pack',
-            start_time: row.start_time,
-            end_time: row.end_time,
-            is_paused: false,
-          }))
-      )
+          .filter(Boolean) as number[]
+        const employeeIds = mappedEmployees.length > 0 ? mappedEmployees : unknownEmployeeId ? [unknownEmployeeId] : []
+        return employeeIds.map((employeeId) => ({
+          employee_id: employeeId,
+          type: 'items_to_pack',
+          start_time: row.start_time,
+          end_time: row.end_time,
+          is_paused: false,
+        }))
+      })
 
       for (const chunk of chunkArray(timeLogs, 1000)) {
         const { error } = await supabaseAdmin.from('time_logs').insert(chunk)
