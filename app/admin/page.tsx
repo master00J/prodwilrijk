@@ -47,6 +47,13 @@ export default function AdminPage() {
       icon: '⬆️',
       color: 'blue',
     },
+    {
+      title: 'Opslagverhuur',
+      description: 'Beheer klanten en gehuurde opslagruimte',
+      href: '/opslag-verhuur',
+      icon: '🏭',
+      color: 'orange',
+    },
     // Toekomstige flows kunnen hier worden toegevoegd
   ]
 

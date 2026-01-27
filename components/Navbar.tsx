@@ -82,7 +82,8 @@ export default function Navbar() {
 
   const isAdminPage = 
     pathname.startsWith('/admin') || 
-    pathname.startsWith('/employees')
+    pathname.startsWith('/employees') ||
+    pathname.startsWith('/opslag-verhuur')
 
   const isGroteInpakPage = pathname.startsWith('/grote-inpak')
 
@@ -638,6 +639,15 @@ export default function Navbar() {
                       }`}
                     >
                       Prepack + Airtec overzicht
+                    </Link>
+                    <Link
+                      href="/opslag-verhuur"
+                      onClick={() => setIsAdminOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/opslag-verhuur') ? 'bg-purple-50 text-purple-600 font-medium border-l-4 border-purple-500' : 'text-gray-700'
+                      }`}
+                    >
+                      Opslagverhuur
                     </Link>
                     <Link
                       href="/admin/bc-codes"

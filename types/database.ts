@@ -208,6 +208,44 @@ export interface WmsStorageLocation {
   updated_at?: string
 }
 
+export interface StorageRentalCustomer {
+  id: number
+  name: string
+  contact_name?: string | null
+  phone?: string | null
+  email?: string | null
+  notes?: string | null
+  active?: boolean | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface StorageRentalLocation {
+  id: number
+  name: string
+  capacity_m2?: number | null
+  notes?: string | null
+  active?: boolean | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface StorageRentalItem {
+  id: number
+  customer_id?: number | null
+  location_id?: number | null
+  description?: string | null
+  m2?: number | null
+  start_date?: string | null
+  end_date?: string | null
+  active?: boolean | null
+  notes?: string | null
+  created_at?: string
+  updated_at?: string
+  customer?: { id: number; name: string } | null
+  location?: { id: number; name: string } | null
+}
+
 export interface PackedItem {
   id: number
   item_number: string
