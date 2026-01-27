@@ -97,7 +97,7 @@ const toDateKey = (value: unknown) => {
 }
 
 const fetchAllRows = async <T,>(
-  buildQuery: (from: number, to: number) => ReturnType<typeof supabaseAdmin.from>
+  buildQuery: (from: number, to: number) => Promise<{ data: T[] | null; error: any }>
 ) => {
   const pageSize = 1000
   let from = 0
@@ -145,7 +145,7 @@ export async function fetchPrepackStats({
   const fromValue = dateFrom ? `${dateFrom} 00:00:00` : null
   const toValue = dateTo ? `${dateTo} 23:59:59` : null
 
-  const packedItems = await fetchAllRows<any>((from, to) => {
+  const packedItems = await fetchAllRows<any>(async (from, to) => {
     let query = supabaseAdmin.from('packed_items').select('*').range(from, to)
     if (fromValue) {
       query = query.gte('date_packed', fromValue)
@@ -153,10 +153,10 @@ export async function fetchPrepackStats({
     if (toValue) {
       query = query.lte('date_packed', toValue)
     }
-    return query
+    return await query
   })
 
-  const incomingItems = await fetchAllRows<any>((from, to) => {
+  const incomingItems = await fetchAllRows<any>(async (from, to) => {
     let query = supabaseAdmin
       .from('items_to_pack')
       .select('amount, date_added')
@@ -167,10 +167,10 @@ export async function fetchPrepackStats({
     if (toValue) {
       query = query.lte('date_added', toValue)
     }
-    return query
+    return await query
   })
 
-  const incomingPackedItems = await fetchAllRows<any>((from, to) => {
+  const incomingPackedItems = await fetchAllRows<any>(async (from, to) => {
     let query = supabaseAdmin
       .from('packed_items')
       .select('amount, date_added, date_packed')
@@ -181,10 +181,10 @@ export async function fetchPrepackStats({
     if (toValue) {
       query = query.lte('date_added', toValue)
     }
-    return query
+    return await query
   })
 
-  const timeLogs = await fetchAllRows<any>((from, to) => {
+  const timeLogs = await fetchAllRows<any>(async (from, to) => {
     let query = supabaseAdmin
       .from('time_logs')
       .select(
@@ -206,7 +206,7 @@ export async function fetchPrepackStats({
     if (toValue) {
       query = query.lte('start_time', toValue)
     }
-    return query
+    return await query
   })
 
   const items = packedItems || []
