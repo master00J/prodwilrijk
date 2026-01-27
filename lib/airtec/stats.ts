@@ -192,40 +192,6 @@ export async function fetchAirtecStats({
     return await incomingQuery
   })
 
-  const incomingPackedItems = await fetchAllRows<any>(async (from, to) => {
-    let incomingPackedQuery = supabaseAdmin
-      .from('packed_items_airtec')
-      .select('quantity, datum_ontvangen, datum_opgestuurd')
-      .range(from, to)
-
-    if (dateFrom && dateTo) {
-      const fromDate = new Date(dateFrom)
-      fromDate.setHours(0, 0, 0, 0)
-      const toDate = new Date(dateTo)
-      toDate.setHours(23, 59, 59, 999)
-      const fromIso = fromDate.toISOString()
-      const toIso = toDate.toISOString()
-      incomingPackedQuery = incomingPackedQuery.or(
-        `and(datum_opgestuurd.gte.${fromIso},datum_opgestuurd.lte.${toIso}),and(datum_ontvangen.gte.${fromIso},datum_ontvangen.lte.${toIso})`
-      )
-    } else if (dateFrom) {
-      const fromDate = new Date(dateFrom)
-      fromDate.setHours(0, 0, 0, 0)
-      const fromIso = fromDate.toISOString()
-      incomingPackedQuery = incomingPackedQuery.or(
-        `datum_opgestuurd.gte.${fromIso},datum_ontvangen.gte.${fromIso}`
-      )
-    } else if (dateTo) {
-      const toDate = new Date(dateTo)
-      toDate.setHours(23, 59, 59, 999)
-      const toIso = toDate.toISOString()
-      incomingPackedQuery = incomingPackedQuery.or(
-        `datum_opgestuurd.lte.${toIso},datum_ontvangen.lte.${toIso}`
-      )
-    }
-
-    return await incomingPackedQuery
-  })
 
   const timeLogs = await fetchAllRows<any>(async (from, to) => {
     let timeLogsQuery = supabaseAdmin
@@ -261,7 +227,7 @@ export async function fetchAirtecStats({
 
   const items = packedItems || []
   const logs = timeLogs || []
-  const incoming = [...(incomingItems || []), ...(incomingPackedItems || [])]
+  const incoming = incomingItems || []
 
   const uniqueKistnummers = [
     ...new Set(items.map((item: any) => normalizeKistnummer(item.kistnummer)).filter(Boolean)),
