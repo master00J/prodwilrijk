@@ -68,7 +68,8 @@ export default function AirtecMonitorPage() {
   const [totals, setTotals] = useState<Totals | null>(null)
   const [personStats, setPersonStats] = useState<PersonStats[]>([])
   const [detailedItems, setDetailedItems] = useState<DetailedItem[]>([])
-  const initialFetchDone = useRef(false)
+  const dateFromInputRef = useRef<HTMLInputElement>(null)
+  const dateToInputRef = useRef<HTMLInputElement>(null)
   const [collapsedSections, setCollapsedSections] = useState({
     filters: false,
     chartOutput: false,
@@ -184,17 +185,26 @@ export default function AirtecMonitorPage() {
     const today = new Date()
     const lastWeek = new Date(today)
     lastWeek.setDate(today.getDate() - 7)
-    
-    setDateTo(today.toISOString().split('T')[0])
-    setDateFrom(lastWeek.toISOString().split('T')[0])
+
+    const toValue = today.toISOString().split('T')[0]
+    const fromValue = lastWeek.toISOString().split('T')[0]
+
+    setDateTo(toValue)
+    setDateFrom(fromValue)
+    if (dateFromInputRef.current) dateFromInputRef.current.value = fromValue
+    if (dateToInputRef.current) dateToInputRef.current.value = toValue
+    fetchStats({ from: fromValue, to: toValue })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const fetchStats = async () => {
+  const fetchStats = async (range?: { from: string; to: string }) => {
     setLoading(true)
     try {
+      const fromValue = range?.from ?? dateFrom
+      const toValue = range?.to ?? dateTo
       const params = new URLSearchParams({
-        date_from: dateFrom,
-        date_to: dateTo,
+        date_from: fromValue,
+        date_to: toValue,
       })
       
       const response = await fetch(`/api/admin/airtec-stats?${params}`)
@@ -214,13 +224,14 @@ export default function AirtecMonitorPage() {
     }
   }
 
-  useEffect(() => {
-    if (!initialFetchDone.current && dateFrom && dateTo) {
-      initialFetchDone.current = true
-      fetchStats()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateFrom, dateTo])
+  const handleRefresh = () => {
+    const fromValue = dateFromInputRef.current?.value || dateFrom
+    const toValue = dateToInputRef.current?.value || dateTo
+    if (!fromValue || !toValue) return
+    setDateFrom(fromValue)
+    setDateTo(toValue)
+    fetchStats({ from: fromValue, to: toValue })
+  }
 
   const handleExportExcel = () => {
     if (exporting) return
@@ -296,8 +307,7 @@ export default function AirtecMonitorPage() {
               <label className="block mb-2 font-medium">Vanaf Datum</label>
               <input
                 type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
+                ref={dateFromInputRef}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
@@ -305,13 +315,12 @@ export default function AirtecMonitorPage() {
               <label className="block mb-2 font-medium">Tot Datum</label>
               <input
                 type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
+                ref={dateToInputRef}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
             <button
-              onClick={fetchStats}
+              onClick={handleRefresh}
               disabled={loading || !dateFrom || !dateTo}
               className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium"
             >
