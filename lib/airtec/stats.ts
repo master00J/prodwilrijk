@@ -173,7 +173,7 @@ export async function fetchAirtecStats({
 
   const incomingItems = await fetchAllRows<any>(async (from, to) => {
     let incomingQuery = supabaseAdmin
-      .from('items_to_pack_airtec')
+      .from('packed_items_airtec')
       .select('quantity, datum_ontvangen')
       .range(from, to)
 
@@ -323,7 +323,7 @@ export async function fetchAirtecStats({
   })
 
   incoming.forEach((item: any) => {
-    const date = toDateKey(item.datum_opgestuurd) || toDateKey(item.datum_ontvangen)
+    const date = toDateKey(item.datum_ontvangen)
     if (!date) return
     if (!dailyStats[date]) {
       dailyStats[date] = {
