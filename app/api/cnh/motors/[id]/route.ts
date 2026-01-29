@@ -76,3 +76,89 @@ export async function PUT(
   }
 }
 
+// DELETE /api/cnh/motors/[id] - Delete a motor
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const id = params.id
+    if (!id) {
+      return NextResponse.json(
+        { error: 'id is required' },
+        { status: 400 }
+      )
+    }
+
+    const motorId = parseInt(id, 10)
+    if (Number.isNaN(motorId)) {
+      return NextResponse.json(
+        { error: 'id is invalid' },
+        { status: 400 }
+      )
+    }
+
+    const { data: motor, error: fetchError } = await supabaseAdmin
+      .from('cnh_motors')
+      .select('id, motor_nr')
+      .eq('id', motorId)
+      .single()
+
+    if (fetchError) {
+      console.error('Error fetching motor:', fetchError)
+      return NextResponse.json(
+        { error: 'Failed to fetch motor' },
+        { status: 500 }
+      )
+    }
+
+    const { error: logDeleteError } = await supabaseAdmin
+      .from('cnh_logs')
+      .delete()
+      .eq('motor_id', motorId)
+
+    if (logDeleteError) {
+      console.error('Error deleting motor logs:', logDeleteError)
+      return NextResponse.json(
+        { error: 'Failed to delete motor logs' },
+        { status: 500 }
+      )
+    }
+
+    const { error } = await supabaseAdmin
+      .from('cnh_motors')
+      .delete()
+      .eq('id', motorId)
+
+    if (error) {
+      console.error('Error deleting motor:', error)
+      return NextResponse.json(
+        { error: 'Failed to delete motor' },
+        { status: 500 }
+      )
+    }
+
+    const { error: logError } = await supabaseAdmin
+      .from('cnh_logs')
+      .insert({
+        action: 'delete',
+        details: {
+          motorId,
+          motorNr: motor?.motor_nr || null,
+        },
+      })
+
+    if (logError) {
+      console.error('Error logging motor delete:', logError)
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Unexpected error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+

@@ -331,6 +331,29 @@ export default function CNHDashboardPage() {
     }
   }, [showStatus, fetchAllMotors, fetchStats])
 
+  const deleteMotor = useCallback(async (motor: CNHMotor) => {
+    if (!confirm(`Motor ${motor.motor_nr} verwijderen? Dit kan niet ongedaan gemaakt worden.`)) {
+      return
+    }
+
+    try {
+      const resp = await fetch(`/api/cnh/motors/${motor.id}`, {
+        method: 'DELETE',
+      })
+      const data = await resp.json()
+      if (!resp.ok || !data.success) {
+        throw new Error(data.error || 'Fout bij verwijderen motor')
+      }
+      showStatus('Motor verwijderd', 'success')
+      setEditingMotor(null)
+      fetchAllMotors()
+      fetchStats()
+    } catch (e: any) {
+      console.error(e)
+      showStatus('Fout bij verwijderen motor: ' + e.message, 'error')
+    }
+  }, [showStatus, fetchAllMotors, fetchStats])
+
   const updateSession = useCallback(async (session: CNHSession) => {
     try {
       const resp = await fetch(`/api/cnh/sessions/${session.id}`, {
@@ -893,12 +916,20 @@ export default function CNHDashboardPage() {
                       <td className="px-4 py-2">{formatDate(motor.packaged_at)}</td>
                       <td className="px-4 py-2">{formatDate(motor.loaded_at)}</td>
                       <td className="px-4 py-2">
-                        <button
-                          onClick={() => setEditingMotor(motor)}
-                          className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
-                        >
-                          Bewerken
-                        </button>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setEditingMotor(motor)}
+                            className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                          >
+                            Bewerken
+                          </button>
+                          <button
+                            onClick={() => deleteMotor(motor)}
+                            className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                          >
+                            Verwijderen
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1157,6 +1188,13 @@ export default function CNHDashboardPage() {
                   </div>
                 </div>
                 <div className="flex justify-end gap-2 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => deleteMotor(editingMotor)}
+                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                  >
+                    Verwijderen
+                  </button>
                   <button
                     type="button"
                     onClick={() => setEditingMotor(null)}
