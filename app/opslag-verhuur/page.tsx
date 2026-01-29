@@ -13,6 +13,22 @@ const parseNumber = (value: string) => {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+
+const toUtcDate = (value: string) => new Date(`${value}T00:00:00Z`)
+
+const getOverlapDays = (
+  start: Date | null,
+  end: Date | null,
+  rangeStart: Date,
+  rangeEnd: Date
+) => {
+  const startMs = Math.max((start || rangeStart).getTime(), rangeStart.getTime())
+  const endMs = Math.min((end || rangeEnd).getTime(), rangeEnd.getTime())
+  if (endMs < startMs) return 0
+  return Math.floor((endMs - startMs) / MS_PER_DAY) + 1
+}
+
 export default function StorageRentalsPage() {
   const [customers, setCustomers] = useState<StorageRentalCustomer[]>([])
   const [locations, setLocations] = useState<StorageRentalLocation[]>([])
@@ -39,6 +55,10 @@ export default function StorageRentalsPage() {
   const [itemEndDate, setItemEndDate] = useState('')
   const [itemNotes, setItemNotes] = useState('')
   const [itemActive, setItemActive] = useState(true)
+
+  const [reportCustomerId, setReportCustomerId] = useState('')
+  const [reportStartDate, setReportStartDate] = useState('')
+  const [reportEndDate, setReportEndDate] = useState('')
 
   const fetchAll = async () => {
     setLoading(true)
@@ -124,6 +144,91 @@ export default function StorageRentalsPage() {
     setItemNotes('')
     setItemActive(true)
   }
+
+  const handleCopyItem = (item: StorageRentalItem) => {
+    setEditingItem(null)
+    setItemCustomerId(item.customer_id ? String(item.customer_id) : '')
+    setItemLocationId(item.location_id ? String(item.location_id) : '')
+    setItemDescription(item.description || '')
+    setItemM2(item.m2?.toString() || '')
+    setItemPricePerM2(item.price_per_m2?.toString() || '')
+    setItemStartDate(item.start_date || new Date().toISOString().slice(0, 10))
+    setItemEndDate(item.end_date || '')
+    setItemNotes(item.notes || '')
+    setItemActive(item.active !== false)
+  }
+
+  const reportSummary = useMemo(() => {
+    if (!reportCustomerId || !reportStartDate || !reportEndDate) {
+      return null
+    }
+
+    const rangeStart = toUtcDate(reportStartDate)
+    const rangeEnd = toUtcDate(reportEndDate)
+    if (rangeEnd.getTime() < rangeStart.getTime()) {
+      return {
+        error: 'Einddatum moet na startdatum liggen.',
+      }
+    }
+
+    const totalDays = Math.floor((rangeEnd.getTime() - rangeStart.getTime()) / MS_PER_DAY) + 1
+    if (totalDays <= 0) {
+      return {
+        error: 'Ongeldige periode.',
+      }
+    }
+
+    const customerId = Number(reportCustomerId)
+    const customerItems = items.filter((item) => item.customer_id === customerId)
+    const rows = customerItems
+      .map((item) => {
+        const itemStart = item.start_date ? toUtcDate(item.start_date) : null
+        const itemEnd = item.end_date ? toUtcDate(item.end_date) : null
+        const overlapDays = getOverlapDays(itemStart, itemEnd, rangeStart, rangeEnd)
+        if (overlapDays <= 0) return null
+        const m2 = Number(item.m2 || 0)
+        const price = Number(item.price_per_m2 || 0)
+        const cost = m2 && price ? (m2 * price * overlapDays) / 365 : 0
+        return {
+          id: item.id,
+          description: item.description || '',
+          m2,
+          price,
+          overlapDays,
+          cost,
+          start: item.start_date || '-',
+          end: item.end_date || '-',
+          location:
+            item.location?.name ||
+            locations.find((loc) => loc.id === item.location_id)?.name ||
+            '-',
+        }
+      })
+      .filter(Boolean) as Array<{
+      id: number
+      description: string
+      m2: number
+      price: number
+      overlapDays: number
+      cost: number
+      start: string
+      end: string
+      location: string
+    }>
+
+    const totalCost = rows.reduce((sum, row) => sum + row.cost, 0)
+    const totalM2Days = rows.reduce((sum, row) => sum + row.m2 * row.overlapDays, 0)
+    const averageM2 = totalM2Days / totalDays
+    const occupancyPercent = totalCapacityM2 ? (averageM2 / totalCapacityM2) * 100 : null
+
+    return {
+      totalDays,
+      totalCost,
+      averageM2,
+      occupancyPercent,
+      rows,
+    }
+  }, [reportCustomerId, reportStartDate, reportEndDate, items, locations, totalCapacityM2])
 
   const handleCustomerSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -307,6 +412,135 @@ export default function StorageRentalsPage() {
               {occupancy === null ? '-' : `${occupancy.toFixed(1)}%`}
             </div>
           </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-xl font-semibold mb-4">Klant rapport</h2>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Klant</label>
+              <select
+                value={reportCustomerId}
+                onChange={(event) => setReportCustomerId(event.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              >
+                <option value="">Selecteer klant</option>
+                {customers.map((customer) => (
+                  <option key={customer.id} value={customer.id}>
+                    {customer.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Start</label>
+              <input
+                type="date"
+                value={reportStartDate}
+                onChange={(event) => setReportStartDate(event.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Einde</label>
+              <input
+                type="date"
+                value={reportEndDate}
+                onChange={(event) => setReportEndDate(event.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+            </div>
+            <div className="flex items-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setReportCustomerId('')
+                  setReportStartDate('')
+                  setReportEndDate('')
+                }}
+                className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+
+          {!reportSummary ? (
+            <p className="text-sm text-gray-500">Selecteer een klant en periode om het rapport te tonen.</p>
+          ) : reportSummary.error ? (
+            <p className="text-sm text-red-600">{reportSummary.error}</p>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="text-sm text-gray-500">Periode (dagen)</div>
+                  <div className="text-xl font-semibold">{reportSummary.totalDays}</div>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="text-sm text-gray-500">Gem. bezet m²</div>
+                  <div className="text-xl font-semibold">{reportSummary.averageM2.toFixed(2)}</div>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="text-sm text-gray-500">Bezettingsgraad</div>
+                  <div className="text-xl font-semibold">
+                    {reportSummary.occupancyPercent === null
+                      ? '-'
+                      : `${reportSummary.occupancyPercent.toFixed(1)}%`}
+                  </div>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="text-sm text-gray-500">Te betalen</div>
+                  <div className="text-xl font-semibold">
+                    {reportSummary.totalCost.toLocaleString('nl-BE', {
+                      style: 'currency',
+                      currency: 'EUR',
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Omschrijving</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Locatie</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">m²</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Prijs/m²</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Dagen</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Periode</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Bedrag</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 bg-white">
+                    {reportSummary.rows.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="px-3 py-4 text-sm text-gray-500 text-center">
+                          Geen records in deze periode.
+                        </td>
+                      </tr>
+                    ) : (
+                      reportSummary.rows.map((row) => (
+                        <tr key={row.id}>
+                          <td className="px-3 py-2 text-sm">{row.description || '-'}</td>
+                          <td className="px-3 py-2 text-sm">{row.location}</td>
+                          <td className="px-3 py-2 text-sm">{row.m2.toFixed(2)}</td>
+                          <td className="px-3 py-2 text-sm">{row.price ? row.price.toFixed(2) : '-'}</td>
+                          <td className="px-3 py-2 text-sm">{row.overlapDays}</td>
+                          <td className="px-3 py-2 text-sm text-gray-600">
+                            {row.start} → {row.end}
+                          </td>
+                          <td className="px-3 py-2 text-sm">
+                            {row.cost.toLocaleString('nl-BE', { style: 'currency', currency: 'EUR' })}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -689,6 +923,12 @@ export default function StorageRentalsPage() {
                       </td>
                       <td className="px-3 py-2 text-sm">
                         <div className="flex gap-2">
+                          <button
+                            onClick={() => handleCopyItem(item)}
+                            className="px-2 py-1 bg-gray-500 text-white rounded text-xs"
+                          >
+                            Kopieer
+                          </button>
                           <button
                             onClick={() => {
                               setEditingItem(item)
