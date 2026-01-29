@@ -205,7 +205,9 @@ export default function StorageRentalsPage() {
       reportCustomerIds.length > 0
         ? reportCustomerIds.map((id) => Number(id))
         : customers.map((customer) => customer.id)
-    const customerItems = items.filter((item) => selectedIds.includes(item.customer_id))
+    const customerItems = items.filter(
+      (item) => item.customer_id !== null && item.customer_id !== undefined && selectedIds.includes(item.customer_id)
+    )
     const rows = customerItems
       .map((item) => {
         const itemStart = item.start_date ? toUtcDate(item.start_date) : null
