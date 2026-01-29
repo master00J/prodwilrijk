@@ -507,7 +507,7 @@ export default function StorageRentalsPage() {
                 <div className="bg-gray-50 rounded-lg p-4">
                   <div className="text-sm text-gray-500">Bezettingsgraad</div>
                   <div className="text-xl font-semibold">
-                    {reportSummary.occupancyPercent === null
+                    {reportSummary.occupancyPercent == null
                       ? '-'
                       : `${reportSummary.occupancyPercent.toFixed(1)}%`}
                   </div>
