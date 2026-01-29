@@ -158,7 +158,7 @@ export default function StorageRentalsPage() {
     setItemActive(item.active !== false)
   }
 
-  const reportSummary = useMemo<{
+  type ReportSummary = {
     error?: string
     totalDays?: number
     totalCost?: number
@@ -175,7 +175,9 @@ export default function StorageRentalsPage() {
       end: string
       location: string
     }>
-  }>(() => {
+  }
+
+  const reportSummary = useMemo<ReportSummary | null>(() => {
     if (!reportCustomerId || !reportStartDate || !reportEndDate) {
       return null
     }
