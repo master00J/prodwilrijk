@@ -158,7 +158,24 @@ export default function StorageRentalsPage() {
     setItemActive(item.active !== false)
   }
 
-  const reportSummary = useMemo(() => {
+  const reportSummary = useMemo<{
+    error?: string
+    totalDays?: number
+    totalCost?: number
+    averageM2?: number
+    occupancyPercent?: number | null
+    rows?: Array<{
+      id: number
+      description: string
+      m2: number
+      price: number
+      overlapDays: number
+      cost: number
+      start: string
+      end: string
+      location: string
+    }>
+  }>(() => {
     if (!reportCustomerId || !reportStartDate || !reportEndDate) {
       return null
     }
@@ -469,6 +486,11 @@ export default function StorageRentalsPage() {
             <p className="text-sm text-gray-500">Selecteer een klant en periode om het rapport te tonen.</p>
           ) : reportSummary.error ? (
             <p className="text-sm text-red-600">{reportSummary.error}</p>
+          ) : reportSummary.totalDays === undefined ||
+            reportSummary.totalCost === undefined ||
+            reportSummary.averageM2 === undefined ||
+            reportSummary.rows === undefined ? (
+            <p className="text-sm text-gray-500">Geen rapportdata beschikbaar.</p>
           ) : (
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
