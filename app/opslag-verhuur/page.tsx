@@ -159,24 +159,26 @@ export default function StorageRentalsPage() {
     setItemActive(item.active !== false)
   }
 
+  type ReportRow = {
+    id: number
+    customer: string
+    description: string
+    m2: number
+    price: number
+    overlapDays: number
+    cost: number
+    start: string
+    end: string
+    location: string
+  }
+
   type ReportSummary = {
     error?: string
     totalDays?: number
     totalCost?: number
     averageM2?: number
     occupancyPercent?: number | null
-    rows?: Array<{
-      id: number
-      customer: string
-      description: string
-      m2: number
-      price: number
-      overlapDays: number
-      cost: number
-      start: string
-      end: string
-      location: string
-    }>
+    rows?: ReportRow[]
   }
 
   const reportSummary = useMemo<ReportSummary | null>(() => {
@@ -232,17 +234,7 @@ export default function StorageRentalsPage() {
             '-',
         }
       })
-      .filter(Boolean) as Array<{
-      id: number
-      description: string
-      m2: number
-      price: number
-      overlapDays: number
-      cost: number
-      start: string
-      end: string
-      location: string
-    }>
+      .filter((row): row is ReportRow => row !== null)
 
     const totalCost = rows.reduce((sum, row) => sum + row.cost, 0)
     const totalM2Days = rows.reduce((sum, row) => sum + row.m2 * row.overlapDays, 0)
