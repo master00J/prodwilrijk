@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import AdminGuard from '@/components/AdminGuard'
 import { useEffect, useMemo, useState } from 'react'
+import * as XLSX from 'xlsx'
 import type { StorageRentalCustomer, StorageRentalItem, StorageRentalLocation } from '@/types/database'
 
 const parseNumber = (value: string) => {
@@ -56,7 +57,7 @@ export default function StorageRentalsPage() {
   const [itemNotes, setItemNotes] = useState('')
   const [itemActive, setItemActive] = useState(true)
 
-  const [reportCustomerId, setReportCustomerId] = useState('')
+  const [reportCustomerIds, setReportCustomerIds] = useState<string[]>([])
   const [reportStartDate, setReportStartDate] = useState('')
   const [reportEndDate, setReportEndDate] = useState('')
 
@@ -166,6 +167,7 @@ export default function StorageRentalsPage() {
     occupancyPercent?: number | null
     rows?: Array<{
       id: number
+      customer: string
       description: string
       m2: number
       price: number
@@ -178,7 +180,7 @@ export default function StorageRentalsPage() {
   }
 
   const reportSummary = useMemo<ReportSummary | null>(() => {
-    if (!reportCustomerId || !reportStartDate || !reportEndDate) {
+    if (!reportStartDate || !reportEndDate) {
       return null
     }
 
@@ -197,8 +199,11 @@ export default function StorageRentalsPage() {
       }
     }
 
-    const customerId = Number(reportCustomerId)
-    const customerItems = items.filter((item) => item.customer_id === customerId)
+    const selectedIds =
+      reportCustomerIds.length > 0
+        ? reportCustomerIds.map((id) => Number(id))
+        : customers.map((customer) => customer.id)
+    const customerItems = items.filter((item) => selectedIds.includes(item.customer_id))
     const rows = customerItems
       .map((item) => {
         const itemStart = item.start_date ? toUtcDate(item.start_date) : null
@@ -210,6 +215,10 @@ export default function StorageRentalsPage() {
         const cost = m2 && price ? (m2 * price * overlapDays) / 365 : 0
         return {
           id: item.id,
+          customer:
+            item.customer?.name ||
+            customers.find((customer) => customer.id === item.customer_id)?.name ||
+            '-',
           description: item.description || '',
           m2,
           price,
@@ -247,7 +256,51 @@ export default function StorageRentalsPage() {
       occupancyPercent,
       rows,
     }
-  }, [reportCustomerId, reportStartDate, reportEndDate, items, locations, totalCapacityM2])
+  }, [reportCustomerIds, reportStartDate, reportEndDate, items, locations, totalCapacityM2, customers])
+
+  const handleExportReportExcel = () => {
+    if (!reportSummary || reportSummary.error || !reportSummary.rows) {
+      alert('Selecteer eerst een geldige periode.')
+      return
+    }
+
+    const headers = [
+      'Klant',
+      'Omschrijving',
+      'Locatie',
+      'm²',
+      'Prijs/m²',
+      'Dagen',
+      'Start',
+      'Einde',
+      'Bedrag',
+    ]
+    const rows = reportSummary.rows.map((row) => [
+      row.customer,
+      row.description || '-',
+      row.location,
+      row.m2.toFixed(2),
+      row.price ? row.price.toFixed(2) : '-',
+      row.overlapDays.toString(),
+      row.start,
+      row.end,
+      row.cost.toFixed(2),
+    ])
+
+    const sheet = XLSX.utils.aoa_to_sheet([headers, ...rows])
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Rapport')
+    const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `opslag-rapport_${reportStartDate}_tot_${reportEndDate}.xlsx`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   const handleCustomerSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -439,17 +492,20 @@ export default function StorageRentalsPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Klant</label>
               <select
-                value={reportCustomerId}
-                onChange={(event) => setReportCustomerId(event.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                multiple
+                value={reportCustomerIds}
+                onChange={(event) =>
+                  setReportCustomerIds(Array.from(event.target.selectedOptions).map((opt) => opt.value))
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg min-h-[140px]"
               >
-                <option value="">Selecteer klant</option>
                 {customers.map((customer) => (
                   <option key={customer.id} value={customer.id}>
                     {customer.name}
                   </option>
                 ))}
               </select>
+              <p className="text-xs text-gray-500 mt-1">Geen selectie = alle klanten.</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Start</label>
@@ -473,13 +529,22 @@ export default function StorageRentalsPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setReportCustomerId('')
+                  setReportCustomerIds([])
                   setReportStartDate('')
                   setReportEndDate('')
                 }}
                 className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
               >
                 Reset
+              </button>
+            </div>
+            <div className="flex items-end">
+              <button
+                type="button"
+                onClick={() => setReportCustomerIds(customers.map((customer) => String(customer.id)))}
+                className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              >
+                Selecteer alle
               </button>
             </div>
           </div>
@@ -521,12 +586,22 @@ export default function StorageRentalsPage() {
                     })}
                   </div>
                 </div>
+                <div className="flex items-center">
+                  <button
+                    type="button"
+                    onClick={handleExportReportExcel}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  >
+                    Exporteer Excel
+                  </button>
+                </div>
               </div>
 
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Klant</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Omschrijving</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Locatie</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">m²</th>
@@ -539,13 +614,14 @@ export default function StorageRentalsPage() {
                   <tbody className="divide-y divide-gray-200 bg-white">
                     {reportSummary.rows.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-3 py-4 text-sm text-gray-500 text-center">
+                        <td colSpan={8} className="px-3 py-4 text-sm text-gray-500 text-center">
                           Geen records in deze periode.
                         </td>
                       </tr>
                     ) : (
                       reportSummary.rows.map((row) => (
                         <tr key={row.id}>
+                          <td className="px-3 py-2 text-sm">{row.customer}</td>
                           <td className="px-3 py-2 text-sm">{row.description || '-'}</td>
                           <td className="px-3 py-2 text-sm">{row.location}</td>
                           <td className="px-3 py-2 text-sm">{row.m2.toFixed(2)}</td>
