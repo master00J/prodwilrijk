@@ -20,6 +20,8 @@ export default function XMLGeneratorPage() {
   const [quantity, setQuantity] = useState(1)
   const [deliveryDate, setDeliveryDate] = useState('')
   const [prepackVendorCode, setPrepackVendorCode] = useState('')
+  const [soNumber, setSoNumber] = useState('')
+  const [poNumber, setPoNumber] = useState('')
   const [generatedXmls, setGeneratedXmls] = useState<string[]>([])
   const [xmlOutput, setXmlOutput] = useState('')
   const [labelPreview, setLabelPreview] = useState('')
@@ -76,6 +78,17 @@ export default function XMLGeneratorPage() {
       setVendorCode('')
     }
   }, [division])
+
+  const sanitizeDigits = (value: string): string => value.replace(/\D/g, '')
+
+  useEffect(() => {
+    if (division !== 'AID') return
+    if (soNumber && poNumber) {
+      setPurchaseOrderNumber(`SO:${soNumber} PO:${poNumber}`)
+    } else {
+      setPurchaseOrderNumber('')
+    }
+  }, [division, soNumber, poNumber])
 
   const generateRandomNumberString = (length: number): string => {
     let result = ''
@@ -509,6 +522,8 @@ export default function XMLGeneratorPage() {
     setGeneratedXmls([])
     setShowLabelSection(false)
     setLabelPreview('')
+    setSoNumber('')
+    setPoNumber('')
 
     // Reset leveringsdatum
     const today = new Date()
@@ -904,9 +919,46 @@ export default function XMLGeneratorPage() {
                 value={purchaseOrderNumber}
                 onChange={(e) => setPurchaseOrderNumber(e.target.value)}
                 required
-                className="touch-manipulation"
+                readOnly={division === 'AID'}
+                className={`touch-manipulation ${division === 'AID' ? 'auto-field' : ''}`}
+                placeholder={division === 'AID' ? 'SO:123456 PO:123456' : ''}
               />
             </div>
+            {division === 'AID' && (
+              <div className="form-group" id="aidInputs">
+                <label>SO/PO (alleen cijfers):</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label htmlFor="soNumber">Shop order (SO):</label>
+                    <input
+                      type="text"
+                      id="soNumber"
+                      inputMode="numeric"
+                      pattern="\d*"
+                      placeholder="123456"
+                      value={soNumber}
+                      onChange={(e) => setSoNumber(sanitizeDigits(e.target.value))}
+                      required={division === 'AID'}
+                      className="touch-manipulation"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="poNumber">Purchase order (PO):</label>
+                    <input
+                      type="text"
+                      id="poNumber"
+                      inputMode="numeric"
+                      pattern="\d*"
+                      placeholder="123456"
+                      value={poNumber}
+                      onChange={(e) => setPoNumber(sanitizeDigits(e.target.value))}
+                      required={division === 'AID'}
+                      className="touch-manipulation"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="form-group">
               <label htmlFor="division">Divisie:</label>
               <select
