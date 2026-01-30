@@ -82,6 +82,8 @@ export default function PrepackMonitorPage() {
   const [compareMode, setCompareMode] = useState<CompareMode>('previous')
   const [compareFrom, setCompareFrom] = useState('')
   const [compareTo, setCompareTo] = useState('')
+  const [compareEffectiveFrom, setCompareEffectiveFrom] = useState('')
+  const [compareEffectiveTo, setCompareEffectiveTo] = useState('')
   const [compareTotals, setCompareTotals] = useState<Totals | null>(null)
   const [compareDailyStats, setCompareDailyStats] = useState<DailyStat[]>([])
   const [collapsedSections, setCollapsedSections] = useState({
@@ -245,11 +247,15 @@ export default function PrepackMonitorPage() {
     return null
   }
 
-  const getCompareRange = (fromValue: string, toValue: string, mode: CompareMode) => {
+  const getCompareRange = (
+    fromValue: string,
+    toValue: string,
+    mode: CompareMode,
+    customFrom?: string,
+    customTo?: string
+  ) => {
     if (!fromValue || !toValue) return null
 
-    const customFrom = compareFromInputRef.current?.value || compareFrom
-    const customTo = compareToInputRef.current?.value || compareTo
     if (customFrom && customTo) {
       return { from: customFrom, to: customTo }
     }
@@ -332,21 +338,29 @@ export default function PrepackMonitorPage() {
       applyMainStats(mainData)
 
       if (compareEnabled) {
-        const compareRange = getCompareRange(fromValue, toValue, compareMode)
+        const customFrom = compareFromInputRef.current?.value || compareFrom
+        const customTo = compareToInputRef.current?.value || compareTo
+        const compareRange = getCompareRange(fromValue, toValue, compareMode, customFrom, customTo)
         if (compareRange) {
-          setCompareFrom(compareRange.from)
-          setCompareTo(compareRange.to)
-          if (compareFromInputRef.current) compareFromInputRef.current.value = compareRange.from
-          if (compareToInputRef.current) compareToInputRef.current.value = compareRange.to
+          if (customFrom && customTo) {
+            setCompareFrom(compareRange.from)
+            setCompareTo(compareRange.to)
+          }
+          setCompareEffectiveFrom(compareRange.from)
+          setCompareEffectiveTo(compareRange.to)
           const compareData = await fetchStatsData(compareRange)
           applyCompareStats(compareData)
         } else {
           setCompareTotals(null)
           setCompareDailyStats([])
+          setCompareEffectiveFrom('')
+          setCompareEffectiveTo('')
         }
       } else {
         setCompareTotals(null)
         setCompareDailyStats([])
+        setCompareEffectiveFrom('')
+        setCompareEffectiveTo('')
       }
     } catch (error) {
       console.error('Error fetching stats:', error)
@@ -617,7 +631,7 @@ export default function PrepackMonitorPage() {
                 <div className="text-sm text-gray-600">
                   Vergelijking: <span className="font-medium text-gray-900">{compareModeLabel}</span>
                   <span className="ml-2 text-gray-500">
-                    ({compareFrom || '—'} → {compareTo || '—'})
+                    ({compareEffectiveFrom || '—'} → {compareEffectiveTo || '—'})
                   </span>
                 </div>
                 <div className="overflow-x-auto">
