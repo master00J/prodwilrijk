@@ -58,7 +58,7 @@ interface DetailedItem {
   date_added: string
 }
 
-type CompareMode = 'previous' | 'lastYear' | 'custom'
+type CompareMode = 'previous' | 'lastYear' | 'custom' | 'selectedDays'
 
 export default function PrepackMonitorPage() {
   const [dateFrom, setDateFrom] = useState('')
@@ -84,6 +84,7 @@ export default function PrepackMonitorPage() {
   const [compareTo, setCompareTo] = useState('')
   const [compareEffectiveFrom, setCompareEffectiveFrom] = useState('')
   const [compareEffectiveTo, setCompareEffectiveTo] = useState('')
+  const [comparePrimaryTotals, setComparePrimaryTotals] = useState<Totals | null>(null)
   const [compareTotals, setCompareTotals] = useState<Totals | null>(null)
   const [compareDailyStats, setCompareDailyStats] = useState<DailyStat[]>([])
   const [collapsedSections, setCollapsedSections] = useState({
@@ -256,6 +257,10 @@ export default function PrepackMonitorPage() {
   ) => {
     if (!fromValue || !toValue) return null
 
+    if (mode === 'selectedDays') {
+      return { from: toValue, to: toValue }
+    }
+
     if (customFrom && customTo) {
       return { from: customFrom, to: customTo }
     }
@@ -340,27 +345,42 @@ export default function PrepackMonitorPage() {
       if (compareEnabled) {
         const customFrom = compareFromInputRef.current?.value || compareFrom
         const customTo = compareToInputRef.current?.value || compareTo
-        const compareRange = getCompareRange(fromValue, toValue, compareMode, customFrom, customTo)
-        if (compareRange) {
-          if (customFrom && customTo) {
-            setCompareFrom(compareRange.from)
-            setCompareTo(compareRange.to)
-          }
-          setCompareEffectiveFrom(compareRange.from)
-          setCompareEffectiveTo(compareRange.to)
-          const compareData = await fetchStatsData(compareRange)
-          applyCompareStats(compareData)
+        if (compareMode === 'selectedDays') {
+          const day1Range = { from: fromValue, to: fromValue }
+          const day2Range = { from: toValue, to: toValue }
+          const [day1Data, day2Data] = await Promise.all([
+            fetchStatsData(day1Range),
+            fetchStatsData(day2Range),
+          ])
+          setComparePrimaryTotals(day1Data.totals || null)
+          setCompareEffectiveFrom(fromValue)
+          setCompareEffectiveTo(toValue)
+          applyCompareStats(day2Data)
         } else {
-          setCompareTotals(null)
-          setCompareDailyStats([])
-          setCompareEffectiveFrom('')
-          setCompareEffectiveTo('')
+          const compareRange = getCompareRange(fromValue, toValue, compareMode, customFrom, customTo)
+          if (compareRange) {
+            if (customFrom && customTo) {
+              setCompareFrom(compareRange.from)
+              setCompareTo(compareRange.to)
+            }
+            setCompareEffectiveFrom(compareRange.from)
+            setCompareEffectiveTo(compareRange.to)
+            const compareData = await fetchStatsData(compareRange)
+            applyCompareStats(compareData)
+          } else {
+            setCompareTotals(null)
+            setCompareDailyStats([])
+            setCompareEffectiveFrom('')
+            setCompareEffectiveTo('')
+          }
+          setComparePrimaryTotals(null)
         }
       } else {
         setCompareTotals(null)
         setCompareDailyStats([])
         setCompareEffectiveFrom('')
         setCompareEffectiveTo('')
+        setComparePrimaryTotals(null)
       }
     } catch (error) {
       console.error('Error fetching stats:', error)
@@ -381,33 +401,35 @@ export default function PrepackMonitorPage() {
   }
 
   const compareSummary = useMemo(() => {
-    if (!totals || !compareTotals) return null
+    const baseTotals = compareMode === 'selectedDays' ? comparePrimaryTotals : totals
+    if (!baseTotals || !compareTotals) return null
     const diff = (current: number, previous: number) => current - previous
     const pct = (current: number, previous: number) =>
       previous === 0 ? null : ((current - previous) / previous) * 100
 
     return {
       items: {
-        diff: diff(totals.totalItemsPacked, compareTotals.totalItemsPacked),
-        pct: pct(totals.totalItemsPacked, compareTotals.totalItemsPacked),
+        diff: diff(baseTotals.totalItemsPacked, compareTotals.totalItemsPacked),
+        pct: pct(baseTotals.totalItemsPacked, compareTotals.totalItemsPacked),
       },
       incoming: {
-        diff: diff(totals.totalIncoming, compareTotals.totalIncoming),
-        pct: pct(totals.totalIncoming, compareTotals.totalIncoming),
+        diff: diff(baseTotals.totalIncoming, compareTotals.totalIncoming),
+        pct: pct(baseTotals.totalIncoming, compareTotals.totalIncoming),
       },
       manHours: {
-        diff: diff(totals.totalManHours, compareTotals.totalManHours),
-        pct: pct(totals.totalManHours, compareTotals.totalManHours),
+        diff: diff(baseTotals.totalManHours, compareTotals.totalManHours),
+        pct: pct(baseTotals.totalManHours, compareTotals.totalManHours),
       },
       revenue: {
-        diff: diff(totals.totalRevenue, compareTotals.totalRevenue),
-        pct: pct(totals.totalRevenue, compareTotals.totalRevenue),
+        diff: diff(baseTotals.totalRevenue, compareTotals.totalRevenue),
+        pct: pct(baseTotals.totalRevenue, compareTotals.totalRevenue),
       },
     }
-  }, [totals, compareTotals])
+  }, [totals, compareTotals, compareMode, comparePrimaryTotals])
 
   const compareModeLabel = useMemo(() => {
     if (!compareEnabled) return null
+    if (compareMode === 'selectedDays') return 'Twee dagen (van hoofdperiode)'
     if ((compareFromInputRef.current?.value || compareFrom) && (compareToInputRef.current?.value || compareTo)) {
       return 'Aangepaste periode'
     }
@@ -602,6 +624,7 @@ export default function PrepackMonitorPage() {
               >
                 <option value="previous">Vorige periode (zelfde lengte)</option>
                 <option value="lastYear">Zelfde periode vorig jaar</option>
+                <option value="selectedDays">Twee dagen (van hoofdperiode)</option>
                 <option value="custom">Aangepaste periode</option>
               </select>
               {compareEnabled && (
@@ -613,6 +636,7 @@ export default function PrepackMonitorPage() {
                       ref={compareFromInputRef}
                       className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
                       onChange={(e) => setCompareFrom(e.target.value)}
+                      disabled={compareMode === 'selectedDays'}
                     />
                   </div>
                   <div>
@@ -622,6 +646,7 @@ export default function PrepackMonitorPage() {
                       ref={compareToInputRef}
                       className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
                       onChange={(e) => setCompareTo(e.target.value)}
+                      disabled={compareMode === 'selectedDays'}
                     />
                   </div>
                   <button
@@ -658,7 +683,8 @@ export default function PrepackMonitorPage() {
                       <tr>
                         <td className="px-4 py-2 font-medium text-gray-900">Items verpakt</td>
                         <td className="px-4 py-2 text-gray-900">
-                          {totals?.totalItemsPacked.toLocaleString('nl-NL') ?? '-'}
+                          {(compareMode === 'selectedDays' ? comparePrimaryTotals?.totalItemsPacked : totals?.totalItemsPacked)?.toLocaleString('nl-NL') ??
+                            '-'}
                         </td>
                         <td className="px-4 py-2 text-gray-700">
                           {compareTotals?.totalItemsPacked.toLocaleString('nl-NL') ?? '-'}
@@ -673,7 +699,8 @@ export default function PrepackMonitorPage() {
                       <tr>
                         <td className="px-4 py-2 font-medium text-gray-900">Goederen binnen</td>
                         <td className="px-4 py-2 text-gray-900">
-                          {totals?.totalIncoming.toLocaleString('nl-NL') ?? '-'}
+                          {(compareMode === 'selectedDays' ? comparePrimaryTotals?.totalIncoming : totals?.totalIncoming)?.toLocaleString('nl-NL') ??
+                            '-'}
                         </td>
                         <td className="px-4 py-2 text-gray-700">
                           {compareTotals?.totalIncoming.toLocaleString('nl-NL') ?? '-'}
@@ -688,7 +715,13 @@ export default function PrepackMonitorPage() {
                       <tr>
                         <td className="px-4 py-2 font-medium text-gray-900">Manuren</td>
                         <td className="px-4 py-2 text-gray-900">
-                          {totals ? totals.totalManHours.toFixed(2) : '-'}
+                          {compareMode === 'selectedDays'
+                            ? comparePrimaryTotals
+                              ? comparePrimaryTotals.totalManHours.toFixed(2)
+                              : '-'
+                            : totals
+                              ? totals.totalManHours.toFixed(2)
+                              : '-'}
                         </td>
                         <td className="px-4 py-2 text-gray-700">
                           {compareTotals ? compareTotals.totalManHours.toFixed(2) : '-'}
@@ -703,7 +736,13 @@ export default function PrepackMonitorPage() {
                       <tr>
                         <td className="px-4 py-2 font-medium text-gray-900">Omzet</td>
                         <td className="px-4 py-2 text-gray-900">
-                          {totals ? formatCurrency(totals.totalRevenue) : '-'}
+                          {compareMode === 'selectedDays'
+                            ? comparePrimaryTotals
+                              ? formatCurrency(comparePrimaryTotals.totalRevenue)
+                              : '-'
+                            : totals
+                              ? formatCurrency(totals.totalRevenue)
+                              : '-'}
                         </td>
                         <td className="px-4 py-2 text-gray-700">
                           {compareTotals ? formatCurrency(compareTotals.totalRevenue) : '-'}
@@ -719,7 +758,9 @@ export default function PrepackMonitorPage() {
                   </table>
                 </div>
                 <div className="text-xs text-gray-500">
-                  Periode-dagen: huidig {totals?.totalDays ?? 0} · vergelijking {compareTotals?.totalDays ?? 0}
+                  Periode-dagen: huidig{' '}
+                  {compareMode === 'selectedDays' ? comparePrimaryTotals?.totalDays ?? 0 : totals?.totalDays ?? 0} ·
+                  vergelijking {compareTotals?.totalDays ?? 0}
                 </div>
               </div>
             )}
