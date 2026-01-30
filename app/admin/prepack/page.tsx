@@ -187,6 +187,18 @@ export default function PrepackMonitorPage() {
     return `${days.toFixed(1)} dagen`
   }
 
+  const formatSignedNumber = (value: number, digits = 0) => {
+    const sign = value > 0 ? '+' : value < 0 ? '−' : ''
+    const formatted =
+      digits === 0 ? Math.abs(value).toLocaleString('nl-NL') : Math.abs(value).toFixed(digits)
+    return `${sign}${formatted}`
+  }
+
+  const formatSignedCurrency = (value: number) => {
+    const sign = value > 0 ? '+' : value < 0 ? '−' : ''
+    return `${sign}${formatCurrency(Math.abs(value))}`
+  }
+
   const toDateInput = (date: Date) => {
     const year = date.getFullYear()
     const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -375,6 +387,13 @@ export default function PrepackMonitorPage() {
       },
     }
   }, [totals, compareTotals])
+
+  const compareModeLabel = useMemo(() => {
+    if (!compareEnabled) return null
+    if (compareMode === 'previous') return 'Vorige periode'
+    if (compareMode === 'lastYear') return 'Zelfde periode vorig jaar'
+    return 'Aangepaste periode'
+  }, [compareEnabled, compareMode])
 
   const handleExportExcel = () => {
     if (exporting) return
@@ -587,49 +606,97 @@ export default function PrepackMonitorPage() {
             </div>
 
             {compareEnabled && compareTotals && (
-              <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
-                  <div className="text-sm text-gray-600 mb-1">Items verpakt Δ</div>
-                  <div className="text-2xl font-semibold text-slate-800">
-                    {compareSummary ? compareSummary.items.diff.toLocaleString('nl-NL') : '-'}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {compareSummary?.items.pct == null ? '-' : `${compareSummary.items.pct.toFixed(1)}%`}
-                  </div>
+              <div className="mt-4 space-y-4">
+                <div className="text-sm text-gray-600">
+                  Vergelijking: <span className="font-medium text-gray-900">{compareModeLabel}</span>
+                  <span className="ml-2 text-gray-500">
+                    ({compareFrom || '—'} → {compareTo || '—'})
+                  </span>
                 </div>
-                <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
-                  <div className="text-sm text-gray-600 mb-1">Goederen binnen Δ</div>
-                  <div className="text-2xl font-semibold text-slate-800">
-                    {compareSummary ? compareSummary.incoming.diff.toLocaleString('nl-NL') : '-'}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {compareSummary?.incoming.pct == null ? '-' : `${compareSummary.incoming.pct.toFixed(1)}%`}
-                  </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm border border-gray-200 rounded-lg">
+                    <thead className="bg-gray-50 text-gray-600">
+                      <tr>
+                        <th className="px-4 py-2 text-left font-medium">Metric</th>
+                        <th className="px-4 py-2 text-left font-medium">Huidige periode</th>
+                        <th className="px-4 py-2 text-left font-medium">Vergelijking</th>
+                        <th className="px-4 py-2 text-left font-medium">Verschil</th>
+                        <th className="px-4 py-2 text-left font-medium">% wijziging</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 bg-white">
+                      <tr>
+                        <td className="px-4 py-2 font-medium text-gray-900">Items verpakt</td>
+                        <td className="px-4 py-2 text-gray-900">
+                          {totals?.totalItemsPacked.toLocaleString('nl-NL') ?? '-'}
+                        </td>
+                        <td className="px-4 py-2 text-gray-700">
+                          {compareTotals?.totalItemsPacked.toLocaleString('nl-NL') ?? '-'}
+                        </td>
+                        <td className="px-4 py-2 font-semibold text-gray-900">
+                          {compareSummary ? formatSignedNumber(compareSummary.items.diff) : '-'}
+                        </td>
+                        <td className="px-4 py-2 text-gray-700">
+                          {compareSummary?.items.pct == null ? '-' : `${compareSummary.items.pct.toFixed(1)}%`}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="px-4 py-2 font-medium text-gray-900">Goederen binnen</td>
+                        <td className="px-4 py-2 text-gray-900">
+                          {totals?.totalIncoming.toLocaleString('nl-NL') ?? '-'}
+                        </td>
+                        <td className="px-4 py-2 text-gray-700">
+                          {compareTotals?.totalIncoming.toLocaleString('nl-NL') ?? '-'}
+                        </td>
+                        <td className="px-4 py-2 font-semibold text-gray-900">
+                          {compareSummary ? formatSignedNumber(compareSummary.incoming.diff) : '-'}
+                        </td>
+                        <td className="px-4 py-2 text-gray-700">
+                          {compareSummary?.incoming.pct == null ? '-' : `${compareSummary.incoming.pct.toFixed(1)}%`}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="px-4 py-2 font-medium text-gray-900">Manuren</td>
+                        <td className="px-4 py-2 text-gray-900">
+                          {totals ? totals.totalManHours.toFixed(2) : '-'}
+                        </td>
+                        <td className="px-4 py-2 text-gray-700">
+                          {compareTotals ? compareTotals.totalManHours.toFixed(2) : '-'}
+                        </td>
+                        <td className="px-4 py-2 font-semibold text-gray-900">
+                          {compareSummary ? formatSignedNumber(compareSummary.manHours.diff, 2) : '-'}
+                        </td>
+                        <td className="px-4 py-2 text-gray-700">
+                          {compareSummary?.manHours.pct == null ? '-' : `${compareSummary.manHours.pct.toFixed(1)}%`}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="px-4 py-2 font-medium text-gray-900">Omzet</td>
+                        <td className="px-4 py-2 text-gray-900">
+                          {totals ? formatCurrency(totals.totalRevenue) : '-'}
+                        </td>
+                        <td className="px-4 py-2 text-gray-700">
+                          {compareTotals ? formatCurrency(compareTotals.totalRevenue) : '-'}
+                        </td>
+                        <td className="px-4 py-2 font-semibold text-gray-900">
+                          {compareSummary ? formatSignedCurrency(compareSummary.revenue.diff) : '-'}
+                        </td>
+                        <td className="px-4 py-2 text-gray-700">
+                          {compareSummary?.revenue.pct == null ? '-' : `${compareSummary.revenue.pct.toFixed(1)}%`}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
-                <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
-                  <div className="text-sm text-gray-600 mb-1">Manuren Δ</div>
-                  <div className="text-2xl font-semibold text-slate-800">
-                    {compareSummary ? compareSummary.manHours.diff.toFixed(2) : '-'}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {compareSummary?.manHours.pct == null ? '-' : `${compareSummary.manHours.pct.toFixed(1)}%`}
-                  </div>
-                </div>
-                <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
-                  <div className="text-sm text-gray-600 mb-1">Omzet Δ</div>
-                  <div className="text-2xl font-semibold text-slate-800">
-                    {compareSummary ? formatCurrency(compareSummary.revenue.diff) : '-'}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {compareSummary?.revenue.pct == null ? '-' : `${compareSummary.revenue.pct.toFixed(1)}%`}
-                  </div>
+                <div className="text-xs text-gray-500">
+                  Periode-dagen: huidig {totals?.totalDays ?? 0} · vergelijking {compareTotals?.totalDays ?? 0}
                 </div>
               </div>
             )}
 
             {compareEnabled && compareTotals && (
               <div className="mt-2 text-xs text-gray-500">
-                Vergelijking: {compareFrom || '—'} → {compareTo || '—'} · Records: {compareDailyStats.length}
+                Dagrecords vergelijking: {compareDailyStats.length}
               </div>
             )}
           </div>
