@@ -247,6 +247,13 @@ export default function PrepackMonitorPage() {
 
   const getCompareRange = (fromValue: string, toValue: string, mode: CompareMode) => {
     if (!fromValue || !toValue) return null
+
+    const customFrom = compareFromInputRef.current?.value || compareFrom
+    const customTo = compareToInputRef.current?.value || compareTo
+    if (customFrom && customTo) {
+      return { from: customFrom, to: customTo }
+    }
+
     const fromDate = toLocalDate(fromValue)
     const toDate = toLocalDate(toValue)
 
@@ -267,10 +274,7 @@ export default function PrepackMonitorPage() {
       return { from: toDateInput(compareFromDate), to: toDateInput(compareToDate) }
     }
 
-    const customFrom = compareFromInputRef.current?.value || compareFrom
-    const customTo = compareToInputRef.current?.value || compareTo
-    if (!customFrom || !customTo) return null
-    return { from: customFrom, to: customTo }
+    return null
   }
 
   // Set default date range to last 7 days
@@ -390,6 +394,9 @@ export default function PrepackMonitorPage() {
 
   const compareModeLabel = useMemo(() => {
     if (!compareEnabled) return null
+    if ((compareFromInputRef.current?.value || compareFrom) && (compareToInputRef.current?.value || compareTo)) {
+      return 'Aangepaste periode'
+    }
     if (compareMode === 'previous') return 'Vorige periode'
     if (compareMode === 'lastYear') return 'Zelfde periode vorig jaar'
     return 'Aangepaste periode'
@@ -583,7 +590,7 @@ export default function PrepackMonitorPage() {
                 <option value="lastYear">Zelfde periode vorig jaar</option>
                 <option value="custom">Aangepaste periode</option>
               </select>
-              {compareEnabled && compareMode === 'custom' && (
+              {compareEnabled && (
                 <div className="flex flex-wrap gap-3 items-end">
                   <div>
                     <label className="block text-sm text-gray-600">Vergelijk vanaf</label>
