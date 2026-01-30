@@ -79,7 +79,7 @@ export default function PrepackMonitorPage() {
   const compareFromInputRef = useRef<HTMLInputElement>(null)
   const compareToInputRef = useRef<HTMLInputElement>(null)
   const [compareEnabled, setCompareEnabled] = useState(false)
-  const [compareMode, setCompareMode] = useState<CompareMode>('previous')
+  const [compareMode, setCompareMode] = useState<CompareMode>('selectedDays')
   const [compareFrom, setCompareFrom] = useState('')
   const [compareTo, setCompareTo] = useState('')
   const [compareEffectiveFrom, setCompareEffectiveFrom] = useState('')
@@ -429,7 +429,7 @@ export default function PrepackMonitorPage() {
 
   const compareModeLabel = useMemo(() => {
     if (!compareEnabled) return null
-    if (compareMode === 'selectedDays') return 'Twee dagen (van hoofdperiode)'
+    if (compareMode === 'selectedDays') return 'Dag 1 vs Dag 2'
     if ((compareFromInputRef.current?.value || compareFrom) && (compareToInputRef.current?.value || compareTo)) {
       return 'Aangepaste periode'
     }
@@ -622,9 +622,9 @@ export default function PrepackMonitorPage() {
                 className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
                 disabled={!compareEnabled}
               >
+                <option value="selectedDays">Twee dagen (van hoofdperiode)</option>
                 <option value="previous">Vorige periode (zelfde lengte)</option>
                 <option value="lastYear">Zelfde periode vorig jaar</option>
-                <option value="selectedDays">Twee dagen (van hoofdperiode)</option>
                 <option value="custom">Aangepaste periode</option>
               </select>
               {compareEnabled && (
@@ -673,8 +673,16 @@ export default function PrepackMonitorPage() {
                     <thead className="bg-gray-50 text-gray-600">
                       <tr>
                         <th className="px-4 py-2 text-left font-medium">Metric</th>
-                        <th className="px-4 py-2 text-left font-medium">Huidige periode</th>
-                        <th className="px-4 py-2 text-left font-medium">Vergelijking</th>
+                        <th className="px-4 py-2 text-left font-medium">
+                          {compareMode === 'selectedDays'
+                            ? `Dag 1 (${compareEffectiveFrom || '—'})`
+                            : 'Huidige periode'}
+                        </th>
+                        <th className="px-4 py-2 text-left font-medium">
+                          {compareMode === 'selectedDays'
+                            ? `Dag 2 (${compareEffectiveTo || '—'})`
+                            : 'Vergelijking'}
+                        </th>
                         <th className="px-4 py-2 text-left font-medium">Verschil</th>
                         <th className="px-4 py-2 text-left font-medium">% wijziging</th>
                       </tr>
