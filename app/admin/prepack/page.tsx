@@ -612,6 +612,7 @@ export default function PrepackMonitorPage() {
                       type="date"
                       ref={compareFromInputRef}
                       className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      onChange={(e) => setCompareFrom(e.target.value)}
                     />
                   </div>
                   <div>
@@ -620,8 +621,16 @@ export default function PrepackMonitorPage() {
                       type="date"
                       ref={compareToInputRef}
                       className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      onChange={(e) => setCompareTo(e.target.value)}
                     />
                   </div>
+                  <button
+                    type="button"
+                    onClick={handleRefresh}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    Vergelijk toepassen
+                  </button>
                 </div>
               )}
             </div>
