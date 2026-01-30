@@ -58,6 +58,8 @@ interface DetailedItem {
   date_added: string
 }
 
+type CompareMode = 'previous' | 'lastYear' | 'custom'
+
 export default function PrepackMonitorPage() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -74,6 +76,14 @@ export default function PrepackMonitorPage() {
   const [bomDetail, setBomDetail] = useState<any | null>(null)
   const dateFromInputRef = useRef<HTMLInputElement>(null)
   const dateToInputRef = useRef<HTMLInputElement>(null)
+  const compareFromInputRef = useRef<HTMLInputElement>(null)
+  const compareToInputRef = useRef<HTMLInputElement>(null)
+  const [compareEnabled, setCompareEnabled] = useState(false)
+  const [compareMode, setCompareMode] = useState<CompareMode>('previous')
+  const [compareFrom, setCompareFrom] = useState('')
+  const [compareTo, setCompareTo] = useState('')
+  const [compareTotals, setCompareTotals] = useState<Totals | null>(null)
+  const [compareDailyStats, setCompareDailyStats] = useState<DailyStat[]>([])
   const [collapsedSections, setCollapsedSections] = useState({
     filters: false,
     chartOutput: false,
@@ -177,6 +187,80 @@ export default function PrepackMonitorPage() {
     return `${days.toFixed(1)} dagen`
   }
 
+  const toDateInput = (date: Date) => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  const toLocalDate = (value: string) => new Date(`${value}T00:00:00`)
+
+  const getPresetRange = (preset: string) => {
+    const today = new Date()
+    if (preset === 'thisMonth') {
+      const start = new Date(today.getFullYear(), today.getMonth(), 1)
+      return { from: toDateInput(start), to: toDateInput(today) }
+    }
+    if (preset === 'prevMonth') {
+      const start = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+      const end = new Date(today.getFullYear(), today.getMonth(), 0)
+      return { from: toDateInput(start), to: toDateInput(end) }
+    }
+    if (preset === 'thisQuarter') {
+      const quarter = Math.floor(today.getMonth() / 3)
+      const start = new Date(today.getFullYear(), quarter * 3, 1)
+      return { from: toDateInput(start), to: toDateInput(today) }
+    }
+    if (preset === 'prevQuarter') {
+      const quarter = Math.floor(today.getMonth() / 3)
+      const startMonth = (quarter - 1) * 3
+      const year = startMonth < 0 ? today.getFullYear() - 1 : today.getFullYear()
+      const normalizedStart = startMonth < 0 ? 9 : startMonth
+      const start = new Date(year, normalizedStart, 1)
+      const end = new Date(year, normalizedStart + 3, 0)
+      return { from: toDateInput(start), to: toDateInput(end) }
+    }
+    if (preset === 'thisYear') {
+      const start = new Date(today.getFullYear(), 0, 1)
+      return { from: toDateInput(start), to: toDateInput(today) }
+    }
+    if (preset === 'prevYear') {
+      const start = new Date(today.getFullYear() - 1, 0, 1)
+      const end = new Date(today.getFullYear() - 1, 11, 31)
+      return { from: toDateInput(start), to: toDateInput(end) }
+    }
+    return null
+  }
+
+  const getCompareRange = (fromValue: string, toValue: string, mode: CompareMode) => {
+    if (!fromValue || !toValue) return null
+    const fromDate = toLocalDate(fromValue)
+    const toDate = toLocalDate(toValue)
+
+    if (mode === 'previous') {
+      const diffDays = Math.round((toDate.getTime() - fromDate.getTime()) / 86400000) + 1
+      const compareToDate = new Date(fromDate)
+      compareToDate.setDate(compareToDate.getDate() - 1)
+      const compareFromDate = new Date(compareToDate)
+      compareFromDate.setDate(compareFromDate.getDate() - diffDays + 1)
+      return { from: toDateInput(compareFromDate), to: toDateInput(compareToDate) }
+    }
+
+    if (mode === 'lastYear') {
+      const compareFromDate = new Date(fromDate)
+      const compareToDate = new Date(toDate)
+      compareFromDate.setFullYear(compareFromDate.getFullYear() - 1)
+      compareToDate.setFullYear(compareToDate.getFullYear() - 1)
+      return { from: toDateInput(compareFromDate), to: toDateInput(compareToDate) }
+    }
+
+    const customFrom = compareFromInputRef.current?.value || compareFrom
+    const customTo = compareToInputRef.current?.value || compareTo
+    if (!customFrom || !customTo) return null
+    return { from: customFrom, to: customTo }
+  }
+
   // Set default date range to last 7 days
   useEffect(() => {
     const today = new Date()
@@ -190,30 +274,64 @@ export default function PrepackMonitorPage() {
     setDateFrom(fromValue)
     if (dateFromInputRef.current) dateFromInputRef.current.value = fromValue
     if (dateToInputRef.current) dateToInputRef.current.value = toValue
-    fetchStats({ from: fromValue, to: toValue })
+    void handleRefresh()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const fetchStats = async (range?: { from: string; to: string }) => {
+  const fetchStatsData = async (range: { from: string; to: string }) => {
+    const params = new URLSearchParams({
+      date_from: range.from,
+      date_to: range.to,
+    })
+
+    const response = await fetch(`/api/admin/prepack-stats?${params}`)
+    if (!response.ok) throw new Error('Failed to fetch stats')
+
+    return response.json()
+  }
+
+  const applyMainStats = (data: any) => {
+    setDailyStats(data.dailyStats || [])
+    setTotals(data.totals || null)
+    setPersonStats(data.personStats || [])
+    setDetailedItems(data.detailedItems || [])
+    setDetailsLimited(Boolean(data.detailsLimited))
+    setLastUpdated(new Date().toISOString())
+  }
+
+  const applyCompareStats = (data: any) => {
+    setCompareDailyStats(data.dailyStats || [])
+    setCompareTotals(data.totals || null)
+  }
+
+  const handleRefresh = async () => {
+    const fromValue = dateFromInputRef.current?.value || dateFrom
+    const toValue = dateToInputRef.current?.value || dateTo
+    if (!fromValue || !toValue) return
+    setDateFrom(fromValue)
+    setDateTo(toValue)
     setLoading(true)
     try {
-      const fromValue = range?.from ?? dateFrom
-      const toValue = range?.to ?? dateTo
-      const params = new URLSearchParams({
-        date_from: fromValue,
-        date_to: toValue,
-      })
-      
-      const response = await fetch(`/api/admin/prepack-stats?${params}`)
-      if (!response.ok) throw new Error('Failed to fetch stats')
-      
-      const data = await response.json()
-      setDailyStats(data.dailyStats || [])
-      setTotals(data.totals || null)
-      setPersonStats(data.personStats || [])
-      setDetailedItems(data.detailedItems || [])
-      setDetailsLimited(Boolean(data.detailsLimited))
-      setLastUpdated(new Date().toISOString())
+      const mainData = await fetchStatsData({ from: fromValue, to: toValue })
+      applyMainStats(mainData)
+
+      if (compareEnabled) {
+        const compareRange = getCompareRange(fromValue, toValue, compareMode)
+        if (compareRange) {
+          setCompareFrom(compareRange.from)
+          setCompareTo(compareRange.to)
+          if (compareFromInputRef.current) compareFromInputRef.current.value = compareRange.from
+          if (compareToInputRef.current) compareToInputRef.current.value = compareRange.to
+          const compareData = await fetchStatsData(compareRange)
+          applyCompareStats(compareData)
+        } else {
+          setCompareTotals(null)
+          setCompareDailyStats([])
+        }
+      } else {
+        setCompareTotals(null)
+        setCompareDailyStats([])
+      }
     } catch (error) {
       console.error('Error fetching stats:', error)
       alert('Failed to load statistics')
@@ -222,14 +340,41 @@ export default function PrepackMonitorPage() {
     }
   }
 
-  const handleRefresh = () => {
-    const fromValue = dateFromInputRef.current?.value || dateFrom
-    const toValue = dateToInputRef.current?.value || dateTo
-    if (!fromValue || !toValue) return
-    setDateFrom(fromValue)
-    setDateTo(toValue)
-    fetchStats({ from: fromValue, to: toValue })
+  const handleApplyPreset = (preset: string) => {
+    const range = getPresetRange(preset)
+    if (!range) return
+    setDateFrom(range.from)
+    setDateTo(range.to)
+    if (dateFromInputRef.current) dateFromInputRef.current.value = range.from
+    if (dateToInputRef.current) dateToInputRef.current.value = range.to
+    void handleRefresh()
   }
+
+  const compareSummary = useMemo(() => {
+    if (!totals || !compareTotals) return null
+    const diff = (current: number, previous: number) => current - previous
+    const pct = (current: number, previous: number) =>
+      previous === 0 ? null : ((current - previous) / previous) * 100
+
+    return {
+      items: {
+        diff: diff(totals.totalItemsPacked, compareTotals.totalItemsPacked),
+        pct: pct(totals.totalItemsPacked, compareTotals.totalItemsPacked),
+      },
+      incoming: {
+        diff: diff(totals.totalIncoming, compareTotals.totalIncoming),
+        pct: pct(totals.totalIncoming, compareTotals.totalIncoming),
+      },
+      manHours: {
+        diff: diff(totals.totalManHours, compareTotals.totalManHours),
+        pct: pct(totals.totalManHours, compareTotals.totalManHours),
+      },
+      revenue: {
+        diff: diff(totals.totalRevenue, compareTotals.totalRevenue),
+        pct: pct(totals.totalRevenue, compareTotals.totalRevenue),
+      },
+    }
+  }, [totals, compareTotals])
 
   const handleExportExcel = () => {
     if (exporting) return
@@ -339,6 +484,50 @@ export default function PrepackMonitorPage() {
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => handleApplyPreset('thisMonth')}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Deze maand
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPreset('prevMonth')}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Vorige maand
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPreset('thisQuarter')}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Dit kwartaal
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPreset('prevQuarter')}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Vorig kwartaal
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPreset('thisYear')}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Dit jaar
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPreset('prevYear')}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Vorig jaar
+              </button>
+            </div>
             <button
               onClick={handleRefresh}
               disabled={loading || !dateFrom || !dateTo}
@@ -353,6 +542,96 @@ export default function PrepackMonitorPage() {
             >
               {exporting ? 'Exporteren...' : 'Export naar Excel'}
             </button>
+          </div>
+
+          <div className="mb-6 rounded-lg border border-gray-200 p-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="inline-flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  checked={compareEnabled}
+                  onChange={(e) => setCompareEnabled(e.target.checked)}
+                />
+                Vergelijking inschakelen
+              </label>
+              <select
+                value={compareMode}
+                onChange={(e) => setCompareMode(e.target.value as CompareMode)}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                disabled={!compareEnabled}
+              >
+                <option value="previous">Vorige periode (zelfde lengte)</option>
+                <option value="lastYear">Zelfde periode vorig jaar</option>
+                <option value="custom">Aangepaste periode</option>
+              </select>
+              {compareEnabled && compareMode === 'custom' && (
+                <div className="flex flex-wrap gap-3 items-end">
+                  <div>
+                    <label className="block text-sm text-gray-600">Vergelijk vanaf</label>
+                    <input
+                      type="date"
+                      ref={compareFromInputRef}
+                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-600">Vergelijk tot</label>
+                    <input
+                      type="date"
+                      ref={compareToInputRef}
+                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {compareEnabled && compareTotals && (
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+                  <div className="text-sm text-gray-600 mb-1">Items verpakt Δ</div>
+                  <div className="text-2xl font-semibold text-slate-800">
+                    {compareSummary ? compareSummary.items.diff.toLocaleString('nl-NL') : '-'}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {compareSummary?.items.pct == null ? '-' : `${compareSummary.items.pct.toFixed(1)}%`}
+                  </div>
+                </div>
+                <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+                  <div className="text-sm text-gray-600 mb-1">Goederen binnen Δ</div>
+                  <div className="text-2xl font-semibold text-slate-800">
+                    {compareSummary ? compareSummary.incoming.diff.toLocaleString('nl-NL') : '-'}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {compareSummary?.incoming.pct == null ? '-' : `${compareSummary.incoming.pct.toFixed(1)}%`}
+                  </div>
+                </div>
+                <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+                  <div className="text-sm text-gray-600 mb-1">Manuren Δ</div>
+                  <div className="text-2xl font-semibold text-slate-800">
+                    {compareSummary ? compareSummary.manHours.diff.toFixed(2) : '-'}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {compareSummary?.manHours.pct == null ? '-' : `${compareSummary.manHours.pct.toFixed(1)}%`}
+                  </div>
+                </div>
+                <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+                  <div className="text-sm text-gray-600 mb-1">Omzet Δ</div>
+                  <div className="text-2xl font-semibold text-slate-800">
+                    {compareSummary ? formatCurrency(compareSummary.revenue.diff) : '-'}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {compareSummary?.revenue.pct == null ? '-' : `${compareSummary.revenue.pct.toFixed(1)}%`}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {compareEnabled && compareTotals && (
+              <div className="mt-2 text-xs text-gray-500">
+                Vergelijking: {compareFrom || '—'} → {compareTo || '—'} · Records: {compareDailyStats.length}
+              </div>
+            )}
           </div>
 
           {/* KPI Cards */}
