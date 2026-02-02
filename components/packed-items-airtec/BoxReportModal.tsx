@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import * as XLSX from 'xlsx'
 
 interface BoxReportModalProps {
   isOpen: boolean
@@ -57,6 +58,33 @@ export default function BoxReportModal({
   }, [isOpen, fetchReport])
 
   const totalQuantity = reportData.reduce((sum, item) => sum + item.total_quantity, 0)
+
+  const handleDownload = () => {
+    if (reportData.length === 0) return
+
+    const worksheet = XLSX.utils.json_to_sheet(
+      reportData.map((item) => ({
+        'Box Number (Kistnummer)': item.kistnummer,
+        'ERP Code': item.erp_code || '',
+        'Total Quantity': item.total_quantity,
+        'Item Count': item.item_count,
+      }))
+    )
+
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Box Report')
+
+    const excelBuffer = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' })
+    const blob = new Blob([excelBuffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    const fromPart = dateFrom ? dateFrom : 'all'
+    const toPart = dateTo ? dateTo : 'all'
+    link.download = `box_report_airtec_${fromPart}_to_${toPart}.xlsx`
+    link.click()
+  }
 
   if (!isOpen) return null
 
@@ -148,7 +176,14 @@ export default function BoxReportModal({
           </div>
         )}
 
-        <div className="mt-6 flex justify-end">
+        <div className="mt-6 flex justify-end gap-2">
+          <button
+            onClick={handleDownload}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-60"
+            disabled={reportData.length === 0}
+          >
+            Export Excel
+          </button>
           <button
             onClick={onClose}
             className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 font-medium"
