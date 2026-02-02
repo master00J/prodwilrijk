@@ -40,7 +40,27 @@ export default function ScanCheckAirtec({ onMatch }: ScanCheckAirtecProps) {
   const MISMATCH_DISPLAY_MS = 2800
   const ERROR_DISPLAY_MS = 3500
 
+  const handleScanAChange = (value: string) => {
+    if (/[\r\n\t]/.test(value)) {
+      const cleaned = value.replace(/[\r\n\t]/g, '')
+      setScanA(cleaned)
+      setTimeout(() => inputBRef.current?.focus(), 0)
+      return
+    }
+    setScanA(value)
+  }
+
+  const handleScanAKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter' || event.key === 'Tab') {
+      event.preventDefault()
+      if (scanA.trim()) {
+        setTimeout(() => inputBRef.current?.focus(), 0)
+      }
+    }
+  }
+
   const handleCompare = async () => {
+    if (status !== 'idle') return
     const a = normalizeLot(scanA)
     const b = normalizeLot(scanB)
     if (!a || !b) return
@@ -70,10 +90,11 @@ export default function ScanCheckAirtec({ onMatch }: ScanCheckAirtecProps) {
   }
 
   useEffect(() => {
+    if (status !== 'idle') return
     if (scanA.trim() && scanB.trim()) {
       void handleCompare()
     }
-  }, [scanA, scanB])
+  }, [scanA, scanB, status])
 
   const overlayClass =
     status === 'match'
@@ -106,7 +127,9 @@ export default function ScanCheckAirtec({ onMatch }: ScanCheckAirtecProps) {
           ref={inputARef}
           type="text"
           value={scanA}
-          onChange={(e) => setScanA(e.target.value)}
+          onChange={(e) => handleScanAChange(e.target.value)}
+          onKeyDown={handleScanAKeyDown}
+          disabled={status !== 'idle'}
           placeholder="Scan 1 (Lot Number)"
           className="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
         />
@@ -115,6 +138,7 @@ export default function ScanCheckAirtec({ onMatch }: ScanCheckAirtecProps) {
           type="text"
           value={scanB}
           onChange={(e) => setScanB(e.target.value)}
+          disabled={status !== 'idle'}
           placeholder="Scan 2 (Lot Number)"
           className="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
         />
