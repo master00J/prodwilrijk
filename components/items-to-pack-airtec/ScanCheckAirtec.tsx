@@ -17,6 +17,8 @@ const normalizeLot = (value: string) => {
 export default function ScanCheckAirtec({ onMatch }: ScanCheckAirtecProps) {
   const [scanA, setScanA] = useState('')
   const [scanB, setScanB] = useState('')
+  const [scanAComplete, setScanAComplete] = useState(false)
+  const [scanBComplete, setScanBComplete] = useState(false)
   const [status, setStatus] = useState<ScanStatus>('idle')
   const [message, setMessage] = useState<string | null>(null)
   const inputARef = useRef<HTMLInputElement>(null)
@@ -29,6 +31,8 @@ export default function ScanCheckAirtec({ onMatch }: ScanCheckAirtecProps) {
   const reset = (focusFirst = true) => {
     setScanA('')
     setScanB('')
+    setScanAComplete(false)
+    setScanBComplete(false)
     setStatus('idle')
     setMessage(null)
     if (focusFirst) {
@@ -41,9 +45,11 @@ export default function ScanCheckAirtec({ onMatch }: ScanCheckAirtecProps) {
   const ERROR_DISPLAY_MS = 3500
 
   const handleScanAChange = (value: string) => {
+    setScanAComplete(false)
     if (/[\r\n\t]/.test(value)) {
       const cleaned = value.replace(/[\r\n\t]/g, '')
       setScanA(cleaned)
+      setScanAComplete(!!cleaned.trim())
       setTimeout(() => inputBRef.current?.focus(), 0)
       return
     }
@@ -53,9 +59,28 @@ export default function ScanCheckAirtec({ onMatch }: ScanCheckAirtecProps) {
   const handleScanAKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter' || event.key === 'Tab') {
       event.preventDefault()
-      if (scanA.trim()) {
-        setTimeout(() => inputBRef.current?.focus(), 0)
-      }
+      if (!scanA.trim()) return
+      setScanAComplete(true)
+      setTimeout(() => inputBRef.current?.focus(), 0)
+    }
+  }
+
+  const handleScanBChange = (value: string) => {
+    setScanBComplete(false)
+    if (/[\r\n\t]/.test(value)) {
+      const cleaned = value.replace(/[\r\n\t]/g, '')
+      setScanB(cleaned)
+      setScanBComplete(!!cleaned.trim())
+      return
+    }
+    setScanB(value)
+  }
+
+  const handleScanBKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter' || event.key === 'Tab') {
+      event.preventDefault()
+      if (!scanB.trim()) return
+      setScanBComplete(true)
     }
   }
 
@@ -83,6 +108,7 @@ export default function ScanCheckAirtec({ onMatch }: ScanCheckAirtecProps) {
     setMessage(`Mismatch: "${a}" ≠ "${b}"`)
     setTimeout(() => {
       setScanB('')
+      setScanBComplete(false)
       setStatus('idle')
       setMessage(null)
       inputBRef.current?.focus()
@@ -91,10 +117,10 @@ export default function ScanCheckAirtec({ onMatch }: ScanCheckAirtecProps) {
 
   useEffect(() => {
     if (status !== 'idle') return
-    if (scanA.trim() && scanB.trim()) {
+    if (scanAComplete && scanBComplete) {
       void handleCompare()
     }
-  }, [scanA, scanB, status])
+  }, [scanAComplete, scanBComplete, status, scanA, scanB])
 
   const overlayClass =
     status === 'match'
@@ -137,7 +163,8 @@ export default function ScanCheckAirtec({ onMatch }: ScanCheckAirtecProps) {
           ref={inputBRef}
           type="text"
           value={scanB}
-          onChange={(e) => setScanB(e.target.value)}
+          onChange={(e) => handleScanBChange(e.target.value)}
+          onKeyDown={handleScanBKeyDown}
           disabled={status !== 'idle'}
           placeholder="Scan 2 (Lot Number)"
           className="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
