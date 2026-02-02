@@ -5,11 +5,20 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const rawLot = String(body?.lot_number || '')
-    const lotNumber = rawLot
+    const rawClean = rawLot
       .replace(/[\r\n\t]/g, '')
       .trim()
       .toUpperCase()
-      .replace(/^(2W|S)/, '')
+    const lotNumber = rawClean.replace(/^(2W|S)/, '')
+
+    const lotCandidates = Array.from(
+      new Set([
+        rawClean,
+        lotNumber,
+        lotNumber ? `S${lotNumber}` : '',
+        lotNumber ? `2W${lotNumber}` : '',
+      ].filter(Boolean))
+    )
 
     if (!lotNumber) {
       return NextResponse.json(
@@ -21,8 +30,8 @@ export async function POST(request: NextRequest) {
     const { data: items, error: fetchError } = await supabaseAdmin
       .from('items_to_pack_airtec')
       .select('*')
-      .eq('lot_number', lotNumber)
-      .eq('packed', false)
+      .in('lot_number', lotCandidates)
+      .or('packed.is.null,packed.eq.false')
 
     if (fetchError) {
       console.error('Error fetching item by lot number:', fetchError)
