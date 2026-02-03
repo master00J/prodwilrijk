@@ -257,26 +257,30 @@ export async function fetchPrepackStats({
 
   let materialCostMap: Record<string, number> = {}
   if (uniqueItemNumbers.length > 0) {
-    const { data: lines, error: linesError } = await supabaseAdmin
-      .from('production_order_lines')
-      .select(
-        `
-          id,
-          item_number,
-          production_order_id,
-          production_orders (uploaded_at),
-          production_order_components (
-            component_item_no,
-            component_unit,
-            component_length,
-            component_width,
-            component_thickness
-          )
-        `
-      )
-      .in('item_number', uniqueItemNumbers)
+    const lines = await fetchAllRows<any>(async (from, to) => {
+      let query = supabaseAdmin
+        .from('production_order_lines')
+        .select(
+          `
+            id,
+            item_number,
+            production_order_id,
+            production_orders (uploaded_at),
+            production_order_components (
+              component_item_no,
+              component_unit,
+              component_length,
+              component_width,
+              component_thickness
+            )
+          `
+        )
+        .in('item_number', uniqueItemNumbers)
+        .range(from, to)
+      return await query
+    })
 
-    if (!linesError && lines) {
+    if (lines && lines.length > 0) {
       const orderIds = Array.from(
         new Set(lines.map((line: any) => line.production_order_id).filter(Boolean))
       )
