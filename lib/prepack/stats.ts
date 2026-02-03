@@ -97,6 +97,11 @@ const toDateKey = (value: unknown) => {
   return date.toISOString().split('T')[0]
 }
 
+const normalizeItemNumber = (value: unknown) => {
+  if (value === null || value === undefined) return ''
+  return String(value).trim().toUpperCase()
+}
+
 const fetchAllRows = async <T,>(
   buildQuery: (from: number, to: number) => Promise<{ data: T[] | null; error: any }>
 ) => {
@@ -224,9 +229,12 @@ export async function fetchPrepackStats({
   const logs = timeLogs || []
   const incoming = [...(incomingItems || []), ...(incomingPackedItems || [])]
 
-  const uniqueItemNumbers = [
-    ...new Set(items.map((item: any) => item.item_number).filter(Boolean)),
-  ]
+  const rawItemNumbers = items
+    .map((item: any) => item.item_number)
+    .filter(Boolean)
+    .map((value: any) => String(value))
+  const normalizedItemNumbers = rawItemNumbers.map((value) => normalizeItemNumber(value)).filter(Boolean)
+  const uniqueItemNumbers = Array.from(new Set([...rawItemNumbers, ...normalizedItemNumbers]))
 
   let pricesMap: Record<string, number> = {}
   if (uniqueItemNumbers.length > 0) {
@@ -238,8 +246,10 @@ export async function fetchPrepackStats({
 
     if (salesOrders) {
       salesOrders.forEach((order: any) => {
-        if (!pricesMap[order.item_number]) {
-          pricesMap[order.item_number] = parseFloat(order.price) || 0
+        const key = normalizeItemNumber(order.item_number)
+        if (!key) return
+        if (!pricesMap[key]) {
+          pricesMap[key] = parseFloat(order.price) || 0
         }
       })
     }
@@ -267,12 +277,16 @@ export async function fetchPrepackStats({
       .in('item_number', uniqueItemNumbers)
 
     if (!linesError && lines) {
-      const componentItemNumbers = new Set<string>()
+        const componentItemNumbers = new Set<string>()
       lines.forEach((line: any) => {
         const components = line.production_order_components || []
         components.forEach((component: any) => {
           if (component.component_item_no) {
-            componentItemNumbers.add(component.component_item_no)
+              componentItemNumbers.add(String(component.component_item_no))
+              const normalized = normalizeItemNumber(component.component_item_no)
+              if (normalized) {
+                componentItemNumbers.add(normalized)
+              }
           }
         })
       })
@@ -287,9 +301,11 @@ export async function fetchPrepackStats({
 
         if (materialPrices) {
           materialPrices.forEach((item: any) => {
-            materialPriceMap[item.item_number] = Number(item.price) || 0
+            const key = normalizeItemNumber(item.item_number)
+            if (!key) return
+            materialPriceMap[key] = Number(item.price) || 0
             if (item.unit_of_measure) {
-              materialUnitMap[item.item_number] = String(item.unit_of_measure).trim()
+              materialUnitMap[key] = String(item.unit_of_measure).trim()
             }
           })
         }
@@ -298,6 +314,8 @@ export async function fetchPrepackStats({
       const latestCosts: Record<string, { cost: number; uploadedAt: string }> = {}
       lines.forEach((line: any) => {
         if (!line.item_number) return
+        const normalizedLineNumber = normalizeItemNumber(line.item_number)
+        if (!normalizedLineNumber) return
         const uploadedAt =
           line.production_orders?.uploaded_at ||
           line.production_orders?.[0]?.uploaded_at ||
@@ -310,18 +328,20 @@ export async function fetchPrepackStats({
         components.forEach((component: any) => {
           const componentItemNo = component.component_item_no
           if (!componentItemNo) return
-          const price = materialPriceMap[componentItemNo]
+          const componentKey = normalizeItemNumber(componentItemNo)
+          if (!componentKey) return
+          const price = materialPriceMap[componentKey]
           if (price === undefined) return
           hasAnyCost = true
-          const unitOfMeasure = materialUnitMap[componentItemNo] || 'stuks'
+          const unitOfMeasure = materialUnitMap[componentKey] || 'stuks'
           costPerItem += getMaterialCostForComponent(component, price, unitOfMeasure)
         })
 
         if (!hasAnyCost) return
 
-        const existing = latestCosts[line.item_number]
+        const existing = latestCosts[normalizedLineNumber]
         if (!existing || new Date(uploadedAt) > new Date(existing.uploadedAt)) {
-          latestCosts[line.item_number] = { cost: costPerItem, uploadedAt }
+          latestCosts[normalizedLineNumber] = { cost: costPerItem, uploadedAt }
         }
       })
 
@@ -361,10 +381,10 @@ export async function fetchPrepackStats({
     const amount = item.amount || 0
     dailyStats[date].itemsPacked += amount
 
-    const price = pricesMap[item.item_number] || 0
+    const price = pricesMap[normalizeItemNumber(item.item_number)] || 0
     dailyStats[date].revenue += price * amount
 
-    const materialUnitCost = materialCostMap[item.item_number] || 0
+    const materialUnitCost = materialCostMap[normalizeItemNumber(item.item_number)] || 0
     dailyStats[date].materialCost += materialUnitCost * amount
   })
 
@@ -445,13 +465,13 @@ export async function fetchPrepackStats({
   }, 0)
 
   const totalRevenue = items.reduce((sum, item: any) => {
-    const price = pricesMap[item.item_number] || 0
+    const price = pricesMap[normalizeItemNumber(item.item_number)] || 0
     const amount = item.amount || 0
     return sum + price * amount
   }, 0)
 
   const totalMaterialCost = items.reduce((sum, item: any) => {
-    const unitCost = materialCostMap[item.item_number] || 0
+    const unitCost = materialCostMap[normalizeItemNumber(item.item_number)] || 0
     const amount = item.amount || 0
     return sum + unitCost * amount
   }, 0)
@@ -515,10 +535,10 @@ export async function fetchPrepackStats({
     ? []
     : items
         .map((item: any) => {
-          const price = pricesMap[item.item_number] || 0
+          const price = pricesMap[normalizeItemNumber(item.item_number)] || 0
           const amount = item.amount || 0
           const revenue = price * amount
-          const materialUnitCost = materialCostMap[item.item_number] || 0
+          const materialUnitCost = materialCostMap[normalizeItemNumber(item.item_number)] || 0
           const materialCostTotal = materialUnitCost * amount
 
           return {
