@@ -277,6 +277,24 @@ export async function fetchPrepackStats({
       .in('item_number', uniqueItemNumbers)
 
     if (!linesError && lines) {
+      const orderIds = Array.from(
+        new Set(lines.map((line: any) => line.production_order_id).filter(Boolean))
+      )
+      const orderUploadMap = new Map<number, string>()
+      if (orderIds.length > 0) {
+        const { data: orders, error: ordersError } = await supabaseAdmin
+          .from('production_orders')
+          .select('id, uploaded_at')
+          .in('id', orderIds)
+        if (!ordersError && orders) {
+          orders.forEach((order: any) => {
+            if (order?.id) {
+              orderUploadMap.set(Number(order.id), String(order.uploaded_at || ''))
+            }
+          })
+        }
+      }
+
         const componentItemNumbers = new Set<string>()
       lines.forEach((line: any) => {
         const components = line.production_order_components || []
@@ -317,10 +335,10 @@ export async function fetchPrepackStats({
         const normalizedLineNumber = normalizeItemNumber(line.item_number)
         if (!normalizedLineNumber) return
         const uploadedAt =
+          orderUploadMap.get(Number(line.production_order_id)) ||
           line.production_orders?.uploaded_at ||
           line.production_orders?.[0]?.uploaded_at ||
-          ''
-        if (!uploadedAt) return
+          new Date(0).toISOString()
 
         const components = line.production_order_components || []
         let costPerItem = 0
