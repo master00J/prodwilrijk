@@ -71,6 +71,7 @@ export default function PrepackMonitorPage() {
   const [personStats, setPersonStats] = useState<PersonStats[]>([])
   const [detailedItems, setDetailedItems] = useState<DetailedItem[]>([])
   const [detailsLimited, setDetailsLimited] = useState(false)
+  const [missingCostOnly, setMissingCostOnly] = useState(false)
   const [bomLoading, setBomLoading] = useState(false)
   const [bomError, setBomError] = useState<string | null>(null)
   const [bomDetail, setBomDetail] = useState<any | null>(null)
@@ -174,6 +175,16 @@ export default function PrepackMonitorPage() {
       bestProductivityDay,
     }
   }, [totals, personStats.length, dailyStats])
+
+  const filteredDetailedItems = useMemo(() => {
+    if (!missingCostOnly) return detailedItems
+    return detailedItems.filter((item) => {
+      const missingPrice = !item.price || item.price <= 0
+      const missingUnitCost = !item.materialCostUnit || item.materialCostUnit <= 0
+      const missingTotalCost = !item.materialCostTotal || item.materialCostTotal <= 0
+      return missingPrice || missingUnitCost || missingTotalCost
+    })
+  }, [detailedItems, missingCostOnly])
 
   const formatDate = (value: string) =>
     new Date(value).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -604,6 +615,17 @@ export default function PrepackMonitorPage() {
             >
               {exporting ? 'Exporteren...' : 'Export naar Excel'}
             </button>
+          </div>
+
+          <div className="mb-4 rounded-lg border border-gray-200 px-4 py-3">
+            <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+              <input
+                type="checkbox"
+                checked={missingCostOnly}
+                onChange={(e) => setMissingCostOnly(e.target.checked)}
+              />
+              Toon enkel items zonder prijs of materiaalkost
+            </label>
           </div>
 
           <div className="mb-6 rounded-lg border border-gray-200 p-4">
@@ -1190,7 +1212,7 @@ export default function PrepackMonitorPage() {
           <div className="text-center py-8">
             <div className="text-xl">Items laden...</div>
           </div>
-        ) : detailedItems.length === 0 ? (
+        ) : filteredDetailedItems.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             Geen items gevonden voor de geselecteerde periode
           </div>
@@ -1211,7 +1233,7 @@ export default function PrepackMonitorPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {detailedItems.map((item) => (
+                {filteredDetailedItems.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm text-gray-900">
                       {new Date(item.date_packed).toLocaleDateString('nl-NL', {
