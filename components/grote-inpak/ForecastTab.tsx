@@ -14,6 +14,16 @@ export default function ForecastTab() {
   const [searchQuery, setSearchQuery] = useState('')
 
   const shiftSummary = useMemo(() => {
+    const currentByLabel = new Map<string, string>()
+    forecastData.forEach((row: any) => {
+      const label = String(row.case_label || '').trim()
+      if (!label) return
+      const arrival = String(row.arrival_date || '').trim()
+      if (arrival) {
+        currentByLabel.set(label, arrival)
+      }
+    })
+
     const byLabel = new Map<
       string,
       {
@@ -24,6 +34,8 @@ export default function ForecastTab() {
         last_old_date: string | null
         last_new_date: string | null
         last_changed_at: string | null
+        history_dates: string[]
+        current_date: string | null
       }
     >()
     forecastChanges.forEach((change: any) => {
@@ -43,19 +55,37 @@ export default function ForecastTab() {
         last_old_date: null,
         last_new_date: null,
         last_changed_at: null,
+        history_dates: [],
+        current_date: currentByLabel.get(label) || null,
       }
       current.total_shift_days += deltaDays
       current.change_count += 1
       current.last_old_date = String(change.old_arrival_date || current.last_old_date || '')
       current.last_new_date = String(change.new_arrival_date || current.last_new_date || '')
       current.last_changed_at = String(change.changed_at || current.last_changed_at || '')
+      const oldDateValue = String(change.old_arrival_date || '').trim()
+      const newDateValue = String(change.new_arrival_date || '').trim()
+      if (oldDateValue) current.history_dates.push(oldDateValue)
+      if (newDateValue) current.history_dates.push(newDateValue)
       if (!current.case_type && change.case_type) {
         current.case_type = String(change.case_type)
       }
+      if (!current.current_date) {
+        current.current_date = currentByLabel.get(label) || null
+      }
       byLabel.set(label, current)
     })
-    return Array.from(byLabel.values()).sort((a, b) => Math.abs(b.total_shift_days) - Math.abs(a.total_shift_days))
-  }, [forecastChanges])
+    return Array.from(byLabel.values())
+      .map((item) => ({
+        ...item,
+        history_dates: Array.from(new Set(item.history_dates)).sort((a, b) => {
+          const da = new Date(a)
+          const db = new Date(b)
+          return da.getTime() - db.getTime()
+        }),
+      }))
+      .sort((a, b) => Math.abs(b.total_shift_days) - Math.abs(a.total_shift_days))
+  }, [forecastChanges, forecastData])
 
   const loadForecast = useCallback(async () => {
     setLoading(true)
@@ -444,6 +474,8 @@ export default function ForecastTab() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Case Type</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Totaal verschoven</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Aantal wijzigingen</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Historiek datums</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Huidige datum</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Laatste wijziging</th>
                 </tr>
               </thead>
@@ -456,6 +488,18 @@ export default function ForecastTab() {
                       {item.total_shift_days === 0 ? '0 dagen' : `${item.total_shift_days} dagen`}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700">{item.change_count}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">
+                      {item.history_dates.length > 0
+                        ? item.history_dates
+                            .map((date) =>
+                              new Date(date).toLocaleDateString('nl-NL')
+                            )
+                            .join(', ')
+                        : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-700">
+                      {item.current_date ? new Date(item.current_date).toLocaleDateString('nl-NL') : '-'}
+                    </td>
                     <td className="px-4 py-3 text-sm text-gray-700">
                       {item.last_changed_at ? new Date(item.last_changed_at).toLocaleString('nl-NL') : '-'}
                     </td>
