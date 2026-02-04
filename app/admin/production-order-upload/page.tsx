@@ -20,16 +20,45 @@ export default function ProductionOrderUploadPage() {
 
   const [latestOrder, setLatestOrder] = useState<{ order: any; lines: any[] } | null>(null)
   const [priceEdits, setPriceEdits] = useState<Record<number, string>>({})
+  const [orderDetails, setOrderDetails] = useState<{
+    order: any
+    materials: Array<{ item_number: string; description: string | null; usage_count: number; price: number | null; unit_of_measure: string }>
+    totals: { total_material_cost: number; missing_price_count: number }
+  } | null>(null)
+  const [materialEdits, setMaterialEdits] = useState<Record<string, string>>({})
+  const [materialUnitEdits, setMaterialUnitEdits] = useState<Record<string, string>>({})
+
+  const parseFlexibleNumber = (value: string | number | null | undefined): number | null => {
+    if (value === null || value === undefined) return null
+    const normalized = String(value).replace(/\s/g, '').replace(',', '.')
+    const parsed = parseFloat(normalized)
+    return Number.isFinite(parsed) ? parsed : null
+  }
 
   const fetchLatestOrder = useCallback(async () => {
     try {
-      const res = await fetch('/api/production-orders/latest-for-time')
-      if (!res.ok) return
-      const data = await res.json()
-      setLatestOrder(data)
+      const [latestRes, detailsRes] = await Promise.all([
+        fetch('/api/production-orders/latest-for-time'),
+        fetch('/api/production-order-time/order-details'),
+      ])
+      if (!latestRes.ok) return
+      const latestData = await latestRes.json()
+      setLatestOrder(latestData)
       setPriceEdits({})
+
+      if (detailsRes.ok && latestData?.order?.order_number) {
+        const detailsData = await detailsRes.json()
+        const orders = detailsData.orders || []
+        const match = orders.find((o: any) => o.order?.order_number === latestData.order.order_number)
+        setOrderDetails(match || null)
+        setMaterialEdits({})
+        setMaterialUnitEdits({})
+      } else {
+        setOrderDetails(null)
+      }
     } catch {
       setLatestOrder(null)
+      setOrderDetails(null)
     }
   }, [])
 
@@ -166,6 +195,47 @@ export default function ProductionOrderUploadPage() {
     }
   }
 
+  const handleSaveMaterialPrices = async () => {
+    if (!orderDetails?.materials?.length) return
+    const items = orderDetails.materials
+      .map((material: any) => {
+        const rawValue = materialEdits[material.item_number]
+        const unitEdit = materialUnitEdits[material.item_number]
+        if (rawValue === undefined && unitEdit === undefined) return null
+        const parsed =
+          rawValue !== undefined
+            ? parseFlexibleNumber(rawValue)
+            : parseFlexibleNumber(material.price)
+        if (parsed === null || !Number.isFinite(parsed) || parsed < 0) return null
+        return {
+          item_number: material.item_number,
+          price: parsed,
+          description: material.description || null,
+          unit_of_measure: unitEdit !== undefined ? unitEdit : material.unit_of_measure || 'stuks',
+        }
+      })
+      .filter(Boolean)
+    if (items.length === 0) {
+      setMessage({ type: 'error', text: 'Geen geldige prijswijzigingen om op te slaan.' })
+      return
+    }
+    try {
+      const res = await fetch('/api/material-prices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Opslaan mislukt')
+      setMessage({ type: 'success', text: 'Materiaalprijzen opgeslagen.' })
+      setMaterialEdits({})
+      setMaterialUnitEdits({})
+      fetchLatestOrder()
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Opslaan mislukt' })
+    }
+  }
+
   const handleSavePrices = async () => {
     if (!latestOrder?.order) return
     const linePrices: Record<number, number | null> = {}
@@ -205,7 +275,8 @@ export default function ProductionOrderUploadPage() {
           <p className="font-medium mb-1">Tijdregistratie-flow</p>
           <p>
             Upload productieorder XML (verplicht) en optioneel Excel met verkooporderprijzen. Nadien kun je verkoopprijzen
-            per lijn invullen of aanpassen.
+            per lijn en materiaalprijzen (grondstoffen) invullen. De materiaalkost berekening gebruikt dezelfde logica als
+            admin/sales-orders: stuks, m² en m³ met afmetingen uit de XML.
           </p>
         </div>
 
@@ -367,6 +438,93 @@ export default function ProductionOrderUploadPage() {
               className="mt-4 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
             >
               Verkoopprijzen opslaan
+            </button>
+          </div>
+        )}
+
+        {orderDetails?.order && (
+          <div className="bg-white rounded-lg shadow p-6 border border-gray-200 mt-6">
+            <h2 className="text-xl font-semibold mb-4">
+              4. Materiaalprijzen – {orderDetails.order.order_number}
+            </h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Vul prijzen in voor grondstoffen zonder prijs. Zelfde berekening als admin/sales-orders (stuks, m², m³).
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                <div className="text-xs text-gray-500">Totale materiaalkost</div>
+                <div className="text-lg font-semibold">
+                  € {Number(orderDetails.totals?.total_material_cost || 0).toFixed(2)}
+                </div>
+              </div>
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                <div className="text-xs text-gray-500">Ontbrekende prijzen</div>
+                <div className="text-lg font-semibold">{orderDetails.totals?.missing_price_count || 0}</div>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500">
+                    <th className="py-2 pr-4">Itemnummer</th>
+                    <th className="py-2 pr-4">Omschrijving</th>
+                    <th className="py-2 pr-4">Prijs / eenheid</th>
+                    <th className="py-2 pr-4">Eenheid</th>
+                    <th className="py-2 pr-4">Gebruik</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(orderDetails.materials || []).map((material: any) => (
+                    <tr key={material.item_number} className="border-t">
+                      <td className="py-2 pr-4 font-medium">{material.item_number}</td>
+                      <td className="py-2 pr-4">{material.description || '-'}</td>
+                      <td className="py-2 pr-4">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          placeholder="0,00000"
+                          value={
+                            materialEdits[material.item_number] ??
+                            (material.price != null ? String(material.price) : '')
+                          }
+                          onChange={(e) =>
+                            setMaterialEdits((p) => ({ ...p, [material.item_number]: e.target.value }))
+                          }
+                          className="border border-gray-300 rounded px-2 py-1 w-32"
+                        />
+                      </td>
+                      <td className="py-2 pr-4">
+                        <select
+                          value={materialUnitEdits[material.item_number] ?? material.unit_of_measure ?? 'stuks'}
+                          onChange={(e) =>
+                            setMaterialUnitEdits((p) => ({ ...p, [material.item_number]: e.target.value }))
+                          }
+                          className="border border-gray-300 rounded px-2 py-1"
+                        >
+                          <option value="stuks">stuks</option>
+                          <option value="m2">m²</option>
+                          <option value="m3">m³</option>
+                        </select>
+                      </td>
+                      <td className="py-2 pr-4 text-gray-500">{material.usage_count || 0}x</td>
+                    </tr>
+                  ))}
+                  {(!orderDetails.materials || orderDetails.materials.length === 0) && (
+                    <tr>
+                      <td colSpan={5} className="py-3 text-gray-500">
+                        Geen grondstoffen gevonden.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <button
+              type="button"
+              onClick={handleSaveMaterialPrices}
+              className="mt-4 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
+            >
+              Materiaalprijzen opslaan
             </button>
           </div>
         )}
