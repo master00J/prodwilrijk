@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { checkAndMarkOrderFinished } from '@/lib/production-order/check-finished'
 
 export async function POST(
   request: NextRequest,
@@ -48,6 +49,11 @@ export async function POST(
         { error: 'Failed to stop time log' },
         { status: 500 }
       )
+    }
+
+    const orderNumber = log.production_order_number
+    if (orderNumber) {
+      void checkAndMarkOrderFinished(orderNumber)
     }
 
     return NextResponse.json({

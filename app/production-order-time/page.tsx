@@ -257,20 +257,28 @@ export default function ProductionOrderTimePage() {
               </select>
             </div>
 
-            {selectedLine && selectedLine.quantity > 1 && (
+            {selectedLine && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Aantal stuks</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Aantal stuks klaar
+                  {selectedLine.quantity > 1 && (
+                    <span className="ml-1 text-gray-500 font-normal">(max. {selectedLine.quantity})</span>
+                  )}
+                </label>
                 <select
                   value={selectedQuantity}
                   onChange={(e) => setSelectedQuantity(Number(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 >
-                  {Array.from({ length: selectedLine.quantity }, (_, i) => i + 1).map((n) => (
+                  {Array.from({ length: Math.max(1, selectedLine.quantity) }, (_, i) => i + 1).map((n) => (
                     <option key={n} value={n}>
                       {n} {n === 1 ? 'stuk' : 'stuks'}
                     </option>
                   ))}
                 </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  Geef aan hoeveel stuks je gaat maken of klaar hebt voor deze registratie.
+                </p>
               </div>
             )}
 

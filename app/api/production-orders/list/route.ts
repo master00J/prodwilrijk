@@ -10,6 +10,7 @@ export async function GET() {
       .from('production_orders')
       .select('order_number')
       .eq('for_time_registration', true)
+      .is('finished_at', null)
       .order('uploaded_at', { ascending: false })
 
     if (error) throw error
