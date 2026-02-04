@@ -124,19 +124,17 @@ export default function StorageRentalsPage() {
   const totalRevenue = useMemo(() => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    return activeItems
-      .filter((item) => item.end_date != null && item.end_date.trim() !== '')
-      .reduce((sum, item) => {
-        const start = item.start_date ? toUtcDate(item.start_date) : null
-        const end = item.end_date ? toUtcDate(item.end_date) : null
-        if (!start || !end) return sum
-        const effectiveEnd = end.getTime() < today.getTime() ? end : today
-        const days = Math.floor((effectiveEnd.getTime() - start.getTime()) / MS_PER_DAY) + 1
-        if (days <= 0) return sum
-        const m2 = getEffectiveM2(item)
-        const price = Number(item.price_per_m2 || 0)
-        return sum + (m2 * price * days) / 365
-      }, 0)
+    return activeItems.reduce((sum, item) => {
+      const start = item.start_date ? toUtcDate(item.start_date) : null
+      if (!start) return sum
+      const end = item.end_date && item.end_date.trim() ? toUtcDate(item.end_date) : null
+      const effectiveEnd = end ? (end.getTime() < today.getTime() ? end : today) : today
+      const days = Math.floor((effectiveEnd.getTime() - start.getTime()) / MS_PER_DAY) + 1
+      if (days <= 0) return sum
+      const m2 = getEffectiveM2(item)
+      const price = Number(item.price_per_m2 || 0)
+      return sum + (m2 * price * days) / 365
+    }, 0)
   }, [activeItems])
   const totalCapacityM2 = useMemo(
     () =>
@@ -537,7 +535,7 @@ export default function StorageRentalsPage() {
             <div className="text-2xl font-semibold">
               {totalRevenue.toLocaleString('nl-BE', { style: 'currency', currency: 'EUR' })}
             </div>
-            <div className="text-xs text-gray-400 mt-0.5">Tot vandaag, alleen projecten met einddatum</div>
+            <div className="text-xs text-gray-400 mt-0.5">Tot vandaag (geprorrateerd)</div>
           </div>
           <div className="bg-white rounded-lg shadow p-4">
             <div className="text-sm text-gray-500">Capaciteit m²</div>
