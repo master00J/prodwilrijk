@@ -11,9 +11,6 @@ export default function SalesOrdersUploadPage() {
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dropZoneRef = useRef<HTMLDivElement>(null)
-  const [xmlFile, setXmlFile] = useState<File | null>(null)
-  const [xmlUploading, setXmlUploading] = useState(false)
-  const [xmlMessage, setXmlMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [latestProductionOrder, setLatestProductionOrder] = useState<any>(null)
   const [materialEdits, setMaterialEdits] = useState<Record<string, string>>({})
   const [materialUnitEdits, setMaterialUnitEdits] = useState<Record<string, string>>({})
@@ -24,15 +21,6 @@ export default function SalesOrdersUploadPage() {
       reader.onload = (e) => resolve(e.target?.result as ArrayBuffer)
       reader.onerror = reject
       reader.readAsArrayBuffer(file)
-    })
-  }
-
-  const readFileAsText = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = (e) => resolve(String(e.target?.result || ''))
-      reader.onerror = reject
-      reader.readAsText(file)
     })
   }
 
@@ -48,42 +36,11 @@ export default function SalesOrdersUploadPage() {
     return null
   }
 
-  const parseDecimal = (value: string | null | undefined): number | null => {
-    if (!value) return null
-    const normalized = String(value).replace(',', '.').trim()
-    const parsed = parseFloat(normalized)
-    return Number.isFinite(parsed) ? parsed : null
-  }
-
   const parseFlexibleNumber = (value: string | null | undefined): number | null => {
     if (value === null || value === undefined) return null
     const normalized = String(value).replace(/\s/g, '').replace(',', '.')
     const parsed = parseFloat(normalized)
     return Number.isFinite(parsed) ? parsed : null
-  }
-
-  const parseDateMDY = (value: string | null | undefined): string | null => {
-    if (!value) return null
-    const trimmed = String(value).trim()
-    if (!trimmed) return null
-    const parts = trimmed.split('/')
-    if (parts.length !== 3) return null
-    const [month, day, year] = parts.map((part) => part.trim())
-    const monthNum = Number(month)
-    const dayNum = Number(day)
-    const yearNum = Number(year.length === 2 ? `20${year}` : year)
-    if (!monthNum || !dayNum || !yearNum) return null
-    return `${String(yearNum).padStart(4, '0')}-${String(monthNum).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`
-  }
-
-  const parseColumns = (dataItem: Element): Record<string, string> => {
-    const columns = Array.from(dataItem.querySelectorAll(':scope > Columns > Column'))
-    const map: Record<string, string> = {}
-    columns.forEach((column) => {
-      const name = column.getAttribute('name') || ''
-      map[name] = column.textContent || ''
-    })
-    return map
   }
 
   const processFile = async (file: File): Promise<Array<{ item_number: string; price: number; description: string }>> => {
@@ -134,86 +91,6 @@ export default function SalesOrdersUploadPage() {
     }
 
     return validItems
-  }
-
-  const parseProductionOrderXml = async (file: File) => {
-    const xmlText = await readFileAsText(file)
-    const parser = new DOMParser()
-    const xmlDoc = parser.parseFromString(xmlText, 'text/xml')
-    const parserError = xmlDoc.querySelector('parsererror')
-    if (parserError) {
-      throw new Error('Ongeldig XML bestand.')
-    }
-
-    const orderItem = xmlDoc.querySelector('DataItem[name="ProductionOrder"]')
-    if (!orderItem) {
-      throw new Error('Productieorder info niet gevonden in XML.')
-    }
-
-    const orderColumns = parseColumns(orderItem)
-    const orderNumber = orderColumns['No_']?.trim()
-    if (!orderNumber) {
-      throw new Error('Ordernummer ontbreekt in XML.')
-    }
-
-    const lines = Array.from(xmlDoc.querySelectorAll('DataItem[name="ProdOrderLine"]')).map((lineItem, index) => {
-      const lineColumns = parseColumns(lineItem)
-      const lineDescription = lineColumns['Line_Description']?.trim() || ''
-      const extractedItemNumber = extractItemNumber(lineDescription)
-
-      const components = Array.from(lineItem.querySelectorAll(':scope > DataItems > DataItem[name="Component"]')).map(
-        (componentItem) => {
-          const componentColumns = parseColumns(componentItem)
-          const fsgItem = componentItem.querySelector(':scope > DataItems > DataItem[name="ComponentFieldsForGroupingFSG"]')
-          const fsgColumns = fsgItem ? parseColumns(fsgItem) : {}
-
-          return {
-            component_line_no: componentColumns['Component_Line_No_']?.trim() || null,
-            component_item_no: componentColumns['Component_Item_No_']?.trim() || null,
-            component_description: componentColumns['Component_Description']?.trim() || null,
-            component_description_2: componentColumns['Component_Description_2']?.trim() || null,
-            component_length: parseDecimal(componentColumns['Component_Length']),
-            component_width: parseDecimal(componentColumns['Component_Width']),
-            component_thickness: parseDecimal(componentColumns['Component_Thickness']),
-            component_unit: parseDecimal(componentColumns['Component_Unit']),
-            component_group: componentColumns['Component_Group']?.trim() || null,
-            component_group_sortvalue: parseDecimal(componentColumns['Component_Group_SortValue']),
-            component_indentation: componentColumns['Component_Indentation']?.trim() || null,
-            component_margin: componentColumns['Component_Margin']?.trim() || null,
-            fsg_group_code: componentColumns['FSGComponentGroupCode']?.trim() || null,
-            fsg_group_description: componentColumns['FSGComponentGroupDescription']?.trim() || null,
-            fsg_unit: parseDecimal(fsgColumns['FSGComponent_Unit']),
-            fsg_unit_expected: parseDecimal(fsgColumns['FSGComponent_UnitExpected']),
-            fsg_total_volume: parseDecimal(fsgColumns['FSGCompoment_TotalVolume']),
-          }
-        }
-      )
-
-      return {
-        line_no: parseInt(lineColumns['Line_Line_No_'] || `${index + 1}`),
-        item_no: lineColumns['Line_Item_No_']?.trim() || null,
-        variant_code: lineColumns['Line_Variant_Code']?.trim() || null,
-        description: lineDescription || null,
-        description_2: lineColumns['Line_Description_2']?.trim() || null,
-        quantity: parseDecimal(lineColumns['Line_Quantity']) || 0,
-        inside_mass: lineColumns['Line_InsideMass']?.trim() || null,
-        outside_mass: lineColumns['Line_OutsideMass']?.trim() || null,
-        item_number: extractedItemNumber,
-        components,
-      }
-    })
-
-    return {
-      order: {
-        order_number: orderNumber,
-        sales_order_number: orderColumns['SalesHeader_No']?.trim() || null,
-        creation_date: parseDateMDY(orderColumns['Creation_Date']),
-        due_date: parseDateMDY(orderColumns['Due_Date']),
-        starting_date: parseDateMDY(orderColumns['Starting_Date']),
-        source_file_name: file.name,
-      },
-      lines,
-    }
   }
 
   const handleFiles = useCallback((files: FileList | File[]) => {
@@ -339,46 +216,6 @@ export default function SalesOrdersUploadPage() {
     }
   }, [])
 
-  const handleXmlUpload = async () => {
-    if (!xmlFile) {
-      setXmlMessage({ type: 'error', text: 'Selecteer een XML bestand' })
-      return
-    }
-
-    setXmlUploading(true)
-    setXmlMessage(null)
-
-    try {
-      const parsed = await parseProductionOrderXml(xmlFile)
-      if (!parsed.lines || parsed.lines.length === 0) {
-        throw new Error('Geen productieorder lijnen gevonden in XML.')
-      }
-
-      const response = await fetch('/api/production-orders/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(parsed),
-      })
-
-      const result = await response.json()
-      if (!response.ok) {
-        throw new Error(result.error || 'Fout bij uploaden productieorder')
-      }
-
-      setXmlMessage({
-        type: 'success',
-        text: `Productieorder ${result.order_number} geüpload met ${result.line_count} lijnen.`,
-      })
-      setXmlFile(null)
-      fetchLatestProductionOrder()
-    } catch (error: any) {
-      console.error('Error uploading XML:', error)
-      setXmlMessage({ type: 'error', text: error.message || 'Fout bij uploaden XML' })
-    } finally {
-      setXmlUploading(false)
-    }
-  }
-
   const handleSaveMaterialPrices = async () => {
     if (!latestProductionOrder?.materials?.length) return
     const items = latestProductionOrder.materials
@@ -422,7 +259,7 @@ export default function SalesOrdersUploadPage() {
       setMaterialUnitEdits({})
       fetchLatestProductionOrder()
     } catch (error: any) {
-      setXmlMessage({ type: 'error', text: error.message || 'Fout bij opslaan prijzen' })
+      setMessage({ type: 'error', text: error.message || 'Fout bij opslaan prijzen' })
     }
   }
 
@@ -545,40 +382,10 @@ export default function SalesOrdersUploadPage() {
         </div>
 
         <div className="bg-white rounded-lg shadow p-6 mt-8">
-          <h2 className="text-2xl font-semibold mb-4">Productieorder XML upload</h2>
-
-          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6 text-sm text-purple-700">
-            Upload een productieorder XML. Itemnummers worden uit de beschrijving gehaald (tussen haakjes).
-          </div>
-
-          {xmlMessage && (
-            <div
-              className={`mb-4 p-4 rounded-lg ${
-                xmlMessage.type === 'success'
-                  ? 'bg-green-100 text-green-800'
-                  : 'bg-red-100 text-red-800'
-              }`}
-            >
-              {xmlMessage.text}
-            </div>
-          )}
-
-          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-            <input
-              type="file"
-              accept=".xml"
-              onChange={(e) => setXmlFile(e.target.files?.[0] || null)}
-              className="block w-full text-sm text-gray-700"
-            />
-            <button
-              type="button"
-              onClick={handleXmlUpload}
-              disabled={xmlUploading}
-              className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-60"
-            >
-              {xmlUploading ? 'Uploaden...' : 'Upload XML'}
-            </button>
-          </div>
+          <h2 className="text-2xl font-semibold mb-4">Laatste productieorder (materiaalprijzen)</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            Productieorders voor prepack/materiaalkost worden via Admin → Productieorder upload geüpload.
+          </p>
 
           {latestProductionOrder?.order && (
             <div className="mt-8 space-y-6">
