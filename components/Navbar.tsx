@@ -97,7 +97,8 @@ export default function Navbar() {
 
   const isVariaPage =
     pathname.startsWith('/uitvoeren-controle') ||
-    pathname.startsWith('/materiaal/heftruck-water')
+    pathname.startsWith('/materiaal/heftruck-water') ||
+    pathname.startsWith('/production-order-time')
 
   const isCNHPage = 
     pathname.startsWith('/cnh/workflow') ||
@@ -484,6 +485,17 @@ export default function Navbar() {
                     >
                       Heftruck water
                     </Link>
+                    <Link
+                      href="/production-order-time"
+                      onClick={() => setIsVariaOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/production-order-time')
+                          ? 'bg-slate-50 text-slate-700 font-medium border-l-4 border-slate-500'
+                          : 'text-gray-700'
+                      }`}
+                    >
+                      Productie order tijd
+                    </Link>
                   </div>
                 </div>
               )}
@@ -612,6 +624,17 @@ export default function Navbar() {
                       }`}
                     >
                       Employees
+                    </Link>
+                    <Link
+                      href="/admin/production-order-kpi"
+                      onClick={() => setIsAdminOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/admin/production-order-kpi')
+                          ? 'bg-purple-50 text-purple-600 font-medium border-l-4 border-purple-500'
+                          : 'text-gray-700'
+                      }`}
+                    >
+                      Productie KPI
                     </Link>
                     <Link
                       href="/admin/users"
