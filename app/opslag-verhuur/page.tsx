@@ -35,7 +35,7 @@ export default function StorageRentalsPage() {
   const [locations, setLocations] = useState<StorageRentalLocation[]>([])
   const [items, setItems] = useState<StorageRentalItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [includeInactive, setIncludeInactive] = useState(false)
+  const [itemsTab, setItemsTab] = useState<'actief' | 'gestopt'>('actief')
 
   const [editingCustomer, setEditingCustomer] = useState<StorageRentalCustomer | null>(null)
   const [customerName, setCustomerName] = useState('')
@@ -105,7 +105,7 @@ export default function StorageRentalsPage() {
   useEffect(() => {
     fetchAll()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [includeInactive])
+  }, [])
 
   const getEffectiveM2 = (item: StorageRentalItem) => {
     const verpakt = item.packing_status === 'verpakt'
@@ -118,6 +118,39 @@ export default function StorageRentalsPage() {
   }
 
   const activeItems = useMemo(() => items.filter((item) => item.active !== false), [items])
+  const stoppedItems = useMemo(() => items.filter((item) => item.active === false), [items])
+
+  const getItemRevenue = (item: StorageRentalItem): number => {
+    const start = item.start_date ? toUtcDate(item.start_date) : null
+    if (!start) return 0
+    const end = item.end_date && item.end_date.trim() ? toUtcDate(item.end_date) : null
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const effectiveEnd = end ? (end.getTime() < today.getTime() ? end : today) : today
+    const price = Number(item.price_per_m2 || 0)
+    if (!price) return 0
+    const m2Bare = Number(item.m2_bare ?? item.m2 ?? 0)
+    const m2Verpakt = Number(item.m2_verpakt ?? item.m2 ?? 0)
+    const packedAt = item.packed_at ? toUtcDate(item.packed_at) : null
+    if (item.packing_status === 'verpakt' && packedAt && m2Bare > 0 && m2Verpakt > 0) {
+      const splitMs = packedAt.getTime()
+      const startMs = start.getTime()
+      const endMs = effectiveEnd.getTime()
+      const daysBare =
+        splitMs <= startMs ? 0 : splitMs > endMs
+          ? Math.floor((endMs - startMs) / MS_PER_DAY) + 1
+          : Math.floor((splitMs - startMs) / MS_PER_DAY)
+      const daysVerpakt =
+        splitMs > endMs ? 0 : splitMs <= startMs
+          ? Math.floor((endMs - startMs) / MS_PER_DAY) + 1
+          : Math.floor((endMs - splitMs) / MS_PER_DAY) + 1
+      return (m2Bare * price * daysBare + m2Verpakt * price * daysVerpakt) / 365
+    }
+    const m2 = getEffectiveM2(item)
+    const days = Math.floor((effectiveEnd.getTime() - start.getTime()) / MS_PER_DAY) + 1
+    if (days <= 0) return 0
+    return (m2 * price * days) / 365
+  }
   const totalUsedM2 = useMemo(
     () => activeItems.reduce((sum, item) => sum + getEffectiveM2(item), 0),
     [activeItems]
@@ -567,20 +600,9 @@ export default function StorageRentalsPage() {
   return (
     <AdminGuard>
       <div className="container mx-auto px-4 py-6 max-w-7xl space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Opslagverhuur</h1>
-            <p className="text-sm text-gray-600">Beheer klanten en opslagruimte los van WMS-projecten.</p>
-          </div>
-          <label className="flex items-center gap-2 text-sm text-gray-700">
-            <input
-              type="checkbox"
-              checked={includeInactive}
-              onChange={(event) => setIncludeInactive(event.target.checked)}
-              className="w-4 h-4"
-            />
-            Toon inactief
-          </label>
+        <div>
+          <h1 className="text-3xl font-bold">Opslagverhuur</h1>
+          <p className="text-sm text-gray-600">Beheer klanten en opslagruimte los van WMS-projecten.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -1009,7 +1031,25 @@ export default function StorageRentalsPage() {
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Opslagen</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Opslagen</h2>
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setItemsTab('actief')}
+                className={`px-4 py-2 text-sm font-medium ${itemsTab === 'actief' ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+              >
+                Actief ({activeItems.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setItemsTab('gestopt')}
+                className={`px-4 py-2 text-sm font-medium ${itemsTab === 'gestopt' ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+              >
+                Gestopt ({stoppedItems.length})
+              </button>
+            </div>
+          </div>
           <form onSubmit={handleItemSubmit} className="grid grid-cols-1 md:grid-cols-6 gap-4">
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Klant</label>
@@ -1183,6 +1223,18 @@ export default function StorageRentalsPage() {
             </div>
           </form>
 
+          {itemsTab === 'gestopt' && stoppedItems.length > 0 && (
+            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+              <div className="text-sm text-gray-600">
+                Totale opbrengst gestopte items:{' '}
+                <span className="font-semibold text-gray-900">
+                  {stoppedItems
+                    .reduce((sum, item) => sum + getItemRevenue(item), 0)
+                    .toLocaleString('nl-BE', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+          )}
           <div className="mt-6 overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -1203,14 +1255,14 @@ export default function StorageRentalsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
-                {items.length === 0 ? (
+                {(itemsTab === 'actief' ? activeItems : stoppedItems).length === 0 ? (
                   <tr>
                     <td colSpan={12} className="px-3 py-4 text-sm text-gray-500 text-center">
-                      Geen opslagrecords
+                      {itemsTab === 'actief' ? 'Geen actieve opslagrecords' : 'Geen gestopte opslagrecords'}
                     </td>
                   </tr>
                 ) : (
-                  items.map((item) => (
+                  (itemsTab === 'actief' ? activeItems : stoppedItems).map((item) => (
                     <tr key={item.id} className={item.active === false ? 'bg-gray-50' : ''}>
                       <td className="px-3 py-2 text-sm font-medium">{item.or_number || '-'}</td>
                       <td className="px-3 py-2 text-sm">
@@ -1232,9 +1284,13 @@ export default function StorageRentalsPage() {
                         {item.price_per_m2 ? Number(item.price_per_m2).toFixed(2) : '-'}
                       </td>
                       <td className="px-3 py-2 text-sm">
-                        {getEffectiveM2(item) && item.price_per_m2
-                          ? (getEffectiveM2(item) * Number(item.price_per_m2)).toFixed(2)
-                          : '-'}
+                        {itemsTab === 'gestopt'
+                          ? (getItemRevenue(item) > 0
+                              ? getItemRevenue(item).toLocaleString('nl-BE', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2 })
+                              : '-')
+                          : getEffectiveM2(item) && item.price_per_m2
+                            ? (getEffectiveM2(item) * Number(item.price_per_m2)).toFixed(2)
+                            : '-'}
                       </td>
                       <td className="px-3 py-2 text-sm text-gray-600">
                         {item.start_date || '-'} → {item.end_date || '-'}
