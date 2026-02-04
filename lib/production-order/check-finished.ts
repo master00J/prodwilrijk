@@ -37,10 +37,11 @@ export async function checkAndMarkOrderFinished(orderNumber: string): Promise<bo
       .eq('production_item_number', itemNo || '')
       .not('end_time', 'is', null)
 
-    const completed = (logs || []).reduce(
-      (sum, log) => sum + Math.max(1, Number(log.production_quantity) || 1),
-      0
-    )
+    const completed = (logs || []).reduce((sum, log) => {
+      const q = log.production_quantity
+      const add = q == null ? 1 : Math.max(0, Number(q))
+      return sum + add
+    }, 0)
 
     if (completed < requiredQty) return false
   }

@@ -44,7 +44,9 @@ export async function POST(
       body = {}
     }
     const qty =
-      body.quantity != null && Number(body.quantity) >= 1 ? Math.floor(Number(body.quantity)) : null
+      body.quantity != null && Number(body.quantity) >= 0
+        ? Math.floor(Number(body.quantity))
+        : null
 
     const { error: updateError } = await supabaseAdmin
       .from('time_logs')

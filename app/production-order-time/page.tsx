@@ -185,7 +185,7 @@ export default function ProductionOrderTimePage() {
       itemNumber: log.item_number,
       lineQuantity: qty,
     })
-    setStopQuantity(1)
+    setStopQuantity(qty >= 1 ? 1 : 0)
   }
 
   const doStop = async (logId: number, quantity: number | null) => {
@@ -383,25 +383,24 @@ export default function ProductionOrderTimePage() {
             {stopModal.employeeName && (
               <p className="text-sm text-gray-600 mb-4">voor {stopModal.employeeName}</p>
             )}
-            {stopModal.lineQuantity > 1 ? (
-              <>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Hoeveel stuks afgewerkt? (max. {stopModal.lineQuantity})
-                </label>
-                <select
-                  value={stopQuantity}
-                  onChange={(e) => setStopQuantity(Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-4"
-                >
-                  {Array.from({ length: stopModal.lineQuantity }, (_, i) => i + 1).map((n) => (
-                    <option key={n} value={n}>
-                      {n} {n === 1 ? 'stuk' : 'stuks'}
-                    </option>
-                  ))}
-                </select>
-              </>
-            ) : (
-              <p className="text-sm text-gray-600 mb-4">1 stuk</p>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Hoeveel stuks afgewerkt? (max. {stopModal.lineQuantity})
+            </label>
+            <select
+              value={stopQuantity}
+              onChange={(e) => setStopQuantity(Number(e.target.value))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-4"
+            >
+              {Array.from({ length: stopModal.lineQuantity + 1 }, (_, i) => i).map((n) => (
+                <option key={n} value={n}>
+                  {n} {n === 1 ? 'stuk' : 'stuks'}
+                </option>
+              ))}
+            </select>
+            {stopModal.lineQuantity === 1 && (
+              <p className="text-xs text-gray-500 -mt-2 mb-2">
+                Kies 0 als je het stuk niet klaar had tegen het einde van de shift.
+              </p>
             )}
             <div className="flex gap-2">
               <button
