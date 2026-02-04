@@ -236,11 +236,19 @@ export interface StorageRentalItem {
   location_id?: number | null
   description?: string | null
   m2?: number | null
+  m2_bare?: number | null
+  m2_verpakt?: number | null
   price_per_m2?: number | null
   start_date?: string | null
   end_date?: string | null
   active?: boolean | null
   notes?: string | null
+  or_number?: string | null
+  customer_description?: string | null
+  foresco_id?: string | null
+  packing_status?: 'bare' | 'verpakt' | null
+  photos_bare?: string[]
+  photos_verpakt?: string[]
   created_at?: string
   updated_at?: string
   customer?: { id: number; name: string } | null

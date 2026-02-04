@@ -32,24 +32,51 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { customer_id, location_id, description, m2, price_per_m2, start_date, end_date, active, notes } = body || {}
+    const {
+      customer_id,
+      location_id,
+      description,
+      m2,
+      m2_bare,
+      m2_verpakt,
+      price_per_m2,
+      start_date,
+      end_date,
+      active,
+      notes,
+      or_number,
+      customer_description,
+      foresco_id,
+      packing_status,
+      photos_bare,
+      photos_verpakt,
+    } = body || {}
 
     if (!customer_id) {
       return NextResponse.json({ error: 'Klant is verplicht' }, { status: 400 })
     }
 
+    const m2Val = m2 ?? m2_verpakt ?? m2_bare
     const { data, error } = await supabaseAdmin
       .from('storage_rental_items')
       .insert({
         customer_id,
         location_id: location_id ?? null,
         description: description || null,
-        m2: m2 ?? null,
+        m2: m2Val ?? null,
+        m2_bare: m2_bare ?? m2 ?? null,
+        m2_verpakt: m2_verpakt ?? m2 ?? null,
         price_per_m2: price_per_m2 ?? null,
         start_date: start_date || null,
         end_date: end_date || null,
         active: active ?? true,
         notes: notes || null,
+        or_number: or_number || null,
+        customer_description: customer_description || null,
+        foresco_id: foresco_id || null,
+        packing_status: packing_status === 'verpakt' ? 'verpakt' : 'bare',
+        photos_bare: Array.isArray(photos_bare) ? photos_bare : [],
+        photos_verpakt: Array.isArray(photos_verpakt) ? photos_verpakt : [],
       })
       .select('*, customer:storage_rental_customers(id,name), location:storage_rental_locations(id,name)')
       .single()
@@ -69,7 +96,26 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-    const { id, customer_id, location_id, description, m2, price_per_m2, start_date, end_date, active, notes } = body || {}
+    const {
+      id,
+      customer_id,
+      location_id,
+      description,
+      m2,
+      m2_bare,
+      m2_verpakt,
+      price_per_m2,
+      start_date,
+      end_date,
+      active,
+      notes,
+      or_number,
+      customer_description,
+      foresco_id,
+      packing_status,
+      photos_bare,
+      photos_verpakt,
+    } = body || {}
 
     if (!id) {
       return NextResponse.json({ error: 'ID is verplicht' }, { status: 400 })
@@ -80,11 +126,19 @@ export async function PUT(request: NextRequest) {
     if (location_id !== undefined) updateData.location_id = location_id ?? null
     if (description !== undefined) updateData.description = description || null
     if (m2 !== undefined) updateData.m2 = m2 ?? null
+    if (m2_bare !== undefined) updateData.m2_bare = m2_bare ?? null
+    if (m2_verpakt !== undefined) updateData.m2_verpakt = m2_verpakt ?? null
     if (price_per_m2 !== undefined) updateData.price_per_m2 = price_per_m2 ?? null
     if (start_date !== undefined) updateData.start_date = start_date || null
     if (end_date !== undefined) updateData.end_date = end_date || null
     if (active !== undefined) updateData.active = active
     if (notes !== undefined) updateData.notes = notes || null
+    if (or_number !== undefined) updateData.or_number = or_number || null
+    if (customer_description !== undefined) updateData.customer_description = customer_description || null
+    if (foresco_id !== undefined) updateData.foresco_id = foresco_id || null
+    if (packing_status !== undefined) updateData.packing_status = packing_status === 'verpakt' ? 'verpakt' : 'bare'
+    if (photos_bare !== undefined) updateData.photos_bare = Array.isArray(photos_bare) ? photos_bare : []
+    if (photos_verpakt !== undefined) updateData.photos_verpakt = Array.isArray(photos_verpakt) ? photos_verpakt : []
 
     const { data, error } = await supabaseAdmin
       .from('storage_rental_items')

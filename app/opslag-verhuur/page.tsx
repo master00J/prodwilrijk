@@ -50,7 +50,13 @@ export default function StorageRentalsPage() {
   const [itemCustomerId, setItemCustomerId] = useState('')
   const [itemLocationId, setItemLocationId] = useState('')
   const [itemDescription, setItemDescription] = useState('')
+  const [itemOrNumber, setItemOrNumber] = useState('')
+  const [itemCustomerDescription, setItemCustomerDescription] = useState('')
+  const [itemForescoId, setItemForescoId] = useState('')
+  const [itemPackingStatus, setItemPackingStatus] = useState<'bare' | 'verpakt'>('bare')
   const [itemM2, setItemM2] = useState('')
+  const [itemM2Bare, setItemM2Bare] = useState('')
+  const [itemM2Verpakt, setItemM2Verpakt] = useState('')
   const [itemPricePerM2, setItemPricePerM2] = useState('')
   const [itemStartDate, setItemStartDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [itemEndDate, setItemEndDate] = useState('')
@@ -58,8 +64,12 @@ export default function StorageRentalsPage() {
   const [itemActive, setItemActive] = useState(true)
 
   const [reportCustomerIds, setReportCustomerIds] = useState<string[]>([])
+  const [reportOrSearch, setReportOrSearch] = useState('')
   const [reportStartDate, setReportStartDate] = useState('')
   const [reportEndDate, setReportEndDate] = useState('')
+
+  const [photoPanelItemId, setPhotoPanelItemId] = useState<number | null>(null)
+  const [photoUploading, setPhotoUploading] = useState(false)
 
   const fetchAll = async () => {
     setLoading(true)
@@ -96,19 +106,38 @@ export default function StorageRentalsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [includeInactive])
 
+  const getEffectiveM2 = (item: StorageRentalItem) => {
+    const verpakt = item.packing_status === 'verpakt'
+    const m2V = item.m2_verpakt != null ? Number(item.m2_verpakt) : null
+    const m2B = item.m2_bare != null ? Number(item.m2_bare) : null
+    const m2Fallback = item.m2 != null ? Number(item.m2) : null
+    if (verpakt && m2V != null) return m2V
+    if (m2B != null) return m2B
+    return m2Fallback ?? 0
+  }
+
   const activeItems = useMemo(() => items.filter((item) => item.active !== false), [items])
   const totalUsedM2 = useMemo(
-    () => activeItems.reduce((sum, item) => sum + Number(item.m2 || 0), 0),
+    () => activeItems.reduce((sum, item) => sum + getEffectiveM2(item), 0),
     [activeItems]
   )
-  const totalRevenue = useMemo(
-    () =>
-      activeItems.reduce(
-        (sum, item) => sum + Number(item.m2 || 0) * Number(item.price_per_m2 || 0),
-        0
-      ),
-    [activeItems]
-  )
+  const totalRevenue = useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return activeItems
+      .filter((item) => item.end_date != null && item.end_date.trim() !== '')
+      .reduce((sum, item) => {
+        const start = item.start_date ? toUtcDate(item.start_date) : null
+        const end = item.end_date ? toUtcDate(item.end_date) : null
+        if (!start || !end) return sum
+        const effectiveEnd = end.getTime() < today.getTime() ? end : today
+        const days = Math.floor((effectiveEnd.getTime() - start.getTime()) / MS_PER_DAY) + 1
+        if (days <= 0) return sum
+        const m2 = getEffectiveM2(item)
+        const price = Number(item.price_per_m2 || 0)
+        return sum + (m2 * price * days) / 365
+      }, 0)
+  }, [activeItems])
   const totalCapacityM2 = useMemo(
     () =>
       locations
@@ -138,7 +167,13 @@ export default function StorageRentalsPage() {
     setItemCustomerId('')
     setItemLocationId('')
     setItemDescription('')
+    setItemOrNumber('')
+    setItemCustomerDescription('')
+    setItemForescoId('')
+    setItemPackingStatus('bare')
     setItemM2('')
+    setItemM2Bare('')
+    setItemM2Verpakt('')
     setItemPricePerM2('')
     setItemStartDate(new Date().toISOString().slice(0, 10))
     setItemEndDate('')
@@ -161,9 +196,15 @@ export default function StorageRentalsPage() {
 
   type ReportRow = {
     id: number
+    or_number: string | null
     customer: string
+    customer_description: string | null
+    foresco_id: string | null
     description: string
+    packing_status: string
     m2: number
+    m2_bare: number
+    m2_verpakt: number
     price: number
     overlapDays: number
     cost: number
@@ -250,7 +291,7 @@ export default function StorageRentalsPage() {
       occupancyPercent,
       rows,
     }
-  }, [reportCustomerIds, reportStartDate, reportEndDate, items, locations, totalCapacityM2, customers])
+  }, [reportCustomerIds, reportOrSearch, reportStartDate, reportEndDate, items, locations, totalCapacityM2, customers])
 
   const handleExportReportExcel = () => {
     if (!reportSummary || reportSummary.error || !reportSummary.rows) {
@@ -360,9 +401,11 @@ export default function StorageRentalsPage() {
       alert('Klant is verplicht')
       return
     }
-    const m2Value = parseNumber(itemM2)
-    if (!m2Value || m2Value <= 0) {
-      alert('Geef een geldig m² in')
+    const m2BareVal = parseNumber(itemM2Bare || itemM2)
+    const m2VerpaktVal = parseNumber(itemM2Verpakt || itemM2)
+    const m2Val = itemPackingStatus === 'verpakt' ? (m2VerpaktVal ?? m2BareVal) : (m2BareVal ?? m2VerpaktVal)
+    if (!m2Val || m2Val <= 0) {
+      alert('Geef een geldig m² in (bare of verpakt)')
       return
     }
     const priceValue = parseNumber(itemPricePerM2)
@@ -372,7 +415,13 @@ export default function StorageRentalsPage() {
       customer_id: Number(itemCustomerId),
       location_id: itemLocationId ? Number(itemLocationId) : null,
       description: itemDescription.trim() || null,
-      m2: m2Value,
+      or_number: itemOrNumber.trim() || null,
+      customer_description: itemCustomerDescription.trim() || null,
+      foresco_id: itemForescoId.trim() || null,
+      packing_status: itemPackingStatus,
+      m2: m2Val,
+      m2_bare: m2BareVal ?? m2Val,
+      m2_verpakt: m2VerpaktVal ?? m2Val,
       price_per_m2: priceValue,
       start_date: itemStartDate || null,
       end_date: itemEndDate || null,
@@ -409,6 +458,27 @@ export default function StorageRentalsPage() {
       return
     }
     await fetchAll()
+  }
+
+  const handlePhotoUpload = async (itemId: number, category: 'bare' | 'verpakt', files: FileList | null) => {
+    if (!files?.length) return
+    setPhotoUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('itemId', String(itemId))
+      fd.append('category', category)
+      for (let i = 0; i < files.length; i++) fd.append('photos', files[i])
+      const res = await fetch('/api/storage-rentals/items/upload-photo', {
+        method: 'POST',
+        body: fd,
+      })
+      if (!res.ok) throw new Error('Upload mislukt')
+      await fetchAll()
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Upload mislukt')
+    } finally {
+      setPhotoUploading(false)
+    }
   }
 
   const handleDelete = async (type: 'customer' | 'location' | 'item', id: number) => {
@@ -467,6 +537,7 @@ export default function StorageRentalsPage() {
             <div className="text-2xl font-semibold">
               {totalRevenue.toLocaleString('nl-BE', { style: 'currency', currency: 'EUR' })}
             </div>
+            <div className="text-xs text-gray-400 mt-0.5">Tot vandaag, alleen projecten met einddatum</div>
           </div>
           <div className="bg-white rounded-lg shadow p-4">
             <div className="text-sm text-gray-500">Capaciteit m²</div>
@@ -502,6 +573,16 @@ export default function StorageRentalsPage() {
               <p className="text-xs text-gray-500 mt-1">Geen selectie = alle klanten.</p>
             </div>
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Zoek OR / Omschrijving / Foresco ID</label>
+              <input
+                type="text"
+                value={reportOrSearch}
+                onChange={(e) => setReportOrSearch(e.target.value)}
+                placeholder="Filter binnen geselecteerde klanten"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+            </div>
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Start</label>
               <input
                 type="date"
@@ -524,6 +605,7 @@ export default function StorageRentalsPage() {
                 type="button"
                 onClick={() => {
                   setReportCustomerIds([])
+                  setReportOrSearch('')
                   setReportStartDate('')
                   setReportEndDate('')
                 }}
@@ -595,8 +677,12 @@ export default function StorageRentalsPage() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">OR</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Klant</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Omschr. klant</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Foresco ID</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Omschrijving</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Locatie</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">m²</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Prijs/m²</th>
@@ -608,15 +694,23 @@ export default function StorageRentalsPage() {
                   <tbody className="divide-y divide-gray-200 bg-white">
                     {reportSummary.rows.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="px-3 py-4 text-sm text-gray-500 text-center">
+                        <td colSpan={12} className="px-3 py-4 text-sm text-gray-500 text-center">
                           Geen records in deze periode.
                         </td>
                       </tr>
                     ) : (
                       reportSummary.rows.map((row) => (
                         <tr key={row.id}>
+                          <td className="px-3 py-2 text-sm font-medium">{row.or_number || '-'}</td>
                           <td className="px-3 py-2 text-sm">{row.customer}</td>
+                          <td className="px-3 py-2 text-sm">{row.customer_description || '-'}</td>
+                          <td className="px-3 py-2 text-sm">{row.foresco_id || '-'}</td>
                           <td className="px-3 py-2 text-sm">{row.description || '-'}</td>
+                          <td className="px-3 py-2 text-sm">
+                            <span className={`px-1.5 py-0.5 rounded text-xs ${row.packing_status === 'verpakt' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>
+                              {row.packing_status || 'bare'}
+                            </span>
+                          </td>
                           <td className="px-3 py-2 text-sm">{row.location}</td>
                           <td className="px-3 py-2 text-sm">{row.m2.toFixed(2)}</td>
                           <td className="px-3 py-2 text-sm">{row.price ? row.price.toFixed(2) : '-'}</td>
@@ -888,14 +982,6 @@ export default function StorageRentalsPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">m²</label>
-              <input
-                value={itemM2}
-                onChange={(event) => setItemM2(event.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              />
-            </div>
-            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Prijs/m²</label>
               <input
                 value={itemPricePerM2}
@@ -914,6 +1000,62 @@ export default function StorageRentalsPage() {
                 />
                 Actief
               </label>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">OR-nummer</label>
+              <input
+                value={itemOrNumber}
+                onChange={(e) => setItemOrNumber(e.target.value)}
+                placeholder="Ordernummer"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Omschrijving klant</label>
+              <input
+                value={itemCustomerDescription}
+                onChange={(e) => setItemCustomerDescription(e.target.value)}
+                placeholder="Omschrijving van klant"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Foresco ID</label>
+              <input
+                value={itemForescoId}
+                onChange={(e) => setItemForescoId(e.target.value)}
+                placeholder="Foresco ID"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <select
+                value={itemPackingStatus}
+                onChange={(e) => setItemPackingStatus(e.target.value as 'bare' | 'verpakt')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              >
+                <option value="bare">Bare (bij lossing)</option>
+                <option value="verpakt">Verpakt (na verpakken)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">m² bare</label>
+              <input
+                value={itemM2Bare}
+                onChange={(e) => setItemM2Bare(e.target.value)}
+                placeholder="m² bij lossing"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">m² verpakt</label>
+              <input
+                value={itemM2Verpakt}
+                onChange={(e) => setItemM2Verpakt(e.target.value)}
+                placeholder="m² na verpakken"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Omschrijving</label>
@@ -972,41 +1114,53 @@ export default function StorageRentalsPage() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">OR</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Klant</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Omschr. klant</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Foresco ID</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Locatie</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Omschrijving</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">m²</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Prijs/m²</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Rendement</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Periode</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Actief</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Acties</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-3 py-4 text-sm text-gray-500 text-center">
+                    <td colSpan={12} className="px-3 py-4 text-sm text-gray-500 text-center">
                       Geen opslagrecords
                     </td>
                   </tr>
                 ) : (
                   items.map((item) => (
                     <tr key={item.id} className={item.active === false ? 'bg-gray-50' : ''}>
+                      <td className="px-3 py-2 text-sm font-medium">{item.or_number || '-'}</td>
                       <td className="px-3 py-2 text-sm">
                         {item.customer?.name || customers.find((c) => c.id === item.customer_id)?.name || '-'}
+                      </td>
+                      <td className="px-3 py-2 text-sm">{item.customer_description || '-'}</td>
+                      <td className="px-3 py-2 text-sm">{item.foresco_id || '-'}</td>
+                      <td className="px-3 py-2 text-sm">
+                        <span className={`px-1.5 py-0.5 rounded text-xs ${item.packing_status === 'verpakt' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>
+                          {item.packing_status || 'bare'}
+                        </span>
                       </td>
                       <td className="px-3 py-2 text-sm">
                         {item.location?.name || locations.find((l) => l.id === item.location_id)?.name || '-'}
                       </td>
                       <td className="px-3 py-2 text-sm text-gray-600">{item.description || '-'}</td>
-                      <td className="px-3 py-2 text-sm">{item.m2 ? Number(item.m2).toFixed(2) : '-'}</td>
+                      <td className="px-3 py-2 text-sm">{getEffectiveM2(item).toFixed(2)}</td>
                       <td className="px-3 py-2 text-sm">
                         {item.price_per_m2 ? Number(item.price_per_m2).toFixed(2) : '-'}
                       </td>
                       <td className="px-3 py-2 text-sm">
-                        {item.m2 && item.price_per_m2
-                          ? (Number(item.m2) * Number(item.price_per_m2)).toFixed(2)
+                        {getEffectiveM2(item) && item.price_per_m2
+                          ? (getEffectiveM2(item) * Number(item.price_per_m2)).toFixed(2)
                           : '-'}
                       </td>
                       <td className="px-3 py-2 text-sm text-gray-600">
@@ -1016,7 +1170,13 @@ export default function StorageRentalsPage() {
                         {item.active !== false ? 'Actief' : 'Gestopt'}
                       </td>
                       <td className="px-3 py-2 text-sm">
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => setPhotoPanelItemId(photoPanelItemId === item.id ? null : item.id)}
+                            className={`px-2 py-1 rounded text-xs ${photoPanelItemId === item.id ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700'}`}
+                          >
+                            Foto&apos;s
+                          </button>
                           <button
                             onClick={() => handleCopyItem(item)}
                             className="px-2 py-1 bg-gray-500 text-white rounded text-xs"
@@ -1029,6 +1189,12 @@ export default function StorageRentalsPage() {
                               setItemCustomerId(item.customer_id ? String(item.customer_id) : '')
                               setItemLocationId(item.location_id ? String(item.location_id) : '')
                               setItemDescription(item.description || '')
+                              setItemOrNumber(item.or_number || '')
+                              setItemCustomerDescription(item.customer_description || '')
+                              setItemForescoId(item.foresco_id || '')
+                              setItemPackingStatus(item.packing_status === 'verpakt' ? 'verpakt' : 'bare')
+                              setItemM2Bare(item.m2_bare?.toString() || '')
+                              setItemM2Verpakt(item.m2_verpakt?.toString() || '')
                               setItemM2(item.m2?.toString() || '')
                               setItemPricePerM2(item.price_per_m2?.toString() || '')
                               setItemStartDate(item.start_date || new Date().toISOString().slice(0, 10))
@@ -1062,6 +1228,71 @@ export default function StorageRentalsPage() {
               </tbody>
             </table>
           </div>
+
+          {photoPanelItemId != null && (
+            <div className="mt-6 p-4 border border-purple-200 rounded-lg bg-purple-50">
+              <h3 className="font-semibold text-purple-800 mb-3">Foto&apos;s – item #{photoPanelItemId}</h3>
+              {(() => {
+                const item = items.find((i) => i.id === photoPanelItemId)
+                if (!item) return null
+                const photosBare = (item.photos_bare || []) as string[]
+                const photosVerpakt = (item.photos_verpakt || []) as string[]
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <h4 className="text-sm font-medium text-amber-800 mb-2">Bare (bij lossing)</h4>
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {photosBare.map((url, idx) => (
+                          <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="block">
+                            <img src={url} alt={`Bare ${idx + 1}`} className="h-20 w-20 object-cover rounded border" />
+                          </a>
+                        ))}
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={(e) => {
+                          handlePhotoUpload(item.id, 'bare', e.target.files)
+                          e.target.value = ''
+                        }}
+                        disabled={photoUploading}
+                        className="text-sm"
+                      />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-green-800 mb-2">Verpakt (na verpakken)</h4>
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {photosVerpakt.map((url, idx) => (
+                          <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="block">
+                            <img src={url} alt={`Verpakt ${idx + 1}`} className="h-20 w-20 object-cover rounded border" />
+                          </a>
+                        ))}
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={(e) => {
+                          handlePhotoUpload(item.id, 'verpakt', e.target.files)
+                          e.target.value = ''
+                        }}
+                        disabled={photoUploading}
+                        className="text-sm"
+                      />
+                    </div>
+                  </div>
+                )
+              })()}
+              <button
+                type="button"
+                onClick={() => setPhotoPanelItemId(null)}
+                className="mt-4 px-3 py-1 bg-gray-200 rounded text-sm"
+              >
+                Sluiten
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </AdminGuard>
