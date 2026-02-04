@@ -1,10 +1,7 @@
 import * as XLSX from 'xlsx'
 
-function extractItemNumber(description: string): string | null {
-  if (!description) return null
-  const match = description.match(/\(([^)]+)\)\s*$/)
-  return match?.[1]?.trim() ?? null
-}
+const NO_COLUMN = 'No.'
+const PRICE_COLUMN = 'Special Unit Price per PU'
 
 function parseFlexibleNumber(value: string | number | null | undefined): number | null {
   if (value === null || value === undefined) return null
@@ -13,64 +10,46 @@ function parseFlexibleNumber(value: string | number | null | undefined): number 
   return Number.isFinite(parsed) ? parsed : null
 }
 
+function findColumnIndex(headerRow: any[], columnName: string): number {
+  const normalized = columnName.toLowerCase().trim()
+  return headerRow.findIndex((cell: any) => {
+    const val = cell != null ? String(cell).trim() : ''
+    return val.toLowerCase() === normalized
+  })
+}
+
+/**
+ * Zoekt de headerrij en kolomindices voor "No." (GP-nummer) en "Special Unit Price per PU".
+ */
+function detectColumns(rows: any[][]): {
+  noIndex: number
+  priceIndex: number
+  headerRowIndex: number
+  found: boolean
+} {
+  const maxSearchRows = Math.min(20, rows.length)
+  for (let r = 0; r < maxSearchRows; r++) {
+    const row = rows[r]
+    if (!row || !Array.isArray(row)) continue
+    const noIndex = findColumnIndex(row, NO_COLUMN)
+    const priceIndex = findColumnIndex(row, PRICE_COLUMN)
+    if (noIndex >= 0 && priceIndex >= 0) {
+      return { noIndex, priceIndex, headerRowIndex: r, found: true }
+    }
+  }
+  return { noIndex: -1, priceIndex: -1, headerRowIndex: 0, found: false }
+}
+
 export function detectSalesOrderColumns(rows: any[][]): {
   descriptionIndex: number
   priceIndex: number
   detected: boolean
 } {
-  const sampleRows = rows.slice(0, 200)
-  const maxCols = sampleRows.reduce((max, row) => Math.max(max, row?.length || 0), 0)
-  const descriptionScores = new Array(maxCols).fill(0)
-
-  sampleRows.forEach((row) => {
-    if (!row) return
-    for (let col = 0; col < maxCols; col += 1) {
-      const value = row[col]
-      if (!value) continue
-      const itemNumber = extractItemNumber(String(value))
-      if (itemNumber) descriptionScores[col] += 1
-    }
-  })
-
-  let descriptionIndex: number | null = null
-  let bestDescriptionScore = 0
-  descriptionScores.forEach((score, col) => {
-    if (score > bestDescriptionScore) {
-      bestDescriptionScore = score
-      descriptionIndex = col
-    }
-  })
-
-  let priceIndex: number | null = null
-  let bestPairedScore = -1
-  let bestNumericScore = -1
-  for (let col = 0; col < maxCols; col += 1) {
-    if (col === descriptionIndex) continue
-    let numericScore = 0
-    let pairedScore = 0
-    sampleRows.forEach((row) => {
-      if (!row) return
-      const value = row[col]
-      const price = parseFlexibleNumber(value)
-      if (price === null) return
-      numericScore += 1
-      if (descriptionIndex !== null) {
-        const descriptionValue = row[descriptionIndex]
-        const itemNumber = descriptionValue ? extractItemNumber(String(descriptionValue)) : null
-        if (itemNumber) pairedScore += 1
-      }
-    })
-    if (pairedScore > bestPairedScore || (pairedScore === bestPairedScore && numericScore > bestNumericScore)) {
-      bestPairedScore = pairedScore
-      bestNumericScore = numericScore
-      priceIndex = col
-    }
-  }
-
+  const { noIndex, priceIndex, found } = detectColumns(rows)
   return {
-    descriptionIndex: descriptionIndex ?? 10,
-    priceIndex: priceIndex ?? 0,
-    detected: descriptionIndex !== null && priceIndex !== null,
+    descriptionIndex: noIndex >= 0 ? noIndex : 0,
+    priceIndex: priceIndex >= 0 ? priceIndex : 0,
+    detected: found,
   }
 }
 
@@ -86,23 +65,27 @@ export async function processSalesOrderExcel(file: File): Promise<Array<{ item_n
   const worksheet = workbook.Sheets[workbook.SheetNames[0]]
   const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null }) as any[][]
 
-  const { descriptionIndex, priceIndex } = detectSalesOrderColumns(jsonData)
+  const { noIndex, priceIndex, headerRowIndex, found } = detectColumns(jsonData)
+
+  if (!found) {
+    throw new Error(
+      `Kolommen "${NO_COLUMN}" en "${PRICE_COLUMN}" niet gevonden. Controleer of de Excel de juiste kopteksten heeft.`
+    )
+  }
 
   const validItems: Array<{ item_number: string; price: number; description: string }> = []
 
-  for (let i = 0; i < jsonData.length; i++) {
+  for (let i = headerRowIndex + 1; i < jsonData.length; i++) {
     const row = jsonData[i]
     if (!row || row.length === 0) continue
 
+    const noValue = row[noIndex]
+    const itemNumber = noValue != null ? String(noValue).trim() : ''
     const price = parseFlexibleNumber(row[priceIndex])
-    const description = row[descriptionIndex] ? String(row[descriptionIndex]).trim() : null
 
-    if (!description || price === null || isNaN(price) || price < 0) continue
+    if (!itemNumber || price === null || isNaN(price) || price < 0) continue
 
-    const itemNumber = extractItemNumber(description)
-    if (!itemNumber) continue
-
-    validItems.push({ item_number: itemNumber, price, description })
+    validItems.push({ item_number: itemNumber, price, description: itemNumber })
   }
 
   return validItems
