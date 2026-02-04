@@ -37,7 +37,7 @@ export async function GET(
 
     if (linesError) throw linesError
 
-    return NextResponse.json(lines || [])
+    return NextResponse.json({ lines: lines || [] })
   } catch (error: any) {
     console.error('Error fetching production order lines:', error)
     return NextResponse.json(

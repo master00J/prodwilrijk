@@ -15,7 +15,7 @@ export async function GET() {
     if (error) throw error
 
     const orderNumbers = (data || []).map((r) => r.order_number).filter(Boolean)
-    return NextResponse.json(orderNumbers)
+    return NextResponse.json({ orders: orderNumbers })
   } catch (error: any) {
     console.error('Error listing production orders for time:', error)
     return NextResponse.json(
