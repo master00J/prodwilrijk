@@ -86,7 +86,10 @@ export async function parseProductionOrderXml(file: File): Promise<ParsedProduct
   const lines = Array.from(xmlDoc.querySelectorAll('DataItem[name="ProdOrderLine"]')).map((lineItem, index) => {
     const lineColumns = parseColumns(lineItem)
     const lineDescription = lineColumns['Line_Description']?.trim() || ''
-    const extractedItemNumber = extractItemNumber(lineDescription)
+    const lineItemNo = lineColumns['Line_Item_No_']?.trim() || null
+    const extractedFromDescription = extractItemNumber(lineDescription)
+    // Prefer Line_Item_No_ (GP008153, GP006296) - that's the correct itemnummer; fallback to (xxx) in description
+    const item_number = lineItemNo || extractedFromDescription
 
     const components = Array.from(lineItem.querySelectorAll(':scope > DataItems > DataItem[name="Component"]')).map(
       (componentItem) => {
@@ -124,7 +127,7 @@ export async function parseProductionOrderXml(file: File): Promise<ParsedProduct
       quantity: parseDecimal(lineColumns['Line_Quantity']) ?? 0,
       inside_mass: lineColumns['Line_InsideMass']?.trim() || null,
       outside_mass: lineColumns['Line_OutsideMass']?.trim() || null,
-      item_number: extractedItemNumber,
+      item_number,
       components,
     }
   })

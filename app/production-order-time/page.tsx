@@ -12,6 +12,7 @@ interface OrderLine {
   line_no: number | null
   item_number: string | null
   description: string | null
+  quantity: number
 }
 
 interface ActiveLog {
@@ -23,6 +24,7 @@ interface ActiveLog {
   order_number: string
   item_number: string
   step: string
+  quantity: number | null
 }
 
 const STEPS = ['Zagen', 'Assemblage', 'Schuren', 'Afwerking']
@@ -35,6 +37,7 @@ export default function ProductionOrderTimePage() {
   const [selectedOrder, setSelectedOrder] = useState('')
   const [orderLines, setOrderLines] = useState<OrderLine[]>([])
   const [selectedItem, setSelectedItem] = useState('')
+  const [selectedQuantity, setSelectedQuantity] = useState<number>(1)
   const [selectedStep, setSelectedStep] = useState(STEPS[0])
   const [customStep, setCustomStep] = useState('')
   const [activeLogs, setActiveLogs] = useState<ActiveLog[]>([])
@@ -75,7 +78,11 @@ export default function ProductionOrderTimePage() {
       return
     }
     const data = await response.json()
-    setOrderLines(data.lines || [])
+    const lines = (data.lines || []).map((l: any) => ({
+      ...l,
+      quantity: Number(l.quantity) || 1,
+    }))
+    setOrderLines(lines)
   }, [])
 
   useEffect(() => {
@@ -102,7 +109,10 @@ export default function ProductionOrderTimePage() {
   useEffect(() => {
     void fetchOrderLines(selectedOrder)
     setSelectedItem('')
+    setSelectedQuantity(1)
   }, [selectedOrder, fetchOrderLines])
+
+  const selectedLine = orderLines.find((l) => (l.item_number || '') === selectedItem)
 
   const toggleEmployee = (id: number) => {
     setSelectedEmployeeIds((prev) =>
@@ -127,6 +137,7 @@ export default function ProductionOrderTimePage() {
 
     setStarting(true)
     try {
+      const qty = selectedLine && selectedLine.quantity > 1 ? selectedQuantity : null
       const response = await fetch('/api/production-order-time/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -135,6 +146,7 @@ export default function ProductionOrderTimePage() {
           orderNumber: selectedOrder,
           itemNumber: selectedItem,
           step,
+          quantity: qty,
         }),
       })
       if (!response.ok) {
@@ -227,18 +239,40 @@ export default function ProductionOrderTimePage() {
               <label className="block text-sm font-medium text-gray-700 mb-2">Item</label>
               <select
                 value={selectedItem}
-                onChange={(e) => setSelectedItem(e.target.value)}
+                onChange={(e) => {
+                  setSelectedItem(e.target.value)
+                  const line = orderLines.find((l) => (l.item_number || '') === e.target.value)
+                  setSelectedQuantity(line && line.quantity > 1 ? 1 : 1)
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 disabled={!selectedOrder}
               >
                 <option value="">Selecteer item</option>
                 {orderLines.map((line) => (
                   <option key={line.id} value={line.item_number || ''}>
-                    {line.item_number || 'Onbekend'} {line.description ? `- ${line.description}` : ''}
+                    {line.item_number || 'Onbekend'} ({line.quantity} st)
+                    {line.description ? ` - ${line.description}` : ''}
                   </option>
                 ))}
               </select>
             </div>
+
+            {selectedLine && selectedLine.quantity > 1 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Aantal stuks</label>
+                <select
+                  value={selectedQuantity}
+                  onChange={(e) => setSelectedQuantity(Number(e.target.value))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                >
+                  {Array.from({ length: selectedLine.quantity }, (_, i) => i + 1).map((n) => (
+                    <option key={n} value={n}>
+                      {n} {n === 1 ? 'stuk' : 'stuks'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Stap</label>
@@ -290,6 +324,7 @@ export default function ProductionOrderTimePage() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Medewerker</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Order</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Item</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Aantal</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Stap</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Start</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Acties</th>
@@ -301,6 +336,7 @@ export default function ProductionOrderTimePage() {
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">{log.employee_name}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">{log.order_number}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">{log.item_number}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{log.quantity != null ? `${log.quantity} st` : '-'}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">{log.step}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">
                       {new Date(log.start_time).toLocaleString('nl-NL')}

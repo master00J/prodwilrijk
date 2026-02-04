@@ -9,7 +9,7 @@ export async function GET(_request: NextRequest) {
   try {
     const { data: timeLogs, error: logsError } = await supabaseAdmin
       .from('time_logs')
-      .select('id, employee_id, start_time, end_time, production_order_number, production_item_number, production_step')
+      .select('id, employee_id, start_time, end_time, production_order_number, production_item_number, production_step, production_quantity')
       .is('end_time', null)
       .eq('type', 'production_order')
       .order('start_time', { ascending: false })
@@ -50,6 +50,7 @@ export async function GET(_request: NextRequest) {
         order_number: log.production_order_number || '',
         item_number: log.production_item_number || '',
         step: log.production_step || '',
+        quantity: log.production_quantity ?? null,
       }
     })
 
