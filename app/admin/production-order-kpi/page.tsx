@@ -11,6 +11,7 @@ type OrderDetail = {
     item_number: string | null
     description: string | null
     quantity: number
+    sales_price: number | null
     cost_per_item: number
     total_cost: number
   }>
