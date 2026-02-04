@@ -75,7 +75,7 @@ export default function StorageRentalsPage() {
   const fetchAll = async () => {
     setLoading(true)
     try {
-      const params = includeInactive ? '?include_inactive=true' : ''
+      const params = '?include_inactive=true'
       const [customerRes, locationRes, itemRes] = await Promise.all([
         fetch(`/api/storage-rentals/customers${params}`),
         fetch(`/api/storage-rentals/locations${params}`),
