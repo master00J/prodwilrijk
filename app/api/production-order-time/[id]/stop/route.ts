@@ -37,9 +37,18 @@ export async function POST(
       })
     }
 
+    let body: { quantity?: number } = {}
+    try {
+      body = await request.json().catch(() => ({}))
+    } catch {
+      body = {}
+    }
+    const qty =
+      body.quantity != null && Number(body.quantity) >= 1 ? Math.floor(Number(body.quantity)) : null
+
     const { error: updateError } = await supabaseAdmin
       .from('time_logs')
-      .update({ end_time: new Date().toISOString() })
+      .update({ end_time: new Date().toISOString(), production_quantity: qty })
       .eq('id', id)
       .is('end_time', null)
 

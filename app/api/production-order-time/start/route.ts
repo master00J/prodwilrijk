@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { employeeIds, orderNumber, itemNumber, step, quantity } = body
+    const { employeeIds, orderNumber, itemNumber, step } = body
 
     if (!Array.isArray(employeeIds) || employeeIds.length === 0) {
       return NextResponse.json(
@@ -42,15 +42,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const qty = quantity != null && Number(quantity) >= 1 ? Math.floor(Number(quantity)) : null
-
     const timeLogs = employeeIds.map((employeeId: number) => ({
       employee_id: employeeId,
       type: 'production_order',
       production_order_number: String(orderNumber).trim(),
       production_item_number: String(itemNumber).trim(),
       production_step: String(step).trim(),
-      production_quantity: qty,
       start_time: new Date().toISOString(),
     }))
 

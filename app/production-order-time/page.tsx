@@ -109,7 +109,6 @@ export default function ProductionOrderTimePage() {
   useEffect(() => {
     void fetchOrderLines(selectedOrder)
     setSelectedItem('')
-    setSelectedQuantity(1)
   }, [selectedOrder, fetchOrderLines])
 
   const selectedLine = orderLines.find((l) => (l.item_number || '') === selectedItem)
@@ -126,7 +125,7 @@ export default function ProductionOrderTimePage() {
       return
     }
     if (!selectedOrder || !selectedItem) {
-      alert('Selecteer een order en item')
+      alert('Selecteer een order en lijn')
       return
     }
     const step = selectedStep === 'Andere' ? customStep.trim() : selectedStep
@@ -163,16 +162,53 @@ export default function ProductionOrderTimePage() {
     }
   }
 
-  const handleStop = async (logId: number, employeeName?: string) => {
-    if (!confirm(`Stop tijdregistratie${employeeName ? ` voor ${employeeName}` : ''}?`)) {
+  const openStopModal = async (log: ActiveLog) => {
+    const res = await fetch(`/api/production-orders/${encodeURIComponent(log.order_number)}/lines`)
+    if (!res.ok) {
+      if (confirm(`Stop tijdregistratie${log.employee_name ? ` voor ${log.employee_name}` : ''}?`)) {
+        await doStop(log.id, null)
+      }
       return
     }
-    const response = await fetch(`/api/production-order-time/${logId}/stop`, { method: 'POST' })
-    if (!response.ok) {
-      alert('Stoppen mislukt')
-      return
+    const data = await res.json()
+    const lines = data.lines || []
+    const line = lines.find((l: any) => (l.item_number || '').trim() === (log.item_number || '').trim())
+    const qty = Math.max(1, Number(line?.quantity) || 1)
+    setStopModal({
+      logId: log.id,
+      employeeName: log.employee_name,
+      orderNumber: log.order_number,
+      itemNumber: log.item_number,
+      lineQuantity: qty,
+    })
+    setStopQuantity(1)
+  }
+
+  const doStop = async (logId: number, quantity: number | null) => {
+    setStopping(true)
+    try {
+      const res = await fetch(`/api/production-order-time/${logId}/stop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(quantity != null ? { quantity } : {}),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Stoppen mislukt')
+      }
+      setStopModal(null)
+      await fetchActiveLogs()
+    } catch (e: any) {
+      alert(e.message || 'Stoppen mislukt')
+    } finally {
+      setStopping(false)
     }
-    await fetchActiveLogs()
+  }
+
+  const handleStopConfirm = () => {
+    if (!stopModal) return
+    const qty = stopModal.lineQuantity > 1 ? stopQuantity : null
+    void doStop(stopModal.logId, qty)
   }
 
   if (loading) {
@@ -331,7 +367,7 @@ export default function ProductionOrderTimePage() {
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Medewerker</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Order</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Item</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Lijn</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Aantal</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Stap</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Start</th>
@@ -351,7 +387,7 @@ export default function ProductionOrderTimePage() {
                     </td>
                     <td className="px-4 py-3 text-sm">
                       <button
-                        onClick={() => handleStop(log.id, log.employee_name)}
+                        onClick={() => openStopModal(log)}
                         className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
                       >
                         Stop
@@ -364,6 +400,54 @@ export default function ProductionOrderTimePage() {
           </div>
         )}
       </div>
+
+      {stopModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-6">
+            <h3 className="text-lg font-semibold mb-2">Stop tijdregistratie</h3>
+            {stopModal.employeeName && (
+              <p className="text-sm text-gray-600 mb-4">voor {stopModal.employeeName}</p>
+            )}
+            {stopModal.lineQuantity > 1 ? (
+              <>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Hoeveel stuks afgewerkt? (max. {stopModal.lineQuantity})
+                </label>
+                <select
+                  value={stopQuantity}
+                  onChange={(e) => setStopQuantity(Number(e.target.value))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-4"
+                >
+                  {Array.from({ length: stopModal.lineQuantity }, (_, i) => i + 1).map((n) => (
+                    <option key={n} value={n}>
+                      {n} {n === 1 ? 'stuk' : 'stuks'}
+                    </option>
+                  ))}
+                </select>
+              </>
+            ) : (
+              <p className="text-sm text-gray-600 mb-4">1 stuk</p>
+            )}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setStopModal(null)}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Annuleren
+              </button>
+              <button
+                type="button"
+                onClick={handleStopConfirm}
+                disabled={stopping}
+                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-60"
+              >
+                {stopping ? 'Bezig...' : 'Stop'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
