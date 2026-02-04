@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Upload, Download, TrendingUp } from 'lucide-react'
 
 export default function ForecastTab() {
@@ -12,6 +12,50 @@ export default function ForecastTab() {
   const [dragActive, setDragActive] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [searchQuery, setSearchQuery] = useState('')
+
+  const shiftSummary = useMemo(() => {
+    const byLabel = new Map<
+      string,
+      {
+        case_label: string
+        case_type: string
+        total_shift_days: number
+        change_count: number
+        last_old_date: string | null
+        last_new_date: string | null
+        last_changed_at: string | null
+      }
+    >()
+    forecastChanges.forEach((change: any) => {
+      const label = String(change.case_label || '').trim()
+      if (!label) return
+      const oldDate = change.old_arrival_date ? new Date(change.old_arrival_date) : null
+      const newDate = change.new_arrival_date ? new Date(change.new_arrival_date) : null
+      const deltaDays =
+        oldDate && newDate
+          ? Math.round((newDate.getTime() - oldDate.getTime()) / 86400000)
+          : 0
+      const current = byLabel.get(label) || {
+        case_label: label,
+        case_type: String(change.case_type || '').trim(),
+        total_shift_days: 0,
+        change_count: 0,
+        last_old_date: null,
+        last_new_date: null,
+        last_changed_at: null,
+      }
+      current.total_shift_days += deltaDays
+      current.change_count += 1
+      current.last_old_date = String(change.old_arrival_date || current.last_old_date || '')
+      current.last_new_date = String(change.new_arrival_date || current.last_new_date || '')
+      current.last_changed_at = String(change.changed_at || current.last_changed_at || '')
+      if (!current.case_type && change.case_type) {
+        current.case_type = String(change.case_type)
+      }
+      byLabel.set(label, current)
+    })
+    return Array.from(byLabel.values()).sort((a, b) => Math.abs(b.total_shift_days) - Math.abs(a.total_shift_days))
+  }, [forecastChanges])
 
   const loadForecast = useCallback(async () => {
     setLoading(true)
@@ -352,6 +396,7 @@ export default function ForecastTab() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Oude Datum</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Nieuwe Datum</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Bronbestand</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Verschuiving</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Gewijzigd</th>
                 </tr>
               </thead>
@@ -368,7 +413,51 @@ export default function ForecastTab() {
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700">{item.source_file || '-'}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">
+                      {item.old_arrival_date && item.new_arrival_date
+                        ? `${Math.round(
+                            (new Date(item.new_arrival_date).getTime() - new Date(item.old_arrival_date).getTime()) /
+                              86400000
+                          )} dagen`
+                        : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-700">
                       {item.changed_at ? new Date(item.changed_at).toLocaleString('nl-NL') : '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-lg p-6 mt-8">
+        <h3 className="text-lg font-semibold mb-4">📌 Overzicht verschuivingen per case</h3>
+        {shiftSummary.length === 0 ? (
+          <p className="text-sm text-gray-500">Geen verschuivingen gevonden om te tonen.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Case Label</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Case Type</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Totaal verschoven</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Aantal wijzigingen</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Laatste wijziging</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {shiftSummary.map((item) => (
+                  <tr key={item.case_label} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{item.case_label}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{item.case_type || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">
+                      {item.total_shift_days === 0 ? '0 dagen' : `${item.total_shift_days} dagen`}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{item.change_count}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">
+                      {item.last_changed_at ? new Date(item.last_changed_at).toLocaleString('nl-NL') : '-'}
                     </td>
                   </tr>
                 ))}

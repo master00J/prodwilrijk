@@ -7,6 +7,7 @@ type ForecastRow = {
   case_label: string
   case_type: string
   arrival_date: string
+  source_file?: string | null
 }
 
 type ErpRow = {
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
 
     const forecastData = await fetchAllRows<ForecastRow>(
       'grote_inpak_forecast',
-      'case_label, case_type, arrival_date'
+      'case_label, case_type, arrival_date, source_file'
     )
     const erpData = await fetchAllRows<ErpRow>(
       'grote_inpak_erp_link',
@@ -188,6 +189,7 @@ export async function POST(request: NextRequest) {
         case_label: String(row.case_label || '').trim(),
         case_type: normalizeCaseType(row.case_type || ''),
         arrival_date: String(row.arrival_date || '').trim(),
+        source_file: String(row.source_file || '').trim(),
       }))
       .filter((row) => row.case_label && row.case_type && row.arrival_date)
       .filter((row) => !pilsLabels.has(row.case_label))
@@ -495,6 +497,37 @@ export async function POST(request: NextRequest) {
       })
     })
     prioritySheet.views = [{ state: 'frozen', ySplit: 2 }]
+
+    const caseLabelsSheet = wb.addWorksheet('Case labels')
+    caseLabelsSheet.addRow(['Case label', 'Case type', 'Arrival date', 'Source file', 'Productielocatie'])
+    const caseHeader = caseLabelsSheet.getRow(1)
+    caseHeader.font = { bold: true }
+    caseHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'D9D9D9' } }
+    const caseRows = filtered
+      .map((row) => ({
+        case_label: row.case_label,
+        case_type: row.case_type,
+        arrival_date: row.arrival_date,
+        source_file: row.source_file || '',
+        productielocatie: row.productielocatie || '',
+      }))
+      .sort((a, b) => {
+        const da = new Date(a.arrival_date)
+        const db = new Date(b.arrival_date)
+        return da.getTime() - db.getTime()
+      })
+    caseRows.forEach((row) => {
+      caseLabelsSheet.addRow([
+        row.case_label,
+        row.case_type,
+        formatDateLabel(row.arrival_date),
+        row.source_file,
+        row.productielocatie,
+      ])
+    })
+    caseLabelsSheet.columns.forEach((col) => {
+      col.width = 18
+    })
 
     const buffer = await wb.xlsx.writeBuffer()
     const fileName = `Forecast_${location}.xlsx`
