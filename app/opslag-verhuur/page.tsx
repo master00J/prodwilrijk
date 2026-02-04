@@ -54,6 +54,7 @@ export default function StorageRentalsPage() {
   const [itemCustomerDescription, setItemCustomerDescription] = useState('')
   const [itemForescoId, setItemForescoId] = useState('')
   const [itemPackingStatus, setItemPackingStatus] = useState<'bare' | 'verpakt'>('bare')
+  const [itemPackedAt, setItemPackedAt] = useState('')
   const [itemM2, setItemM2] = useState('')
   const [itemM2Bare, setItemM2Bare] = useState('')
   const [itemM2Verpakt, setItemM2Verpakt] = useState('')
@@ -129,10 +130,37 @@ export default function StorageRentalsPage() {
       if (!start) return sum
       const end = item.end_date && item.end_date.trim() ? toUtcDate(item.end_date) : null
       const effectiveEnd = end ? (end.getTime() < today.getTime() ? end : today) : today
+      const price = Number(item.price_per_m2 || 0)
+      if (!price) return sum
+
+      const m2Bare = Number(item.m2_bare ?? item.m2 ?? 0)
+      const m2Verpakt = Number(item.m2_verpakt ?? item.m2 ?? 0)
+      const packedAt = item.packed_at ? toUtcDate(item.packed_at) : null
+
+      if (item.packing_status === 'verpakt' && packedAt && m2Bare > 0 && m2Verpakt > 0) {
+        const splitMs = packedAt.getTime()
+        const startMs = start.getTime()
+        const endMs = effectiveEnd.getTime()
+        const daysBare =
+          splitMs <= startMs
+            ? 0
+            : splitMs > endMs
+              ? Math.floor((endMs - startMs) / MS_PER_DAY) + 1
+              : Math.floor((splitMs - startMs) / MS_PER_DAY)
+        const daysVerpakt =
+          splitMs > endMs
+            ? 0
+            : splitMs <= startMs
+              ? Math.floor((endMs - startMs) / MS_PER_DAY) + 1
+              : Math.floor((endMs - splitMs) / MS_PER_DAY) + 1
+        const revBare = daysBare > 0 ? (m2Bare * price * daysBare) / 365 : 0
+        const revVerpakt = daysVerpakt > 0 ? (m2Verpakt * price * daysVerpakt) / 365 : 0
+        return sum + revBare + revVerpakt
+      }
+
+      const m2 = getEffectiveM2(item)
       const days = Math.floor((effectiveEnd.getTime() - start.getTime()) / MS_PER_DAY) + 1
       if (days <= 0) return sum
-      const m2 = getEffectiveM2(item)
-      const price = Number(item.price_per_m2 || 0)
       return sum + (m2 * price * days) / 365
     }, 0)
   }, [activeItems])
@@ -169,6 +197,7 @@ export default function StorageRentalsPage() {
     setItemCustomerDescription('')
     setItemForescoId('')
     setItemPackingStatus('bare')
+    setItemPackedAt('')
     setItemM2('')
     setItemM2Bare('')
     setItemM2Verpakt('')
@@ -253,17 +282,49 @@ export default function StorageRentalsPage() {
         const itemEnd = item.end_date ? toUtcDate(item.end_date) : null
         const overlapDays = getOverlapDays(itemStart, itemEnd, rangeStart, rangeEnd)
         if (overlapDays <= 0) return null
-        const m2 = Number(item.m2 || 0)
+        const overlapStartMs = Math.max((itemStart || rangeStart).getTime(), rangeStart.getTime())
+        const overlapEndMs = Math.min((itemEnd || rangeEnd).getTime(), rangeEnd.getTime())
         const price = Number(item.price_per_m2 || 0)
-        const cost = m2 && price ? (m2 * price * overlapDays) / 365 : 0
+        const m2Bare = Number(item.m2_bare ?? item.m2 ?? 0)
+        const m2Verpakt = Number(item.m2_verpakt ?? item.m2 ?? 0)
+        const packedAt = item.packed_at ? toUtcDate(item.packed_at) : null
+
+        let cost = 0
+        if (price > 0 && item.packing_status === 'verpakt' && packedAt && m2Bare > 0 && m2Verpakt > 0) {
+          const splitMs = packedAt.getTime()
+          const daysBare =
+            splitMs <= overlapStartMs
+              ? 0
+              : splitMs > overlapEndMs
+                ? Math.floor((overlapEndMs - overlapStartMs) / MS_PER_DAY) + 1
+                : Math.floor((splitMs - overlapStartMs) / MS_PER_DAY)
+          const daysVerpakt =
+            splitMs > overlapEndMs
+              ? 0
+              : splitMs <= overlapStartMs
+                ? Math.floor((overlapEndMs - overlapStartMs) / MS_PER_DAY) + 1
+                : Math.floor((overlapEndMs - splitMs) / MS_PER_DAY) + 1
+          cost = (m2Bare * price * daysBare + m2Verpakt * price * daysVerpakt) / 365
+        } else {
+          const m2 = item.packing_status === 'verpakt' ? m2Verpakt : m2Bare
+          cost = m2 && price ? (m2 * price * overlapDays) / 365 : 0
+        }
+
+        const m2Display = item.packing_status === 'verpakt' && packedAt ? m2Verpakt : item.packing_status === 'verpakt' ? m2Verpakt : m2Bare
         return {
           id: item.id,
+          or_number: item.or_number || null,
           customer:
             item.customer?.name ||
             customers.find((customer) => customer.id === item.customer_id)?.name ||
             '-',
+          customer_description: item.customer_description || null,
+          foresco_id: item.foresco_id || null,
           description: item.description || '',
-          m2,
+          packing_status: item.packing_status || 'bare',
+          m2: m2Display,
+          m2_bare: m2Bare,
+          m2_verpakt: m2Verpakt,
           price,
           overlapDays,
           cost,
@@ -417,6 +478,7 @@ export default function StorageRentalsPage() {
       customer_description: itemCustomerDescription.trim() || null,
       foresco_id: itemForescoId.trim() || null,
       packing_status: itemPackingStatus,
+      packed_at: itemPackedAt.trim() || null,
       m2: m2Val,
       m2_bare: m2BareVal ?? m2Val,
       m2_verpakt: m2VerpaktVal ?? m2Val,
@@ -1037,6 +1099,19 @@ export default function StorageRentalsPage() {
                 <option value="verpakt">Verpakt (na verpakken)</option>
               </select>
             </div>
+            {itemPackingStatus === 'verpakt' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Datum verpakt</label>
+                <input
+                  type="date"
+                  value={itemPackedAt}
+                  onChange={(e) => setItemPackedAt(e.target.value)}
+                  placeholder="Wanneer verpakt?"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                />
+                <p className="text-xs text-gray-500 mt-0.5">Voor correcte prijsberekening: bare m² vóór deze datum, verpakt m² erna.</p>
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">m² bare</label>
               <input
@@ -1170,8 +1245,8 @@ export default function StorageRentalsPage() {
                       <td className="px-3 py-2 text-sm">
                         <div className="flex flex-wrap gap-2">
                           <button
-                            onClick={() => setPhotoPanelItemId(photoPanelItemId === item.id ? null : item.id)}
-                            className={`px-2 py-1 rounded text-xs ${photoPanelItemId === item.id ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700'}`}
+                            onClick={() => setPhotoPanelItemId(item.id)}
+                            className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs hover:bg-purple-200"
                           >
                             Foto&apos;s
                           </button>
@@ -1228,67 +1303,85 @@ export default function StorageRentalsPage() {
           </div>
 
           {photoPanelItemId != null && (
-            <div className="mt-6 p-4 border border-purple-200 rounded-lg bg-purple-50">
-              <h3 className="font-semibold text-purple-800 mb-3">Foto&apos;s – item #{photoPanelItemId}</h3>
-              {(() => {
-                const item = items.find((i) => i.id === photoPanelItemId)
-                if (!item) return null
-                const photosBare = (item.photos_bare || []) as string[]
-                const photosVerpakt = (item.photos_verpakt || []) as string[]
-                return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <h4 className="text-sm font-medium text-amber-800 mb-2">Bare (bij lossing)</h4>
-                      <div className="flex flex-wrap gap-2 mb-2">
-                        {photosBare.map((url, idx) => (
-                          <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="block">
-                            <img src={url} alt={`Bare ${idx + 1}`} className="h-20 w-20 object-cover rounded border" />
-                          </a>
-                        ))}
-                      </div>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        onChange={(e) => {
-                          handlePhotoUpload(item.id, 'bare', e.target.files)
-                          e.target.value = ''
-                        }}
-                        disabled={photoUploading}
-                        className="text-sm"
-                      />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-medium text-green-800 mb-2">Verpakt (na verpakken)</h4>
-                      <div className="flex flex-wrap gap-2 mb-2">
-                        {photosVerpakt.map((url, idx) => (
-                          <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="block">
-                            <img src={url} alt={`Verpakt ${idx + 1}`} className="h-20 w-20 object-cover rounded border" />
-                          </a>
-                        ))}
-                      </div>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        onChange={(e) => {
-                          handlePhotoUpload(item.id, 'verpakt', e.target.files)
-                          e.target.value = ''
-                        }}
-                        disabled={photoUploading}
-                        className="text-sm"
-                      />
-                    </div>
-                  </div>
-                )
-              })()}
-              <button
-                type="button"
-                onClick={() => setPhotoPanelItemId(null)}
-                className="mt-4 px-3 py-1 bg-gray-200 rounded text-sm"
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+              onClick={() => setPhotoPanelItemId(null)}
+            >
+              <div
+                className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6"
+                onClick={(e) => e.stopPropagation()}
               >
-                Sluiten
-              </button>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-purple-800 text-lg">Foto&apos;s – item #{photoPanelItemId}</h3>
+                  <button
+                    type="button"
+                    onClick={() => setPhotoPanelItemId(null)}
+                    className="text-gray-500 hover:text-gray-700 p-1"
+                    aria-label="Sluiten"
+                  >
+                    ✕
+                  </button>
+                </div>
+                {(() => {
+                  const item = items.find((i) => i.id === photoPanelItemId)
+                  if (!item) return null
+                  const photosBare = (item.photos_bare || []) as string[]
+                  const photosVerpakt = (item.photos_verpakt || []) as string[]
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <h4 className="text-sm font-medium text-amber-800 mb-2">Bare (bij lossing)</h4>
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          {photosBare.map((url, idx) => (
+                            <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="block">
+                              <img src={url} alt={`Bare ${idx + 1}`} className="h-20 w-20 object-cover rounded border" />
+                            </a>
+                          ))}
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={(e) => {
+                            handlePhotoUpload(item.id, 'bare', e.target.files)
+                            e.target.value = ''
+                          }}
+                          disabled={photoUploading}
+                          className="text-sm"
+                        />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-medium text-green-800 mb-2">Verpakt (na verpakken)</h4>
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          {photosVerpakt.map((url, idx) => (
+                            <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="block">
+                              <img src={url} alt={`Verpakt ${idx + 1}`} className="h-20 w-20 object-cover rounded border" />
+                            </a>
+                          ))}
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={(e) => {
+                            handlePhotoUpload(item.id, 'verpakt', e.target.files)
+                            e.target.value = ''
+                          }}
+                          disabled={photoUploading}
+                          className="text-sm"
+                        />
+                      </div>
+                    </div>
+                  )
+                })()}
+                <button
+                  type="button"
+                  onClick={() => setPhotoPanelItemId(null)}
+                  className="mt-4 px-4 py-2 bg-gray-200 rounded-lg text-sm hover:bg-gray-300"
+                >
+                  Sluiten
+                </button>
+              </div>
             </div>
           )}
         </div>

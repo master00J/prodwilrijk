@@ -247,6 +247,7 @@ export interface StorageRentalItem {
   customer_description?: string | null
   foresco_id?: string | null
   packing_status?: 'bare' | 'verpakt' | null
+  packed_at?: string | null
   photos_bare?: string[]
   photos_verpakt?: string[]
   created_at?: string

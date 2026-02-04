@@ -75,6 +75,7 @@ export async function POST(request: NextRequest) {
         customer_description: customer_description || null,
         foresco_id: foresco_id || null,
         packing_status: packing_status === 'verpakt' ? 'verpakt' : 'bare',
+        packed_at: body.packed_at || null,
         photos_bare: Array.isArray(photos_bare) ? photos_bare : [],
         photos_verpakt: Array.isArray(photos_verpakt) ? photos_verpakt : [],
       })
@@ -113,6 +114,7 @@ export async function PUT(request: NextRequest) {
       customer_description,
       foresco_id,
       packing_status,
+      packed_at,
       photos_bare,
       photos_verpakt,
     } = body || {}
@@ -137,6 +139,7 @@ export async function PUT(request: NextRequest) {
     if (customer_description !== undefined) updateData.customer_description = customer_description || null
     if (foresco_id !== undefined) updateData.foresco_id = foresco_id || null
     if (packing_status !== undefined) updateData.packing_status = packing_status === 'verpakt' ? 'verpakt' : 'bare'
+    if (packed_at !== undefined) updateData.packed_at = packed_at || null
     if (photos_bare !== undefined) updateData.photos_bare = Array.isArray(photos_bare) ? photos_bare : []
     if (photos_verpakt !== undefined) updateData.photos_verpakt = Array.isArray(photos_verpakt) ? photos_verpakt : []
 
