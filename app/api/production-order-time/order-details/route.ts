@@ -42,7 +42,7 @@ export async function GET() {
         .from('production_order_lines')
         .select(
           `
-          id, line_no, item_no, item_number, description, description_2, quantity,
+          id, line_no, item_no, item_number, description, description_2, quantity, sales_price,
           production_order_components (
             id, component_item_no, component_description, component_description_2,
             component_unit, component_length, component_width, component_thickness

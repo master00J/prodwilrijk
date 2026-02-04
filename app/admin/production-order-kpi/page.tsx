@@ -209,8 +209,9 @@ export default function ProductionOrderKpiPage() {
                                 <th className="py-2 pr-4">Item</th>
                                 <th className="py-2 pr-4">Omschrijving</th>
                                 <th className="py-2 pr-4">Aantal</th>
+                                <th className="py-2 pr-4">Verkoopprijs</th>
                                 <th className="py-2 pr-4">Kost/stuk</th>
-                                <th className="py-2 pr-4">Totaal</th>
+                                <th className="py-2 pr-4">Totaal kost</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -219,6 +220,9 @@ export default function ProductionOrderKpiPage() {
                                   <td className="py-2 pr-4 font-medium">{line.item_number || '-'}</td>
                                   <td className="py-2 pr-4">{line.description || '-'}</td>
                                   <td className="py-2 pr-4">{line.quantity}</td>
+                                  <td className="py-2 pr-4">
+                                    {line.sales_price != null ? `€ ${Number(line.sales_price).toFixed(2)}` : '-'}
+                                  </td>
                                   <td className="py-2 pr-4">€ {Number(line.cost_per_item).toFixed(2)}</td>
                                   <td className="py-2 pr-4">€ {Number(line.total_cost).toFixed(2)}</td>
                                 </tr>
