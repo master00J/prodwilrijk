@@ -9,32 +9,55 @@ export async function GET(request: NextRequest) {
     const dateFrom = searchParams.get('date_from') || ''
     const dateTo = searchParams.get('date_to') || ''
 
-    // Build query for packed items airtec
-    let query = supabaseAdmin
-      .from('packed_items_airtec')
-      .select('kistnummer, quantity')
+    const buildQuery = () => {
+      let query = supabaseAdmin
+        .from('packed_items_airtec')
+        .select('kistnummer, quantity')
 
-    // Apply date filters
-    if (dateFrom) {
-      const fromDate = new Date(dateFrom)
-      fromDate.setHours(0, 0, 0, 0)
-      query = query.gte('date_packed', fromDate.toISOString())
+      // Apply date filters
+      if (dateFrom) {
+        const fromDate = new Date(dateFrom)
+        fromDate.setHours(0, 0, 0, 0)
+        query = query.gte('date_packed', fromDate.toISOString())
+      }
+
+      if (dateTo) {
+        const toDate = new Date(dateTo)
+        toDate.setHours(23, 59, 59, 999)
+        query = query.lte('date_packed', toDate.toISOString())
+      }
+
+      return query
     }
 
-    if (dateTo) {
-      const toDate = new Date(dateTo)
-      toDate.setHours(23, 59, 59, 999)
-      query = query.lte('date_packed', toDate.toISOString())
-    }
+    const pageSize = 1000
+    let from = 0
+    const items: Array<{ kistnummer: string | null; quantity: number | null }> = []
+    let hasMore = true
+    let safety = 0
+    while (hasMore) {
+      const { data: page, error } = await buildQuery().range(from, from + pageSize - 1)
+      if (error) {
+        console.error('Error fetching packed items airtec:', error)
+        return NextResponse.json(
+          { error: 'Failed to fetch packed items' },
+          { status: 500 }
+        )
+      }
 
-    const { data: items, error } = await query
+      const batch = page || []
+      items.push(...batch)
+      if (batch.length < pageSize) {
+        hasMore = false
+      } else {
+        from += pageSize
+      }
 
-    if (error) {
-      console.error('Error fetching packed items airtec:', error)
-      return NextResponse.json(
-        { error: 'Failed to fetch packed items' },
-        { status: 500 }
-      )
+      safety += 1
+      if (safety > 200) {
+        console.warn('Box report paging safety stop triggered.')
+        hasMore = false
+      }
     }
 
     if (!items || items.length === 0) {

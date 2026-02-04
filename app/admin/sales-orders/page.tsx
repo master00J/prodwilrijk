@@ -43,6 +43,63 @@ export default function SalesOrdersUploadPage() {
     return Number.isFinite(parsed) ? parsed : null
   }
 
+  const detectSalesOrderColumns = (rows: any[][]) => {
+    const sampleRows = rows.slice(0, 200)
+    const maxCols = sampleRows.reduce((max, row) => Math.max(max, row?.length || 0), 0)
+    const descriptionScores = new Array(maxCols).fill(0)
+
+    sampleRows.forEach((row) => {
+      if (!row) return
+      for (let col = 0; col < maxCols; col += 1) {
+        const value = row[col]
+        if (!value) continue
+        const itemNumber = extractItemNumber(String(value))
+        if (itemNumber) descriptionScores[col] += 1
+      }
+    })
+
+    let descriptionIndex: number | null = null
+    let bestDescriptionScore = 0
+    descriptionScores.forEach((score, col) => {
+      if (score > bestDescriptionScore) {
+        bestDescriptionScore = score
+        descriptionIndex = col
+      }
+    })
+
+    let priceIndex: number | null = null
+    let bestPairedScore = -1
+    let bestNumericScore = -1
+    for (let col = 0; col < maxCols; col += 1) {
+      if (col === descriptionIndex) continue
+      let numericScore = 0
+      let pairedScore = 0
+      sampleRows.forEach((row) => {
+        if (!row) return
+        const value = row[col]
+        const price = parseFlexibleNumber(value)
+        if (price === null) return
+        numericScore += 1
+        if (descriptionIndex !== null) {
+          const descriptionValue = row[descriptionIndex]
+          const itemNumber = descriptionValue ? extractItemNumber(String(descriptionValue)) : null
+          if (itemNumber) pairedScore += 1
+        }
+      })
+      if (pairedScore > bestPairedScore || (pairedScore === bestPairedScore && numericScore > bestNumericScore)) {
+        bestPairedScore = pairedScore
+        bestNumericScore = numericScore
+        priceIndex = col
+      }
+    }
+
+    return {
+      descriptionIndex: descriptionIndex ?? 10,
+      priceIndex: priceIndex ?? 0,
+      detected: descriptionIndex !== null && priceIndex !== null,
+    }
+  }
+
   const processFile = async (file: File): Promise<Array<{ item_number: string; price: number; description: string }>> => {
     // Read file as array buffer
     const data = await readFileAsArrayBuffer(file)
@@ -55,7 +112,11 @@ export default function SalesOrdersUploadPage() {
     // Read raw data to access specific columns
     const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null }) as any[][]
     
-    // Process rows: Column A (index 0) = price, Column K (index 10) = description
+    const { descriptionIndex, priceIndex, detected } = detectSalesOrderColumns(jsonData)
+    if (!detected) {
+      console.warn('Kon kolommen niet betrouwbaar detecteren, val terug op A en K.')
+    }
+
     const validItems: Array<{ item_number: string; price: number; description: string }> = []
     
     for (let i = 0; i < jsonData.length; i++) {
@@ -64,12 +125,10 @@ export default function SalesOrdersUploadPage() {
       // Skip empty rows
       if (!row || row.length === 0) continue
       
-      // Get price from column A (index 0)
-      const priceValue = row[0]
-      const price = priceValue ? parseFloat(String(priceValue)) : null
+      const priceValue = row[priceIndex]
+      const price = parseFlexibleNumber(priceValue)
       
-      // Get description from column K (index 10)
-      const description = row[10] ? String(row[10]).trim() : null
+      const description = row[descriptionIndex] ? String(row[descriptionIndex]).trim() : null
       
       if (!description || price === null || isNaN(price) || price < 0) {
         continue
@@ -164,7 +223,7 @@ export default function SalesOrdersUploadPage() {
       }
 
       if (allItems.length === 0) {
-        throw new Error('Geen geldige data gevonden in de Excel bestanden. Controleer of kolom A prijzen bevat en kolom K omschrijvingen met itemnummers tussen haakjes.')
+        throw new Error('Geen geldige data gevonden in de Excel bestanden. Controleer of de omschrijving een itemnummer tussen haakjes bevat en dat er een prijskolom aanwezig is.')
       }
 
       console.log(`Found ${allItems.length} valid items from ${selectedFiles.length} file(s)`)
@@ -276,8 +335,8 @@ export default function SalesOrdersUploadPage() {
           <h2 className="font-semibold text-blue-800 mb-2">Instructies:</h2>
           <ul className="list-disc list-inside text-blue-700 space-y-1 text-sm">
             <li>Upload een Excel bestand met verkooporders</li>
-            <li>Kolom A moet de prijs bevatten</li>
-            <li>Kolom K moet de omschrijving bevatten met itemnummer tussen haakjes</li>
+            <li>De prijskolom en omschrijvingskolom worden automatisch herkend</li>
+            <li>De omschrijving moet een itemnummer tussen haakjes bevatten</li>
             <li>Voorbeeld omschrijving: &quot;860X470X220 KIST ISPM15 MPXM (1094139873)&quot;</li>
           </ul>
         </div>

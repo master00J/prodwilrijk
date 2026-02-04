@@ -93,10 +93,66 @@ export default function PackedItemsAirtecPage() {
     window.print()
   }
 
-  const handleDownload = () => {
-    // Create Excel workbook
+  const fetchAllForExport = async () => {
+    const allItems: PackedItemAirtec[] = []
+    const pageSizeExport = 1000
+    let page = 1
+    let keepGoing = true
+    let safety = 0
+
+    while (keepGoing) {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        pageSize: pageSizeExport.toString(),
+      })
+
+      if (searchTerm) params.append('search', searchTerm)
+      if (dateFrom) params.append('date_from', dateFrom)
+      if (dateTo) params.append('date_to', dateTo)
+      if (kistnummerFilter) params.append('kistnummer', kistnummerFilter)
+
+      const response = await fetch(`/api/packed-items-airtec?${params.toString()}`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch items for export')
+      }
+
+      const data: PackedItemsAirtecResponse = await response.json()
+      const batch = data.items || []
+      allItems.push(...batch)
+
+      if (batch.length < pageSizeExport) {
+        keepGoing = false
+      } else {
+        page += 1
+      }
+
+      safety += 1
+      if (safety > 200) {
+        console.warn('Export paging safety stop triggered.')
+        keepGoing = false
+      }
+    }
+
+    return allItems
+  }
+
+  const handleDownload = async () => {
+    let exportItems = items
+    try {
+      exportItems = await fetchAllForExport()
+    } catch (error) {
+      console.error('Error fetching export items:', error)
+      alert('Kon de volledige lijst niet laden voor export. Probeer opnieuw.')
+      return
+    }
+
+    if (exportItems.length === 0) {
+      alert('Geen items gevonden voor export in de geselecteerde periode.')
+      return
+    }
+
     const worksheet = XLSX.utils.json_to_sheet(
-      items.map(item => ({
+      exportItems.map(item => ({
         'ID': item.id,
         'Description': item.beschrijving || '',
         'Item Number': item.item_number || '',
@@ -118,7 +174,9 @@ export default function PackedItemsAirtecPage() {
     const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
     const link = document.createElement('a')
     link.href = URL.createObjectURL(blob)
-    link.download = `packed_items_airtec_${new Date().toISOString().split('T')[0]}.xlsx`
+    const fromPart = dateFrom ? dateFrom : 'all'
+    const toPart = dateTo ? dateTo : 'all'
+    link.download = `packed_items_airtec_${fromPart}_to_${toPart}.xlsx`
     link.click()
   }
 

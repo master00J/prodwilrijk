@@ -626,6 +626,17 @@ export default function Navbar() {
                       Employees
                     </Link>
                     <Link
+                      href="/admin/production-order-kpi"
+                      onClick={() => setIsAdminOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/admin/production-order-kpi')
+                          ? 'bg-purple-50 text-purple-600 font-medium border-l-4 border-purple-500'
+                          : 'text-gray-700'
+                      }`}
+                    >
+                      Productie KPI
+                    </Link>
+                    <Link
                       href="/admin/users"
                       onClick={() => setIsAdminOpen(false)}
                       className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
