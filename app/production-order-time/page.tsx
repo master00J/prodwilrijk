@@ -37,12 +37,20 @@ export default function ProductionOrderTimePage() {
   const [selectedOrder, setSelectedOrder] = useState('')
   const [orderLines, setOrderLines] = useState<OrderLine[]>([])
   const [selectedItem, setSelectedItem] = useState('')
-  const [selectedQuantity, setSelectedQuantity] = useState<number>(1)
   const [selectedStep, setSelectedStep] = useState(STEPS[0])
   const [customStep, setCustomStep] = useState('')
   const [activeLogs, setActiveLogs] = useState<ActiveLog[]>([])
   const [loading, setLoading] = useState(false)
   const [starting, setStarting] = useState(false)
+  const [stopModal, setStopModal] = useState<{
+    logId: number
+    employeeName?: string
+    orderNumber: string
+    itemNumber: string
+    lineQuantity: number
+  } | null>(null)
+  const [stopQuantity, setStopQuantity] = useState<number>(1)
+  const [stopping, setStopping] = useState(false)
 
   const fetchEmployees = useCallback(async () => {
     const response = await fetch('/api/employees')
@@ -111,8 +119,6 @@ export default function ProductionOrderTimePage() {
     setSelectedItem('')
   }, [selectedOrder, fetchOrderLines])
 
-  const selectedLine = orderLines.find((l) => (l.item_number || '') === selectedItem)
-
   const toggleEmployee = (id: number) => {
     setSelectedEmployeeIds((prev) =>
       prev.includes(id) ? prev.filter((eid) => eid !== id) : [...prev, id]
@@ -136,7 +142,6 @@ export default function ProductionOrderTimePage() {
 
     setStarting(true)
     try {
-      const qty = selectedLine && selectedLine.quantity > 1 ? selectedQuantity : null
       const response = await fetch('/api/production-order-time/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -145,7 +150,6 @@ export default function ProductionOrderTimePage() {
           orderNumber: selectedOrder,
           itemNumber: selectedItem,
           step,
-          quantity: qty,
         }),
       })
       if (!response.ok) {
@@ -272,18 +276,14 @@ export default function ProductionOrderTimePage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Item</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Lijn</label>
               <select
                 value={selectedItem}
-                onChange={(e) => {
-                  setSelectedItem(e.target.value)
-                  const line = orderLines.find((l) => (l.item_number || '') === e.target.value)
-                  setSelectedQuantity(line && line.quantity > 1 ? 1 : 1)
-                }}
+                onChange={(e) => setSelectedItem(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 disabled={!selectedOrder}
               >
-                <option value="">Selecteer item</option>
+                <option value="">Selecteer lijn</option>
                 {orderLines.map((line) => (
                   <option key={line.id} value={line.item_number || ''}>
                     {line.item_number || 'Onbekend'} ({line.quantity} st)
@@ -292,31 +292,6 @@ export default function ProductionOrderTimePage() {
                 ))}
               </select>
             </div>
-
-            {selectedLine && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Aantal stuks klaar
-                  {selectedLine.quantity > 1 && (
-                    <span className="ml-1 text-gray-500 font-normal">(max. {selectedLine.quantity})</span>
-                  )}
-                </label>
-                <select
-                  value={selectedQuantity}
-                  onChange={(e) => setSelectedQuantity(Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                >
-                  {Array.from({ length: Math.max(1, selectedLine.quantity) }, (_, i) => i + 1).map((n) => (
-                    <option key={n} value={n}>
-                      {n} {n === 1 ? 'stuk' : 'stuks'}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-1 text-xs text-gray-500">
-                  Geef aan hoeveel stuks je gaat maken of klaar hebt voor deze registratie.
-                </p>
-              </div>
-            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Stap</label>
