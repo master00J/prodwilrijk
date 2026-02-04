@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import * as XLSX from 'xlsx'
 import AdminGuard from '@/components/AdminGuard'
+import { parseProductionOrderXml } from '@/lib/production-order/parse-xml'
 
 export default function SalesOrdersUploadPage() {
   const [uploading, setUploading] = useState(false)
@@ -11,6 +12,9 @@ export default function SalesOrdersUploadPage() {
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dropZoneRef = useRef<HTMLDivElement>(null)
+  const [xmlFile, setXmlFile] = useState<File | null>(null)
+  const [xmlUploading, setXmlUploading] = useState(false)
+  const [xmlMessage, setXmlMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [latestProductionOrder, setLatestProductionOrder] = useState<any>(null)
   const [materialEdits, setMaterialEdits] = useState<Record<string, string>>({})
   const [materialUnitEdits, setMaterialUnitEdits] = useState<Record<string, string>>({})
@@ -275,6 +279,46 @@ export default function SalesOrdersUploadPage() {
     }
   }, [])
 
+  const handleXmlUpload = async () => {
+    if (!xmlFile) {
+      setXmlMessage({ type: 'error', text: 'Selecteer een XML bestand' })
+      return
+    }
+
+    setXmlUploading(true)
+    setXmlMessage(null)
+
+    try {
+      const parsed = await parseProductionOrderXml(xmlFile)
+      if (!parsed.lines || parsed.lines.length === 0) {
+        throw new Error('Geen productieorder lijnen gevonden in XML.')
+      }
+
+      const response = await fetch('/api/production-orders/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(parsed),
+      })
+
+      const result = await response.json()
+      if (!response.ok) {
+        throw new Error(result.error || 'Fout bij uploaden productieorder')
+      }
+
+      setXmlMessage({
+        type: 'success',
+        text: `Productieorder ${result.order_number} geüpload met ${result.line_count} lijnen.`,
+      })
+      setXmlFile(null)
+      fetchLatestProductionOrder()
+    } catch (error: any) {
+      console.error('Error uploading XML:', error)
+      setXmlMessage({ type: 'error', text: error.message || 'Fout bij uploaden XML' })
+    } finally {
+      setXmlUploading(false)
+    }
+  }
+
   const handleSaveMaterialPrices = async () => {
     if (!latestProductionOrder?.materials?.length) return
     const items = latestProductionOrder.materials
@@ -441,10 +485,47 @@ export default function SalesOrdersUploadPage() {
         </div>
 
         <div className="bg-white rounded-lg shadow p-6 mt-8">
+          <h2 className="text-2xl font-semibold mb-4">Productieorder XML upload</h2>
+
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6 text-sm text-purple-700">
+            Upload een productieorder XML voor prepack/materiaalkost. Itemnummers worden uit de beschrijving gehaald (tussen haakjes).
+          </div>
+
+          {xmlMessage && (
+            <div
+              className={`mb-4 p-4 rounded-lg ${
+                xmlMessage.type === 'success'
+                  ? 'bg-green-100 text-green-800'
+                  : 'bg-red-100 text-red-800'
+              }`}
+            >
+              {xmlMessage.text}
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+            <input
+              type="file"
+              accept=".xml"
+              onChange={(e) => {
+                setXmlFile(e.target.files?.[0] || null)
+                setXmlMessage(null)
+              }}
+              className="block w-full text-sm text-gray-700"
+            />
+            <button
+              type="button"
+              onClick={handleXmlUpload}
+              disabled={xmlUploading}
+              className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-60"
+            >
+              {xmlUploading ? 'Uploaden...' : 'Upload XML'}
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6 mt-8">
           <h2 className="text-2xl font-semibold mb-4">Laatste productieorder (materiaalprijzen)</h2>
-          <p className="text-sm text-gray-500 mb-4">
-            Productieorders voor prepack/materiaalkost worden via Admin → Productieorder upload geüpload.
-          </p>
 
           {latestProductionOrder?.order && (
             <div className="mt-8 space-y-6">
