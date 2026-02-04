@@ -276,8 +276,8 @@ export default function StorageRentalsPage() {
     const customerItems = items.filter(
       (item) => item.customer_id !== null && item.customer_id !== undefined && selectedIds.includes(item.customer_id)
     )
-    const rows = customerItems
-      .map((item) => {
+    const rows: ReportRow[] = customerItems
+      .map((item): ReportRow | null => {
         const itemStart = item.start_date ? toUtcDate(item.start_date) : null
         const itemEnd = item.end_date ? toUtcDate(item.end_date) : null
         const overlapDays = getOverlapDays(itemStart, itemEnd, rangeStart, rangeEnd)
