@@ -4,6 +4,16 @@ import { calculateWorkedSeconds } from '@/lib/utils/time'
 
 export const dynamic = 'force-dynamic'
 
+type ItemRun = {
+  item_number: string
+  order_number: string
+  date: string
+  totalHours: number
+  quantity: number
+  hoursPerPiece: number
+  steps: { step: string; hours: number }[]
+}
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
@@ -12,7 +22,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabaseAdmin
       .from('time_logs')
-      .select('id, employee_id, start_time, end_time, production_order_number, production_item_number, production_step')
+      .select('id, employee_id, start_time, end_time, production_order_number, production_item_number, production_step, production_quantity')
       .eq('type', 'production_order')
 
     if (dateFrom) {
@@ -47,11 +57,15 @@ export async function GET(request: NextRequest) {
     const employeeTotals = new Map<string, number>()
     const itemTotals = new Map<string, number>()
 
+    // Per (order_number, item_number) : { hours, quantity, steps, minDate }
+    const runMap = new Map<string, { hours: number; quantity: number; steps: Map<string, number>; minDate: string }>()
+
     ;(logs || []).forEach((log: any) => {
       if (!log.start_time) return
       const end = log.end_time ? new Date(log.end_time) : new Date()
       const seconds = calculateWorkedSeconds(new Date(log.start_time), end)
       const hours = seconds / 3600
+      const qty = log.production_quantity != null ? Math.max(0, Number(log.production_quantity)) : 1
 
       const orderKey = String(log.production_order_number || 'Onbekend').trim()
       const stepKey = String(log.production_step || 'Onbekend').trim()
@@ -62,6 +76,41 @@ export async function GET(request: NextRequest) {
       stepTotals.set(stepKey, (stepTotals.get(stepKey) || 0) + hours)
       itemTotals.set(itemKey, (itemTotals.get(itemKey) || 0) + hours)
       employeeTotals.set(employeeName, (employeeTotals.get(employeeName) || 0) + hours)
+
+      const runKey = `${orderKey}::${itemKey}`
+      const existing = runMap.get(runKey)
+      const startDate = log.start_time.slice(0, 10)
+      if (!existing) {
+        const stepsMap = new Map<string, number>()
+        stepsMap.set(stepKey, hours)
+        runMap.set(runKey, { hours, quantity: qty, steps: stepsMap, minDate: startDate })
+      } else {
+        existing.hours += hours
+        existing.quantity += qty
+        existing.steps.set(stepKey, (existing.steps.get(stepKey) || 0) + hours)
+        if (startDate < existing.minDate) existing.minDate = startDate
+      }
+    })
+
+    const itemRuns: ItemRun[] = Array.from(runMap.entries()).map(([key, val]) => {
+      const [order_number, item_number] = key.split('::')
+      const hoursPerPiece = val.quantity > 0 ? val.hours / val.quantity : val.hours
+      const steps = Array.from(val.steps.entries()).map(([step, hours]) => ({ step, hours })).sort((a, b) => b.hours - a.hours)
+      return {
+        item_number,
+        order_number,
+        date: val.minDate,
+        totalHours: Number(val.hours.toFixed(4)),
+        quantity: val.quantity,
+        hoursPerPiece: Number(hoursPerPiece.toFixed(4)),
+        steps,
+      }
+    })
+
+    itemRuns.sort((a, b) => {
+      const itemCmp = a.item_number.localeCompare(b.item_number)
+      if (itemCmp !== 0) return itemCmp
+      return a.date.localeCompare(b.date)
     })
 
     const toArray = (map: Map<string, number>) =>
@@ -74,6 +123,7 @@ export async function GET(request: NextRequest) {
       steps: toArray(stepTotals),
       employees: toArray(employeeTotals),
       items: toArray(itemTotals),
+      itemRuns,
     })
   } catch (error) {
     console.error('Unexpected error:', error)
