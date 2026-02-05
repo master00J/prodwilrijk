@@ -15,7 +15,7 @@ import {
   Search,
   Users,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import type { StorageRentalCustomer, StorageRentalItem, StorageRentalLocation } from '@/types/database'
 
@@ -86,6 +86,9 @@ export default function StorageRentalsPage() {
 
   const [photoPanelItemId, setPhotoPanelItemId] = useState<number | null>(null)
   const [photoUploading, setPhotoUploading] = useState(false)
+  const [photoDragOver, setPhotoDragOver] = useState<'bare' | 'verpakt' | null>(null)
+  const bareInputRef = useRef<HTMLInputElement>(null)
+  const verpaktInputRef = useRef<HTMLInputElement>(null)
   const [toasts, setToasts] = useState<Toast[]>([])
   const [confirmModal, setConfirmModal] = useState<ConfirmModal | null>(null)
   const [mainTab, setMainTab] = useState<'overzicht' | 'klanten' | 'locaties' | 'opslagen' | 'rapport'>('overzicht')
@@ -1632,7 +1635,7 @@ export default function StorageRentalsPage() {
           {photoPanelItemId != null && (
             <div
               className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
-              onClick={() => setPhotoPanelItemId(null)}
+              onClick={() => { setPhotoPanelItemId(null); setPhotoDragOver(null) }}
             >
               <div
                 className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6"
@@ -1642,7 +1645,7 @@ export default function StorageRentalsPage() {
                   <h3 className="font-semibold text-purple-800 text-lg">Foto&apos;s – item #{photoPanelItemId}</h3>
                   <button
                     type="button"
-                    onClick={() => setPhotoPanelItemId(null)}
+                    onClick={() => { setPhotoPanelItemId(null); setPhotoDragOver(null) }}
                     className="text-gray-500 hover:text-gray-700 p-1"
                     aria-label="Sluiten"
                   >
@@ -1665,17 +1668,49 @@ export default function StorageRentalsPage() {
                             </a>
                           ))}
                         </div>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          onChange={(e) => {
-                            handlePhotoUpload(item.id, 'bare', e.target.files)
-                            e.target.value = ''
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onDragOver={(e) => { e.preventDefault(); setPhotoDragOver('bare') }}
+                          onDragLeave={() => setPhotoDragOver(null)}
+                          onDrop={(e) => {
+                            e.preventDefault()
+                            setPhotoDragOver(null)
+                            const files = e.dataTransfer.files
+                            if (files?.length) {
+                              const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'))
+                              if (imageFiles.length) {
+                                const dt = new DataTransfer()
+                                imageFiles.forEach((f) => dt.items.add(f))
+                                handlePhotoUpload(item.id, 'bare', dt.files)
+                              }
+                            }
                           }}
-                          disabled={photoUploading}
-                          className="text-sm"
-                        />
+                          onClick={() => bareInputRef.current?.click()}
+                          onKeyDown={(e) => e.key === 'Enter' && bareInputRef.current?.click()}
+                          className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
+                            photoDragOver === 'bare'
+                              ? 'border-amber-500 bg-amber-50'
+                              : 'border-gray-300 hover:border-amber-400 hover:bg-amber-50/50'
+                          } ${photoUploading ? 'opacity-60 pointer-events-none' : ''}`}
+                          aria-label="Upload bare foto's - sleep bestanden hierheen of klik"
+                        >
+                          <input
+                            ref={bareInputRef}
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            onChange={(e) => {
+                              handlePhotoUpload(item.id, 'bare', e.target.files)
+                              e.target.value = ''
+                            }}
+                            disabled={photoUploading}
+                            className="hidden"
+                          />
+                          <span className="text-sm text-gray-600">
+                            {photoDragOver === 'bare' ? 'Laat los om te uploaden' : 'Sleep foto\'s hierheen of klik om te selecteren'}
+                          </span>
+                        </div>
                       </div>
                       <div>
                         <h4 className="text-sm font-medium text-green-800 mb-2">Verpakt (na verpakken)</h4>
@@ -1686,24 +1721,56 @@ export default function StorageRentalsPage() {
                             </a>
                           ))}
                         </div>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          onChange={(e) => {
-                            handlePhotoUpload(item.id, 'verpakt', e.target.files)
-                            e.target.value = ''
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onDragOver={(e) => { e.preventDefault(); setPhotoDragOver('verpakt') }}
+                          onDragLeave={() => setPhotoDragOver(null)}
+                          onDrop={(e) => {
+                            e.preventDefault()
+                            setPhotoDragOver(null)
+                            const files = e.dataTransfer.files
+                            if (files?.length) {
+                              const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'))
+                              if (imageFiles.length) {
+                                const dt = new DataTransfer()
+                                imageFiles.forEach((f) => dt.items.add(f))
+                                handlePhotoUpload(item.id, 'verpakt', dt.files)
+                              }
+                            }
                           }}
-                          disabled={photoUploading}
-                          className="text-sm"
-                        />
+                          onClick={() => verpaktInputRef.current?.click()}
+                          onKeyDown={(e) => e.key === 'Enter' && verpaktInputRef.current?.click()}
+                          className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
+                            photoDragOver === 'verpakt'
+                              ? 'border-green-500 bg-green-50'
+                              : 'border-gray-300 hover:border-green-400 hover:bg-green-50/50'
+                          } ${photoUploading ? 'opacity-60 pointer-events-none' : ''}`}
+                          aria-label="Upload verpakt foto's - sleep bestanden hierheen of klik"
+                        >
+                          <input
+                            ref={verpaktInputRef}
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            onChange={(e) => {
+                              handlePhotoUpload(item.id, 'verpakt', e.target.files)
+                              e.target.value = ''
+                            }}
+                            disabled={photoUploading}
+                            className="hidden"
+                          />
+                          <span className="text-sm text-gray-600">
+                            {photoDragOver === 'verpakt' ? 'Laat los om te uploaden' : 'Sleep foto\'s hierheen of klik om te selecteren'}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   )
                 })()}
                 <button
                   type="button"
-                  onClick={() => setPhotoPanelItemId(null)}
+                  onClick={() => { setPhotoPanelItemId(null); setPhotoDragOver(null) }}
                   className="mt-4 px-4 py-2 bg-gray-200 rounded-lg text-sm hover:bg-gray-300"
                 >
                   Sluiten
