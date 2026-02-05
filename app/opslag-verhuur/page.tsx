@@ -3,9 +3,24 @@
 export const dynamic = 'force-dynamic'
 
 import AdminGuard from '@/components/AdminGuard'
+import Pagination from '@/components/common/Pagination'
+import {
+  BarChart3,
+  Building2,
+  DollarSign,
+  Download,
+  MapPin,
+  Package,
+  RefreshCw,
+  Search,
+  Users,
+} from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
 import type { StorageRentalCustomer, StorageRentalItem, StorageRentalLocation } from '@/types/database'
+
+type Toast = { id: number; message: string; type: 'success' | 'error' }
+type ConfirmModal = { title: string; message: string; onConfirm: () => void | Promise<void> }
 
 const parseNumber = (value: string) => {
   const normalized = value.replace(',', '.').trim()
@@ -71,6 +86,20 @@ export default function StorageRentalsPage() {
 
   const [photoPanelItemId, setPhotoPanelItemId] = useState<number | null>(null)
   const [photoUploading, setPhotoUploading] = useState(false)
+  const [toasts, setToasts] = useState<Toast[]>([])
+  const [confirmModal, setConfirmModal] = useState<ConfirmModal | null>(null)
+  const [mainTab, setMainTab] = useState<'overzicht' | 'klanten' | 'locaties' | 'opslagen' | 'rapport'>('overzicht')
+  const [itemsSearch, setItemsSearch] = useState('')
+  const [itemsSortCol, setItemsSortCol] = useState<string>('start_date')
+  const [itemsSortDir, setItemsSortDir] = useState<'asc' | 'desc'>('desc')
+  const [itemsPage, setItemsPage] = useState(1)
+  const ITEMS_PER_PAGE = 25
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    const id = Date.now()
+    setToasts((prev) => [...prev, { id, message, type }])
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000)
+  }
 
   const fetchAll = async () => {
     setLoading(true)
@@ -96,7 +125,7 @@ export default function StorageRentalsPage() {
       }
     } catch (error) {
       console.error('Load error:', error)
-      alert('Ophalen mislukt')
+      showToast('Ophalen mislukt', 'error')
     } finally {
       setLoading(false)
     }
@@ -119,6 +148,42 @@ export default function StorageRentalsPage() {
 
   const activeItems = useMemo(() => items.filter((item) => item.active !== false), [items])
   const stoppedItems = useMemo(() => items.filter((item) => item.active === false), [items])
+
+  const displayedItems = useMemo(() => {
+    const list = itemsTab === 'actief' ? activeItems : stoppedItems
+    const q = itemsSearch.trim().toLowerCase()
+    let filtered = q
+      ? list.filter(
+          (item) =>
+            (item.or_number || '').toLowerCase().includes(q) ||
+            (item.customer_description || '').toLowerCase().includes(q) ||
+            (item.foresco_id || '').toLowerCase().includes(q) ||
+            (item.description || '').toLowerCase().includes(q) ||
+            (item.customer?.name || '').toLowerCase().includes(q) ||
+            (item.location?.name || '').toLowerCase().includes(q)
+        )
+      : list
+    const sorted = [...filtered].sort((a, b) => {
+      const aVal = itemsSortCol === 'customer' ? (a.customer?.name || '') : itemsSortCol === 'start_date' ? (a.start_date || '') : itemsSortCol === 'm2' ? getEffectiveM2(a) : 0
+      const bVal = itemsSortCol === 'customer' ? (b.customer?.name || '') : itemsSortCol === 'start_date' ? (b.start_date || '') : itemsSortCol === 'm2' ? getEffectiveM2(b) : 0
+      if (typeof aVal === 'string' && typeof bVal === 'string') return itemsSortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
+      return itemsSortDir === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number)
+    })
+    return sorted
+  }, [itemsTab, activeItems, stoppedItems, itemsSearch, itemsSortCol, itemsSortDir])
+
+  const paginatedItems = useMemo(() => {
+    const start = (itemsPage - 1) * ITEMS_PER_PAGE
+    return displayedItems.slice(start, start + ITEMS_PER_PAGE)
+  }, [displayedItems, itemsPage])
+
+  const totalItemsPages = Math.max(1, Math.ceil(displayedItems.length / ITEMS_PER_PAGE))
+
+  const toggleSort = (col: string) => {
+    setItemsSortDir(itemsSortCol === col ? (itemsSortDir === 'asc' ? 'desc' : 'asc') : 'desc')
+    setItemsSortCol(col)
+    setItemsPage(1)
+  }
 
   const getItemRevenue = (item: StorageRentalItem): number => {
     const start = item.start_date ? toUtcDate(item.start_date) : null
@@ -387,7 +452,7 @@ export default function StorageRentalsPage() {
 
   const handleExportReportExcel = () => {
     if (!reportSummary || reportSummary.error || !reportSummary.rows) {
-      alert('Selecteer eerst een geldige periode.')
+      showToast('Selecteer eerst een geldige periode.', 'error')
       return
     }
 
@@ -427,12 +492,59 @@ export default function StorageRentalsPage() {
     a.download = `opslag-rapport_${reportStartDate}_tot_${reportEndDate}.xlsx`
     a.click()
     URL.revokeObjectURL(url)
+    showToast('Rapport geëxporteerd')
+  }
+
+  const handleExportItemsExcel = () => {
+    const list = itemsTab === 'actief' ? activeItems : stoppedItems
+    const headers = [
+      'OR',
+      'Klant',
+      'Omschr. klant',
+      'Foresco ID',
+      'Status',
+      'Locatie',
+      'Omschrijving',
+      'm²',
+      'Prijs/m²',
+      'Rendement',
+      'Start',
+      'Einde',
+    ]
+    const rows = list.map((item) => [
+      item.or_number || '-',
+      item.customer?.name || '-',
+      item.customer_description || '-',
+      item.foresco_id || '-',
+      item.packing_status || 'bare',
+      item.location?.name || '-',
+      item.description || '-',
+      getEffectiveM2(item).toFixed(2),
+      item.price_per_m2 ? Number(item.price_per_m2).toFixed(2) : '-',
+      itemsTab === 'gestopt' ? getItemRevenue(item).toFixed(2) : (getEffectiveM2(item) * Number(item.price_per_m2 || 0)).toFixed(2),
+      item.start_date || '-',
+      item.end_date || '-',
+    ])
+    const sheet = XLSX.utils.aoa_to_sheet([headers, ...rows])
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, sheet, itemsTab === 'actief' ? 'Actief' : 'Gestopt')
+    const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `opslag-${itemsTab}_${new Date().toISOString().slice(0, 10)}.xlsx`
+    a.click()
+    URL.revokeObjectURL(url)
+    showToast('Items geëxporteerd')
   }
 
   const handleCustomerSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!customerName.trim()) {
-      alert('Naam is verplicht')
+      showToast('Naam is verplicht', 'error')
       return
     }
 
@@ -449,18 +561,19 @@ export default function StorageRentalsPage() {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
-      alert(error.error || 'Klant opslaan mislukt')
+      showToast(error.error || 'Klant opslaan mislukt', 'error')
       return
     }
 
     await fetchAll()
     resetCustomerForm()
+    showToast('Klant opgeslagen')
   }
 
   const handleLocationSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!locationName.trim()) {
-      alert('Naam is verplicht')
+      showToast('Naam is verplicht', 'error')
       return
     }
 
@@ -479,25 +592,26 @@ export default function StorageRentalsPage() {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
-      alert(error.error || 'Locatie opslaan mislukt')
+      showToast(error.error || 'Locatie opslaan mislukt', 'error')
       return
     }
 
     await fetchAll()
     resetLocationForm()
+    showToast('Locatie opgeslagen')
   }
 
   const handleItemSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!itemCustomerId) {
-      alert('Klant is verplicht')
+      showToast('Klant is verplicht', 'error')
       return
     }
     const m2BareVal = parseNumber(itemM2Bare || itemM2)
     const m2VerpaktVal = parseNumber(itemM2Verpakt || itemM2)
     const m2Val = itemPackingStatus === 'verpakt' ? (m2VerpaktVal ?? m2BareVal) : (m2BareVal ?? m2VerpaktVal)
     if (!m2Val || m2Val <= 0) {
-      alert('Geef een geldig m² in (bare of verpakt)')
+      showToast('Geef een geldig m² in (bare of verpakt)', 'error')
       return
     }
     const priceValue = parseNumber(itemPricePerM2)
@@ -530,12 +644,13 @@ export default function StorageRentalsPage() {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
-      alert(error.error || 'Opslag opslaan mislukt')
+      showToast(error.error || 'Opslag opslaan mislukt', 'error')
       return
     }
 
     await fetchAll()
     resetItemForm()
+    showToast('Opslag opgeslagen')
   }
 
   const handleStopItem = async (item: StorageRentalItem) => {
@@ -547,10 +662,11 @@ export default function StorageRentalsPage() {
     })
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
-      alert(error.error || 'Opslag stoppen mislukt')
+      showToast(error.error || 'Opslag stoppen mislukt', 'error')
       return
     }
     await fetchAll()
+    showToast('Opslag gestopt')
   }
 
   const handlePhotoUpload = async (itemId: number, category: 'bare' | 'verpakt', files: FileList | null) => {
@@ -567,73 +683,155 @@ export default function StorageRentalsPage() {
       })
       if (!res.ok) throw new Error('Upload mislukt')
       await fetchAll()
+      showToast('Foto\'s geüpload')
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Upload mislukt')
+      showToast(e instanceof Error ? e.message : 'Upload mislukt', 'error')
     } finally {
       setPhotoUploading(false)
     }
   }
 
-  const handleDelete = async (type: 'customer' | 'location' | 'item', id: number) => {
-    if (!confirm('Ben je zeker dat je dit wil verwijderen?')) return
-    const response = await fetch(`/api/storage-rentals/${type}s`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
+  const handleDelete = (type: 'customer' | 'location' | 'item', id: number) => {
+    setConfirmModal({
+      title: 'Verwijderen bevestigen',
+      message: 'Ben je zeker dat je dit wil verwijderen? Deze actie kan niet ongedaan gemaakt worden.',
+      onConfirm: async () => {
+        const response = await fetch(`/api/storage-rentals/${type}s`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id }),
+        })
+        setConfirmModal(null)
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}))
+          showToast(error.error || 'Verwijderen mislukt', 'error')
+          return
+        }
+        await fetchAll()
+        showToast('Verwijderd')
+      },
     })
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
-      alert(error.error || 'Verwijderen mislukt')
-      return
-    }
-    await fetchAll()
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-xl">Laden...</div>
-      </div>
-    )
   }
 
   return (
     <AdminGuard>
       <div className="container mx-auto px-4 py-6 max-w-7xl space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Opslagverhuur</h1>
-          <p className="text-sm text-gray-600">Beheer klanten en opslagruimte los van WMS-projecten.</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Opslagverhuur</h1>
+            <p className="text-sm text-gray-600 mt-0.5">Beheer klanten en opslagruimte los van WMS-projecten.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => fetchAll()}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-60 transition-colors"
+            aria-label="Ververs gegevens"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            Ververs
+          </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="text-sm text-gray-500">Actieve klanten</div>
-            <div className="text-2xl font-semibold">{activeCustomersCount}</div>
+        {loading ? (
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="bg-white rounded-lg shadow p-4 border border-gray-100 animate-pulse">
+                <div className="h-4 bg-gray-200 rounded w-24 mb-3" />
+                <div className="h-8 bg-gray-200 rounded w-16" />
+              </div>
+            ))}
           </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="text-sm text-gray-500">Bezet m²</div>
-            <div className="text-2xl font-semibold">{totalUsedM2.toFixed(2)}</div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="text-sm text-gray-500">Rendement</div>
-            <div className="text-2xl font-semibold">
-              {totalRevenue.toLocaleString('nl-BE', { style: 'currency', currency: 'EUR' })}
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <Users className="w-4 h-4 text-blue-500" />
+                Actieve klanten
+              </div>
+              <div className="text-2xl font-semibold text-gray-900 mt-1">{activeCustomersCount}</div>
             </div>
-            <div className="text-xs text-gray-400 mt-0.5">Tot vandaag (geprorrateerd)</div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="text-sm text-gray-500">Capaciteit m²</div>
-            <div className="text-2xl font-semibold">{totalCapacityM2.toFixed(2)}</div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="text-sm text-gray-500">Bezettingsgraad</div>
-            <div className="text-2xl font-semibold">
-              {occupancy === null ? '-' : `${occupancy.toFixed(1)}%`}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <MapPin className="w-4 h-4 text-amber-500" />
+                Bezet m²
+              </div>
+              <div className="text-2xl font-semibold text-gray-900 mt-1">{totalUsedM2.toFixed(2)}</div>
+            </div>
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <DollarSign className="w-4 h-4 text-green-600" />
+                Rendement
+              </div>
+              <div className="text-2xl font-semibold text-green-700 mt-1">
+                {totalRevenue.toLocaleString('nl-BE', { style: 'currency', currency: 'EUR' })}
+              </div>
+              <div className="text-xs text-gray-400 mt-0.5">Tot vandaag (geprorrateerd)</div>
+            </div>
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <Package className="w-4 h-4 text-indigo-500" />
+                Capaciteit m²
+              </div>
+              <div className="text-2xl font-semibold text-gray-900 mt-1">{totalCapacityM2.toFixed(2)}</div>
+            </div>
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <BarChart3 className="w-4 h-4 text-purple-500" />
+                Bezettingsgraad
+              </div>
+              <div className="text-2xl font-semibold text-gray-900 mt-1">
+                {occupancy === null ? '-' : `${occupancy.toFixed(1)}%`}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <nav className="flex rounded-lg border border-gray-200 bg-gray-50 p-1" role="tablist" aria-label="Hoofdsecties">
+          {(['overzicht', 'klanten', 'locaties', 'opslagen', 'rapport'] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              role="tab"
+              aria-selected={mainTab === tab}
+              onClick={() => setMainTab(tab)}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                mainTab === tab ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </button>
+          ))}
+        </nav>
+
+        {mainTab === 'overzicht' && !loading && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Overzicht</h2>
+            <p className="text-gray-600 mb-4">
+              Gebruik de tabbladen hierboven om klanten, locaties en opslagen te beheren. Het rapport laat je opbrengsten
+              per periode exporteren.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <strong className="text-gray-900">Klanten:</strong> {customers.length} totaal ({activeCustomersCount}{' '}
+                actief)
+              </div>
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <strong className="text-gray-900">Locaties:</strong> {locations.length} totaal (
+                {locations.filter((l) => l.active !== false).length} actief)
+              </div>
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <strong className="text-gray-900">Actieve opslagen:</strong> {activeItems.length}
+              </div>
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <strong className="text-gray-900">Gestopte opslagen:</strong> {stoppedItems.length}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {mainTab === 'rapport' && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
           <h2 className="text-xl font-semibold mb-4">Klant rapport</h2>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
             <div>
@@ -748,8 +946,9 @@ export default function StorageRentalsPage() {
                   <button
                     type="button"
                     onClick={handleExportReportExcel}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                   >
+                    <Download className="w-4 h-4" />
                     Exporteer Excel
                   </button>
                 </div>
@@ -812,11 +1011,12 @@ export default function StorageRentalsPage() {
             </div>
           )}
         </div>
+        )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-semibold">Klanten</h2>
+        {mainTab === 'klanten' && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">Klanten</h2>
               <span className="text-xs text-gray-500">{customers.length} totaal</span>
             </div>
             <details className="mb-4">
@@ -885,16 +1085,22 @@ export default function StorageRentalsPage() {
                               Bewerken
                             </button>
                             <button
-                              onClick={() =>
-                                fetch('/api/storage-rentals/customers', {
+                              onClick={async () => {
+                                const res = await fetch('/api/storage-rentals/customers', {
                                   method: 'PUT',
                                   headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({
                                     id: customer.id,
                                     active: customer.active === false,
                                   }),
-                                }).then(fetchAll)
-                              }
+                                })
+                                if (res.ok) {
+                                  await fetchAll()
+                                  showToast(customer.active === false ? 'Klant geactiveerd' : 'Klant gedeactiveerd')
+                                } else {
+                                  showToast('Actie mislukt', 'error')
+                                }
+                              }}
                               className="px-2 py-1 bg-yellow-500 text-white rounded text-xs"
                             >
                               {customer.active === false ? 'Activeer' : 'Deactiveer'}
@@ -914,10 +1120,12 @@ export default function StorageRentalsPage() {
               </table>
             </div>
           </div>
+        )}
 
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-semibold">Locaties</h2>
+        {mainTab === 'locaties' && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">Locaties</h2>
               <span className="text-xs text-gray-500">{locations.length} totaal</span>
             </div>
             <details className="mb-4">
@@ -999,16 +1207,22 @@ export default function StorageRentalsPage() {
                               Bewerken
                             </button>
                             <button
-                              onClick={() =>
-                                fetch('/api/storage-rentals/locations', {
+                              onClick={async () => {
+                                const res = await fetch('/api/storage-rentals/locations', {
                                   method: 'PUT',
                                   headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({
                                     id: location.id,
                                     active: location.active === false,
                                   }),
-                                }).then(fetchAll)
-                              }
+                                })
+                                if (res.ok) {
+                                  await fetchAll()
+                                  showToast(location.active === false ? 'Locatie geactiveerd' : 'Locatie gedeactiveerd')
+                                } else {
+                                  showToast('Actie mislukt', 'error')
+                                }
+                              }}
                               className="px-2 py-1 bg-yellow-500 text-white rounded text-xs"
                             >
                               {location.active === false ? 'Activeer' : 'Deactiveer'}
@@ -1028,25 +1242,47 @@ export default function StorageRentalsPage() {
               </table>
             </div>
           </div>
-        </div>
+        )}
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Opslagen</h2>
-            <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+        {mainTab === 'opslagen' && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">Opslagen</h2>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={itemsSearch}
+                  onChange={(e) => { setItemsSearch(e.target.value); setItemsPage(1) }}
+                  placeholder="Zoek OR, klant, locatie..."
+                  className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm w-48 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  aria-label="Zoek items"
+                />
+              </div>
+              <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => { setItemsTab('actief'); setItemsPage(1) }}
+                  className={`px-4 py-2 text-sm font-medium ${itemsTab === 'actief' ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                >
+                  Actief ({activeItems.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setItemsTab('gestopt'); setItemsPage(1) }}
+                  className={`px-4 py-2 text-sm font-medium ${itemsTab === 'gestopt' ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                >
+                  Gestopt ({stoppedItems.length})
+                </button>
+              </div>
               <button
                 type="button"
-                onClick={() => setItemsTab('actief')}
-                className={`px-4 py-2 text-sm font-medium ${itemsTab === 'actief' ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                onClick={handleExportItemsExcel}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
               >
-                Actief ({activeItems.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setItemsTab('gestopt')}
-                className={`px-4 py-2 text-sm font-medium ${itemsTab === 'gestopt' ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
-              >
-                Gestopt ({stoppedItems.length})
+                <Download className="w-4 h-4" />
+                Exporteer Excel
               </button>
             </div>
           </div>
@@ -1237,32 +1473,59 @@ export default function StorageRentalsPage() {
           )}
           <div className="mt-6 overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">OR</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Klant</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    <button type="button" onClick={() => toggleSort('customer')} className="hover:text-gray-700 flex items-center gap-1">
+                      Klant {itemsSortCol === 'customer' && (itemsSortDir === 'asc' ? '↑' : '↓')}
+                    </button>
+                  </th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Omschr. klant</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Foresco ID</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Locatie</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Omschrijving</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">m²</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    <button type="button" onClick={() => toggleSort('m2')} className="hover:text-gray-700 flex items-center gap-1">
+                      m² {itemsSortCol === 'm2' && (itemsSortDir === 'asc' ? '↑' : '↓')}
+                    </button>
+                  </th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Prijs/m²</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Rendement</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Periode</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    <button type="button" onClick={() => toggleSort('start_date')} className="hover:text-gray-700 flex items-center gap-1">
+                      Periode {itemsSortCol === 'start_date' && (itemsSortDir === 'asc' ? '↑' : '↓')}
+                    </button>
+                  </th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Actief</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Acties</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
-                {(itemsTab === 'actief' ? activeItems : stoppedItems).length === 0 ? (
+                {displayedItems.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="px-3 py-4 text-sm text-gray-500 text-center">
-                      {itemsTab === 'actief' ? 'Geen actieve opslagrecords' : 'Geen gestopte opslagrecords'}
+                    <td colSpan={12} className="px-3 py-12 text-sm text-gray-500 text-center">
+                      <p className="font-medium">
+                        {itemsSearch
+                          ? 'Geen resultaten gevonden voor je zoekopdracht.'
+                          : itemsTab === 'actief'
+                            ? 'Nog geen actieve opslagrecords.'
+                            : 'Geen gestopte opslagrecords.'}
+                      </p>
+                      {itemsSearch && (
+                        <button
+                          type="button"
+                          onClick={() => { setItemsSearch(''); setItemsPage(1) }}
+                          className="mt-2 text-blue-600 hover:text-blue-700 text-sm"
+                        >
+                          Zoekfilter wissen
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ) : (
-                  (itemsTab === 'actief' ? activeItems : stoppedItems).map((item) => (
+                  paginatedItems.map((item) => (
                     <tr key={item.id} className={item.active === false ? 'bg-gray-50' : ''}>
                       <td className="px-3 py-2 text-sm font-medium">{item.or_number || '-'}</td>
                       <td className="px-3 py-2 text-sm">
@@ -1358,6 +1621,14 @@ export default function StorageRentalsPage() {
             </table>
           </div>
 
+          {displayedItems.length > ITEMS_PER_PAGE && (
+            <Pagination
+              currentPage={itemsPage}
+              totalPages={totalItemsPages}
+              onPageChange={setItemsPage}
+            />
+          )}
+
           {photoPanelItemId != null && (
             <div
               className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
@@ -1441,6 +1712,58 @@ export default function StorageRentalsPage() {
             </div>
           )}
         </div>
+        )}
+
+        {toasts.length > 0 && (
+          <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 max-w-sm" role="status" aria-live="polite">
+            {toasts.map((t) => (
+              <div
+                key={t.id}
+                className={`px-4 py-3 rounded-lg shadow-lg text-sm font-medium ${
+                  t.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+                }`}
+              >
+                {t.message}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {confirmModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirm-title"
+            onClick={() => setConfirmModal(null)}
+          >
+            <div
+              className="bg-white rounded-lg shadow-xl max-w-md w-full p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 id="confirm-title" className="text-lg font-semibold text-gray-900 mb-2">
+                {confirmModal.title}
+              </h3>
+              <p className="text-gray-600 mb-6">{confirmModal.message}</p>
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setConfirmModal(null)}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                >
+                  Annuleren
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void confirmModal.onConfirm()}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                >
+                  Verwijderen
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </AdminGuard>
   )
