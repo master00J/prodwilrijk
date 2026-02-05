@@ -351,12 +351,18 @@ export default function StorageRentalsPage() {
   }
 
   const reportSummary = useMemo<ReportSummary | null>(() => {
-    if (!reportStartDate || !reportEndDate) {
+    const hasCustomerSelection = reportCustomerIds.length > 0
+    if (!hasCustomerSelection && (!reportStartDate || !reportEndDate)) {
       return null
     }
 
-    const rangeStart = toUtcDate(reportStartDate)
-    const rangeEnd = toUtcDate(reportEndDate)
+    const today = new Date().toISOString().slice(0, 10)
+    const oneYearAgo = new Date()
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
+    const defaultStart = oneYearAgo.toISOString().slice(0, 10)
+
+    const rangeStart = toUtcDate(reportStartDate || defaultStart)
+    const rangeEnd = toUtcDate(reportEndDate || today)
     if (rangeEnd.getTime() < rangeStart.getTime()) {
       return {
         error: 'Einddatum moet na startdatum liggen.',
@@ -909,7 +915,7 @@ export default function StorageRentalsPage() {
           </div>
 
           {!reportSummary ? (
-            <p className="text-sm text-gray-500">Selecteer een klant en periode om het rapport te tonen.</p>
+            <p className="text-sm text-gray-500">Selecteer minstens één klant om een overzicht te zien. Vul optioneel een periode in om te filteren.</p>
           ) : reportSummary.error ? (
             <p className="text-sm text-red-600">{reportSummary.error}</p>
           ) : reportSummary.totalDays === undefined ||
