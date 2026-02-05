@@ -60,6 +60,9 @@ export async function GET(request: NextRequest) {
     // Per (order_number, item_number) : { hours, quantity, steps, minDate }
     const runMap = new Map<string, { hours: number; quantity: number; steps: Map<string, number>; minDate: string }>()
 
+    // Per (date, step) voor Zaag-dashboard en Analytics
+    const dailyStepHours = new Map<string, number>()
+
     ;(logs || []).forEach((log: any) => {
       if (!log.start_time) return
       const end = log.end_time ? new Date(log.end_time) : new Date()
@@ -71,15 +74,18 @@ export async function GET(request: NextRequest) {
       const stepKey = String(log.production_step || 'Onbekend').trim()
       const itemKey = String(log.production_item_number || 'Onbekend').trim()
       const employeeName = employeeMap.get(log.employee_id) || `Employee ${log.employee_id}`
+      const startDate = log.start_time.slice(0, 10)
 
       orderTotals.set(orderKey, (orderTotals.get(orderKey) || 0) + hours)
       stepTotals.set(stepKey, (stepTotals.get(stepKey) || 0) + hours)
       itemTotals.set(itemKey, (itemTotals.get(itemKey) || 0) + hours)
       employeeTotals.set(employeeName, (employeeTotals.get(employeeName) || 0) + hours)
 
+      const dailyStepKey = `${startDate}::${stepKey}`
+      dailyStepHours.set(dailyStepKey, (dailyStepHours.get(dailyStepKey) || 0) + hours)
+
       const runKey = `${orderKey}::${itemKey}`
       const existing = runMap.get(runKey)
-      const startDate = log.start_time.slice(0, 10)
       if (!existing) {
         const stepsMap = new Map<string, number>()
         stepsMap.set(stepKey, hours)
@@ -118,12 +124,34 @@ export async function GET(request: NextRequest) {
         .map(([key, value]) => ({ key, hours: Number(value.toFixed(2)) }))
         .sort((a, b) => b.hours - a.hours)
 
+    // Zaag-uren per dag (stappen die "zaag" of "zagen" bevatten)
+    const zaagByDate = new Map<string, number>()
+    dailyStepHours.forEach((hours, key) => {
+      const [, step] = key.split('::')
+      const stepLower = (step || '').toLowerCase()
+      if (stepLower.includes('zaag') || stepLower.includes('zagen')) {
+        const date = key.split('::')[0]
+        zaagByDate.set(date, (zaagByDate.get(date) || 0) + hours)
+      }
+    })
+    const zaagByDateArray = Array.from(zaagByDate.entries())
+      .map(([date, hours]) => ({ date, hours: Number(hours.toFixed(4)) }))
+      .sort((a, b) => a.date.localeCompare(b.date))
+
+    // Daily step hours voor Analytics (alle stappen, per datum)
+    const dailyStepHoursArray = Array.from(dailyStepHours.entries()).map(([key, hours]) => {
+      const [date, step] = key.split('::')
+      return { date, step, hours: Number(hours.toFixed(4)) }
+    })
+
     return NextResponse.json({
       orders: toArray(orderTotals),
       steps: toArray(stepTotals),
       employees: toArray(employeeTotals),
       items: toArray(itemTotals),
       itemRuns,
+      zaagByDate: zaagByDateArray,
+      dailyStepHours: dailyStepHoursArray,
     })
   } catch (error) {
     console.error('Unexpected error:', error)
