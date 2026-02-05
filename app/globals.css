@@ -96,11 +96,11 @@ body {
 @media (max-width: 640px) {
   /* Smaller text on mobile */
   h1 {
-    font-size: 1.875rem;
+    font-size: 1.5rem;
   }
   
   h2 {
-    font-size: 1.5rem;
+    font-size: 1.25rem;
   }
   
   /* Better button sizing */
@@ -109,9 +109,28 @@ body {
     padding: 0.5rem 1rem;
   }
   
-  /* Better input sizing */
+  /* Better input sizing - 16px prevents zoom on iOS */
   input, select, textarea {
-    font-size: 16px; /* Prevents zoom on iOS */
+    font-size: 16px;
+  }
+  
+  /* Horizontal scroll for tables on mobile */
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Container padding on mobile */
+  .container {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+}
+
+/* Safe area for notched devices */
+@supports (padding: max(0px)) {
+  body {
+    padding-left: env(safe-area-inset-left, 0);
+    padding-right: env(safe-area-inset-right, 0);
   }
 }
 

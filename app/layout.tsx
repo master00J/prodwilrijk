@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import Navbar from '@/components/Navbar'
 import AuthProvider from '@/components/AuthProvider'
@@ -8,14 +8,20 @@ export const metadata: Metadata = {
   description: 'Modern warehouse management system',
 }
 
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+}
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body>
+    <html lang="nl">
+      <body className="min-h-screen overflow-x-hidden">
         <AuthProvider>
           <Navbar />
           {children}

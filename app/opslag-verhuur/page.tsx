@@ -718,10 +718,10 @@ export default function StorageRentalsPage() {
 
   return (
     <AdminGuard>
-      <div className="container mx-auto px-4 py-6 max-w-7xl space-y-6">
-        <div className="flex items-start justify-between gap-4">
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-7xl space-y-4 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Opslagverhuur</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Opslagverhuur</h1>
             <p className="text-sm text-gray-600 mt-0.5">Beheer klanten en opslagruimte los van WMS-projecten.</p>
           </div>
           <button
@@ -790,7 +790,7 @@ export default function StorageRentalsPage() {
           </div>
         )}
 
-        <nav className="flex rounded-lg border border-gray-200 bg-gray-50 p-1" role="tablist" aria-label="Hoofdsecties">
+        <nav className="flex overflow-x-auto rounded-lg border border-gray-200 bg-gray-50 p-1 -mx-1 sm:mx-0" role="tablist" aria-label="Hoofdsecties">
           {(['overzicht', 'klanten', 'locaties', 'opslagen', 'rapport'] as const).map((tab) => (
             <button
               key={tab}
@@ -798,7 +798,7 @@ export default function StorageRentalsPage() {
               role="tab"
               aria-selected={mainTab === tab}
               onClick={() => setMainTab(tab)}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+              className={`flex-shrink-0 px-3 sm:px-4 py-2 text-sm font-medium rounded-md transition-colors ${
                 mainTab === tab ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -1249,9 +1249,9 @@ export default function StorageRentalsPage() {
 
         {mainTab === 'opslagen' && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-          <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">Opslagen</h2>
-            <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-4 mb-4">
+            <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Opslagen</h2>
+            <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input

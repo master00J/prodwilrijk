@@ -1,12 +1,13 @@
 'use client'
 
+import { Menu, X } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from './AuthProvider'
 import type { User } from '@supabase/supabase-js'
 
-function UserInfo({ user, signOut }: { user: User; signOut: () => Promise<void> }) {
+function UserInfo({ user, signOut, mobile }: { user: User; signOut: () => Promise<void>; mobile?: boolean }) {
   const [username, setUsername] = useState<string>('Loading...')
 
   useEffect(() => {
@@ -26,7 +27,7 @@ function UserInfo({ user, signOut }: { user: User; signOut: () => Promise<void> 
   }, [user.id])
 
   return (
-    <div className="flex items-center gap-4">
+    <div className={`flex gap-4 ${mobile ? 'flex-col items-stretch' : 'items-center'}`}>
       <span className="text-sm text-gray-600">{username}</span>
       <Link
         href="/account"
@@ -47,6 +48,7 @@ function UserInfo({ user, signOut }: { user: User; signOut: () => Promise<void> 
 export default function Navbar() {
   const pathname = usePathname()
   const { user, signOut, isAdmin } = useAuth()
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isPrepackOpen, setIsPrepackOpen] = useState(false)
   const [isAirtecOpen, setIsAirtecOpen] = useState(false)
   const [isWoodOpen, setIsWoodOpen] = useState(false)
@@ -138,17 +140,30 @@ export default function Navbar() {
     }
   }, [isPrepackOpen, isAirtecOpen, isWoodOpen, isVariaOpen, isAdminOpen, isCNHOpen])
 
+  const closeMobileMenu = () => setIsMobileMenuOpen(false)
+
   return (
     <nav className="bg-white shadow-lg border-b border-gray-200 sticky top-0 z-50">
       <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex items-center justify-between h-14 md:h-16 min-h-[56px]">
           {/* Logo/Home */}
-          <Link href="/" className="text-2xl font-bold text-gray-800 hover:text-gray-600 transition-colors">
+          <Link href="/" className="text-lg md:text-2xl font-bold text-gray-800 hover:text-gray-600 transition-colors shrink-0">
             Prodwilrijk V2
           </Link>
 
-          {/* Navigation Links */}
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Hamburger - Mobile only */}
+          <button
+            type="button"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="md:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100 -mr-2"
+            aria-label={isMobileMenuOpen ? 'Menu sluiten' : 'Menu openen'}
+            aria-expanded={isMobileMenuOpen}
+          >
+            {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+
+          {/* Desktop Navigation Links - hidden on mobile */}
+          <div className="hidden md:flex flex-wrap items-center gap-2">
             {user && (
               <>
                 <Link
@@ -725,11 +740,173 @@ export default function Navbar() {
               </>
             )}
 
-            {/* User Info and Logout */}
+            {/* User Info and Logout - Desktop */}
             {user && <UserInfo user={user} signOut={signOut} />}
           </div>
         </div>
       </div>
+
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 md:hidden top-14"
+          onClick={closeMobileMenu}
+          aria-hidden="true"
+        />
+      )}
+      {isMobileMenuOpen && (
+      <div
+        className="fixed top-14 left-0 right-0 bottom-0 z-50 bg-white overflow-y-auto md:hidden"
+        aria-hidden={!isMobileMenuOpen}
+      >
+          <div className="p-4 pb-8 space-y-1">
+            {user && (
+              <>
+                <Link
+                  href="/bestellingen-algemeen"
+                  onClick={closeMobileMenu}
+                  className={`block px-4 py-3 rounded-lg font-medium ${
+                    isActive('/bestellingen-algemeen') ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  Bestellingen Algemeen
+                </Link>
+                <details className="group">
+                  <summary className="list-none cursor-pointer">
+                    <span className={`flex items-center justify-between px-4 py-3 rounded-lg font-medium ${
+                      isPrepackPage ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-100'
+                    }`}>
+                      Prepack
+                      <svg className="w-4 h-4 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </span>
+                  </summary>
+                  <div className="pl-4 mt-1 space-y-1 border-l-2 border-gray-200 ml-4">
+                    <Link href="/prepack" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Prepack - Excel Upload</Link>
+                    <Link href="/view-prepack" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">View Prepack</Link>
+                    <Link href="/prepack-lading" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Prepack Lading</Link>
+                    <Link href="/prepack-compare" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Prepack Vergelijking</Link>
+                    <Link href="/confirmed-items" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Confirmed Items</Link>
+                    <Link href="/wms-import" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">WMS Import</Link>
+                    <Link href="/wms-projecten" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">WMS Projecten</Link>
+                    <Link href="/items-to-pack" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Items to Pack</Link>
+                    <Link href="/packed-items" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Packed Items</Link>
+                    <Link href="/returned-items" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Returned Items</Link>
+                  </div>
+                </details>
+                <details className="group">
+                  <summary className="list-none cursor-pointer">
+                    <span className={`flex items-center justify-between px-4 py-3 rounded-lg font-medium ${
+                      isAirtecPage ? 'bg-orange-500 text-white' : 'text-gray-700 hover:bg-gray-100'
+                    }`}>
+                      Airtec
+                      <svg className="w-4 h-4 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </span>
+                  </summary>
+                  <div className="pl-4 mt-1 space-y-1 border-l-2 border-gray-200 ml-4">
+                    <Link href="/airtec" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Airtec - Excel Upload</Link>
+                    <Link href="/view-airtec" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">View Airtec</Link>
+                    <Link href="/items-to-pack-airtec" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Items to Pack Airtec</Link>
+                    <Link href="/packed-items-airtec" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Packed Items Airtec</Link>
+                  </div>
+                </details>
+                <details className="group">
+                  <summary className="list-none cursor-pointer">
+                    <span className={`flex items-center justify-between px-4 py-3 rounded-lg font-medium ${
+                      isWoodPage ? 'bg-amber-500 text-white' : 'text-gray-700 hover:bg-gray-100'
+                    }`}>
+                      Wood Inventory
+                      <svg className="w-4 h-4 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </span>
+                  </summary>
+                  <div className="pl-4 mt-1 space-y-1 border-l-2 border-gray-200 ml-4">
+                    <Link href="/wood/order" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Order Wood</Link>
+                    <Link href="/wood/open-orders" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Open Orders</Link>
+                    <Link href="/openstaande-bestellingen" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Openstaande Bestellingen</Link>
+                    <Link href="/wood/receive" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Receive Wood</Link>
+                    <Link href="/wood/picking" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Wood Picking</Link>
+                    <Link href="/wood/consumption" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Wood Consumption</Link>
+                  </div>
+                </details>
+                <details className="group">
+                  <summary className="list-none cursor-pointer">
+                    <span className={`flex items-center justify-between px-4 py-3 rounded-lg font-medium ${
+                      isVariaPage ? 'bg-slate-500 text-white' : 'text-gray-700 hover:bg-gray-100'
+                    }`}>
+                      Varia
+                      <svg className="w-4 h-4 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </span>
+                  </summary>
+                  <div className="pl-4 mt-1 space-y-1 border-l-2 border-gray-200 ml-4">
+                    <Link href="/uitvoeren-controle" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Uitvoeren controles</Link>
+                    <Link href="/materiaal/heftruck-water" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Heftruck water</Link>
+                    <Link href="/production-order-time" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Productie order tijd</Link>
+                  </div>
+                </details>
+                <Link href="/grote-inpak" onClick={closeMobileMenu} className={`block px-4 py-3 rounded-lg font-medium ${
+                  isGroteInpakPage ? 'bg-teal-500 text-white' : 'text-gray-700 hover:bg-gray-100'
+                }`}>Grote Inpak</Link>
+                <details className="group">
+                  <summary className="list-none cursor-pointer">
+                    <span className={`flex items-center justify-between px-4 py-3 rounded-lg font-medium ${
+                      isCNHPage ? 'bg-green-500 text-white' : 'text-gray-700 hover:bg-gray-100'
+                    }`}>
+                      CNH
+                      <svg className="w-4 h-4 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </span>
+                  </summary>
+                  <div className="pl-4 mt-1 space-y-1 border-l-2 border-gray-200 ml-4">
+                    <Link href="/cnh/workflow" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">CNH Workflow</Link>
+                    <Link href="/cnh/dashboard" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">CNH Dashboard</Link>
+                    <Link href="/cnh/verify" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">CNH Verificatie</Link>
+                    {isAdmin && <Link href="/cnh/admin" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">CNH Admin</Link>}
+                  </div>
+                </details>
+                {isAdmin && (
+                  <details className="group">
+                    <summary className="list-none cursor-pointer">
+                      <span className={`flex items-center justify-between px-4 py-3 rounded-lg font-medium ${
+                        isAdminPage ? 'bg-purple-500 text-white' : 'text-gray-700 hover:bg-gray-100'
+                      }`}>
+                        Admin
+                        <svg className="w-4 h-4 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </span>
+                    </summary>
+                    <div className="pl-4 mt-1 space-y-1 border-l-2 border-gray-200 ml-4">
+                      <Link href="/admin" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Admin Dashboard</Link>
+                      <Link href="/employees" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Employees</Link>
+                      <Link href="/admin/production-order-kpi" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Productie KPI</Link>
+                      <Link href="/admin/users" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">User Management</Link>
+                      <Link href="/admin/airtec-prices" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Airtec Prices</Link>
+                      <Link href="/admin/prepack-airtec" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Prepack + Airtec</Link>
+                      <Link href="/opslag-verhuur" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Opslagverhuur</Link>
+                      <Link href="/admin/bc-codes" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">BC Codes</Link>
+                      <Link href="/admin/target-stock" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Target Stock</Link>
+                      <Link href="/admin/monitor-controles" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Monitor controles</Link>
+                      <Link href="/admin/wms-projecten-import" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">WMS Project import</Link>
+                      <Link href="/admin/production-order-upload" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Productieorder upload</Link>
+                    </div>
+                  </details>
+                )}
+                <div className="pt-4 mt-4 border-t border-gray-200">
+                  <UserInfo user={user} signOut={signOut} mobile />
+                </div>
+              </>
+            )}
+          </div>
+      </div>
+      )}
     </nav>
   )
 }
