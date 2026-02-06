@@ -123,6 +123,27 @@ const fetchAllRows = async <T,>(
   return allRows
 }
 
+/**
+ * Batches a large array into chunks and runs fetchAllRows for each chunk to avoid
+ * Supabase/PostgREST URL length limits on .in() filters (max ~8KB URL).
+ */
+const IN_BATCH_SIZE = 200
+const fetchAllWithBatchedIn = async <T,>(
+  items: string[],
+  buildQuery: (batch: string[], from: number, to: number) => Promise<{ data: T[] | null; error: any }>
+): Promise<T[]> => {
+  if (items.length === 0) return []
+  const allResults: T[] = []
+  for (let i = 0; i < items.length; i += IN_BATCH_SIZE) {
+    const batch = items.slice(i, i + IN_BATCH_SIZE)
+    const rows = await fetchAllRows<T>(async (from, to) => {
+      return await buildQuery(batch, from, to)
+    })
+    allResults.push(...rows)
+  }
+  return allResults
+}
+
 const getMaterialCostForComponent = (component: any, price: number, unitOfMeasure: string) => {
   const unitCount = Number(component.component_unit) || 0
   if (unitOfMeasure === 'm3') {
@@ -238,17 +259,19 @@ export async function fetchPrepackStats({
 
   let pricesMap: Record<string, number> = {}
   if (uniqueItemNumbers.length > 0) {
-    const salesOrders = await fetchAllRows<any>(async (from, to) => {
-      let query = supabaseAdmin
-        .from('sales_orders')
-        .select('item_number, price, uploaded_at')
-        .in('item_number', uniqueItemNumbers)
-        .order('uploaded_at', { ascending: false })
-        .range(from, to)
-      return await query
-    })
+    const salesOrders = await fetchAllWithBatchedIn<any>(
+      uniqueItemNumbers,
+      async (batch, from, to) => {
+        return await supabaseAdmin
+          .from('sales_orders')
+          .select('item_number, price, uploaded_at')
+          .in('item_number', batch)
+          .order('uploaded_at', { ascending: false })
+          .range(from, to)
+      }
+    )
 
-    if (salesOrders && salesOrders.length > 0) {
+    if (salesOrders.length > 0) {
       salesOrders.forEach((order: any) => {
         const key = normalizeItemNumber(order.item_number)
         if (!key) return
@@ -261,28 +284,30 @@ export async function fetchPrepackStats({
 
   let materialCostMap: Record<string, number> = {}
   if (uniqueItemNumbers.length > 0) {
-    const lines = await fetchAllRows<any>(async (from, to) => {
-      let query = supabaseAdmin
-        .from('production_order_lines')
-        .select(
-          `
-            id,
-            item_number,
-            production_order_id,
-            production_orders (uploaded_at),
-            production_order_components (
-              component_item_no,
-              component_unit,
-              component_length,
-              component_width,
-              component_thickness
-            )
-          `
-        )
-        .in('item_number', uniqueItemNumbers)
-        .range(from, to)
-      return await query
-    })
+    const lines = await fetchAllWithBatchedIn<any>(
+      uniqueItemNumbers,
+      async (batch, from, to) => {
+        return await supabaseAdmin
+          .from('production_order_lines')
+          .select(
+            `
+              id,
+              item_number,
+              production_order_id,
+              production_orders (uploaded_at),
+              production_order_components (
+                component_item_no,
+                component_unit,
+                component_length,
+                component_width,
+                component_thickness
+              )
+            `
+          )
+          .in('item_number', batch)
+          .range(from, to)
+      }
+    )
 
     if (lines && lines.length > 0) {
       const orderIds = Array.from(
@@ -290,17 +315,22 @@ export async function fetchPrepackStats({
       )
       const orderUploadMap = new Map<number, string>()
       if (orderIds.length > 0) {
-        const { data: orders, error: ordersError } = await supabaseAdmin
-          .from('production_orders')
-          .select('id, uploaded_at')
-          .in('id', orderIds)
-        if (!ordersError && orders) {
-          orders.forEach((order: any) => {
-            if (order?.id) {
-              orderUploadMap.set(Number(order.id), String(order.uploaded_at || ''))
-            }
-          })
-        }
+        const orderIdStrings = orderIds.map(String)
+        const allOrders = await fetchAllWithBatchedIn<any>(
+          orderIdStrings,
+          async (batch, from, to) => {
+            return await supabaseAdmin
+              .from('production_orders')
+              .select('id, uploaded_at')
+              .in('id', batch.map(Number))
+              .range(from, to)
+          }
+        )
+        allOrders.forEach((order: any) => {
+          if (order?.id) {
+            orderUploadMap.set(Number(order.id), String(order.uploaded_at || ''))
+          }
+        })
       }
 
         const componentItemNumbers = new Set<string>()
@@ -321,16 +351,18 @@ export async function fetchPrepackStats({
       let materialUnitMap: Record<string, string> = {}
       if (componentItemNumbers.size > 0) {
         const componentItemsArr = Array.from(componentItemNumbers)
-        const materialPrices = await fetchAllRows<any>(async (from, to) => {
-          let query = supabaseAdmin
-            .from('material_prices')
-            .select('item_number, price, unit_of_measure')
-            .in('item_number', componentItemsArr)
-            .range(from, to)
-          return await query
-        })
+        const materialPrices = await fetchAllWithBatchedIn<any>(
+          componentItemsArr,
+          async (batch, from, to) => {
+            return await supabaseAdmin
+              .from('material_prices')
+              .select('item_number, price, unit_of_measure')
+              .in('item_number', batch)
+              .range(from, to)
+          }
+        )
 
-        if (materialPrices && materialPrices.length > 0) {
+        if (materialPrices.length > 0) {
           materialPrices.forEach((item: any) => {
             const key = normalizeItemNumber(item.item_number)
             if (!key) return
