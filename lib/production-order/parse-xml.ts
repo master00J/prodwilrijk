@@ -86,10 +86,9 @@ export async function parseProductionOrderXml(file: File): Promise<ParsedProduct
   const lines = Array.from(xmlDoc.querySelectorAll('DataItem[name="ProdOrderLine"]')).map((lineItem, index) => {
     const lineColumns = parseColumns(lineItem)
     const lineDescription = lineColumns['Line_Description']?.trim() || ''
-    const lineItemNo = lineColumns['Line_Item_No_']?.trim() || null
     const extractedFromDescription = extractItemNumber(lineDescription)
-    // Altijd nummer tussen haakjes gebruiken; anders Line_Item_No_
-    const item_number = extractedFromDescription || lineItemNo
+    // Enkel nummer tussen haakjes gebruiken voor deze flow
+    const item_number = extractedFromDescription
 
     const components = Array.from(lineItem.querySelectorAll(':scope > DataItems > DataItem[name="Component"]')).map(
       (componentItem) => {

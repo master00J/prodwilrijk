@@ -97,6 +97,13 @@ const toDateKey = (value: unknown) => {
   return date.toISOString().split('T')[0]
 }
 
+/** Extraheert itemnummer tussen haakjes aan het einde van de beschrijving (bv. "KIST ... (8092373403)") */
+const extractItemNumberFromDescription = (description: string | null | undefined): string | null => {
+  if (!description) return null
+  const match = String(description).match(/\(([^)]+)\)\s*$/)
+  return match?.[1]?.trim() ?? null
+}
+
 const normalizeItemNumber = (value: unknown) => {
   if (value === null || value === undefined) return ''
   return String(value).trim().toUpperCase()
@@ -293,6 +300,7 @@ export async function fetchPrepackStats({
             `
               id,
               item_number,
+              description,
               production_order_id,
               production_orders (uploaded_at),
               production_order_components (
@@ -309,9 +317,52 @@ export async function fetchPrepackStats({
       }
     )
 
-    if (lines && lines.length > 0) {
+    // Fallback: zoek lijnen waar description (nummer tussen haakjes) overeenkomt met packed items
+    // (voor productieorders die vóór de parse-fix zijn geüpload met Line_Item_No_ i.p.v. nummer tussen haakjes)
+    const matchedByItemNumber = new Set(
+      (lines || []).flatMap((l: any) => {
+        const keys: string[] = []
+        const norm = normalizeItemNumber(l.item_number)
+        if (norm) keys.push(norm)
+        const ext = extractItemNumberFromDescription(l.description)
+        if (ext) keys.push(normalizeItemNumber(ext) || ext)
+        return keys
+      })
+    )
+    const unmatchedItemNumbers = uniqueItemNumbers.filter(
+      (u) => !matchedByItemNumber.has(normalizeItemNumber(u) || String(u))
+    )
+    let fallbackLines: any[] = []
+    if (unmatchedItemNumbers.length > 0) {
+      const orConditions = unmatchedItemNumbers
+        .map((item) => `description.ilike.%(${item})%`)
+        .join(',')
+      const { data } = await supabaseAdmin
+        .from('production_order_lines')
+        .select(
+          `
+            id,
+            item_number,
+            description,
+            production_order_id,
+            production_orders (uploaded_at),
+            production_order_components (
+              component_item_no,
+              component_unit,
+              component_length,
+              component_width,
+              component_thickness
+            )
+          `
+        )
+        .or(orConditions)
+      fallbackLines = data || []
+    }
+    const allLines = [...(lines || []), ...fallbackLines]
+
+    if (allLines && allLines.length > 0) {
       const orderIds = Array.from(
-        new Set(lines.map((line: any) => line.production_order_id).filter(Boolean))
+        new Set(allLines.map((line: any) => line.production_order_id).filter(Boolean))
       )
       const orderUploadMap = new Map<number, string>()
       if (orderIds.length > 0) {
@@ -334,7 +385,7 @@ export async function fetchPrepackStats({
       }
 
         const componentItemNumbers = new Set<string>()
-      lines.forEach((line: any) => {
+      allLines.forEach((line: any) => {
         const components = line.production_order_components || []
         components.forEach((component: any) => {
           if (component.component_item_no) {
@@ -375,10 +426,12 @@ export async function fetchPrepackStats({
       }
 
       const latestCosts: Record<string, { cost: number; uploadedAt: string }> = {}
-      lines.forEach((line: any) => {
-        if (!line.item_number) return
+      allLines.forEach((line: any) => {
         const normalizedLineNumber = normalizeItemNumber(line.item_number)
-        if (!normalizedLineNumber) return
+        const extractedKey = extractItemNumberFromDescription(line.description)
+        const normalizedExtracted = extractedKey ? normalizeItemNumber(extractedKey) : null
+        const keysToUpdate = [normalizedLineNumber, normalizedExtracted].filter(Boolean)
+        if (keysToUpdate.length === 0) return
         const uploadedAt =
           orderUploadMap.get(Number(line.production_order_id)) ||
           line.production_orders?.uploaded_at ||
@@ -402,10 +455,12 @@ export async function fetchPrepackStats({
 
         if (!hasAnyCost) return
 
-        const existing = latestCosts[normalizedLineNumber]
-        if (!existing || new Date(uploadedAt) > new Date(existing.uploadedAt)) {
-          latestCosts[normalizedLineNumber] = { cost: costPerItem, uploadedAt }
-        }
+        keysToUpdate.forEach((key) => {
+          const existing = latestCosts[key]
+          if (!existing || new Date(uploadedAt) > new Date(existing.uploadedAt)) {
+            latestCosts[key] = { cost: costPerItem, uploadedAt }
+          }
+        })
       })
 
       materialCostMap = Object.keys(latestCosts).reduce((acc: Record<string, number>, key) => {
