@@ -238,13 +238,17 @@ export async function fetchPrepackStats({
 
   let pricesMap: Record<string, number> = {}
   if (uniqueItemNumbers.length > 0) {
-    const { data: salesOrders } = await supabaseAdmin
-      .from('sales_orders')
-      .select('item_number, price, uploaded_at')
-      .in('item_number', uniqueItemNumbers)
-      .order('uploaded_at', { ascending: false })
+    const salesOrders = await fetchAllRows<any>(async (from, to) => {
+      let query = supabaseAdmin
+        .from('sales_orders')
+        .select('item_number, price, uploaded_at')
+        .in('item_number', uniqueItemNumbers)
+        .order('uploaded_at', { ascending: false })
+        .range(from, to)
+      return await query
+    })
 
-    if (salesOrders) {
+    if (salesOrders && salesOrders.length > 0) {
       salesOrders.forEach((order: any) => {
         const key = normalizeItemNumber(order.item_number)
         if (!key) return
@@ -316,12 +320,17 @@ export async function fetchPrepackStats({
       let materialPriceMap: Record<string, number> = {}
       let materialUnitMap: Record<string, string> = {}
       if (componentItemNumbers.size > 0) {
-        const { data: materialPrices } = await supabaseAdmin
-          .from('material_prices')
-          .select('item_number, price, unit_of_measure')
-          .in('item_number', Array.from(componentItemNumbers))
+        const componentItemsArr = Array.from(componentItemNumbers)
+        const materialPrices = await fetchAllRows<any>(async (from, to) => {
+          let query = supabaseAdmin
+            .from('material_prices')
+            .select('item_number, price, unit_of_measure')
+            .in('item_number', componentItemsArr)
+            .range(from, to)
+          return await query
+        })
 
-        if (materialPrices) {
+        if (materialPrices && materialPrices.length > 0) {
           materialPrices.forEach((item: any) => {
             const key = normalizeItemNumber(item.item_number)
             if (!key) return
