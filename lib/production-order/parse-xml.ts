@@ -88,8 +88,8 @@ export async function parseProductionOrderXml(file: File): Promise<ParsedProduct
     const lineDescription = lineColumns['Line_Description']?.trim() || ''
     const lineItemNo = lineColumns['Line_Item_No_']?.trim() || null
     const extractedFromDescription = extractItemNumber(lineDescription)
-    // Prefer Line_Item_No_ (GP008153, GP006296) - that's the correct itemnummer; fallback to (xxx) in description
-    const item_number = lineItemNo || extractedFromDescription
+    // Altijd nummer tussen haakjes gebruiken; anders Line_Item_No_
+    const item_number = extractedFromDescription || lineItemNo
 
     const components = Array.from(lineItem.querySelectorAll(':scope > DataItems > DataItem[name="Component"]')).map(
       (componentItem) => {
