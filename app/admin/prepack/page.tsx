@@ -110,8 +110,8 @@ export default function PrepackMonitorPage() {
         </div>
       </div>
 
-      {/* Date Filters - sticky on scroll */}
-      <div className="mb-6 sticky top-0 z-10 bg-white/95 backdrop-blur py-2 -mx-4 px-4 border-b border-gray-100">
+      {/* Date Filters & KPI's */}
+      <div className="mb-6">
         <CollapsibleCard
           id="filters"
           title="Filters & KPI's"
