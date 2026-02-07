@@ -456,6 +456,7 @@ export async function fetchPrepackStats({
         if (!hasAnyCost) return
 
         keysToUpdate.forEach((key) => {
+          if (key == null) return
           const existing = latestCosts[key]
           if (!existing || new Date(uploadedAt) > new Date(existing.uploadedAt)) {
             latestCosts[key] = { cost: costPerItem, uploadedAt }
