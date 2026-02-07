@@ -172,14 +172,23 @@ export function usePrepackStats(
           const customFrom = compareFromInputRef.current?.value ?? compareFrom
           const customTo = compareToInputRef.current?.value ?? compareTo
           if (compareMode === 'selectedDays') {
-            const [day1Data, day2Data] = await Promise.all([
-              fetchStatsData({ from: fromValue, to: fromValue }),
-              fetchStatsData({ from: toValue, to: toValue }),
-            ])
-            setComparePrimaryTotals(day1Data.totals || null)
-            setCompareEffectiveFrom(fromValue)
-            setCompareEffectiveTo(toValue)
-            applyCompareStats(day2Data)
+            // Vergelijk de twee geselecteerde datums (Vergelijk vanaf = dag 1, Vergelijk tot = dag 2)
+            if (customFrom && customTo) {
+              const [day1Data, day2Data] = await Promise.all([
+                fetchStatsData({ from: customFrom, to: customFrom }),
+                fetchStatsData({ from: customTo, to: customTo }),
+              ])
+              setComparePrimaryTotals(day1Data.totals || null)
+              setCompareEffectiveFrom(customFrom)
+              setCompareEffectiveTo(customTo)
+              applyCompareStats(day2Data)
+            } else {
+              setComparePrimaryTotals(null)
+              setCompareTotals(null)
+              setCompareDailyStats([])
+              setCompareEffectiveFrom('')
+              setCompareEffectiveTo('')
+            }
           } else {
             const compareRange = getCompareRange(fromValue, toValue, compareMode, customFrom, customTo)
             if (compareRange) {

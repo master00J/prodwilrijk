@@ -222,7 +222,7 @@ export default function PrepackMonitorPage() {
                 className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
                 disabled={!compareEnabled}
               >
-                <option value="selectedDays">Twee dagen (van hoofdperiode)</option>
+                <option value="selectedDays">Twee dagen vergelijken</option>
                 <option value="previous">Vorige periode (zelfde lengte)</option>
                 <option value="lastYear">Zelfde periode vorig jaar</option>
                 <option value="custom">Aangepaste periode</option>
@@ -230,23 +230,21 @@ export default function PrepackMonitorPage() {
               {compareEnabled && (
                 <div className="flex flex-wrap gap-3 items-end">
                   <div>
-                    <label className="block text-sm text-gray-600">Vergelijk vanaf</label>
+                    <label className="block text-sm text-gray-600">Dag 1 (eerste datum)</label>
                     <input
                       type="date"
                       ref={compareFromInputRef}
                       className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
                       onChange={(e) => setCompareFrom(e.target.value)}
-                      disabled={compareMode === 'selectedDays'}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-600">Vergelijk tot</label>
+                    <label className="block text-sm text-gray-600">Dag 2 (tweede datum)</label>
                     <input
                       type="date"
                       ref={compareToInputRef}
                       className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
                       onChange={(e) => setCompareTo(e.target.value)}
-                      disabled={compareMode === 'selectedDays'}
                     />
                   </div>
                   <button
@@ -257,6 +255,11 @@ export default function PrepackMonitorPage() {
                     Vergelijk toepassen
                   </button>
                 </div>
+              )}
+              {compareEnabled && compareMode === 'selectedDays' && (
+                <p className="mt-2 text-xs text-gray-500">
+                  Vul beide datums in (dag 1 en dag 2) en klik op Vernieuwen of Vergelijk toepassen om het verschil te zien.
+                </p>
               )}
             </div>
 
