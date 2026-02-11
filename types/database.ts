@@ -344,6 +344,19 @@ export interface PackedItemAirtec {
   created_at?: string
 }
 
+export interface AirtecUnlistedItem {
+  id: number
+  beschrijving: string
+  item_number?: string | null
+  quantity: number
+  opmerking?: string | null
+  status: string
+  email_sent_at?: string | null
+  photo_urls: string[]
+  created_at?: string
+  updated_at?: string
+}
+
 export interface ReturnedItem {
   id: number
   item_number: string

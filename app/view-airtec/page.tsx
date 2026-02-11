@@ -5,6 +5,7 @@ import { IncomingGoodAirtec } from '@/types/database'
 import ViewAirtecTable from '@/components/view-airtec/ViewAirtecTable'
 import ViewAirtecFilters from '@/components/view-airtec/ViewAirtecFilters'
 import AddItemForm from '@/components/view-airtec/AddItemForm'
+import UnlistedItemsSection from '@/components/view-airtec/UnlistedItemsSection'
 
 interface IncomingGoodsAirtecResponse {
   items: IncomingGoodAirtec[]
@@ -219,6 +220,8 @@ export default function ViewAirtecPage() {
 
 
       <AddItemForm onItemAdded={fetchItems} />
+
+      <UnlistedItemsSection />
     </div>
   )
 }
