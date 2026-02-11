@@ -348,6 +348,10 @@ export interface AirtecUnlistedItem {
   id: number
   beschrijving: string
   item_number?: string | null
+  lot_number?: string | null
+  datum_opgestuurd?: string | null
+  kistnummer?: string | null
+  divisie?: string | null
   quantity: number
   opmerking?: string | null
   status: string

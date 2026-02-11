@@ -36,7 +36,16 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { beschrijving, item_number, quantity, opmerking } = body
+    const {
+      beschrijving,
+      item_number,
+      lot_number,
+      datum_opgestuurd,
+      kistnummer,
+      divisie,
+      quantity,
+      opmerking,
+    } = body
 
     if (!beschrijving || !String(beschrijving).trim()) {
       return NextResponse.json(
@@ -50,6 +59,10 @@ export async function POST(request: NextRequest) {
       .insert({
         beschrijving: String(beschrijving).trim(),
         item_number: item_number ? String(item_number).trim() : null,
+        lot_number: lot_number ? String(lot_number).trim() : null,
+        datum_opgestuurd: datum_opgestuurd || null,
+        kistnummer: kistnummer ? String(kistnummer).trim() : null,
+        divisie: divisie ? String(divisie).trim() : null,
         quantity: quantity != null ? Math.max(1, parseInt(String(quantity), 10) || 1) : 1,
         opmerking: opmerking ? String(opmerking).trim() : null,
         status: 'pending',

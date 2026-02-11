@@ -71,12 +71,19 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    const formatDate = (d: string | null) =>
+      d ? new Date(d).toLocaleDateString('nl-BE') : '-'
+
     const rows = items
       .map(
         (item) => `
         <tr>
           <td style="padding:8px;border:1px solid #ddd;">${escapeHtml(item.beschrijving || '')}</td>
           <td style="padding:8px;border:1px solid #ddd;">${escapeHtml(item.item_number || '-')}</td>
+          <td style="padding:8px;border:1px solid #ddd;">${escapeHtml(item.lot_number || '-')}</td>
+          <td style="padding:8px;border:1px solid #ddd;">${formatDate(item.datum_opgestuurd)}</td>
+          <td style="padding:8px;border:1px solid #ddd;">${escapeHtml(item.kistnummer || '-')}</td>
+          <td style="padding:8px;border:1px solid #ddd;">${escapeHtml(item.divisie || '-')}</td>
           <td style="padding:8px;border:1px solid #ddd;">${item.quantity}</td>
           <td style="padding:8px;border:1px solid #ddd;">${escapeHtml(item.opmerking || '-')}</td>
           <td style="padding:8px;border:1px solid #ddd;">
@@ -97,13 +104,17 @@ export async function POST(request: NextRequest) {
     const html = `
       <p>Beste,</p>
       <p>Wij hebben onderstaande items ontvangen die niet in onze standaardlijst staan. Kunnen jullie bevestigen of we deze mogen verpakken?</p>
-      <table style="border-collapse:collapse;width:100%;max-width:800px;">
+      <table style="border-collapse:collapse;width:100%;max-width:900px;">
         <thead>
           <tr style="background:#f5f5f5;">
             <th style="padding:8px;border:1px solid #ddd;text-align:left;">Beschrijving</th>
-            <th style="padding:8px;border:1px solid #ddd;text-align:left;">Itemnummer</th>
+            <th style="padding:8px;border:1px solid #ddd;text-align:left;">Itemnr</th>
+            <th style="padding:8px;border:1px solid #ddd;text-align:left;">Lot</th>
+            <th style="padding:8px;border:1px solid #ddd;">Datum opgestuurd</th>
+            <th style="padding:8px;border:1px solid #ddd;">Kistnr</th>
+            <th style="padding:8px;border:1px solid #ddd;">Divisie</th>
             <th style="padding:8px;border:1px solid #ddd;">Aantal</th>
-            <th style="padding:8px;border:1px solid #ddd;text-align:left;">Opmerking</th>
+            <th style="padding:8px;border:1px solid #ddd;">Opmerking</th>
             <th style="padding:8px;border:1px solid #ddd;">Foto's</th>
           </tr>
         </thead>

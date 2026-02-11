@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { AirtecUnlistedItem } from '@/types/database'
+import Link from 'next/link'
+
+const DEFAULT_EMAIL = 'prodwilrijk@foresco.eu'
 
 export default function UnlistedItemsSection() {
   const [items, setItems] = useState<AirtecUnlistedItem[]>([])
@@ -10,14 +13,46 @@ export default function UnlistedItemsSection() {
   const [form, setForm] = useState({
     beschrijving: '',
     item_number: '',
+    lot_number: '',
+    datum_opgestuurd: '',
+    kistnummer: '',
+    divisie: '',
     quantity: '1',
     opmerking: '',
   })
   const [addLoading, setAddLoading] = useState(false)
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(DEFAULT_EMAIL)
   const [sendLoading, setSendLoading] = useState(false)
+  const [moveLoading, setMoveLoading] = useState(false)
   const [uploadingId, setUploadingId] = useState<number | null>(null)
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({})
+
+  const isCoolerDescription = form.beschrijving.toLowerCase().includes('cooler')
+
+  useEffect(() => {
+    if (!isCoolerDescription) return
+    setForm((prev) => ({ ...prev, lot_number: '', divisie: '' }))
+  }, [isCoolerDescription])
+
+  useEffect(() => {
+    const itemNumber = form.item_number.trim()
+    if (!itemNumber || form.kistnummer) return
+    const t = window.setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/incoming-goods-airtec/lookup?item_number=${encodeURIComponent(itemNumber)}`
+        )
+        if (!res.ok) return
+        const data = await res.json()
+        if (data?.kistnummer) {
+          setForm((prev) => ({ ...prev, kistnummer: data.kistnummer }))
+        }
+      } catch {
+        // ignore
+      }
+    }, 300)
+    return () => window.clearTimeout(t)
+  }, [form.item_number, form.kistnummer])
 
   const fetchItems = async () => {
     try {
@@ -50,6 +85,10 @@ export default function UnlistedItemsSection() {
         body: JSON.stringify({
           beschrijving: form.beschrijving.trim(),
           item_number: form.item_number.trim() || null,
+          lot_number: form.lot_number.trim() || null,
+          datum_opgestuurd: form.datum_opgestuurd || null,
+          kistnummer: form.kistnummer.trim() || null,
+          divisie: form.divisie.trim() || null,
           quantity: parseInt(form.quantity, 10) || 1,
           opmerking: form.opmerking.trim() || null,
         }),
@@ -58,7 +97,16 @@ export default function UnlistedItemsSection() {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.error || 'Toevoegen mislukt')
       }
-      setForm({ beschrijving: '', item_number: '', quantity: '1', opmerking: '' })
+      setForm({
+        beschrijving: '',
+        item_number: '',
+        lot_number: '',
+        datum_opgestuurd: '',
+        kistnummer: '',
+        divisie: '',
+        quantity: '1',
+        opmerking: '',
+      })
       await fetchItems()
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Toevoegen mislukt')
@@ -131,8 +179,36 @@ export default function UnlistedItemsSection() {
     }
   }
 
+  const handleMoveToPack = async () => {
+    const toMove = items.filter((i) => i.status === 'email_sent')
+    if (toMove.length === 0) {
+      alert('Geen items met status "E-mail verzonden" om naar Items to Pack te verplaatsen.')
+      return
+    }
+    if (!confirm(`${toMove.length} item(s) naar Items to Pack Airtec verplaatsen? (klant heeft goedgekeurd)`)) return
+    setMoveLoading(true)
+    try {
+      const res = await fetch('/api/incoming-goods-airtec/unlisted/move-to-pack', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: toMove.map((i) => i.id) }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Verplaatsen mislukt')
+      alert(`${data.count ?? toMove.length} item(s) toegevoegd aan Items to Pack Airtec.`)
+      await fetchItems()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Verplaatsen mislukt')
+    } finally {
+      setMoveLoading(false)
+    }
+  }
+
   const pendingItems = items.filter((i) => i.status === 'pending')
-  const sentItems = items.filter((i) => i.status === 'email_sent')
+  const emailSentItems = items.filter((i) => i.status === 'email_sent')
+
+  const formatDate = (d: string | null | undefined) =>
+    d ? new Date(d).toLocaleDateString('nl-BE') : '–'
 
   return (
     <div className="bg-white rounded-lg shadow p-6 mt-6 border border-amber-200">
@@ -150,55 +226,94 @@ export default function UnlistedItemsSection() {
         <div className="mt-6 space-y-6">
           <p className="text-gray-600 text-sm">
             Voeg hier items toe die jullie hebben ontvangen maar die niet in de standaardlijst staan.
-            Voeg per item eventueel foto&apos;s toe en stuur daarna een overzicht per e-mail naar de klant
-            met de vraag of deze verpakt mogen worden.
+            Velden zijn gelijk aan &quot;Add New Incoming Good&quot;. Voeg per item eventueel foto&apos;s toe,
+            stuur een overzicht naar de klant en verplaats ze daarna naar Items to Pack zodra de klant
+            bevestigt dat ze verpakt mogen worden.
           </p>
 
-          <form onSubmit={handleAddItem} className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <form onSubmit={handleAddItem} className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <label className="block mb-1 font-medium text-sm">Beschrijving *</label>
+              <label className="block mb-2 font-medium">Description</label>
               <input
                 type="text"
                 value={form.beschrijving}
                 onChange={(e) => setForm((f) => ({ ...f, beschrijving: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                placeholder="Bijv. onderdeel XYZ"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
               />
             </div>
             <div>
-              <label className="block mb-1 font-medium text-sm">Itemnummer</label>
+              <label className="block mb-2 font-medium">Item Number</label>
               <input
                 type="text"
                 value={form.item_number}
                 onChange={(e) => setForm((f) => ({ ...f, item_number: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
               />
             </div>
             <div>
-              <label className="block mb-1 font-medium text-sm">Aantal</label>
+              <label className="block mb-2 font-medium">Lot Number</label>
+              <input
+                type="text"
+                value={form.lot_number}
+                onChange={(e) => setForm((f) => ({ ...f, lot_number: e.target.value }))}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                disabled={isCoolerDescription}
+              />
+            </div>
+            <div>
+              <label className="block mb-2 font-medium">Date Sent</label>
+              <input
+                type="date"
+                value={form.datum_opgestuurd}
+                onChange={(e) => setForm((f) => ({ ...f, datum_opgestuurd: e.target.value }))}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block mb-2 font-medium">Box Number (Kistnummer)</label>
+              <input
+                type="text"
+                value={form.kistnummer}
+                onChange={(e) => setForm((f) => ({ ...f, kistnummer: e.target.value }))}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block mb-2 font-medium">Division</label>
+              <input
+                type="text"
+                value={form.divisie}
+                onChange={(e) => setForm((f) => ({ ...f, divisie: e.target.value }))}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                disabled={isCoolerDescription}
+              />
+            </div>
+            <div>
+              <label className="block mb-2 font-medium">Quantity</label>
               <input
                 type="number"
                 min={1}
                 value={form.quantity}
                 onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                required
               />
             </div>
             <div>
-              <label className="block mb-1 font-medium text-sm">Opmerking</label>
+              <label className="block mb-2 font-medium">Opmerking (optioneel)</label>
               <input
                 type="text"
                 value={form.opmerking}
                 onChange={(e) => setForm((f) => ({ ...f, opmerking: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                placeholder="Optioneel"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                placeholder="Extra info voor de klant"
               />
             </div>
             <div className="flex items-end">
               <button
                 type="submit"
                 disabled={addLoading}
-                className="w-full px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:bg-gray-300 font-medium"
+                className="w-full px-6 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:bg-gray-300 font-medium"
               >
                 {addLoading ? 'Bezig…' : 'Item toevoegen'}
               </button>
@@ -220,6 +335,10 @@ export default function UnlistedItemsSection() {
                         <tr className="bg-gray-50">
                           <th className="px-3 py-2 text-left text-sm font-medium">Beschrijving</th>
                           <th className="px-3 py-2 text-left text-sm font-medium">Itemnr</th>
+                          <th className="px-3 py-2 text-left text-sm font-medium">Lot</th>
+                          <th className="px-3 py-2 text-left text-sm font-medium">Datum opgestuurd</th>
+                          <th className="px-3 py-2 text-left text-sm font-medium">Kistnr</th>
+                          <th className="px-3 py-2 text-left text-sm font-medium">Divisie</th>
                           <th className="px-3 py-2 text-left text-sm font-medium">Aantal</th>
                           <th className="px-3 py-2 text-left text-sm font-medium">Opmerking</th>
                           <th className="px-3 py-2 text-left text-sm font-medium">Foto&apos;s</th>
@@ -232,8 +351,12 @@ export default function UnlistedItemsSection() {
                           <tr key={item.id} className="border-t border-gray-200">
                             <td className="px-3 py-2 text-sm">{item.beschrijving}</td>
                             <td className="px-3 py-2 text-sm">{item.item_number || '–'}</td>
+                            <td className="px-3 py-2 text-sm">{item.lot_number || '–'}</td>
+                            <td className="px-3 py-2 text-sm">{formatDate(item.datum_opgestuurd)}</td>
+                            <td className="px-3 py-2 text-sm">{item.kistnummer || '–'}</td>
+                            <td className="px-3 py-2 text-sm">{item.divisie || '–'}</td>
                             <td className="px-3 py-2 text-sm">{item.quantity}</td>
-                            <td className="px-3 py-2 text-sm max-w-[180px] truncate" title={item.opmerking || ''}>
+                            <td className="px-3 py-2 text-sm max-w-[140px] truncate" title={item.opmerking || ''}>
                               {item.opmerking || '–'}
                             </td>
                             <td className="px-3 py-2">
@@ -287,6 +410,8 @@ export default function UnlistedItemsSection() {
                                     ? 'text-amber-600'
                                     : item.status === 'email_sent'
                                     ? 'text-blue-600'
+                                    : item.status === 'approved'
+                                    ? 'text-green-600'
                                     : 'text-gray-500'
                                 }
                               >
@@ -294,6 +419,8 @@ export default function UnlistedItemsSection() {
                                   ? 'Pending'
                                   : item.status === 'email_sent'
                                   ? 'E-mail verzonden'
+                                  : item.status === 'approved'
+                                  ? 'Goedgekeurd'
                                   : item.status}
                               </span>
                             </td>
@@ -317,14 +444,14 @@ export default function UnlistedItemsSection() {
               )}
 
               {pendingItems.length > 0 && (
-                <div className="pt-4 border-t border-gray-200 flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+                <div className="pt-4 border-t border-gray-200 flex flex-col sm:flex-row gap-4 items-start sm:items-end flex-wrap">
                   <div className="flex-1 w-full sm:max-w-xs">
                     <label className="block mb-1 font-medium text-sm">E-mailadres klant</label>
                     <input
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="klant@voorbeeld.be"
+                      placeholder={DEFAULT_EMAIL}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                     />
                   </div>
@@ -336,6 +463,25 @@ export default function UnlistedItemsSection() {
                   >
                     {sendLoading ? 'Bezig…' : `Mail overzicht naar klant (${pendingItems.length} item(s))`}
                   </button>
+                </div>
+              )}
+
+              {emailSentItems.length > 0 && (
+                <div className="pt-4 border-t border-gray-200 flex flex-wrap gap-4 items-center">
+                  <button
+                    type="button"
+                    onClick={handleMoveToPack}
+                    disabled={moveLoading}
+                    className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 font-medium"
+                  >
+                    {moveLoading ? 'Bezig…' : `Klant heeft goedgekeurd → Naar Items to Pack (${emailSentItems.length} item(s))`}
+                  </button>
+                  <Link
+                    href="/items-to-pack-airtec"
+                    className="text-sm text-blue-600 hover:underline"
+                  >
+                    Ga naar Items to Pack Airtec →
+                  </Link>
                 </div>
               )}
             </>
