@@ -2,9 +2,11 @@
 
 import React, { useCallback, useEffect, useState } from 'react'
 import AdminGuard from '@/components/AdminGuard'
-import { Euro, Package, Clock, TrendingUp, User, Wrench } from 'lucide-react'
+import { Euro, Package, Clock, TrendingUp, User, Wrench, FileDown } from 'lucide-react'
+import * as XLSX from 'xlsx'
 
 type StepHours = { step: string; hours: number }
+type EmployeeHours = { employee_name: string; hours: number }
 
 type RevenueRun = {
   item_number: string
@@ -14,6 +16,7 @@ type RevenueRun = {
   hours: number
   hours_per_piece: number
   steps: StepHours[]
+  employees: EmployeeHours[]
   sales_price: number | null
   revenue: number | null
   material_cost_per_item: number
@@ -108,6 +111,36 @@ export default function ProductionOrderKpiPage() {
     const h = Math.floor(m / 60)
     const min = m % 60
     return `${h}u ${min}min`
+  }
+
+  const exportToExcel = () => {
+    if (filteredRuns.length === 0) {
+      alert('Geen data om te exporteren.')
+      return
+    }
+    const rows = filteredRuns.map((r) => {
+      const stepsText = (r.steps ?? []).map((s) => `${s.step} ${s.hours.toFixed(2)}u`).join('; ')
+      const employeesText = (r.employees ?? []).map((e) => `${e.employee_name} ${e.hours.toFixed(2)}u`).join('; ')
+      return {
+        Datum: formatDate(r.date),
+        Order: r.order_number,
+        Item: r.item_number,
+        Omschrijving: r.description || '',
+        Stuks: r.quantity,
+        'Verkoopprijs €': r.sales_price != null ? r.sales_price : '',
+        'Opbrengst €': r.revenue != null ? r.revenue : '',
+        'Materiaalkost €': r.material_cost_total,
+        Uren: Number(r.hours.toFixed(2)),
+        'Marge €': r.margin != null ? r.margin : '',
+        Stappen: stepsText,
+        Medewerkers: employeesText,
+      }
+    })
+    const ws = XLSX.utils.json_to_sheet(rows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Opbrengsten')
+    const filename = `productie-opbrengsten_${dateFrom || 'vanaf'}_${dateTo || 'tot'}.xlsx`
+    XLSX.writeFile(wb, filename)
   }
 
   const filteredRuns = search.trim()
@@ -234,15 +267,26 @@ export default function ProductionOrderKpiPage() {
         )}
 
         <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex flex-col sm:flex-row justify-between gap-4 mb-4">
+          <div className="flex flex-col sm:flex-row justify-between gap-4 mb-4 flex-wrap">
             <h2 className="text-xl font-semibold">Detail per productie</h2>
-            <input
-              type="text"
-              placeholder="Zoek op item of order..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg w-full sm:w-64"
-            />
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="text"
+                placeholder="Zoek op item of order..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg w-full sm:w-64"
+              />
+              <button
+                type="button"
+                onClick={exportToExcel}
+                disabled={filteredRuns.length === 0}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FileDown className="w-4 h-4" />
+                Exporteer Excel
+              </button>
+            </div>
           </div>
 
           {loading ? (
@@ -274,17 +318,20 @@ export default function ProductionOrderKpiPage() {
                     const runKey = `${r.order_number}-${r.item_number}-${r.date}-${idx}`
                     const isExpanded = expandedRunKey === runKey
                     const steps = r.steps ?? []
+                    const employees = r.employees ?? []
                     const hasSteps = steps.length > 0
+                    const hasEmployees = employees.length > 0
+                    const hasDetails = hasSteps || hasEmployees
                     return (
                       <React.Fragment key={runKey}>
                         <tr className="border-b border-gray-100 hover:bg-gray-50">
                           <td className="py-2 pr-2">
-                            {hasSteps ? (
+                            {hasDetails ? (
                               <button
                                 type="button"
                                 onClick={() => setExpandedRunKey(isExpanded ? null : runKey)}
                                 className="p-1 rounded hover:bg-gray-200 text-gray-500"
-                                title={isExpanded ? 'Stappen verbergen' : 'Stappen tonen'}
+                                title={isExpanded ? 'Details verbergen' : 'Details tonen'}
                               >
                                 {isExpanded ? '▼' : '▶'}
                               </button>
@@ -309,21 +356,44 @@ export default function ProductionOrderKpiPage() {
                             </span>
                           </td>
                         </tr>
-                        {isExpanded && hasSteps && (
+                        {isExpanded && hasDetails && (
                           <tr key={`${runKey}-steps`} className="bg-gray-50 border-b border-gray-100">
                             <td className="py-2 pr-2"></td>
                             <td colSpan={10} className="py-3 px-4">
-                              <div className="text-sm font-medium text-gray-700 mb-2">Uren per stap</div>
-                              <div className="flex flex-wrap gap-3">
-                                {steps.map((s) => (
-                                  <span
-                                    key={s.step}
-                                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-200 rounded-lg"
-                                  >
-                                    <span className="text-gray-700">{s.step}</span>
-                                    <span className="font-medium text-gray-900">{formatHours(s.hours)}</span>
-                                  </span>
-                                ))}
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {hasSteps && (
+                                  <div>
+                                    <div className="text-sm font-medium text-gray-700 mb-2">Uren per stap</div>
+                                    <div className="flex flex-wrap gap-3">
+                                      {steps.map((s) => (
+                                        <span
+                                          key={s.step}
+                                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-200 rounded-lg"
+                                        >
+                                          <span className="text-gray-700">{s.step}</span>
+                                          <span className="font-medium text-gray-900">{formatHours(s.hours)}</span>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {hasEmployees && (
+                                  <div>
+                                    <div className="text-sm font-medium text-gray-700 mb-2">Wie heeft gewerkt</div>
+                                    <div className="flex flex-wrap gap-3">
+                                      {employees.map((e) => (
+                                        <span
+                                          key={e.employee_name}
+                                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-200 rounded-lg"
+                                        >
+                                          <User className="w-4 h-4 text-gray-500" />
+                                          <span className="text-gray-700">{e.employee_name}</span>
+                                          <span className="font-medium text-gray-900">{formatHours(e.hours)}</span>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             </td>
                           </tr>
