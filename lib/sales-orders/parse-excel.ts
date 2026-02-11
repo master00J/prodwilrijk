@@ -1,7 +1,9 @@
 import * as XLSX from 'xlsx'
 
-const NO_COLUMN = 'No.'
-const PRICE_COLUMN = 'Special Unit Price per PU'
+/** Mogelijke kopteksten voor itemnummer (GP-nummer), bijv. "No." of " No." (met spatie). */
+const NO_COLUMNS = ['No.', ' No.']
+/** Mogelijke kopteksten voor verkoopprijs. */
+const PRICE_COLUMNS = ['Unit Price Excl. VAT', 'Special Unit Price per PU']
 
 function parseFlexibleNumber(value: string | number | null | undefined): number | null {
   if (value === null || value === undefined) return null
@@ -10,16 +12,28 @@ function parseFlexibleNumber(value: string | number | null | undefined): number 
   return Number.isFinite(parsed) ? parsed : null
 }
 
+function normalizeHeader(val: string): string {
+  return val.replace(/\u00a0/g, ' ').trim().toLowerCase()
+}
+
 function findColumnIndex(headerRow: any[], columnName: string): number {
-  const normalized = columnName.toLowerCase().trim()
+  const normalized = normalizeHeader(columnName)
   return headerRow.findIndex((cell: any) => {
-    const val = cell != null ? String(cell).trim() : ''
-    return val.toLowerCase() === normalized
+    const val = cell != null ? String(cell) : ''
+    return normalizeHeader(val) === normalized
   })
 }
 
+function findColumnIndexByAlternatives(headerRow: any[], alternatives: string[]): number {
+  for (const name of alternatives) {
+    const idx = findColumnIndex(headerRow, name)
+    if (idx >= 0) return idx
+  }
+  return -1
+}
+
 /**
- * Zoekt de headerrij en kolomindices voor "No." (GP-nummer) en "Special Unit Price per PU".
+ * Zoekt de headerrij en kolomindices voor itemnummer (No. / No.) en prijs (Unit Price Excl. VAT of Special Unit Price per PU).
  */
 function detectColumns(rows: any[][]): {
   noIndex: number
@@ -31,8 +45,8 @@ function detectColumns(rows: any[][]): {
   for (let r = 0; r < maxSearchRows; r++) {
     const row = rows[r]
     if (!row || !Array.isArray(row)) continue
-    const noIndex = findColumnIndex(row, NO_COLUMN)
-    const priceIndex = findColumnIndex(row, PRICE_COLUMN)
+    const noIndex = findColumnIndexByAlternatives(row, NO_COLUMNS)
+    const priceIndex = findColumnIndexByAlternatives(row, PRICE_COLUMNS)
     if (noIndex >= 0 && priceIndex >= 0) {
       return { noIndex, priceIndex, headerRowIndex: r, found: true }
     }
@@ -69,7 +83,7 @@ export async function processSalesOrderExcel(file: File): Promise<Array<{ item_n
 
   if (!found) {
     throw new Error(
-      `Kolommen "${NO_COLUMN}" en "${PRICE_COLUMN}" niet gevonden. Controleer of de Excel de juiste kopteksten heeft.`
+      `Kolommen voor itemnummer (bijv. "${NO_COLUMNS.join('" of "')}") en prijs (bijv. "${PRICE_COLUMNS.join('" of "')}") niet gevonden. Controleer of de Excel de juiste kopteksten heeft.`
     )
   }
 
