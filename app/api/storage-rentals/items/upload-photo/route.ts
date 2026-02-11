@@ -61,20 +61,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Upload mislukt' }, { status: 500 })
     }
 
-    const { data: item } = await supabaseAdmin
+    const { data: item, error: fetchError } = await supabaseAdmin
       .from('storage_rental_items')
       .select('photos_bare, photos_verpakt')
       .eq('id', itemIdNum)
       .single()
 
+    if (fetchError || !item) {
+      console.error('Upload photo: item not found or fetch error', fetchError)
+      return NextResponse.json({ error: 'Item niet gevonden' }, { status: 404 })
+    }
+
     const col = category === 'bare' ? 'photos_bare' : 'photos_verpakt'
-    const existing = (item?.[col] || []) as string[]
+    const existing = (item[col] || []) as string[]
     const updated = [...existing, ...uploadedUrls]
 
-    await supabaseAdmin
+    const { error: updateError } = await supabaseAdmin
       .from('storage_rental_items')
       .update({ [col]: updated })
       .eq('id', itemIdNum)
+      .select('id')
+      .single()
+
+    if (updateError) {
+      console.error('Upload photo: database update failed', updateError)
+      return NextResponse.json(
+        { error: 'Foto\'s konden niet worden opgeslagen in de database' },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json({ success: true, photoUrls: uploadedUrls, allUrls: updated })
   } catch (error) {
