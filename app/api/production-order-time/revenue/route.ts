@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 
     let logQuery = supabaseAdmin
       .from('time_logs')
-      .select('id, start_time, end_time, production_order_number, production_item_number, production_quantity')
+      .select('id, start_time, end_time, production_order_number, production_item_number, production_step, production_quantity')
       .eq('type', 'production_order')
 
     if (dateFrom) logQuery = logQuery.gte('start_time', dateFrom)
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Fout bij ophalen tijdregistraties' }, { status: 500 })
     }
 
-    const runMap = new Map<string, { hours: number; quantity: number; minDate: string }>()
+    const runMap = new Map<string, { hours: number; quantity: number; minDate: string; steps: Map<string, number> }>()
     ;(logs || []).forEach((log: any) => {
       if (!log.start_time) return
       const end = log.end_time ? new Date(log.end_time) : new Date()
@@ -52,14 +52,18 @@ export async function GET(request: NextRequest) {
       const qty = log.production_quantity != null ? Math.max(0, Number(log.production_quantity)) : 1
       const orderKey = String(log.production_order_number || '').trim()
       const itemKey = String(log.production_item_number || '').trim()
+      const stepKey = String(log.production_step || 'Onbekend').trim()
       const startDate = log.start_time.slice(0, 10)
       const key = `${orderKey}::${itemKey}`
       const existing = runMap.get(key)
       if (!existing) {
-        runMap.set(key, { hours, quantity: qty, minDate: startDate })
+        const stepsMap = new Map<string, number>()
+        stepsMap.set(stepKey, hours)
+        runMap.set(key, { hours, quantity: qty, minDate: startDate, steps: stepsMap })
       } else {
         existing.hours += hours
         existing.quantity += qty
+        existing.steps.set(stepKey, (existing.steps.get(stepKey) || 0) + hours)
         if (startDate < existing.minDate) existing.minDate = startDate
       }
     })
@@ -73,6 +77,9 @@ export async function GET(request: NextRequest) {
       const runs = Array.from(runMap.entries()).map(([key, val]) => {
         const [order_number, item_number] = key.split('::')
         const hoursPerPiece = val.quantity > 0 ? val.hours / val.quantity : 0
+        const steps = Array.from(val.steps.entries())
+          .map(([step, hours]) => ({ step, hours: Number(hours.toFixed(4)) }))
+          .sort((a, b) => b.hours - a.hours)
         return {
           item_number,
           order_number,
@@ -80,6 +87,7 @@ export async function GET(request: NextRequest) {
           quantity: val.quantity,
           hours: Number(val.hours.toFixed(4)),
           hours_per_piece: Number(hoursPerPiece.toFixed(4)),
+          steps,
           sales_price: null as number | null,
           revenue: null as number | null,
           material_cost_per_item: null as number | null,
@@ -181,6 +189,9 @@ export async function GET(request: NextRequest) {
       if (revenue != null) totalRevenue += revenue
       totalMaterial += materialTotal
       const hoursPerPiece = val.quantity > 0 ? val.hours / val.quantity : 0
+      const steps = Array.from(val.steps.entries())
+        .map(([step, hours]) => ({ step, hours: Number(hours.toFixed(4)) }))
+        .sort((a, b) => b.hours - a.hours)
       return {
         item_number,
         order_number,
@@ -188,6 +199,7 @@ export async function GET(request: NextRequest) {
         quantity: val.quantity,
         hours: Number(val.hours.toFixed(4)),
         hours_per_piece: Number(hoursPerPiece.toFixed(4)),
+        steps,
         sales_price: salesPrice,
         revenue,
         material_cost_per_item: Number(costPerItem.toFixed(2)),

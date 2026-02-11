@@ -1,8 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import AdminGuard from '@/components/AdminGuard'
-import { Euro, Package, Clock, TrendingUp } from 'lucide-react'
+import { Euro, Package, Clock, TrendingUp, User, Wrench } from 'lucide-react'
+
+type StepHours = { step: string; hours: number }
 
 type RevenueRun = {
   item_number: string
@@ -11,12 +13,22 @@ type RevenueRun = {
   quantity: number
   hours: number
   hours_per_piece: number
+  steps: StepHours[]
   sales_price: number | null
   revenue: number | null
   material_cost_per_item: number
   material_cost_total: number
   margin: number | null
   description: string | null
+}
+
+type ActiveSession = {
+  id: number
+  employee_name: string
+  order_number: string
+  item_number: string
+  step: string
+  elapsed_seconds: number
 }
 
 type RevenueTotals = {
@@ -45,6 +57,19 @@ export default function ProductionOrderKpiPage() {
   const [runs, setRuns] = useState<RevenueRun[]>([])
   const [totals, setTotals] = useState<RevenueTotals | null>(null)
   const [search, setSearch] = useState('')
+  const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([])
+  const [expandedRunKey, setExpandedRunKey] = useState<string | null>(null)
+
+  const loadActive = useCallback(async () => {
+    try {
+      const res = await fetch('/api/production-order-time/active')
+      if (!res.ok) return
+      const data = await res.json()
+      setActiveSessions(Array.isArray(data) ? data : [])
+    } catch {
+      setActiveSessions([])
+    }
+  }, [])
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -70,6 +95,20 @@ export default function ProductionOrderKpiPage() {
   useEffect(() => {
     void loadData()
   }, [loadData])
+
+  useEffect(() => {
+    void loadActive()
+    const t = setInterval(loadActive, 15000)
+    return () => clearInterval(t)
+  }, [loadActive])
+
+  const formatElapsed = (seconds: number) => {
+    const m = Math.floor(seconds / 60)
+    if (m < 60) return `${m} min`
+    const h = Math.floor(m / 60)
+    const min = m % 60
+    return `${h}u ${min}min`
+  }
 
   const filteredRuns = search.trim()
     ? runs.filter(
@@ -118,6 +157,40 @@ export default function ProductionOrderKpiPage() {
             </div>
           </div>
         </div>
+
+        {activeSessions.length > 0 && (
+          <div className="bg-white rounded-lg shadow p-6 mb-6 border-2 border-blue-200">
+            <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+              <Wrench className="w-5 h-5 text-blue-600" />
+              Momenteel in productie
+            </h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Actieve tijdregistraties (wordt elke 15 sec ververst).
+            </p>
+            <div className="space-y-3">
+              {activeSessions.map((s) => (
+                <div
+                  key={s.id}
+                  className="flex flex-wrap items-center gap-4 py-3 px-4 bg-blue-50 rounded-lg border border-blue-100"
+                >
+                  <span className="font-medium">{s.order_number}</span>
+                  <span className="text-gray-600">Item: {s.item_number || '–'}</span>
+                  <span className="flex items-center gap-1 text-gray-700">
+                    <User className="w-4 h-4" />
+                    {s.employee_name}
+                  </span>
+                  <span className="flex items-center gap-1 text-blue-700 font-medium">
+                    <Wrench className="w-4 h-4" />
+                    {s.step || '–'}
+                  </span>
+                  <span className="text-sm text-gray-500">
+                    Bezig: {formatElapsed(s.elapsed_seconds)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {totals && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -183,6 +256,7 @@ export default function ProductionOrderKpiPage() {
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="text-left text-gray-500 border-b border-gray-200">
+                    <th className="py-3 pr-4 w-8"></th>
                     <th className="py-3 pr-4 font-medium">Datum</th>
                     <th className="py-3 pr-4 font-medium">Order</th>
                     <th className="py-3 pr-4 font-medium">Item</th>
@@ -196,26 +270,67 @@ export default function ProductionOrderKpiPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredRuns.map((r, idx) => (
-                    <tr key={`${r.order_number}-${r.item_number}-${r.date}-${idx}`} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="py-2 pr-4 whitespace-nowrap">{formatDate(r.date)}</td>
-                      <td className="py-2 pr-4 font-medium">{r.order_number}</td>
-                      <td className="py-2 pr-4 font-medium">{r.item_number}</td>
-                      <td className="py-2 pr-4 max-w-[200px] truncate text-gray-600" title={r.description || ''}>
-                        {r.description || '–'}
-                      </td>
-                      <td className="py-2 pr-4 text-right">{r.quantity}</td>
-                      <td className="py-2 pr-4 text-right">{formatEuro(r.sales_price)}</td>
-                      <td className="py-2 pr-4 text-right font-medium">{formatEuro(r.revenue)}</td>
-                      <td className="py-2 pr-4 text-right">€ {r.material_cost_total.toFixed(2)}</td>
-                      <td className="py-2 pr-4 text-right">{formatHours(r.hours)}</td>
-                      <td className="py-2 pr-4 text-right">
-                        <span className={r.margin != null && r.margin < 0 ? 'text-red-600' : 'text-gray-900'}>
-                          {formatEuro(r.margin)}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredRuns.map((r, idx) => {
+                    const runKey = `${r.order_number}-${r.item_number}-${r.date}-${idx}`
+                    const isExpanded = expandedRunKey === runKey
+                    const steps = r.steps ?? []
+                    const hasSteps = steps.length > 0
+                    return (
+                      <React.Fragment key={runKey}>
+                        <tr className="border-b border-gray-100 hover:bg-gray-50">
+                          <td className="py-2 pr-2">
+                            {hasSteps ? (
+                              <button
+                                type="button"
+                                onClick={() => setExpandedRunKey(isExpanded ? null : runKey)}
+                                className="p-1 rounded hover:bg-gray-200 text-gray-500"
+                                title={isExpanded ? 'Stappen verbergen' : 'Stappen tonen'}
+                              >
+                                {isExpanded ? '▼' : '▶'}
+                              </button>
+                            ) : (
+                              <span className="text-gray-300 w-6 inline-block">–</span>
+                            )}
+                          </td>
+                          <td className="py-2 pr-4 whitespace-nowrap">{formatDate(r.date)}</td>
+                          <td className="py-2 pr-4 font-medium">{r.order_number}</td>
+                          <td className="py-2 pr-4 font-medium">{r.item_number}</td>
+                          <td className="py-2 pr-4 max-w-[200px] truncate text-gray-600" title={r.description || ''}>
+                            {r.description || '–'}
+                          </td>
+                          <td className="py-2 pr-4 text-right">{r.quantity}</td>
+                          <td className="py-2 pr-4 text-right">{formatEuro(r.sales_price)}</td>
+                          <td className="py-2 pr-4 text-right font-medium">{formatEuro(r.revenue)}</td>
+                          <td className="py-2 pr-4 text-right">€ {r.material_cost_total.toFixed(2)}</td>
+                          <td className="py-2 pr-4 text-right">{formatHours(r.hours)}</td>
+                          <td className="py-2 pr-4 text-right">
+                            <span className={r.margin != null && r.margin < 0 ? 'text-red-600' : 'text-gray-900'}>
+                              {formatEuro(r.margin)}
+                            </span>
+                          </td>
+                        </tr>
+                        {isExpanded && hasSteps && (
+                          <tr key={`${runKey}-steps`} className="bg-gray-50 border-b border-gray-100">
+                            <td className="py-2 pr-2"></td>
+                            <td colSpan={10} className="py-3 px-4">
+                              <div className="text-sm font-medium text-gray-700 mb-2">Uren per stap</div>
+                              <div className="flex flex-wrap gap-3">
+                                {steps.map((s) => (
+                                  <span
+                                    key={s.step}
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-200 rounded-lg"
+                                  >
+                                    <span className="text-gray-700">{s.step}</span>
+                                    <span className="font-medium text-gray-900">{formatHours(s.hours)}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
