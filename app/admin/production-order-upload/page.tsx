@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import AdminGuard from '@/components/AdminGuard'
 import { parseProductionOrderXml } from '@/lib/production-order/parse-xml'
@@ -183,7 +184,7 @@ export default function ProductionOrderUploadPage() {
       if (!res.ok) throw new Error(result.error || 'Upload mislukt')
       setMessage({
         type: 'success',
-        text: `Productieorder ${result.order_number} geüpload met ${result.line_count} lijnen.`,
+        text: `Productieorder ${result.order_number} geüpload met ${result.line_count} lijnen. Het order staat nu op de pagina Tijdregistratie (tab Actief).`,
       })
       setXmlFile(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -273,11 +274,26 @@ export default function ProductionOrderUploadPage() {
 
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 text-sm text-amber-800">
           <p className="font-medium mb-1">Tijdregistratie-flow</p>
-          <p>
+          <p className="mb-3">
             Upload productieorder XML (verplicht) en optioneel Excel met verkooporderprijzen. Nadien kun je verkoopprijzen
             per lijn en materiaalprijzen (grondstoffen) invullen. De materiaalkost berekening gebruikt dezelfde logica als
             admin/sales-orders: stuks, m² en m³ met afmetingen uit de XML.
           </p>
+          <p className="font-medium mb-1">Waar zie ik mijn order terug?</p>
+          <ul className="list-disc list-inside space-y-1 mb-2">
+            <li>
+              <Link href="/production-order-time" className="underline text-amber-900 font-medium">
+                Tijdregistratie (/production-order-time)
+              </Link>
+              : na XML-upload staat het order in de tab <strong>Actief</strong>. Daar start je tijdregistraties.
+            </li>
+            <li>
+              <Link href="/admin/production-order-kpi" className="underline text-amber-900 font-medium">
+                Opbrengsten KPI (admin)
+              </Link>
+              : daar verschijnen runs zodra er tijd is geregistreerd; stel het datumbereik in en klik Vernieuwen.
+            </li>
+          </ul>
         </div>
 
         {message && (
