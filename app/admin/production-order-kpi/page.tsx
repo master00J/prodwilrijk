@@ -119,8 +119,8 @@ export default function ProductionOrderKpiPage() {
       return
     }
     const rows = filteredRuns.map((r) => {
-      const stepsText = (r.steps ?? []).map((s) => `${s.step} ${s.hours.toFixed(2)}u`).join('; ')
-      const employeesText = (r.employees ?? []).map((e) => `${e.employee_name} ${e.hours.toFixed(2)}u`).join('; ')
+      const verkoopMinMateriaal =
+        r.revenue != null ? Number((r.revenue - r.material_cost_total).toFixed(2)) : ''
       return {
         Datum: formatDate(r.date),
         Order: r.order_number,
@@ -130,10 +130,8 @@ export default function ProductionOrderKpiPage() {
         'Verkoopprijs €': r.sales_price != null ? r.sales_price : '',
         'Opbrengst €': r.revenue != null ? r.revenue : '',
         'Materiaalkost €': r.material_cost_total,
-        Uren: Number(r.hours.toFixed(2)),
-        'Marge €': r.margin != null ? r.margin : '',
-        Stappen: stepsText,
-        Medewerkers: employeesText,
+        'Uren (decimaal)': Math.round(r.hours * 100) / 100,
+        'Verkoopprijs min materiaalkost €': verkoopMinMateriaal,
       }
     })
     const ws = XLSX.utils.json_to_sheet(rows)
