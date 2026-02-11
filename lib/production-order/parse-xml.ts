@@ -87,8 +87,9 @@ export async function parseProductionOrderXml(file: File): Promise<ParsedProduct
     const lineColumns = parseColumns(lineItem)
     const lineDescription = lineColumns['Line_Description']?.trim() || ''
     const extractedFromDescription = extractItemNumber(lineDescription)
-    // Enkel nummer tussen haakjes gebruiken voor deze flow
-    const item_number = extractedFromDescription
+    // Line_Item_No_ (bijv. GP009982) = itemnummer; koppelt aan Excel-kolom "No." en material_prices/verkoopprijzen
+    const item_number =
+      lineColumns['Line_Item_No_']?.trim() || extractedFromDescription || null
 
     const components = Array.from(lineItem.querySelectorAll(':scope > DataItems > DataItem[name="Component"]')).map(
       (componentItem) => {
