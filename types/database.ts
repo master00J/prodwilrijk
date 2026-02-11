@@ -357,6 +357,8 @@ export interface AirtecUnlistedItem {
   status: string
   email_sent_at?: string | null
   photo_urls: string[]
+  retour_datum?: string | null
+  retour_opmerking?: string | null
   created_at?: string
   updated_at?: string
 }

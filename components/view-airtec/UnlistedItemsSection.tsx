@@ -24,6 +24,8 @@ export default function UnlistedItemsSection() {
   const [email, setEmail] = useState(DEFAULT_EMAIL)
   const [sendLoading, setSendLoading] = useState(false)
   const [moveLoading, setMoveLoading] = useState(false)
+  const [retourLoading, setRetourLoading] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [uploadingId, setUploadingId] = useState<number | null>(null)
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({})
 
@@ -180,12 +182,17 @@ export default function UnlistedItemsSection() {
   }
 
   const handleMoveToPack = async () => {
-    const toMove = items.filter((i) => i.status === 'email_sent')
-    if (toMove.length === 0) {
-      alert('Geen items met status "E-mail verzonden" om naar Items to Pack te verplaatsen.')
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) {
+      alert('Selecteer één of meer regels (vink aan) die naar Items to Pack mogen.')
       return
     }
-    if (!confirm(`${toMove.length} item(s) naar Items to Pack Airtec verplaatsen? (klant heeft goedgekeurd)`)) return
+    const toMove = items.filter((i) => ids.includes(i.id) && (i.status === 'email_sent' || i.status === 'pending'))
+    if (toMove.length === 0) {
+      alert('Geselecteerde regels zijn niet geldig. Alleen regels met status "E-mail verzonden" kunnen verplaatst worden.')
+      return
+    }
+    if (!confirm(`${toMove.length} geselecteerde item(s) naar Items to Pack Airtec verplaatsen? (klant heeft goedgekeurd)`)) return
     setMoveLoading(true)
     try {
       const res = await fetch('/api/incoming-goods-airtec/unlisted/move-to-pack', {
@@ -195,6 +202,7 @@ export default function UnlistedItemsSection() {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Verplaatsen mislukt')
+      setSelectedIds(new Set())
       alert(`${data.count ?? toMove.length} item(s) toegevoegd aan Items to Pack Airtec.`)
       await fetchItems()
     } catch (err) {
@@ -204,8 +212,58 @@ export default function UnlistedItemsSection() {
     }
   }
 
+  const handleMarkRetour = async () => {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) {
+      alert('Selecteer één of meer regels (vink aan) die als retour gelogd moeten worden.')
+      return
+    }
+    const toMark = items.filter((i) => ids.includes(i.id) && (i.status === 'email_sent' || i.status === 'pending'))
+    if (toMark.length === 0) {
+      alert('Geselecteerde regels zijn niet geldig.')
+      return
+    }
+    const opmerking = window.prompt('Optioneel: opmerking voor de retour (bv. reden of referentie):', '')
+    if (opmerking === null) return
+    if (!confirm(`${toMark.length} geselecteerde item(s) als retour markeren?`)) return
+    setRetourLoading(true)
+    try {
+      const res = await fetch('/api/incoming-goods-airtec/unlisted/mark-retour', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: toMark.map((i) => i.id), opmerking: opmerking?.trim() || undefined }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Markeren mislukt')
+      setSelectedIds(new Set())
+      alert(`${data.count ?? toMark.length} item(s) als retour gelogd.`)
+      await fetchItems()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Markeren mislukt')
+    } finally {
+      setRetourLoading(false)
+    }
+  }
+
   const pendingItems = items.filter((i) => i.status === 'pending')
   const emailSentItems = items.filter((i) => i.status === 'email_sent')
+
+  const toggleSelect = (id: number, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+
+  const toggleSelectAllEmailSent = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(new Set(emailSentItems.map((i) => i.id)))
+    } else {
+      setSelectedIds(new Set())
+    }
+  }
 
   const formatDate = (d: string | null | undefined) =>
     d ? new Date(d).toLocaleDateString('nl-BE') : '–'
@@ -333,6 +391,19 @@ export default function UnlistedItemsSection() {
                     <table className="w-full border border-gray-200 rounded-lg overflow-hidden">
                       <thead>
                         <tr className="bg-gray-50">
+                          {emailSentItems.length > 0 && (
+                            <th className="px-3 py-2 text-left text-sm font-medium w-12">
+                              <label className="flex items-center gap-1 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedIds.size > 0 && emailSentItems.every((i) => selectedIds.has(i.id))}
+                                  onChange={(e) => toggleSelectAllEmailSent(e.target.checked)}
+                                  className="rounded border-gray-300"
+                                />
+                                <span className="text-xs">Alle</span>
+                              </label>
+                            </th>
+                          )}
                           <th className="px-3 py-2 text-left text-sm font-medium">Beschrijving</th>
                           <th className="px-3 py-2 text-left text-sm font-medium">Itemnr</th>
                           <th className="px-3 py-2 text-left text-sm font-medium">Lot</th>
@@ -349,6 +420,20 @@ export default function UnlistedItemsSection() {
                       <tbody>
                         {items.map((item) => (
                           <tr key={item.id} className="border-t border-gray-200">
+                            {emailSentItems.length > 0 && (
+                              <td className="px-3 py-2">
+                                {item.status === 'email_sent' ? (
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedIds.has(item.id)}
+                                    onChange={(e) => toggleSelect(item.id, e.target.checked)}
+                                    className="rounded border-gray-300"
+                                  />
+                                ) : (
+                                  <span className="text-gray-300">–</span>
+                                )}
+                              </td>
+                            )}
                             <td className="px-3 py-2 text-sm">{item.beschrijving}</td>
                             <td className="px-3 py-2 text-sm">{item.item_number || '–'}</td>
                             <td className="px-3 py-2 text-sm">{item.lot_number || '–'}</td>
@@ -412,6 +497,8 @@ export default function UnlistedItemsSection() {
                                     ? 'text-blue-600'
                                     : item.status === 'approved'
                                     ? 'text-green-600'
+                                    : item.status === 'retour'
+                                    ? 'text-red-600'
                                     : 'text-gray-500'
                                 }
                               >
@@ -421,8 +508,16 @@ export default function UnlistedItemsSection() {
                                   ? 'E-mail verzonden'
                                   : item.status === 'approved'
                                   ? 'Goedgekeurd'
+                                  : item.status === 'retour'
+                                  ? 'Retour'
                                   : item.status}
                               </span>
+                              {item.status === 'retour' && (item.retour_datum || item.retour_opmerking) && (
+                                <div className="text-xs text-gray-500 mt-0.5">
+                                  {item.retour_datum && formatDate(item.retour_datum)}
+                                  {item.retour_opmerking && ` – ${item.retour_opmerking}`}
+                                </div>
+                              )}
                             </td>
                             <td className="px-3 py-2">
                               {item.status === 'pending' && (
@@ -467,21 +562,34 @@ export default function UnlistedItemsSection() {
               )}
 
               {emailSentItems.length > 0 && (
-                <div className="pt-4 border-t border-gray-200 flex flex-wrap gap-4 items-center">
-                  <button
-                    type="button"
-                    onClick={handleMoveToPack}
-                    disabled={moveLoading}
-                    className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 font-medium"
-                  >
-                    {moveLoading ? 'Bezig…' : `Klant heeft goedgekeurd → Naar Items to Pack (${emailSentItems.length} item(s))`}
-                  </button>
-                  <Link
-                    href="/items-to-pack-airtec"
-                    className="text-sm text-blue-600 hover:underline"
-                  >
-                    Ga naar Items to Pack Airtec →
-                  </Link>
+                <div className="pt-4 border-t border-gray-200 space-y-3">
+                  <p className="text-sm text-gray-600">
+                    Selecteer per regel wat naar Items to Pack mag (verpakken) of als retour (terug naar klant). Daarna een van de knoppen gebruiken.
+                  </p>
+                  <div className="flex flex-wrap gap-4 items-center">
+                    <button
+                      type="button"
+                      onClick={handleMoveToPack}
+                      disabled={moveLoading || selectedIds.size === 0}
+                      className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium"
+                    >
+                      {moveLoading ? 'Bezig…' : `Geselecteerde naar Items to Pack (${selectedIds.size} geselecteerd)`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleMarkRetour}
+                      disabled={retourLoading || selectedIds.size === 0}
+                      className="px-5 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium"
+                    >
+                      {retourLoading ? 'Bezig…' : `Geselecteerde als retour markeren (${selectedIds.size} geselecteerd)`}
+                    </button>
+                    <Link
+                      href="/items-to-pack-airtec"
+                      className="text-sm text-blue-600 hover:underline"
+                    >
+                      Ga naar Items to Pack Airtec →
+                    </Link>
+                  </div>
                 </div>
               )}
             </>
