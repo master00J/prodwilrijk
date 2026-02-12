@@ -334,10 +334,10 @@ export async function fetchPrepackStats({
     )
     let fallbackLines: any[] = []
     if (unmatchedItemNumbers.length > 0) {
-      const orConditions = unmatchedItemNumbers
+      const bracketConditions = unmatchedItemNumbers
         .map((item) => `description.ilike.%(${item})%`)
         .join(',')
-      const { data } = await supabaseAdmin
+      const { data: bracketData } = await supabaseAdmin
         .from('production_order_lines')
         .select(
           `
@@ -355,8 +355,49 @@ export async function fetchPrepackStats({
             )
           `
         )
-        .or(orConditions)
-      fallbackLines = data || []
+        .or(bracketConditions)
+      fallbackLines = bracketData || []
+      const stillUnmatched = unmatchedItemNumbers.filter((u) => {
+        const norm = normalizeItemNumber(u)
+        if (!norm || norm.length < 2) return false
+        const inBracket = fallbackLines.some((l: any) => {
+          const d = (l.description || '').toLowerCase()
+          return d.includes(`(${norm.toLowerCase()})`) || d.includes(`(${u})`)
+        })
+        return !inBracket
+      })
+      if (stillUnmatched.length > 0) {
+        const containsConditions = stillUnmatched
+          .filter((item) => String(item).length >= 2)
+          .map((item) => `description.ilike.%${String(item)}%`)
+          .join(',')
+        if (containsConditions) {
+          const { data: containsData } = await supabaseAdmin
+            .from('production_order_lines')
+            .select(
+              `
+                id,
+                item_number,
+                description,
+                production_order_id,
+                production_orders (uploaded_at),
+                production_order_components (
+                  component_item_no,
+                  component_unit,
+                  component_length,
+                  component_width,
+                  component_thickness
+                )
+              `
+            )
+            .or(containsConditions)
+          const byId = new Map((fallbackLines as any[]).map((l: any) => [l.id, l]))
+          ;(containsData || []).forEach((l: any) => {
+            if (!byId.has(l.id)) byId.set(l.id, l)
+          })
+          fallbackLines = Array.from(byId.values())
+        }
+      }
     }
     const allLines = [...(lines || []), ...fallbackLines]
 
@@ -426,12 +467,22 @@ export async function fetchPrepackStats({
       }
 
       const latestCosts: Record<string, { cost: number; uploadedAt: string }> = {}
+      const descriptionLower = (desc: string | null | undefined) =>
+        (desc != null ? String(desc) : '').toLowerCase()
       allLines.forEach((line: any) => {
         const normalizedLineNumber = normalizeItemNumber(line.item_number)
         const extractedKey = extractItemNumberFromDescription(line.description)
         const normalizedExtracted = extractedKey ? normalizeItemNumber(extractedKey) : null
-        const keysToUpdate = [normalizedLineNumber, normalizedExtracted].filter(Boolean)
-        if (keysToUpdate.length === 0) return
+        const desc = descriptionLower(line.description)
+        const keysToUpdate = new Set<string>([normalizedLineNumber, normalizedExtracted].filter(Boolean) as string[])
+        uniqueItemNumbers.forEach((u) => {
+          const norm = normalizeItemNumber(u)
+          if (!norm) return
+          if (desc.includes(norm.toLowerCase()) || desc.includes(`(${u})`) || desc.includes(`(${norm})`)) {
+            keysToUpdate.add(norm)
+          }
+        })
+        if (keysToUpdate.size === 0) return
         const uploadedAt =
           orderUploadMap.get(Number(line.production_order_id)) ||
           line.production_orders?.uploaded_at ||
@@ -456,7 +507,7 @@ export async function fetchPrepackStats({
         if (!hasAnyCost) return
 
         keysToUpdate.forEach((key) => {
-          if (key == null) return
+          if (!key) return
           const existing = latestCosts[key]
           if (!existing || new Date(uploadedAt) > new Date(existing.uploadedAt)) {
             latestCosts[key] = { cost: costPerItem, uploadedAt }

@@ -3,9 +3,29 @@
  * Used by admin production-order upload (time registration flow).
  */
 
+/**
+ * Parse decimal from XML; ondersteunt Europese notatie:
+ * - "1,409" (komma als duizendtal) → 1409
+ * - "0,5" (komma als decimaal) → 0.5
+ * - "731" → 731
+ */
 function parseDecimal(value: string | null | undefined): number | null {
-  if (!value) return null
-  const normalized = String(value).replace(',', '.').trim()
+  if (value === null || value === undefined) return null
+  const trimmed = String(value).trim()
+  if (!trimmed) return null
+  const hasComma = trimmed.includes(',')
+  const hasDot = trimmed.includes('.')
+  if (hasComma && !hasDot) {
+    const parts = trimmed.split(',')
+    if (parts.length === 2) {
+      const after = parts[1].replace(/\s/g, '')
+      if (/^\d{3}$/.test(after)) {
+        return parseFloat(parts[0].replace(/\s/g, '') + after) || null
+      }
+      return parseFloat(trimmed.replace(',', '.')) || null
+    }
+  }
+  const normalized = trimmed.replace(',', '.')
   const parsed = parseFloat(normalized)
   return Number.isFinite(parsed) ? parsed : null
 }
@@ -87,9 +107,10 @@ export async function parseProductionOrderXml(file: File): Promise<ParsedProduct
     const lineColumns = parseColumns(lineItem)
     const lineDescription = lineColumns['Line_Description']?.trim() || ''
     const extractedFromDescription = extractItemNumber(lineDescription)
-    // Line_Item_No_ (bijv. GP009982) = itemnummer; koppelt aan Excel-kolom "No." en material_prices/verkoopprijzen
+    // Op admin/sales-orders worden enkel XML's geüpload met itemnummer tussen haakjes in de omschrijving;
+    // dat nummer heeft voorrang zodat productieorderlijnen koppelen aan sales_orders, prepack en materiaalkost.
     const item_number =
-      lineColumns['Line_Item_No_']?.trim() || extractedFromDescription || null
+      extractedFromDescription || lineColumns['Line_Item_No_']?.trim() || null
 
     const components = Array.from(lineItem.querySelectorAll(':scope > DataItems > DataItem[name="Component"]')).map(
       (componentItem) => {
