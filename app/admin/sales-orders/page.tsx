@@ -289,7 +289,7 @@ export default function SalesOrdersUploadPage() {
     setXmlMessage(null)
 
     try {
-      const parsed = await parseProductionOrderXml(xmlFile)
+      const parsed = await parseProductionOrderXml(xmlFile, { preferItemNumberFromBrackets: true })
       if (!parsed.lines || parsed.lines.length === 0) {
         throw new Error('Geen productieorder lijnen gevonden in XML.')
       }

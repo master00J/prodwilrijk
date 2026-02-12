@@ -83,7 +83,17 @@ export interface ParsedProductionOrder {
   }>
 }
 
-export async function parseProductionOrderXml(file: File): Promise<ParsedProductionOrder> {
+export type ParseProductionOrderOptions = {
+  /** Bij true: item_number = nummer tussen haakjes in omschrijving (admin/sales-orders). Bij false: Line_Item_No_ (production-order-upload / tijdregistratie). */
+  preferItemNumberFromBrackets?: boolean
+}
+
+export async function parseProductionOrderXml(
+  file: File,
+  options?: ParseProductionOrderOptions
+): Promise<ParsedProductionOrder> {
+  const preferBracket = options?.preferItemNumberFromBrackets ?? false
+
   const xmlText = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = (e) => resolve(String(e.target?.result ?? ''))
@@ -103,14 +113,15 @@ export async function parseProductionOrderXml(file: File): Promise<ParsedProduct
   const orderNumber = orderColumns['No_']?.trim()
   if (!orderNumber) throw new Error('Ordernummer ontbreekt in XML.')
 
+  const lineItemNo = (lineColumns: Record<string, string>) => lineColumns['Line_Item_No_']?.trim() || null
+
   const lines = Array.from(xmlDoc.querySelectorAll('DataItem[name="ProdOrderLine"]')).map((lineItem, index) => {
     const lineColumns = parseColumns(lineItem)
     const lineDescription = lineColumns['Line_Description']?.trim() || ''
     const extractedFromDescription = extractItemNumber(lineDescription)
-    // Op admin/sales-orders worden enkel XML's geüpload met itemnummer tussen haakjes in de omschrijving;
-    // dat nummer heeft voorrang zodat productieorderlijnen koppelen aan sales_orders, prepack en materiaalkost.
-    const item_number =
-      extractedFromDescription || lineColumns['Line_Item_No_']?.trim() || null
+    const item_number = preferBracket
+      ? extractedFromDescription || lineItemNo(lineColumns) || null
+      : lineItemNo(lineColumns) || extractedFromDescription || null
 
     const components = Array.from(lineItem.querySelectorAll(':scope > DataItems > DataItem[name="Component"]')).map(
       (componentItem) => {
