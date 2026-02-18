@@ -6,6 +6,7 @@ interface FiltersBarAirtecProps {
   onSearchSubmit: () => void
   priorityOnly: boolean
   onPriorityToggle: () => void
+  onShowReport?: () => void
 }
 
 export default function FiltersBarAirtec({
@@ -14,6 +15,7 @@ export default function FiltersBarAirtec({
   onSearchSubmit,
   priorityOnly,
   onPriorityToggle,
+  onShowReport,
 }: FiltersBarAirtecProps) {
   return (
     <div className="mb-6 space-y-4">
@@ -57,6 +59,18 @@ export default function FiltersBarAirtec({
           </button>
         </div>
       </div>
+
+      {/* Daily Report Button */}
+      {onShowReport && (
+        <div className="flex justify-end">
+          <button
+            onClick={onShowReport}
+            className="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium text-lg"
+          >
+            📊 Daily Report
+          </button>
+        </div>
+      )}
     </div>
   )
 }

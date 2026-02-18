@@ -7,6 +7,7 @@ import FiltersBarAirtec from '@/components/items-to-pack-airtec/FiltersBarAirtec
 import ActionsBarAirtec from '@/components/items-to-pack-airtec/ActionsBarAirtec'
 import ScanCheckAirtec from '@/components/items-to-pack-airtec/ScanCheckAirtec'
 import TimeRegistrationModal from '@/components/items-to-pack/TimeRegistrationModal'
+import DailyReportModal from '@/components/items-to-pack/DailyReportModal'
 import ActiveTimersCard from '@/components/items-to-pack/ActiveTimersCard'
 
 interface ItemsAirtecResponse {
@@ -28,6 +29,7 @@ export default function ItemsToPackAirtecPage() {
   const [priorityOnly, setPriorityOnly] = useState(false)
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set())
   const [showTimeModal, setShowTimeModal] = useState(false)
+  const [showReport, setShowReport] = useState(false)
   const [activeTimeLogs, setActiveTimeLogs] = useState<any[]>([])
   const [sortColumn, setSortColumn] = useState<keyof ItemToPackAirtec | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
@@ -444,6 +446,7 @@ export default function ItemsToPackAirtecPage() {
         onSearchSubmit={handleSearchSubmit}
         priorityOnly={priorityOnly}
         onPriorityToggle={handlePriorityToggle}
+        onShowReport={() => setShowReport(true)}
       />
 
       <details className="bg-white rounded-lg shadow p-4 mb-4">
@@ -498,6 +501,13 @@ export default function ItemsToPackAirtecPage() {
         <TimeRegistrationModal
           onClose={() => setShowTimeModal(false)}
           onStart={handleStartTimer}
+        />
+      )}
+
+      {showReport && (
+        <DailyReportModal
+          onClose={() => setShowReport(false)}
+          reportApiPath="/api/items-to-pack-airtec/report"
         />
       )}
     </div>

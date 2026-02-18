@@ -4,9 +4,11 @@ import { useState } from 'react'
 
 interface DailyReportModalProps {
   onClose: () => void
+  /** API path for report (default: items-to-pack). Use e.g. /api/items-to-pack-airtec/report for Airtec. */
+  reportApiPath?: string
 }
 
-export default function DailyReportModal({ onClose }: DailyReportModalProps) {
+export default function DailyReportModal({ onClose, reportApiPath = '/api/items-to-pack/report' }: DailyReportModalProps) {
   const [reportDate, setReportDate] = useState(
     new Date().toISOString().split('T')[0]
   )
@@ -22,7 +24,7 @@ export default function DailyReportModal({ onClose }: DailyReportModalProps) {
     setLoading(true)
     try {
       const response = await fetch(
-        `/api/items-to-pack/report?date=${reportDate}`
+        `${reportApiPath}?date=${reportDate}`
       )
       if (!response.ok) throw new Error('Failed to generate report')
       const data = await response.json()
