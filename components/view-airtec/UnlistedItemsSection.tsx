@@ -27,6 +27,18 @@ export default function UnlistedItemsSection() {
   const [retourLoading, setRetourLoading] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [uploadingId, setUploadingId] = useState<number | null>(null)
+  const [editItem, setEditItem] = useState<AirtecUnlistedItem | null>(null)
+  const [editForm, setEditForm] = useState({
+    beschrijving: '',
+    item_number: '',
+    lot_number: '',
+    datum_opgestuurd: '',
+    kistnummer: '',
+    divisie: '',
+    quantity: '1',
+    opmerking: '',
+  })
+  const [editSaving, setEditSaving] = useState(false)
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({})
 
   const isCoolerDescription = form.beschrijving.toLowerCase().includes('cooler')
@@ -114,6 +126,56 @@ export default function UnlistedItemsSection() {
       alert(err instanceof Error ? err.message : 'Toevoegen mislukt')
     } finally {
       setAddLoading(false)
+    }
+  }
+
+  const openEdit = (item: AirtecUnlistedItem) => {
+    setEditItem(item)
+    setEditForm({
+      beschrijving: item.beschrijving ?? '',
+      item_number: item.item_number ?? '',
+      lot_number: item.lot_number ?? '',
+      datum_opgestuurd: item.datum_opgestuurd
+        ? new Date(item.datum_opgestuurd).toISOString().slice(0, 10)
+        : '',
+      kistnummer: item.kistnummer ?? '',
+      divisie: item.divisie ?? '',
+      quantity: String(item.quantity ?? 1),
+      opmerking: item.opmerking ?? '',
+    })
+  }
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editItem) return
+    if (!editForm.beschrijving.trim()) {
+      alert('Beschrijving is verplicht')
+      return
+    }
+    setEditSaving(true)
+    try {
+      const res = await fetch(`/api/incoming-goods-airtec/unlisted/${editItem.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          beschrijving: editForm.beschrijving.trim(),
+          item_number: editForm.item_number.trim() || null,
+          lot_number: editForm.lot_number.trim() || null,
+          datum_opgestuurd: editForm.datum_opgestuurd || null,
+          kistnummer: editForm.kistnummer.trim() || null,
+          divisie: editForm.divisie.trim() || null,
+          quantity: parseInt(editForm.quantity, 10) || 1,
+          opmerking: editForm.opmerking.trim() || null,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Opslaan mislukt')
+      setEditItem(null)
+      await fetchItems()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Opslaan mislukt')
+    } finally {
+      setEditSaving(false)
     }
   }
 
@@ -414,7 +476,7 @@ export default function UnlistedItemsSection() {
                           <th className="px-3 py-2 text-left text-sm font-medium">Opmerking</th>
                           <th className="px-3 py-2 text-left text-sm font-medium">Foto&apos;s</th>
                           <th className="px-3 py-2 text-left text-sm font-medium">Status</th>
-                          <th className="px-3 py-2 text-left text-sm font-medium w-24">Acties</th>
+                          <th className="px-3 py-2 text-left text-sm font-medium w-36">Acties</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -519,7 +581,14 @@ export default function UnlistedItemsSection() {
                                 </div>
                               )}
                             </td>
-                            <td className="px-3 py-2">
+                            <td className="px-3 py-2 flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => openEdit(item)}
+                                className="text-blue-600 hover:text-blue-800 text-sm"
+                              >
+                                Bewerken
+                              </button>
                               {item.status === 'pending' && (
                                 <button
                                   type="button"
@@ -594,6 +663,110 @@ export default function UnlistedItemsSection() {
               )}
             </>
           )}
+        </div>
+      )}
+
+      {/* Edit modal */}
+      {editItem && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-xl">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold mb-4">Regel bewerken</h3>
+              <form onSubmit={handleSaveEdit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block mb-1 font-medium text-sm">Beschrijving</label>
+                  <input
+                    type="text"
+                    value={editForm.beschrijving}
+                    onChange={(e) => setEditForm((f) => ({ ...f, beschrijving: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block mb-1 font-medium text-sm">Item Number</label>
+                  <input
+                    type="text"
+                    value={editForm.item_number}
+                    onChange={(e) => setEditForm((f) => ({ ...f, item_number: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block mb-1 font-medium text-sm">Lot Number</label>
+                  <input
+                    type="text"
+                    value={editForm.lot_number}
+                    onChange={(e) => setEditForm((f) => ({ ...f, lot_number: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block mb-1 font-medium text-sm">Datum opgestuurd</label>
+                  <input
+                    type="date"
+                    value={editForm.datum_opgestuurd}
+                    onChange={(e) => setEditForm((f) => ({ ...f, datum_opgestuurd: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block mb-1 font-medium text-sm">Kistnummer</label>
+                  <input
+                    type="text"
+                    value={editForm.kistnummer}
+                    onChange={(e) => setEditForm((f) => ({ ...f, kistnummer: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block mb-1 font-medium text-sm">Divisie</label>
+                  <input
+                    type="text"
+                    value={editForm.divisie}
+                    onChange={(e) => setEditForm((f) => ({ ...f, divisie: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block mb-1 font-medium text-sm">Aantal</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={editForm.quantity}
+                    onChange={(e) => setEditForm((f) => ({ ...f, quantity: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block mb-1 font-medium text-sm">Opmerking</label>
+                  <input
+                    type="text"
+                    value={editForm.opmerking}
+                    onChange={(e) => setEditForm((f) => ({ ...f, opmerking: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                    placeholder="Optioneel"
+                  />
+                </div>
+                <div className="md:col-span-2 flex gap-2 justify-end pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditItem(null)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
+                  >
+                    Annuleren
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={editSaving}
+                    className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:bg-gray-300 font-medium"
+                  >
+                    {editSaving ? 'Opslaan…' : 'Opslaan'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         </div>
       )}
     </div>
