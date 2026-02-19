@@ -65,6 +65,17 @@ export function usePrepackStats(
     details: false,
     daily: false,
   })
+  const [queueStats, setQueueStats] = useState<{
+    queueStuks: number
+    queueLines: number
+    backlogStuks: number
+    backlogLines: number
+    priorityStuks: number
+    oldestWorkingDays: number
+    avgLeadTimeDays: number | null
+    backlogPct: number
+  } | null>(null)
+  const [queueLoading, setQueueLoading] = useState(false)
   const initialLoadDone = useRef(false)
 
   const fetchStatsData = useCallback(async (range: { from: string; to: string }) => {
@@ -253,6 +264,21 @@ export function usePrepackStats(
     [getPresetRange, handleRefresh, dateFromInputRef, dateToInputRef]
   )
 
+  const fetchQueueStats = useCallback(async () => {
+    setQueueLoading(true)
+    try {
+      const res = await fetch('/api/admin/prepack-queue')
+      if (res.ok) {
+        const data = await res.json()
+        setQueueStats(data)
+      }
+    } catch {
+      // non-critical, ignore
+    } finally {
+      setQueueLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     if (initialLoadDone.current) return
     initialLoadDone.current = true
@@ -266,7 +292,8 @@ export function usePrepackStats(
     if (dateFromInputRef.current) dateFromInputRef.current.value = fromValue
     if (dateToInputRef.current) dateToInputRef.current.value = toValue
     void handleRefresh({ from: fromValue, to: toValue })
-  }, [dateFromInputRef, dateToInputRef, handleRefresh])
+    void fetchQueueStats()
+  }, [dateFromInputRef, dateToInputRef, handleRefresh, fetchQueueStats])
 
   const toggleSection = useCallback((key: keyof typeof collapsedSections) => {
     setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] }))
@@ -500,5 +527,8 @@ export function usePrepackStats(
     handleExportExcel,
     openBomDetail,
     closeBomDetail,
+    queueStats,
+    queueLoading,
+    fetchQueueStats,
   }
 }

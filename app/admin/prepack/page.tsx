@@ -23,9 +23,11 @@ import {
   Euro,
   ArrowUpRight,
   Layers,
-  Zap,
   CalendarDays,
   RefreshCw,
+  AlertTriangle,
+  CheckCircle2,
+  ListOrdered,
 } from 'lucide-react'
 import CollapsibleCard from '@/components/admin/prepack/CollapsibleCard'
 import { usePrepackStats } from './usePrepackStats'
@@ -127,6 +129,9 @@ export default function PrepackMonitorPage() {
     handleExportExcel,
     openBomDetail,
     closeBomDetail,
+    queueStats,
+    queueLoading,
+    fetchQueueStats,
   } = api
 
   const grossMargin = totals ? totals.totalRevenue - totals.totalMaterialCost : null
@@ -156,6 +161,95 @@ export default function PrepackMonitorPage() {
             {dateFrom} → {dateTo}
           </div>
         )}
+      </div>
+
+      {/* Live Wachtrij Status */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Live wachtrij — nu</h2>
+          <button
+            type="button"
+            onClick={() => void fetchQueueStats()}
+            disabled={queueLoading}
+            className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-blue-600 border border-gray-200 rounded-full px-3 py-1"
+          >
+            <RefreshCw className={`w-3 h-3 ${queueLoading ? 'animate-spin' : ''}`} />
+            Vernieuwen
+          </button>
+        </div>
+
+        {queueLoading && !queueStats ? (
+          <div className="animate-pulse grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-5 gap-4">
+            {[1,2,3,4,5].map(i => (
+              <div key={i} className="h-24 bg-gray-100 rounded-xl" />
+            ))}
+          </div>
+        ) : queueStats ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4">
+            {/* Stuks in wachtrij */}
+            <div className="bg-white rounded-xl border-l-4 border-blue-500 shadow-sm p-4">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">In wachtrij</span>
+                <ListOrdered className="w-4 h-4 text-blue-400" />
+              </div>
+              <div className="text-3xl font-bold text-blue-700">{queueStats.queueStuks.toLocaleString('nl-NL')}</div>
+              <div className="text-xs text-gray-400 mt-0.5">{queueStats.queueLines} lijnen</div>
+            </div>
+
+            {/* Backlog */}
+            <div className={`bg-white rounded-xl border-l-4 shadow-sm p-4 ${queueStats.backlogStuks > 0 ? 'border-red-500' : 'border-emerald-400'}`}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Backlog</span>
+                {queueStats.backlogStuks > 0
+                  ? <AlertTriangle className="w-4 h-4 text-red-400" />
+                  : <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                }
+              </div>
+              <div className={`text-3xl font-bold ${queueStats.backlogStuks > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                {queueStats.backlogStuks.toLocaleString('nl-NL')}
+              </div>
+              <div className="text-xs text-gray-400 mt-0.5">
+                {queueStats.backlogLines} lijnen · {queueStats.backlogPct}% van wachtrij
+              </div>
+            </div>
+
+            {/* Prioriteit */}
+            <div className={`bg-white rounded-xl border-l-4 shadow-sm p-4 ${queueStats.priorityStuks > 0 ? 'border-amber-400' : 'border-gray-200'}`}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Prioriteit</span>
+                <AlertTriangle className={`w-4 h-4 ${queueStats.priorityStuks > 0 ? 'text-amber-400' : 'text-gray-300'}`} />
+              </div>
+              <div className={`text-3xl font-bold ${queueStats.priorityStuks > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
+                {queueStats.priorityStuks.toLocaleString('nl-NL')}
+              </div>
+              <div className="text-xs text-gray-400 mt-0.5">prioritaire stuks</div>
+            </div>
+
+            {/* Oudste item */}
+            <div className={`bg-white rounded-xl border-l-4 shadow-sm p-4 ${queueStats.oldestWorkingDays > 5 ? 'border-orange-400' : 'border-slate-300'}`}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Oudste item</span>
+                <Clock className={`w-4 h-4 ${queueStats.oldestWorkingDays > 5 ? 'text-orange-400' : 'text-slate-400'}`} />
+              </div>
+              <div className={`text-3xl font-bold ${queueStats.oldestWorkingDays > 5 ? 'text-orange-600' : 'text-slate-700'}`}>
+                {queueStats.oldestWorkingDays}
+              </div>
+              <div className="text-xs text-gray-400 mt-0.5">werkdagen in wachtrij</div>
+            </div>
+
+            {/* Gem. doorlooptijd */}
+            <div className="bg-white rounded-xl border-l-4 border-teal-400 shadow-sm p-4">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Gem. doorlooptijd</span>
+                <TrendingUp className="w-4 h-4 text-teal-400" />
+              </div>
+              <div className="text-3xl font-bold text-teal-700">
+                {queueStats.avgLeadTimeDays != null ? queueStats.avgLeadTimeDays : '—'}
+              </div>
+              <div className="text-xs text-gray-400 mt-0.5">werkdagen (60 dgn gem.)</div>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {/* Date Filters & KPI's */}
