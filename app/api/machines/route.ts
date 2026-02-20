@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { requireAuth } from '@/lib/supabase/require-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,6 +16,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth(request)
+  if (auth instanceof NextResponse) return auth
+
   const body = await request.json()
   const { name, description, category, active, sort_order } = body
 
@@ -39,6 +43,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const auth = await requireAuth(request)
+  if (auth instanceof NextResponse) return auth
+
   const body = await request.json()
   const { id, name, description, category, active, sort_order } = body
 
@@ -66,6 +73,9 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const auth = await requireAuth(request)
+  if (auth instanceof NextResponse) return auth
+
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'ID is verplicht' }, { status: 400 })

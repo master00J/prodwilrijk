@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { requireAuth } from '@/lib/supabase/require-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,6 +24,9 @@ export async function GET(request: NextRequest) {
 
 // POST or upsert a competency
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth(request)
+  if (auth instanceof NextResponse) return auth
+
   const body = await request.json()
   const { employee_id, machine_id, level, notes } = body
 
@@ -52,8 +56,11 @@ export async function POST(request: NextRequest) {
   return NextResponse.json(data)
 }
 
-// DELETE a competency (set level back to 0 effectively means delete)
+// DELETE a competency
 export async function DELETE(request: NextRequest) {
+  const auth = await requireAuth(request)
+  if (auth instanceof NextResponse) return auth
+
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'ID is verplicht' }, { status: 400 })

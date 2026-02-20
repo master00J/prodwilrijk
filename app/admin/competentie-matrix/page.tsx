@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { supabase } from '@/lib/supabase/client'
 import {
   Plus,
   Pencil,
@@ -107,6 +108,8 @@ export default function CompetentieMatrixPage() {
   const [loadingMatrix, setLoadingMatrix] = useState(true)
   const [loadingPlanning, setLoadingPlanning] = useState(false)
   const [saving, setSaving] = useState<string | null>(null)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [copyingYesterday, setCopyingYesterday] = useState(false)
 
   // Machine form
   const [machineForm, setMachineForm]   = useState<Partial<Machine> | null>(null)
@@ -123,19 +126,43 @@ export default function CompetentieMatrixPage() {
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [employeeSearch, setEmployeeSearch] = useState('')
 
+  // ── Authenticated fetch helper ─────────────────────────────────────────────
+
+  const authFetch = useCallback(async (url: string, options: RequestInit = {}) => {
+    const { data: { session } } = await supabase.auth.getSession()
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string> ?? {}),
+    }
+    if (session?.access_token) {
+      headers['Authorization'] = `Bearer ${session.access_token}`
+    }
+    return fetch(url, { ...options, headers })
+  }, [])
+
   // ── Data fetching ──────────────────────────────────────────────────────────
 
   const fetchBase = useCallback(async () => {
     setLoadingMatrix(true)
+    setFetchError(null)
     try {
       const [empRes, machRes, compRes] = await Promise.all([
         fetch('/api/employees'),
         fetch('/api/machines'),
         fetch('/api/competencies'),
       ])
-      if (empRes.ok)  setEmployees(await empRes.json())
-      if (machRes.ok) setMachines(await machRes.json())
-      if (compRes.ok) setCompetencies(await compRes.json())
+      if (!empRes.ok || !machRes.ok || !compRes.ok) {
+        setFetchError('Fout bij laden van data. Vernieuw de pagina.')
+        return
+      }
+      const [empData, machData, compData] = await Promise.all([
+        empRes.json(), machRes.json(), compRes.json(),
+      ])
+      setEmployees(empData)
+      setMachines(machData)
+      setCompetencies(compData)
+    } catch {
+      setFetchError('Netwerkfout bij laden. Controleer je verbinding.')
     } finally {
       setLoadingMatrix(false)
     }
@@ -146,6 +173,9 @@ export default function CompetentieMatrixPage() {
     try {
       const res = await fetch(`/api/dagplanning?date=${date}`)
       if (res.ok) setDailyStatuses(await res.json())
+      else setFetchError('Fout bij laden van dagplanning.')
+    } catch {
+      setFetchError('Netwerkfout bij laden van dagplanning.')
     } finally {
       setLoadingPlanning(false)
     }
@@ -166,11 +196,23 @@ export default function CompetentieMatrixPage() {
     (m) => m.active && (categoryFilter === 'all' || m.category === categoryFilter)
   )
 
-  const getLevel = (employeeId: number, machineId: number) =>
-    competencies.find((c) => c.employee_id === employeeId && c.machine_id === machineId)?.level ?? 0
+  // O(1) lookup map: "employeeId-machineId" → level
+  const competencyMap = useMemo(() => {
+    const map = new Map<string, number>()
+    competencies.forEach((c) => map.set(`${c.employee_id}-${c.machine_id}`, c.level))
+    return map
+  }, [competencies])
 
-  const getDailyStatus = (employeeId: number) =>
-    dailyStatuses.find((s) => s.employee_id === employeeId)
+  const getLevel = useCallback(
+    (employeeId: number, machineId: number) =>
+      competencyMap.get(`${employeeId}-${machineId}`) ?? 0,
+    [competencyMap]
+  )
+
+  const getDailyStatus = useCallback(
+    (employeeId: number) => dailyStatuses.find((s) => s.employee_id === employeeId),
+    [dailyStatuses]
+  )
 
   // Per machine: how many active employees have level >= 2
   const machineQualified = useMemo(() => {
@@ -179,8 +221,7 @@ export default function CompetentieMatrixPage() {
       map[m.id] = activeEmployees.filter((e) => getLevel(e.id, m.id) >= 2)
     })
     return map
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [machines, employees, competencies])
+  }, [machines, activeEmployees, getLevel])
 
   // Per employee: how many active machines they can operate (level >= 2)
   const employeeMachineCount = useMemo(() => {
@@ -189,8 +230,7 @@ export default function CompetentieMatrixPage() {
       map[e.id] = machines.filter((m) => m.active && getLevel(e.id, m.id) >= 2).length
     })
     return map
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [machines, employees, competencies])
+  }, [machines, employees, getLevel])
 
   // Coverage stats
   const activeMachines = machines.filter((m) => m.active)
@@ -220,22 +260,39 @@ export default function CompetentieMatrixPage() {
   const handleSetLevel = async (level: number) => {
     if (!levelPopup) return
     const { employeeId, machineId } = levelPopup
-    setSaving(`${employeeId}-${machineId}`)
     setLevelPopup(null)
+
+    // Optimistic update: meteen de UI bijwerken
+    const prevCompetencies = competencies
+    setCompetencies((prev) => {
+      const idx = prev.findIndex((c) => c.employee_id === employeeId && c.machine_id === machineId)
+      const optimistic = { id: -1, employee_id: employeeId, machine_id: machineId, level, notes: null }
+      if (idx >= 0) { const n = [...prev]; n[idx] = { ...n[idx], level }; return n }
+      return [...prev, optimistic]
+    })
+
+    setSaving(`${employeeId}-${machineId}`)
     try {
-      const res = await fetch('/api/competencies', {
+      const res = await authFetch('/api/competencies', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ employee_id: employeeId, machine_id: machineId, level }),
       })
       if (res.ok) {
+        // Vervang optimistic record met server response (krijgt echte ID)
         const updated = await res.json()
         setCompetencies((prev) => {
           const idx = prev.findIndex((c) => c.employee_id === employeeId && c.machine_id === machineId)
           if (idx >= 0) { const n = [...prev]; n[idx] = updated; return n }
           return [...prev, updated]
         })
+      } else {
+        // Rollback bij fout
+        setCompetencies(prevCompetencies)
+        setFetchError('Fout bij opslaan van competentie. Probeer opnieuw.')
       }
+    } catch {
+      setCompetencies(prevCompetencies)
+      setFetchError('Netwerkfout bij opslaan van competentie.')
     } finally { setSaving(null) }
   }
 
@@ -245,9 +302,8 @@ export default function CompetentieMatrixPage() {
     setSaving(`status-${employeeId}`)
     try {
       const current = getDailyStatus(employeeId)
-      const res = await fetch('/api/dagplanning', {
+      const res = await authFetch('/api/dagplanning', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           employee_id: employeeId, date: selectedDate, status,
           assigned_machine_id: assignedMachineId ?? current?.assigned_machine_id ?? null,
@@ -269,25 +325,36 @@ export default function CompetentieMatrixPage() {
     void handleStatusChange(employeeId, current?.status ?? 'aanwezig', machineId)
   }
 
-  // Copy yesterday's planning to selected date
+  // Copy yesterday's planning to selected date — parallel requests
   const handleCopyYesterday = async () => {
-    const prev = new Date(selectedDate)
-    prev.setDate(prev.getDate() - 1)
-    const yesterdayStr = toDateInput(prev)
-    const res = await fetch(`/api/dagplanning?date=${yesterdayStr}`)
-    if (!res.ok) return
-    const yesterdayStatuses: DailyStatus[] = await res.json()
-    for (const s of yesterdayStatuses) {
-      await fetch('/api/dagplanning', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          employee_id: s.employee_id, date: selectedDate,
-          status: s.status, assigned_machine_id: s.assigned_machine_id,
-        }),
-      })
+    setCopyingYesterday(true)
+    try {
+      const prev = new Date(selectedDate)
+      prev.setDate(prev.getDate() - 1)
+      const yesterdayStr = toDateInput(prev)
+      const res = await fetch(`/api/dagplanning?date=${yesterdayStr}`)
+      if (!res.ok) { setFetchError('Kon planning van gisteren niet ophalen.'); return }
+      const yesterdayStatuses: DailyStatus[] = await res.json()
+      if (yesterdayStatuses.length === 0) { setFetchError('Geen planning gevonden voor gisteren.'); return }
+
+      // Alle statussen parallel versturen
+      await Promise.all(
+        yesterdayStatuses.map((s) =>
+          authFetch('/api/dagplanning', {
+            method: 'POST',
+            body: JSON.stringify({
+              employee_id: s.employee_id, date: selectedDate,
+              status: s.status, assigned_machine_id: s.assigned_machine_id,
+            }),
+          })
+        )
+      )
+      void fetchPlanning(selectedDate)
+    } catch {
+      setFetchError('Fout bij kopiëren van planning.')
+    } finally {
+      setCopyingYesterday(false)
     }
-    void fetchPlanning(selectedDate)
   }
 
   // Navigate date
@@ -308,9 +375,8 @@ export default function CompetentieMatrixPage() {
     setSavingMachine(true); setMachineError('')
     try {
       const isNew = !machineForm.id
-      const res = await fetch('/api/machines', {
+      const res = await authFetch('/api/machines', {
         method: isNew ? 'POST' : 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(machineForm),
       })
       if (!res.ok) { const e = await res.json(); setMachineError(e.error ?? 'Fout bij opslaan'); return }
@@ -322,12 +388,12 @@ export default function CompetentieMatrixPage() {
 
   const deleteMachine = async (id: number) => {
     if (!confirm('Machine verwijderen? Dit verwijdert ook alle gekoppelde competenties.')) return
-    const res = await fetch(`/api/machines?id=${id}`, { method: 'DELETE' })
+    const res = await authFetch(`/api/machines?id=${id}`, { method: 'DELETE' })
     if (res.ok) { setMachines((prev) => prev.filter((m) => m.id !== id)); setCompetencies((prev) => prev.filter((c) => c.machine_id !== id)) }
   }
 
   const toggleMachineActive = async (m: Machine) => {
-    const res = await fetch('/api/machines', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: m.id, active: !m.active }) })
+    const res = await authFetch('/api/machines', { method: 'PATCH', body: JSON.stringify({ id: m.id, active: !m.active }) })
     if (res.ok) { const updated = await res.json(); setMachines((prev) => prev.map((x) => (x.id === updated.id ? updated : x))) }
   }
 
@@ -335,6 +401,17 @@ export default function CompetentieMatrixPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-[1500px]">
+
+      {/* Globale foutmelding */}
+      {fetchError && (
+        <div className="mb-4 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span className="flex-1">{fetchError}</span>
+          <button type="button" onClick={() => setFetchError(null)} className="text-red-500 hover:text-red-700">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* Header */}
       <div className="mb-6">
@@ -801,10 +878,12 @@ export default function CompetentieMatrixPage() {
                 </button>
               )
             })}
-            <button type="button" onClick={() => void handleCopyYesterday()}
-              className="inline-flex items-center gap-2 ml-auto px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
-              <Copy className="w-4 h-4" />
-              Kopieer van gisteren
+            <button type="button" onClick={() => void handleCopyYesterday()} disabled={copyingYesterday}
+              className="inline-flex items-center gap-2 ml-auto px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+              {copyingYesterday
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : <Copy className="w-4 h-4" />}
+              {copyingYesterday ? 'Bezig...' : 'Kopieer van gisteren'}
             </button>
             {loadingPlanning && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
           </div>
