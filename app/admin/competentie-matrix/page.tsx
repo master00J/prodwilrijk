@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
+import * as XLSX from 'xlsx'
 import {
   Plus,
   Pencil,
@@ -23,6 +24,12 @@ import {
   ShieldAlert,
   TrendingUp,
   Info,
+  Download,
+  Sparkles,
+  GraduationCap,
+  History,
+  CheckCircle2,
+  Circle,
 } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -30,7 +37,9 @@ import {
 interface Employee { id: number; name: string; active: boolean }
 interface Machine  { id: number; name: string; description: string | null; category: string; active: boolean; sort_order: number }
 interface Competency { id: number; employee_id: number; machine_id: number; level: number; notes: string | null }
-interface DailyStatus { id: number; employee_id: number; date: string; status: string; assigned_machine_id: number | null; notes: string | null }
+interface DailyStatus { id: number; employee_id: number; date: string; status: string; shift: string; assigned_machine_id: number | null; notes: string | null }
+interface CompetencyHistory { id: number; employee_id: number; machine_id: number; old_level: number; new_level: number; changed_at: string }
+interface TrainingPlan { id: number; employee_id: number; machine_id: number; target_date: string | null; trainer_id: number | null; notes: string | null; completed: boolean; created_at: string }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -51,6 +60,13 @@ const STATUSES = [
 ]
 
 const CATEGORIES = ['machine', 'werkplek', 'overig']
+
+const SHIFTS = [
+  { value: 'dag',   label: 'Dagdienst',  color: 'bg-blue-50   text-blue-700   border-blue-200'   },
+  { value: 'vroeg', label: 'Vroegdienst',color: 'bg-amber-50  text-amber-700  border-amber-200'  },
+  { value: 'laat',  label: 'Laatedienst',color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+  { value: 'nacht', label: 'Nachtdienst',color: 'bg-slate-100 text-slate-700  border-slate-200'  },
+]
 
 const AVATAR_COLORS = [
   'bg-blue-500','bg-indigo-500','bg-violet-500','bg-purple-500',
@@ -98,28 +114,41 @@ function LevelCell({ level, onClick, saving }: { level: number; onClick: () => v
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function CompetentieMatrixPage() {
-  const [tab, setTab] = useState<'matrix' | 'machines' | 'dagplanning'>('matrix')
+  const [tab, setTab] = useState<'matrix' | 'machines' | 'dagplanning' | 'opleiding'>('matrix')
 
-  const [employees, setEmployees]     = useState<Employee[]>([])
-  const [machines, setMachines]       = useState<Machine[]>([])
-  const [competencies, setCompetencies] = useState<Competency[]>([])
+  const [employees, setEmployees]         = useState<Employee[]>([])
+  const [machines, setMachines]           = useState<Machine[]>([])
+  const [competencies, setCompetencies]   = useState<Competency[]>([])
   const [dailyStatuses, setDailyStatuses] = useState<DailyStatus[]>([])
   const [selectedDate, setSelectedDate]   = useState(toDateInput(new Date()))
-  const [loadingMatrix, setLoadingMatrix] = useState(true)
+  const [loadingMatrix, setLoadingMatrix]     = useState(true)
   const [loadingPlanning, setLoadingPlanning] = useState(false)
-  const [saving, setSaving] = useState<string | null>(null)
-  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [saving, setSaving]               = useState<string | null>(null)
+  const [fetchError, setFetchError]       = useState<string | null>(null)
   const [copyingYesterday, setCopyingYesterday] = useState(false)
 
   // Machine form
-  const [machineForm, setMachineForm]   = useState<Partial<Machine> | null>(null)
-  const [machineError, setMachineError] = useState('')
+  const [machineForm, setMachineForm]     = useState<Partial<Machine> | null>(null)
+  const [machineError, setMachineError]   = useState('')
   const [savingMachine, setSavingMachine] = useState(false)
 
   // Level picker popup
   const [levelPopup, setLevelPopup] = useState<{ employeeId: number; machineId: number } | null>(null)
+  // Historiek per popup
+  const [levelHistory, setLevelHistory]   = useState<CompetencyHistory[]>([])
+  const [loadingHistory, setLoadingHistory] = useState(false)
   // Machine detail popup (click column header)
   const [machineDetailPopup, setMachineDetailPopup] = useState<Machine | null>(null)
+
+  // Opleidingsplanning
+  const [trainingPlans, setTrainingPlans]     = useState<TrainingPlan[]>([])
+  const [loadingTraining, setLoadingTraining] = useState(false)
+  const [trainingForm, setTrainingForm]       = useState<Partial<TrainingPlan> | null>(null)
+  const [savingTraining, setSavingTraining]   = useState(false)
+  const [trainingFilter, setTrainingFilter]   = useState<'open' | 'completed' | 'all'>('open')
+
+  // Drag & drop state
+  const dragEmployeeId = useRef<number | null>(null)
 
   // Filters
   const [showInactive, setShowInactive]   = useState(false)
@@ -181,8 +210,29 @@ export default function CompetentieMatrixPage() {
     }
   }, [])
 
+  const fetchHistory = useCallback(async (employeeId: number, machineId: number) => {
+    setLoadingHistory(true)
+    try {
+      const res = await fetch(`/api/competency-history?employee_id=${employeeId}&machine_id=${machineId}`)
+      if (res.ok) setLevelHistory(await res.json())
+    } finally {
+      setLoadingHistory(false)
+    }
+  }, [])
+
+  const fetchTrainingPlans = useCallback(async () => {
+    setLoadingTraining(true)
+    try {
+      const res = await fetch('/api/training-plans')
+      if (res.ok) setTrainingPlans(await res.json())
+    } catch { /* silent */ } finally {
+      setLoadingTraining(false)
+    }
+  }, [])
+
   useEffect(() => { void fetchBase() }, [fetchBase])
   useEffect(() => { void fetchPlanning(selectedDate) }, [fetchPlanning, selectedDate])
+  useEffect(() => { if (tab === 'opleiding') void fetchTrainingPlans() }, [tab, fetchTrainingPlans])
 
   // ── Derived data ───────────────────────────────────────────────────────────
 
@@ -260,9 +310,10 @@ export default function CompetentieMatrixPage() {
   const handleSetLevel = async (level: number) => {
     if (!levelPopup) return
     const { employeeId, machineId } = levelPopup
+    const oldLevel = getLevel(employeeId, machineId)
     setLevelPopup(null)
 
-    // Optimistic update: meteen de UI bijwerken
+    // Optimistic update
     const prevCompetencies = competencies
     setCompetencies((prev) => {
       const idx = prev.findIndex((c) => c.employee_id === employeeId && c.machine_id === machineId)
@@ -278,15 +329,18 @@ export default function CompetentieMatrixPage() {
         body: JSON.stringify({ employee_id: employeeId, machine_id: machineId, level }),
       })
       if (res.ok) {
-        // Vervang optimistic record met server response (krijgt echte ID)
         const updated = await res.json()
         setCompetencies((prev) => {
           const idx = prev.findIndex((c) => c.employee_id === employeeId && c.machine_id === machineId)
           if (idx >= 0) { const n = [...prev]; n[idx] = updated; return n }
           return [...prev, updated]
         })
+        // Historiek opslaan (fire-and-forget)
+        void authFetch('/api/competency-history', {
+          method: 'POST',
+          body: JSON.stringify({ employee_id: employeeId, machine_id: machineId, old_level: oldLevel, new_level: level }),
+        })
       } else {
-        // Rollback bij fout
         setCompetencies(prevCompetencies)
         setFetchError('Fout bij opslaan van competentie. Probeer opnieuw.')
       }
@@ -298,15 +352,23 @@ export default function CompetentieMatrixPage() {
 
   // ── Daily status actions ───────────────────────────────────────────────────
 
-  const handleStatusChange = async (employeeId: number, status: string, assignedMachineId?: number | null) => {
+  const handleStatusChange = async (
+    employeeId: number,
+    status: string,
+    assignedMachineId?: number | null,
+    shift?: string,
+  ) => {
     setSaving(`status-${employeeId}`)
     try {
       const current = getDailyStatus(employeeId)
       const res = await authFetch('/api/dagplanning', {
         method: 'POST',
         body: JSON.stringify({
-          employee_id: employeeId, date: selectedDate, status,
+          employee_id: employeeId,
+          date: selectedDate,
+          status,
           assigned_machine_id: assignedMachineId ?? current?.assigned_machine_id ?? null,
+          shift: shift ?? current?.shift ?? 'dag',
         }),
       })
       if (res.ok) {
@@ -323,6 +385,11 @@ export default function CompetentieMatrixPage() {
   const handleMachineAssign = (employeeId: number, machineId: number | null) => {
     const current = getDailyStatus(employeeId)
     void handleStatusChange(employeeId, current?.status ?? 'aanwezig', machineId)
+  }
+
+  const handleShiftChange = (employeeId: number, shift: string) => {
+    const current = getDailyStatus(employeeId)
+    void handleStatusChange(employeeId, current?.status ?? 'aanwezig', current?.assigned_machine_id ?? null, shift)
   }
 
   // Copy yesterday's planning to selected date — parallel requests
@@ -397,6 +464,136 @@ export default function CompetentieMatrixPage() {
     if (res.ok) { const updated = await res.json(); setMachines((prev) => prev.map((x) => (x.id === updated.id ? updated : x))) }
   }
 
+  // ── Excel export ───────────────────────────────────────────────────────────
+
+  const exportMatrixToExcel = () => {
+    const headers = ['Medewerker', ...visibleMachines.map(m => m.name), 'Score']
+    const rows = visibleEmployees.map((emp) => [
+      emp.name,
+      ...visibleMachines.map((m) => {
+        const lvl = getLevel(emp.id, m.id)
+        return lvl === 0 ? '' : LEVELS[lvl].desc
+      }),
+      employeeMachineCount[emp.id] ?? 0,
+    ])
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
+    // Kolombreedte
+    ws['!cols'] = [{ wch: 25 }, ...visibleMachines.map(() => ({ wch: 16 })), { wch: 8 }]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Competentie Matrix')
+    XLSX.writeFile(wb, `competentie-matrix-${selectedDate}.xlsx`)
+  }
+
+  // ── Automatische bezettingssuggestie ───────────────────────────────────────
+
+  const handleAutoSuggest = async () => {
+    const activeMachineList = machines.filter(m => m.active)
+    // Medewerkers die aanwezig zijn (of geen status) en nog niet toegewezen
+    const availableEmps = visibleEmployees.filter((e) => {
+      const ds = getDailyStatus(e.id)
+      return !ds || ds.status === 'aanwezig' || ds.status === 'thuiswerk'
+    })
+
+    const assignments: Array<{ empId: number; machId: number }> = []
+    const assignedEmpIds = new Set(
+      dailyStatuses
+        .filter(ds => ds.assigned_machine_id !== null && (ds.status === 'aanwezig' || ds.status === 'thuiswerk'))
+        .map(ds => ds.employee_id)
+    )
+
+    // Machines zonder toewijzing prioriteit geven, dan kwalificatie check
+    for (const machine of activeMachineList) {
+      const alreadyAssigned = dailyStatuses.some(
+        ds => ds.assigned_machine_id === machine.id && (ds.status === 'aanwezig' || ds.status === 'thuiswerk')
+      )
+      if (alreadyAssigned) continue
+
+      // Zoek best gekwalificeerde beschikbare medewerker
+      const candidate = availableEmps
+        .filter(e => !assignedEmpIds.has(e.id) && getLevel(e.id, machine.id) >= 2)
+        .sort((a, b) => getLevel(b.id, machine.id) - getLevel(a.id, machine.id))[0]
+
+      if (candidate) {
+        assignments.push({ empId: candidate.id, machId: machine.id })
+        assignedEmpIds.add(candidate.id)
+      }
+    }
+
+    if (assignments.length === 0) {
+      setFetchError('Geen suggesties mogelijk: alle machines zijn al bezet of er zijn geen gekwalificeerde medewerkers beschikbaar.')
+      return
+    }
+
+    // Parallel toewijzen
+    await Promise.all(
+      assignments.map(({ empId, machId }) => {
+        const current = getDailyStatus(empId)
+        return authFetch('/api/dagplanning', {
+          method: 'POST',
+          body: JSON.stringify({
+            employee_id: empId,
+            date: selectedDate,
+            status: current?.status ?? 'aanwezig',
+            assigned_machine_id: machId,
+            shift: current?.shift ?? 'dag',
+          }),
+        })
+      })
+    )
+    void fetchPlanning(selectedDate)
+  }
+
+  // ── Drag & drop handlers ───────────────────────────────────────────────────
+
+  const handleDragStart = (employeeId: number) => {
+    dragEmployeeId.current = employeeId
+  }
+
+  const handleDropOnMachine = (machineId: number) => {
+    const empId = dragEmployeeId.current
+    if (empId === null) return
+    dragEmployeeId.current = null
+    handleMachineAssign(empId, machineId)
+  }
+
+  // ── Opleidingsplanning CRUD ────────────────────────────────────────────────
+
+  const saveTrainingPlan = async () => {
+    if (!trainingForm || !trainingForm.employee_id || !trainingForm.machine_id) return
+    setSavingTraining(true)
+    try {
+      const isNew = !trainingForm.id
+      const res = await authFetch(`/api/training-plans`, {
+        method: isNew ? 'POST' : 'PATCH',
+        body: JSON.stringify(trainingForm),
+      })
+      if (res.ok) {
+        const saved = await res.json()
+        setTrainingPlans(prev => isNew ? [...prev, saved] : prev.map(p => p.id === saved.id ? saved : p))
+        setTrainingForm(null)
+      } else {
+        setFetchError('Fout bij opslaan van opleidingsplan.')
+      }
+    } finally { setSavingTraining(false) }
+  }
+
+  const toggleTrainingCompleted = async (plan: TrainingPlan) => {
+    const res = await authFetch('/api/training-plans', {
+      method: 'PATCH',
+      body: JSON.stringify({ id: plan.id, completed: !plan.completed }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setTrainingPlans(prev => prev.map(p => p.id === updated.id ? updated : p))
+    }
+  }
+
+  const deleteTrainingPlan = async (id: number) => {
+    if (!confirm('Opleidingsplan verwijderen?')) return
+    const res = await authFetch(`/api/training-plans?id=${id}`, { method: 'DELETE' })
+    if (res.ok) setTrainingPlans(prev => prev.filter(p => p.id !== id))
+  }
+
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -428,9 +625,10 @@ export default function CompetentieMatrixPage() {
       <div className="mb-6 border-b border-gray-200">
         <nav className="flex gap-0 -mb-px">
           {([
-            { id: 'matrix'     as const, label: 'Competentie Matrix',      icon: <LayoutGrid className="w-4 h-4" /> },
-            { id: 'machines'   as const, label: 'Machines & Werkplekken',   icon: <Settings   className="w-4 h-4" /> },
-            { id: 'dagplanning'as const, label: 'Dagplanning',              icon: <CalendarDays className="w-4 h-4" /> },
+            { id: 'matrix'      as const, label: 'Competentie Matrix',    icon: <LayoutGrid    className="w-4 h-4" /> },
+            { id: 'machines'    as const, label: 'Machines & Werkplekken',icon: <Settings      className="w-4 h-4" /> },
+            { id: 'dagplanning' as const, label: 'Dagplanning',           icon: <CalendarDays  className="w-4 h-4" /> },
+            { id: 'opleiding'   as const, label: 'Opleiding',             icon: <GraduationCap className="w-4 h-4" /> },
           ]).map((t) => (
             <button key={t.id} type="button" onClick={() => setTab(t.id)}
               className={`inline-flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
@@ -534,7 +732,7 @@ export default function CompetentieMatrixPage() {
               Inactieve medewerkers
             </label>
 
-            {/* Legend */}
+            {/* Legend + Export */}
             <div className="ml-auto flex flex-wrap items-center gap-3">
               {LEVELS.map((l) => (
                 <span key={l.value} className="inline-flex items-center gap-1.5 text-xs text-gray-500">
@@ -544,6 +742,13 @@ export default function CompetentieMatrixPage() {
                   {l.desc}
                 </span>
               ))}
+              <button
+                type="button"
+                onClick={exportMatrixToExcel}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 hover:border-gray-300">
+                <Download className="w-3.5 h-3.5" />
+                Exporteer Excel
+              </button>
             </div>
           </div>
 
@@ -636,14 +841,18 @@ export default function CompetentieMatrixPage() {
             const currentLevel = getLevel(levelPopup.employeeId, levelPopup.machineId)
             return (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setLevelPopup(null)}>
-                <div className="bg-white rounded-xl shadow-xl p-5 w-72" onClick={(e) => e.stopPropagation()}>
+                <div className="bg-white rounded-xl shadow-xl p-5 w-80" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-between mb-1">
                     <div className="text-sm font-semibold text-gray-800">Competentieniveau instellen</div>
                     <button type="button" onClick={() => setLevelPopup(null)}><X className="w-4 h-4 text-gray-400" /></button>
                   </div>
                   {emp && mac && (
-                    <div className="text-xs text-gray-500 mb-4">
-                      <span className="font-medium text-gray-700">{emp.name}</span> · <span>{mac.name}</span>
+                    <div className="text-xs text-gray-500 mb-4 flex items-center justify-between">
+                      <span><span className="font-medium text-gray-700">{emp.name}</span> · <span>{mac.name}</span></span>
+                      <button type="button" onClick={() => void fetchHistory(levelPopup.employeeId, levelPopup.machineId)}
+                        className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600">
+                        <History className="w-3 h-3" />Historiek
+                      </button>
                     </div>
                   )}
                   <div className="space-y-1.5">
@@ -658,6 +867,32 @@ export default function CompetentieMatrixPage() {
                       </button>
                     ))}
                   </div>
+                  {/* Historiek sectie */}
+                  {(loadingHistory || levelHistory.length > 0) && (
+                    <div className="mt-4 border-t border-gray-100 pt-3">
+                      <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Historiek</div>
+                      {loadingHistory ? (
+                        <div className="flex justify-center py-2"><Loader2 className="w-4 h-4 animate-spin text-gray-300" /></div>
+                      ) : (
+                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                          {levelHistory.map(h => (
+                            <div key={h.id} className="flex items-center gap-2 text-xs text-gray-500">
+                              <span className={`w-5 h-5 rounded flex items-center justify-center font-bold shrink-0 ${LEVELS[h.old_level]?.bg ?? 'bg-gray-100'} ${LEVELS[h.old_level]?.text ?? 'text-gray-400'}`}>
+                                {h.old_level === 0 ? '·' : h.old_level}
+                              </span>
+                              <span className="text-gray-300">→</span>
+                              <span className={`w-5 h-5 rounded flex items-center justify-center font-bold shrink-0 ${LEVELS[h.new_level]?.bg ?? 'bg-gray-100'} ${LEVELS[h.new_level]?.text ?? 'text-gray-400'}`}>
+                                {h.new_level === 0 ? '·' : h.new_level}
+                              </span>
+                              <span className="text-gray-400 ml-auto">
+                                {new Date(h.changed_at).toLocaleDateString('nl-NL', { day: '2-digit', month: 'short', year: '2-digit' })}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )
@@ -878,13 +1113,20 @@ export default function CompetentieMatrixPage() {
                 </button>
               )
             })}
-            <button type="button" onClick={() => void handleCopyYesterday()} disabled={copyingYesterday}
-              className="inline-flex items-center gap-2 ml-auto px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
-              {copyingYesterday
-                ? <Loader2 className="w-4 h-4 animate-spin" />
-                : <Copy className="w-4 h-4" />}
-              {copyingYesterday ? 'Bezig...' : 'Kopieer van gisteren'}
-            </button>
+            <div className="ml-auto flex items-center gap-2">
+              <button type="button" onClick={() => void handleAutoSuggest()}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700 hover:bg-blue-100">
+                <Sparkles className="w-4 h-4" />
+                Stel bezetting voor
+              </button>
+              <button type="button" onClick={() => void handleCopyYesterday()} disabled={copyingYesterday}
+                className="inline-flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                {copyingYesterday
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <Copy className="w-4 h-4" />}
+                {copyingYesterday ? 'Bezig...' : 'Kopieer van gisteren'}
+              </button>
+            </div>
             {loadingPlanning && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
           </div>
 
@@ -914,14 +1156,19 @@ export default function CompetentieMatrixPage() {
                 {visibleEmployees.map((emp) => {
                   const ds = getDailyStatus(emp.id)
                   const status = ds?.status ?? ''
+                  const shift  = ds?.shift ?? 'dag'
                   const assignedMachineId = ds?.assigned_machine_id ?? null
                   const isSaving = saving === `status-${emp.id}`
                   const isPresent = !status || status === 'aanwezig' || status === 'thuiswerk'
-                  const statusObj = STATUSES.find(s => s.value === status)
                   const borderColor = !ds ? 'border-gray-200' : status === 'aanwezig' ? 'border-emerald-300' : status === 'thuiswerk' ? 'border-purple-300' : status === 'verlof' ? 'border-blue-300' : status === 'ziek' ? 'border-orange-300' : 'border-red-300'
+                  const shiftObj = SHIFTS.find(s => s.value === shift) ?? SHIFTS[0]
 
                   return (
-                    <div key={emp.id} className={`bg-white rounded-xl border-2 shadow-sm p-4 transition-all ${borderColor}`}>
+                    <div
+                      key={emp.id}
+                      draggable
+                      onDragStart={() => handleDragStart(emp.id)}
+                      className={`bg-white rounded-xl border-2 shadow-sm p-4 transition-all cursor-grab active:cursor-grabbing ${borderColor}`}>
                       {/* Header */}
                       <div className="flex items-center gap-3 mb-3">
                         <Avatar employee={emp} />
@@ -929,16 +1176,31 @@ export default function CompetentieMatrixPage() {
                           <div className="font-semibold text-gray-900 truncate">{emp.name}</div>
                           {ds ? <StatusBadge status={status} /> : <span className="text-xs text-gray-400">Niet ingevuld</span>}
                         </div>
+                        {/* Shift badge */}
+                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${shiftObj.color}`}>
+                          {shiftObj.label}
+                        </span>
                         {isSaving && <Loader2 className="w-4 h-4 animate-spin text-gray-300" />}
                       </div>
 
                       {/* Status buttons */}
-                      <div className="grid grid-cols-3 gap-1 mb-3">
+                      <div className="grid grid-cols-3 gap-1 mb-2">
                         {STATUSES.map((s) => (
                           <button key={s.value} type="button" disabled={isSaving}
                             onClick={() => void handleStatusChange(emp.id, s.value)}
                             className={`py-1.5 rounded-lg text-xs font-medium border transition-all ${status === s.value && ds ? `${s.color} shadow-sm` : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}>
                             {s.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Shift selector */}
+                      <div className="grid grid-cols-4 gap-1 mb-3">
+                        {SHIFTS.map((s) => (
+                          <button key={s.value} type="button" disabled={isSaving}
+                            onClick={() => handleShiftChange(emp.id, s.value)}
+                            className={`py-1 rounded text-[10px] font-medium border transition-all ${shift === s.value && ds ? `${s.color} shadow-sm` : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-gray-100'}`}>
+                            {s.label.replace('dienst', '')}
                           </button>
                         ))}
                       </div>
@@ -962,7 +1224,7 @@ export default function CompetentieMatrixPage() {
 
                       {/* Competency tags */}
                       {isPresent && (
-                        <div className="mt-2.5 flex flex-wrap gap-1">
+                        <div className="mt-2 flex flex-wrap gap-1">
                           {machines.filter(m => m.active && getLevel(emp.id, m.id) >= 2).map(m => {
                             const lvl = LEVELS[getLevel(emp.id, m.id)]
                             return (
@@ -983,7 +1245,10 @@ export default function CompetentieMatrixPage() {
             {/* Machine overview sidebar */}
             <div className="xl:col-span-1">
               <div className="sticky top-6">
-                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Machineoverzicht</h2>
+                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">
+                Machineoverzicht
+                <span className="ml-2 font-normal text-gray-300 normal-case">sleep medewerker hier naartoe</span>
+              </h2>
                 <div className="space-y-2">
                   {machines.filter(m => m.active).map(m => {
                     const assigned = visibleEmployees.filter(e => {
@@ -993,13 +1258,16 @@ export default function CompetentieMatrixPage() {
                     const qualified = machineQualified[m.id] ?? []
                     const available = visibleEmployees.filter(e => getLevel(e.id, m.id) >= 2 && (getDailyStatus(e.id)?.status === 'aanwezig' || !getDailyStatus(e.id)))
                     return (
-                      <div key={m.id} className={`rounded-xl border p-3 transition-all ${assigned.length > 0 ? 'border-emerald-200 bg-emerald-50' : qualified.length < 2 ? 'border-red-100 bg-red-50/50' : 'border-gray-200 bg-white'}`}>
+                      <div key={m.id}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={() => handleDropOnMachine(m.id)}
+                        className={`rounded-xl border-2 p-3 transition-all ${assigned.length > 0 ? 'border-emerald-200 bg-emerald-50' : qualified.length < 2 ? 'border-red-100 bg-red-50/50' : 'border-dashed border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/30'}`}>
                         <div className="flex items-center justify-between mb-1">
                           <div className="text-xs font-semibold text-gray-700 truncate">{m.name}</div>
                           {qualified.length < 2 && <AlertTriangle className="w-3 h-3 text-red-400 shrink-0" />}
                         </div>
                         {assigned.length === 0 ? (
-                          <div className="text-xs text-gray-400 italic">Niemand toegewezen</div>
+                          <div className="text-xs text-gray-300 italic">Sleep een medewerker hier…</div>
                         ) : (
                           <div className="space-y-0.5">
                             {assigned.map(e => (
@@ -1021,6 +1289,183 @@ export default function CompetentieMatrixPage() {
             </div>
 
           </div>
+        </div>
+      )}
+
+      {/* ════════════════════ TAB: OPLEIDING ════════════════════ */}
+      {tab === 'opleiding' && (
+        <div>
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+              {(['open', 'completed', 'all'] as const).map((f, i) => (
+                <button key={f} type="button" onClick={() => setTrainingFilter(f)}
+                  className={`px-4 py-2 ${i > 0 ? 'border-l border-gray-200' : ''} ${trainingFilter === f ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+                  {f === 'open' ? 'Lopend' : f === 'completed' ? 'Afgerond' : 'Alles'}
+                </button>
+              ))}
+            </div>
+            <button type="button"
+              onClick={() => setTrainingForm({ completed: false })}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
+              <Plus className="w-4 h-4" />Nieuw opleidingsplan
+            </button>
+          </div>
+
+          {loadingTraining ? (
+            <div className="animate-pulse space-y-2">
+              {[1,2,3].map(i => <div key={i} className="h-16 bg-gray-100 rounded-xl" />)}
+            </div>
+          ) : (() => {
+            const filtered = trainingPlans.filter(p =>
+              trainingFilter === 'all' ? true : trainingFilter === 'completed' ? p.completed : !p.completed
+            )
+            if (filtered.length === 0) return (
+              <div className="text-center py-16 text-gray-400">
+                <GraduationCap className="w-10 h-10 mx-auto mb-3 opacity-40" />
+                <p>Geen opleidingen gevonden</p>
+              </div>
+            )
+            return (
+              <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-semibold w-8"></th>
+                      <th className="px-4 py-3 text-left font-semibold">Medewerker</th>
+                      <th className="px-4 py-3 text-left font-semibold">Machine / Werkplek</th>
+                      <th className="px-4 py-3 text-left font-semibold">Doeldatum</th>
+                      <th className="px-4 py-3 text-left font-semibold">Trainer</th>
+                      <th className="px-4 py-3 text-left font-semibold">Notities</th>
+                      <th className="px-4 py-3 text-right font-semibold">Acties</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {filtered.map(plan => {
+                      const emp     = employees.find(e => e.id === plan.employee_id)
+                      const machine = machines.find(m => m.id === plan.machine_id)
+                      const trainer = plan.trainer_id ? employees.find(e => e.id === plan.trainer_id) : null
+                      const isOverdue = !plan.completed && plan.target_date && new Date(plan.target_date) < new Date()
+                      return (
+                        <tr key={plan.id} className={`hover:bg-gray-50 ${plan.completed ? 'opacity-60' : ''}`}>
+                          <td className="px-4 py-3">
+                            <button type="button" onClick={() => void toggleTrainingCompleted(plan)} title="Markeer als afgerond">
+                              {plan.completed
+                                ? <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                                : <Circle className="w-5 h-5 text-gray-300 hover:text-emerald-400" />}
+                            </button>
+                          </td>
+                          <td className="px-4 py-3">
+                            {emp ? (
+                              <div className="flex items-center gap-2">
+                                <Avatar employee={emp} size="sm" />
+                                <span className="font-medium text-gray-900">{emp.name}</span>
+                              </div>
+                            ) : <span className="text-gray-400">—</span>}
+                          </td>
+                          <td className="px-4 py-3 font-medium text-gray-700">{machine?.name ?? '—'}</td>
+                          <td className="px-4 py-3">
+                            {plan.target_date ? (
+                              <span className={isOverdue ? 'text-red-600 font-medium' : 'text-gray-700'}>
+                                {new Date(plan.target_date).toLocaleDateString('nl-NL')}
+                                {isOverdue && <span className="ml-1 text-[10px] bg-red-100 text-red-600 rounded px-1">Te laat</span>}
+                              </span>
+                            ) : <span className="text-gray-400">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-gray-500">{trainer?.name ?? '—'}</td>
+                          <td className="px-4 py-3 text-gray-500 max-w-xs truncate">{plan.notes ?? '—'}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-1">
+                              <button type="button" onClick={() => setTrainingForm(plan)}
+                                className="p-1.5 rounded hover:bg-gray-100 text-gray-500"><Pencil className="w-4 h-4" /></button>
+                              <button type="button" onClick={() => void deleteTrainingPlan(plan.id)}
+                                className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )
+          })()}
+
+          {/* Training form modal */}
+          {trainingForm !== null && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
+              <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    {trainingForm.id ? 'Opleidingsplan bewerken' : 'Nieuw opleidingsplan'}
+                  </h2>
+                  <button type="button" onClick={() => setTrainingForm(null)}><X className="w-5 h-5 text-gray-400" /></button>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Medewerker *</label>
+                    <select value={trainingForm.employee_id ?? ''}
+                      onChange={(e) => setTrainingForm(f => ({ ...f, employee_id: Number(e.target.value) || undefined }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                      <option value="">— Kies medewerker —</option>
+                      {employees.filter(e => e.active).map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Machine / Werkplek *</label>
+                    <select value={trainingForm.machine_id ?? ''}
+                      onChange={(e) => setTrainingForm(f => ({ ...f, machine_id: Number(e.target.value) || undefined }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                      <option value="">— Kies machine —</option>
+                      {machines.filter(m => m.active).map(m => {
+                        const current = trainingForm.employee_id ? getLevel(trainingForm.employee_id, m.id) : 0
+                        return <option key={m.id} value={m.id}>{m.name} {current > 0 ? `(huidig: ${LEVELS[current].desc})` : ''}</option>
+                      })}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Doeldatum</label>
+                      <input type="date" value={trainingForm.target_date ?? ''}
+                        onChange={(e) => setTrainingForm(f => ({ ...f, target_date: e.target.value || null }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Trainer</label>
+                      <select value={trainingForm.trainer_id ?? ''}
+                        onChange={(e) => setTrainingForm(f => ({ ...f, trainer_id: Number(e.target.value) || null }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                        <option value="">— Geen trainer —</option>
+                        {employees.filter(e => e.active).map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Notities</label>
+                    <textarea value={trainingForm.notes ?? ''} rows={2}
+                      onChange={(e) => setTrainingForm(f => ({ ...f, notes: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Optionele opmerkingen…" />
+                  </div>
+                  {trainingForm.id && (
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={trainingForm.completed ?? false}
+                        onChange={(e) => setTrainingForm(f => ({ ...f, completed: e.target.checked }))}
+                        className="rounded border-gray-300 text-emerald-600" />
+                      Afgerond
+                    </label>
+                  )}
+                </div>
+                <div className="mt-6 flex justify-end gap-3">
+                  <button type="button" onClick={() => setTrainingForm(null)}
+                    className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuleren</button>
+                  <button type="button" onClick={() => void saveTrainingPlan()} disabled={savingTraining}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60">
+                    {savingTraining ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                    Opslaan
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

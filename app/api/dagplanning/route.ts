@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
   if (auth instanceof NextResponse) return auth
 
   const body = await request.json()
-  const { employee_id, date, status, assigned_machine_id, notes } = body
+  const { employee_id, date, status, assigned_machine_id, notes, shift } = body
 
   if (!employee_id || !date) {
     return NextResponse.json({ error: 'employee_id en date zijn verplicht' }, { status: 400 })
@@ -35,6 +35,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Ongeldig status' }, { status: 400 })
   }
 
+  const validShifts = ['dag', 'vroeg', 'laat', 'nacht']
+  if (shift && !validShifts.includes(shift)) {
+    return NextResponse.json({ error: 'Ongeldig shift' }, { status: 400 })
+  }
+
   const { data, error } = await supabaseAdmin
     .from('employee_daily_status')
     .upsert(
@@ -42,6 +47,7 @@ export async function POST(request: NextRequest) {
         employee_id,
         date,
         status: status ?? 'aanwezig',
+        shift: shift ?? 'dag',
         assigned_machine_id: assigned_machine_id ?? null,
         notes: notes?.trim() || null,
         updated_at: new Date().toISOString(),
