@@ -715,6 +715,15 @@ export default function Navbar() {
                       Monitor controles
                     </Link>
                     <Link
+                      href="/admin/competentie-matrix"
+                      onClick={() => setIsAdminOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/admin/competentie-matrix') ? 'bg-purple-50 text-purple-600 font-medium border-l-4 border-purple-500' : 'text-gray-700'
+                      }`}
+                    >
+                      Competentie Matrix
+                    </Link>
+                    <Link
                       href="/admin/wms-projecten-import"
                       onClick={() => setIsAdminOpen(false)}
                       className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
@@ -894,6 +903,7 @@ export default function Navbar() {
                       <Link href="/admin/bc-codes" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">BC Codes</Link>
                       <Link href="/admin/target-stock" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Target Stock</Link>
                       <Link href="/admin/monitor-controles" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Monitor controles</Link>
+                      <Link href="/admin/competentie-matrix" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Competentie Matrix</Link>
                       <Link href="/admin/wms-projecten-import" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">WMS Project import</Link>
                       <Link href="/admin/production-order-upload" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Productieorder upload</Link>
                     </div>

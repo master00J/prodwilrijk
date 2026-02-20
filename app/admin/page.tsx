@@ -54,7 +54,13 @@ export default function AdminPage() {
       icon: '🏭',
       color: 'orange',
     },
-    // Toekomstige flows kunnen hier worden toegevoegd
+    {
+      title: 'Competentie Matrix',
+      description: 'Beheer competenties van medewerkers per machine/werkplek en plan de dagelijkse bezetting',
+      href: '/admin/competentie-matrix',
+      icon: '🎯',
+      color: 'green',
+    },
   ]
 
   const getColorClasses = (color: string) => {
