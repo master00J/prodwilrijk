@@ -6,7 +6,14 @@ import { X, LayoutGrid, CalendarDays, ShieldAlert, ArrowRight } from 'lucide-rea
 import { useAuth } from '@/components/AuthProvider'
 
 const POPUP_KEY = 'seen_feature_competentie_matrix_v1'
-const TARGET_EMAIL_FRAGMENT = 'nvandamme'
+// Gebruikersnamen die de popup te zien krijgen
+const TARGET_USERNAMES = ['nvandamme']
+
+/** Haalt de username op uit het interne email-formaat "username@system.local" */
+function getUsernameFromEmail(email: string | undefined): string {
+  if (!email) return ''
+  return email.split('@')[0].toLowerCase()
+}
 
 export default function NewFeaturePopup() {
   const { user, loading } = useAuth()
@@ -15,10 +22,10 @@ export default function NewFeaturePopup() {
 
   useEffect(() => {
     if (loading || !user) return
-    const email = user.email ?? ''
-    if (!email.toLowerCase().includes(TARGET_EMAIL_FRAGMENT)) return
+    const username = getUsernameFromEmail(user.email)
+    if (!TARGET_USERNAMES.includes(username)) return
     if (typeof window !== 'undefined' && localStorage.getItem(POPUP_KEY)) return
-    // Short delay so the page has rendered first
+    // Korte vertraging zodat de pagina eerst volledig geladen is
     const t = setTimeout(() => setVisible(true), 800)
     return () => clearTimeout(t)
   }, [user, loading])
