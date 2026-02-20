@@ -35,12 +35,17 @@ export interface DetailedItem {
   po_number: string
   amount: number
   price: number
+  priceFound: boolean
   revenue: number
   materialCostUnit: number
   materialCostTotal: number
   date_packed: string
   date_added: string
 }
+
+export type DetailSortColumn = keyof Pick<DetailedItem,
+  'date_packed' | 'item_number' | 'po_number' | 'amount' | 'price' | 'revenue' | 'materialCostUnit' | 'materialCostTotal'
+>
 
 export type CompareMode = 'previous' | 'lastYear' | 'custom' | 'selectedDays'
 

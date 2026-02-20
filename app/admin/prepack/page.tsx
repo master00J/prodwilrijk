@@ -132,6 +132,9 @@ export default function PrepackMonitorPage() {
     queueStats,
     queueLoading,
     fetchQueueStats,
+    sortColumn,
+    sortDir,
+    handleSort,
   } = api
 
   const grossMargin = totals ? totals.totalRevenue - totals.totalMaterialCost : null
@@ -794,53 +797,71 @@ export default function PrepackMonitorPage() {
             Geen items gevonden voor de geselecteerde periode
           </div>
         ) : (
-          <div className="overflow-x-auto max-h-96 overflow-y-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50 sticky top-0">
+          <div className="overflow-x-auto max-h-[520px] overflow-y-auto">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Datum Verpakt</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Itemnummer</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">PO Nummer</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Aantal</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Prijs</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Omzet</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Materiaalkost/stuk</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Materiaalkost</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">BOM</th>
+                  {([
+                    { key: 'date_packed',       label: 'Datum Verpakt',     align: 'left'  },
+                    { key: 'item_number',        label: 'Itemnummer',        align: 'left'  },
+                    { key: 'po_number',          label: 'PO Nummer',         align: 'left'  },
+                    { key: 'amount',             label: 'Aantal',            align: 'right' },
+                    { key: 'price',              label: 'Prijs',             align: 'right' },
+                    { key: 'revenue',            label: 'Omzet',             align: 'right' },
+                    { key: 'materialCostUnit',   label: 'Materiaal/stuk',    align: 'right' },
+                    { key: 'materialCostTotal',  label: 'Materiaalkost',     align: 'right' },
+                  ] as const).map(({ key, label, align }) => (
+                    <th
+                      key={key}
+                      className={`px-4 py-3 font-medium text-gray-700 cursor-pointer select-none hover:bg-gray-100 whitespace-nowrap ${align === 'right' ? 'text-right' : 'text-left'}`}
+                      onClick={() => handleSort(key)}
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        {label}
+                        <span className="text-gray-400 text-xs w-3 inline-block">
+                          {sortColumn === key ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
+                        </span>
+                      </span>
+                    </th>
+                  ))}
+                  <th className="px-4 py-3 text-left font-medium text-gray-700">BOM</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredDetailedItems.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm text-gray-900">
+                    <td className="px-4 py-3 text-gray-900 whitespace-nowrap">
                       {new Date(item.date_packed).toLocaleDateString('nl-NL', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
+                        year: 'numeric', month: 'short', day: 'numeric',
+                        hour: '2-digit', minute: '2-digit',
                       })}
                     </td>
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{item.item_number}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{item.po_number || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{item.amount}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">
-                      {item.price > 0 ? `€${item.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                    <td className="px-4 py-3 font-medium text-gray-900">{item.item_number}</td>
+                    <td className="px-4 py-3 text-gray-900">{item.po_number || '-'}</td>
+                    <td className="px-4 py-3 text-gray-900 text-right tabular-nums">{item.amount}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">
+                      {!item.priceFound ? (
+                        <span className="text-gray-300 italic text-xs">Geen VKO</span>
+                      ) : item.price > 0 ? (
+                        <span className="text-gray-900">{`€${item.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</span>
+                      ) : (
+                        <span className="text-gray-400">€0,00</span>
+                      )}
                     </td>
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                    <td className="px-4 py-3 font-medium text-right tabular-nums">
                       {item.revenue > 0 ? `€${item.revenue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">
+                    <td className="px-4 py-3 text-right tabular-nums">
                       {item.materialCostUnit > 0
                         ? `€${item.materialCostUnit.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                         : '-'}
                     </td>
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                    <td className="px-4 py-3 font-medium text-right tabular-nums">
                       {item.materialCostTotal > 0
                         ? `€${item.materialCostTotal.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                         : '-'}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">
+                    <td className="px-4 py-3">
                       <button
                         type="button"
                         onClick={() => openBomDetail(item.item_number)}

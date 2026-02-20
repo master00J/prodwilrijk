@@ -38,6 +38,7 @@ export interface DetailedItem {
   po_number: string
   amount: number
   price: number
+  priceFound: boolean   // true als er een verkooporder bestaat voor dit item
   revenue: number
   materialCostUnit: number
   materialCostTotal: number
@@ -279,10 +280,13 @@ export async function fetchPrepackStats({
     )
 
     if (salesOrders.length > 0) {
+      // salesOrders is gesorteerd DESC op uploaded_at → eerste hit = meest recente prijs
+      // Gebruik 'key in pricesMap' i.p.v. '!pricesMap[key]' zodat een prijs van 0
+      // de meest recente is en niet overschreven wordt door oudere records met prijs 1.
       salesOrders.forEach((order: any) => {
         const key = normalizeItemNumber(order.item_number)
         if (!key) return
-        if (!pricesMap[key]) {
+        if (!(key in pricesMap)) {
           pricesMap[key] = parseFloat(order.price) || 0
         }
       })
@@ -705,10 +709,12 @@ export async function fetchPrepackStats({
     ? []
     : items
         .map((item: any) => {
-          const price = pricesMap[normalizeItemNumber(item.item_number)] || 0
+          const normalizedKey = normalizeItemNumber(item.item_number)
+          const priceFound = normalizedKey in pricesMap
+          const price = pricesMap[normalizedKey] ?? 0
           const amount = item.amount || 0
           const revenue = price * amount
-          const materialUnitCost = materialCostMap[normalizeItemNumber(item.item_number)] || 0
+          const materialUnitCost = materialCostMap[normalizedKey] || 0
           const materialCostTotal = materialUnitCost * amount
 
           return {
@@ -717,6 +723,7 @@ export async function fetchPrepackStats({
             po_number: item.po_number,
             amount,
             price: Number(price.toFixed(2)),
+            priceFound,
             revenue: Number(revenue.toFixed(2)),
             materialCostUnit: Number(materialUnitCost.toFixed(2)),
             materialCostTotal: Number(materialCostTotal.toFixed(2)),

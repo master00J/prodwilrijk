@@ -12,6 +12,7 @@ import type {
   CompareMode,
   DailyStat,
   DetailedItem,
+  DetailSortColumn,
   PersonStats,
   Totals,
 } from './types'
@@ -42,6 +43,19 @@ export function usePrepackStats(
   const [detailedItems, setDetailedItems] = useState<DetailedItem[]>([])
   const [detailsLimited, setDetailsLimited] = useState(false)
   const [missingCostOnly, setMissingCostOnly] = useState(false)
+  const [sortColumn, setSortColumn] = useState<DetailSortColumn | null>(null)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+
+  const handleSort = useCallback((col: DetailSortColumn) => {
+    setSortColumn((prev) => {
+      if (prev === col) {
+        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+        return col
+      }
+      setSortDir('desc')
+      return col
+    })
+  }, [])
   const [bomLoading, setBomLoading] = useState(false)
   const [bomError, setBomError] = useState<string | null>(null)
   const [bomDetail, setBomDetail] = useState<any | null>(null)
@@ -337,14 +351,28 @@ export function usePrepackStats(
   }, [totals, personStats.length, dailyStats])
 
   const filteredDetailedItems = useMemo(() => {
-    if (!missingCostOnly) return detailedItems
-    return detailedItems.filter((item) => {
-      const missingPrice = !item.price || item.price <= 0
-      const missingUnitCost = !item.materialCostUnit || item.materialCostUnit <= 0
-      const missingTotalCost = !item.materialCostTotal || item.materialCostTotal <= 0
-      return missingPrice || missingUnitCost || missingTotalCost
+    let items = detailedItems
+    if (missingCostOnly) {
+      items = items.filter((item) => {
+        const missingPrice = !item.priceFound || item.price <= 0
+        const missingUnitCost = !item.materialCostUnit || item.materialCostUnit <= 0
+        const missingTotalCost = !item.materialCostTotal || item.materialCostTotal <= 0
+        return missingPrice || missingUnitCost || missingTotalCost
+      })
+    }
+    if (!sortColumn) return items
+    return [...items].sort((a, b) => {
+      const aVal = a[sortColumn]
+      const bVal = b[sortColumn]
+      let cmp = 0
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        cmp = aVal.localeCompare(bVal, 'nl-NL')
+      } else {
+        cmp = (aVal as number) < (bVal as number) ? -1 : (aVal as number) > (bVal as number) ? 1 : 0
+      }
+      return sortDir === 'asc' ? cmp : -cmp
     })
-  }, [detailedItems, missingCostOnly])
+  }, [detailedItems, missingCostOnly, sortColumn, sortDir])
 
   const compareSummary = useMemo(() => {
     const baseTotals = compareMode === 'selectedDays' ? comparePrimaryTotals : totals
@@ -530,5 +558,8 @@ export function usePrepackStats(
     queueStats,
     queueLoading,
     fetchQueueStats,
+    sortColumn,
+    sortDir,
+    handleSort,
   }
 }
