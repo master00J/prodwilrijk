@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { Download, FileSpreadsheet, Search, Filter, Save } from 'lucide-react'
+import { Download, FileSpreadsheet, Search, Save, LayoutGrid, List, AlertTriangle, CheckCircle, Clock, Truck } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import type { GroteInpakCase } from '@/types/database'
 
@@ -10,402 +10,553 @@ interface TransportTabProps {
   overview: GroteInpakCase[]
 }
 
+function addWorkdays(date: Date, days: number): Date {
+  const result = new Date(date)
+  let added = 0
+  while (added < days) {
+    result.setDate(result.getDate() + 1)
+    const dow = result.getDay()
+    if (dow !== 0 && dow !== 6) added++
+  }
+  return result
+}
+
+function urgencyClass(arrivalDate: string | null | undefined): string {
+  if (!arrivalDate) return 'text-gray-400'
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const arrival = new Date(arrivalDate)
+  const diffDays = Math.ceil((arrival.getTime() - today.getTime()) / 86400000)
+  if (diffDays < 0) return 'text-red-600 font-semibold'
+  if (diffDays <= 3) return 'text-orange-600 font-semibold'
+  if (diffDays <= 7) return 'text-yellow-700'
+  return 'text-gray-700'
+}
+
+function urgencyBadge(arrivalDate: string | null | undefined, inWillebroek: boolean) {
+  if (inWillebroek) return { label: 'In WB', cls: 'bg-green-100 text-green-800' }
+  if (!arrivalDate) return { label: '—', cls: 'bg-gray-100 text-gray-500' }
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const arrival = new Date(arrivalDate)
+  const diffDays = Math.ceil((arrival.getTime() - today.getTime()) / 86400000)
+  if (diffDays < 0) return { label: `${Math.abs(diffDays)}d te laat`, cls: 'bg-red-100 text-red-800' }
+  if (diffDays === 0) return { label: 'Vandaag', cls: 'bg-orange-100 text-orange-800' }
+  if (diffDays <= 3) return { label: `${diffDays}d`, cls: 'bg-yellow-100 text-yellow-800' }
+  return { label: `${diffDays}d`, cls: 'bg-blue-50 text-blue-700' }
+}
+
 export default function TransportTab({ transport, overview }: TransportTabProps) {
-  const [filterStatus, setFilterStatus] = useState<'Alle' | 'In Willebroek' | 'Niet in Willebroek'>('Alle')
+  const [viewMode, setViewMode] = useState<'planning' | 'detail'>('planning')
+  const [filterStatus, setFilterStatus] = useState<'Alle' | 'In Willebroek' | 'Niet in Willebroek'>('Niet in Willebroek')
   const [searchQuery, setSearchQuery] = useState('')
   const [dateFrom, setDateFrom] = useState<string>('')
   const [dateTo, setDateTo] = useState<string>('')
   const [editedData, setEditedData] = useState<Map<string, Partial<GroteInpakCase>>>(new Map())
   const [isGenerating, setIsGenerating] = useState(false)
 
-  // Merge transport with overview data
+  // Merge transport met case details
   const transportWithDetails = useMemo(() => {
     return transport.map((t) => {
       const caseData = overview.find(c => c.case_label === t.case_label)
-      return {
-        ...t,
-        ...caseData,
-        ...editedData.get(t.case_label),
-      }
+      return { ...t, ...caseData, ...editedData.get(t.case_label) }
     })
   }, [transport, overview, editedData])
 
-  // Apply filters
+  // Filters voor de detailweergave
   const filteredTransport = useMemo(() => {
     let filtered = [...transportWithDetails]
-
-    // Status filter
-    if (filterStatus === 'In Willebroek') {
-      filtered = filtered.filter(item => item.in_willebroek === true)
-    } else if (filterStatus === 'Niet in Willebroek') {
-      filtered = filtered.filter(item => item.in_willebroek === false)
-    }
-
-    // Date filter
+    if (filterStatus === 'In Willebroek') filtered = filtered.filter(i => i.in_willebroek === true)
+    else if (filterStatus === 'Niet in Willebroek') filtered = filtered.filter(i => i.in_willebroek === false)
     if (dateFrom) {
-      const fromDate = new Date(dateFrom)
-      filtered = filtered.filter(item => {
-        if (!item.arrival_date) return false
-        const arrival = new Date(item.arrival_date)
-        return arrival >= fromDate
-      })
+      const from = new Date(dateFrom)
+      filtered = filtered.filter(i => i.arrival_date && new Date(i.arrival_date) >= from)
     }
     if (dateTo) {
-      const toDate = new Date(dateTo)
-      toDate.setHours(23, 59, 59, 999)
-      filtered = filtered.filter(item => {
-        if (!item.arrival_date) return false
-        const arrival = new Date(item.arrival_date)
-        return arrival <= toDate
-      })
+      const to = new Date(dateTo)
+      to.setHours(23, 59, 59, 999)
+      filtered = filtered.filter(i => i.arrival_date && new Date(i.arrival_date) <= to)
     }
-
-    // Search filter
     if (searchQuery) {
-      const query = searchQuery.toLowerCase()
-      filtered = filtered.filter(item =>
-        item.case_label?.toLowerCase().includes(query) ||
-        item.case_type?.toLowerCase().includes(query) ||
-        item.item_number?.toLowerCase().includes(query)
+      const q = searchQuery.toLowerCase()
+      filtered = filtered.filter(i =>
+        i.case_label?.toLowerCase().includes(q) ||
+        i.case_type?.toLowerCase().includes(q) ||
+        i.item_number?.toLowerCase().includes(q) ||
+        i.erp_code?.toLowerCase().includes(q)
       )
     }
-
     return filtered
   }, [transportWithDetails, filterStatus, dateFrom, dateTo, searchQuery])
 
+  // Groepsoverzicht per case_type voor de planningsweergave
+  const planningGroups = useMemo(() => {
+    const map = new Map<string, {
+      case_type: string
+      erp_code: string
+      stapel: number
+      total: number
+      inWillebroek: number
+      needTransport: number
+      nextArrival: string | null
+      overdue: number
+      thisWeek: number
+      labels: string[]
+    }>()
+
+    transportWithDetails.forEach(item => {
+      if (item.in_willebroek) return // alleen niet-in-WB items in planningsoverzicht
+      const key = item.case_type || 'Onbekend'
+      const existing = map.get(key)
+      const today = new Date(); today.setHours(0,0,0,0)
+      const arrival = item.arrival_date ? new Date(item.arrival_date) : null
+      const diffDays = arrival ? Math.ceil((arrival.getTime() - today.getTime()) / 86400000) : null
+      const isOverdue = diffDays !== null && diffDays < 0
+      const isThisWeek = diffDays !== null && diffDays >= 0 && diffDays <= 7
+
+      if (!existing) {
+        map.set(key, {
+          case_type: key,
+          erp_code: item.erp_code || '-',
+          stapel: item.stapel || 1,
+          total: 1,
+          inWillebroek: 0,
+          needTransport: 1,
+          nextArrival: item.arrival_date || null,
+          overdue: isOverdue ? 1 : 0,
+          thisWeek: isThisWeek ? 1 : 0,
+          labels: [item.case_label],
+        })
+      } else {
+        existing.total++
+        existing.needTransport++
+        existing.overdue += isOverdue ? 1 : 0
+        existing.thisWeek += isThisWeek ? 1 : 0
+        existing.labels.push(item.case_label)
+        if (item.arrival_date) {
+          if (!existing.nextArrival || item.arrival_date < existing.nextArrival) {
+            existing.nextArrival = item.arrival_date
+          }
+        }
+      }
+    })
+
+    // Voeg ook de items toe die al in WB zijn voor totalen
+    transportWithDetails.filter(i => i.in_willebroek).forEach(item => {
+      const key = item.case_type || 'Onbekend'
+      const existing = map.get(key)
+      if (existing) {
+        existing.total++
+        existing.inWillebroek++
+      } else {
+        map.set(key, {
+          case_type: key,
+          erp_code: item.erp_code || '-',
+          stapel: item.stapel || 1,
+          total: 1,
+          inWillebroek: 1,
+          needTransport: 0,
+          nextArrival: null,
+          overdue: 0,
+          thisWeek: 0,
+          labels: [item.case_label],
+        })
+      }
+    })
+
+    return Array.from(map.values()).sort((a, b) => {
+      // Sorteer: eerst overdue, dan thisWeek, dan rest
+      if (b.overdue !== a.overdue) return b.overdue - a.overdue
+      if (b.thisWeek !== a.thisWeek) return b.thisWeek - a.thisWeek
+      return b.needTransport - a.needTransport
+    })
+  }, [transportWithDetails])
+
+  // Weekoverzicht: volgende 14 dagen, hoeveel komen er aan per dag
+  const weekTimeline = useMemo(() => {
+    const today = new Date(); today.setHours(0,0,0,0)
+    const days: { date: string; label: string; count: number; items: any[] }[] = []
+    for (let i = 0; i < 14; i++) {
+      const d = new Date(today)
+      d.setDate(today.getDate() + i)
+      const dateStr = d.toISOString().split('T')[0]
+      const items = transportWithDetails.filter(item =>
+        !item.in_willebroek && item.arrival_date === dateStr
+      )
+      const dayName = d.toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' })
+      days.push({ date: dateStr, label: dayName, count: items.length, items })
+    }
+    return days.filter(d => d.count > 0)
+  }, [transportWithDetails])
+
   // KPIs
   const totalGenk = transportWithDetails.length
-  const inWillebroek = transportWithDetails.filter(item => item.in_willebroek).length
+  const inWillebroek = transportWithDetails.filter(i => i.in_willebroek).length
   const needTransport = totalGenk - inWillebroek
-  const coverage = totalGenk > 0 ? (inWillebroek / totalGenk) * 100 : 0
+  const overdueCount = transportWithDetails.filter(i => {
+    if (i.in_willebroek) return false
+    if (!i.arrival_date) return false
+    const today = new Date(); today.setHours(0,0,0,0)
+    return new Date(i.arrival_date) < today
+  }).length
 
   const handleFieldChange = (caseLabel: string, field: keyof GroteInpakCase, value: any) => {
     const newEdited = new Map(editedData)
-    const existing = newEdited.get(caseLabel) || {}
-    newEdited.set(caseLabel, { ...existing, [field]: value })
+    newEdited.set(caseLabel, { ...(newEdited.get(caseLabel) || {}), [field]: value })
     setEditedData(newEdited)
   }
 
   const handleSave = async () => {
     try {
-      const updates = Array.from(editedData.entries()).map(([case_label, updates]) => ({
-        case_label,
-        ...updates,
-      }))
-
-      const response = await fetch('/api/grote-inpak/cases', {
+      const updates = Array.from(editedData.entries()).map(([case_label, upd]) => ({ case_label, ...upd }))
+      const res = await fetch('/api/grote-inpak/cases', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ updates }),
       })
-
-      if (!response.ok) {
-        throw new Error('Error saving changes')
-      }
-
+      if (!res.ok) throw new Error('Opslaan mislukt')
       setEditedData(new Map())
       alert('Wijzigingen opgeslagen!')
       window.location.reload()
-    } catch (error) {
-      console.error('Error saving:', error)
-      alert('Error saving changes. Please try again.')
+    } catch (err) {
+      alert('Fout bij opslaan. Probeer opnieuw.')
     }
   }
 
   const handleGenerateTransportPlanning = async () => {
     setIsGenerating(true)
     try {
-      // Fetch stock data
-      const stockResponse = await fetch('/api/grote-inpak/stock')
-      const stockResult = await stockResponse.ok ? await stockResponse.json() : { data: [] }
-      
-      const response = await fetch('/api/grote-inpak/transport-planning', {
+      const stockRes = await fetch('/api/grote-inpak/stock')
+      const stockResult = stockRes.ok ? await stockRes.json() : { data: [] }
+      const res = await fetch('/api/grote-inpak/transport-planning', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          transportData: filteredTransport,
-          stockData: stockResult.data || [],
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transportData: filteredTransport, stockData: stockResult.data || [] }),
       })
-
-      if (!response.ok) {
-        throw new Error('Error generating transport planning')
-      }
-
-      const blob = await response.blob()
+      if (!res.ok) throw new Error('Genereren mislukt')
+      const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
       a.download = `Transportplanning_${new Date().toISOString().split('T')[0]}.xlsx`
       a.click()
       URL.revokeObjectURL(url)
-      
-      alert('Transport planning gegenereerd!')
-    } catch (error) {
-      console.error('Error generating transport planning:', error)
-      alert('Error generating transport planning. Please try again.')
+    } catch {
+      alert('Fout bij genereren transport planning.')
     } finally {
       setIsGenerating(false)
     }
   }
 
   const handleDownloadExcel = () => {
-    // Create Excel file from filtered data
-    const data = filteredTransport.map(item => ({
+    const rows = filteredTransport.map(item => ({
       'Case Label': item.case_label,
       'Case Type': item.case_type,
+      'ERP Code': item.erp_code || '',
+      'Stapel': item.stapel || 1,
       'Arrival Date': item.arrival_date ? new Date(item.arrival_date).toLocaleDateString('nl-NL') : '',
       'Item Number': item.item_number,
-      'Productielocatie': item.productielocatie,
       'In Willebroek': item.in_willebroek ? 'Ja' : 'Nee',
       'Stock Location': item.stock_location,
       'Status': item.status,
       'Comment': item.comment,
     }))
-
-    const ws = XLSX.utils.json_to_sheet(data)
+    const ws = XLSX.utils.json_to_sheet(rows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Transport')
-    
     XLSX.writeFile(wb, `Transport_Genk_${new Date().toISOString().split('T')[0]}.xlsx`)
   }
 
-  // Statistics
-  const caseTypeCounts = useMemo(() => {
-    const counts = new Map<string, number>()
-    filteredTransport.forEach(item => {
-      const type = item.case_type || 'Unknown'
-      counts.set(type, (counts.get(type) || 0) + 1)
-    })
-    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1])
-  }, [filteredTransport])
-
-  const statusCounts = useMemo(() => {
-    const counts = new Map<string, number>()
-    filteredTransport.forEach(item => {
-      const status = item.status || 'Geen status'
-      counts.set(status, (counts.get(status) || 0) + 1)
-    })
-    return Array.from(counts.entries())
-  }, [filteredTransport])
-
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-6">🚚 Transport Planning - Genk → Willebroek</h2>
-      
-      {/* KPIs */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <div className="bg-blue-50 rounded-lg p-4">
-          <p className="text-sm text-gray-600 mb-1">Totaal Genk Cases</p>
-          <p className="text-2xl font-bold">{totalGenk}</p>
-        </div>
-        <div className="bg-green-50 rounded-lg p-4">
-          <p className="text-sm text-gray-600 mb-1">Al in Willebroek</p>
-          <p className="text-2xl font-bold">{inWillebroek}</p>
-        </div>
-        <div className="bg-orange-50 rounded-lg p-4">
-          <p className="text-sm text-gray-600 mb-1">Transport Nodig</p>
-          <p className="text-2xl font-bold">{needTransport}</p>
-        </div>
-        <div className="bg-purple-50 rounded-lg p-4">
-          <p className="text-sm text-gray-600 mb-1">Coverage</p>
-          <p className="text-2xl font-bold">{coverage.toFixed(1)}%</p>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold">🚚 Transport Planning — Genk → Willebroek</h2>
+        {/* View toggle */}
+        <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
+          <button
+            onClick={() => setViewMode('planning')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'planning' ? 'bg-white shadow text-blue-700' : 'text-gray-600 hover:text-gray-800'}`}
+          >
+            <LayoutGrid className="w-4 h-4" /> Planningsoverzicht
+          </button>
+          <button
+            onClick={() => setViewMode('detail')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'detail' ? 'bg-white shadow text-blue-700' : 'text-gray-600 hover:text-gray-800'}`}
+          >
+            <List className="w-4 h-4" /> Detail
+          </button>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-gray-50 rounded-lg p-4 mb-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value as any)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="Alle">Alle</option>
-              <option value="In Willebroek">In Willebroek</option>
-              <option value="Niet in Willebroek">Niet in Willebroek</option>
-            </select>
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <div className="flex items-center gap-2 text-gray-500 text-xs font-medium uppercase mb-1">
+            <Truck className="w-4 h-4" /> Totaal Genk
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Van Datum</label>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
+          <p className="text-3xl font-bold text-gray-900">{totalGenk}</p>
+        </div>
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+          <div className="flex items-center gap-2 text-green-700 text-xs font-medium uppercase mb-1">
+            <CheckCircle className="w-4 h-4" /> Al in Willebroek
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Tot Datum</label>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
+          <p className="text-3xl font-bold text-green-700">{inWillebroek}</p>
+        </div>
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <div className="flex items-center gap-2 text-blue-700 text-xs font-medium uppercase mb-1">
+            <Clock className="w-4 h-4" /> Nog te transporteren
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">🔍 Zoeken</label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Case, type, item..."
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
+          <p className="text-3xl font-bold text-blue-700">{needTransport}</p>
+        </div>
+        <div className={`rounded-xl p-4 border ${overdueCount > 0 ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'}`}>
+          <div className={`flex items-center gap-2 text-xs font-medium uppercase mb-1 ${overdueCount > 0 ? 'text-red-700' : 'text-gray-500'}`}>
+            <AlertTriangle className="w-4 h-4" /> Te laat
           </div>
+          <p className={`text-3xl font-bold ${overdueCount > 0 ? 'text-red-700' : 'text-gray-400'}`}>{overdueCount}</p>
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="flex flex-wrap gap-2 mb-4">
+      {/* Actieknoppen */}
+      <div className="flex flex-wrap gap-2 mb-6">
         <button
           onClick={handleSave}
           disabled={editedData.size === 0}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-sm"
         >
-          <Save className="w-4 h-4" />
-          Opslaan Wijzigingen
+          <Save className="w-4 h-4" /> Opslaan
         </button>
         <button
           onClick={handleGenerateTransportPlanning}
           disabled={isGenerating}
-          className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm"
         >
           <FileSpreadsheet className="w-4 h-4" />
-          {isGenerating ? 'Genereren...' : 'Genereer Transport Planning'}
+          {isGenerating ? 'Genereren...' : 'Genereer Transport Planning Excel'}
         </button>
         <button
           onClick={handleDownloadExcel}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
         >
-          <Download className="w-4 h-4" />
-          Download Transport Excel
+          <Download className="w-4 h-4" /> Download overzicht Excel
         </button>
       </div>
 
-      {/* Table */}
-      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Case Label</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Case Type</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Arrival Date</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Item Number</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">In WB</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Stock Location</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Comment</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredTransport.map((item) => {
-                const edited = editedData.get(item.case_label) || {}
-                const displayItem = { ...item, ...edited }
-                
-                return (
-                  <tr key={item.case_label} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{displayItem.case_label}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{displayItem.case_type || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
-                      {displayItem.arrival_date ? new Date(displayItem.arrival_date).toLocaleDateString('nl-NL') : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{displayItem.item_number || '-'}</td>
-                    <td className="px-4 py-3 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={displayItem.in_willebroek || false}
-                        onChange={(e) => handleFieldChange(item.case_label, 'in_willebroek', e.target.checked)}
-                        className="w-5 h-5 cursor-pointer"
-                      />
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{displayItem.stock_location || '-'}</td>
-                    <td className="px-4 py-3">
-                      <select
-                        value={displayItem.status ?? ''}
-                        onChange={(e) => handleFieldChange(item.case_label, 'status', e.target.value)}
-                        className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="">-</option>
-                        <option value="In productie">In productie</option>
-                        <option value="Gereed">Gereed</option>
-                        <option value="Verzonden">Verzonden</option>
-                        <option value="In transit">In transit</option>
-                        <option value="Ontvangen">Ontvangen</option>
-                      </select>
-                    </td>
-                    <td className="px-4 py-3">
-                      <input
-                        type="text"
-                        value={displayItem.comment || ''}
-                        onChange={(e) => handleFieldChange(item.case_label, 'comment', e.target.value)}
-                        placeholder="Add comment..."
-                        className="text-sm w-full border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* ── PLANNINGSOVERZICHT ── */}
+      {viewMode === 'planning' && (
+        <div className="space-y-6">
+          {/* Timeline: welke dagen komen er kisten aan */}
+          {weekTimeline.length > 0 && (
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+              <h3 className="font-semibold text-gray-800 mb-4">📅 Aankomsten komende 14 dagen</h3>
+              <div className="flex flex-wrap gap-3">
+                {weekTimeline.map(day => {
+                  const urgCls = urgencyClass(day.date)
+                  return (
+                    <div key={day.date} className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 min-w-[110px]">
+                      <p className={`text-xs font-medium ${urgCls}`}>{day.label}</p>
+                      <p className="text-xl font-bold text-gray-900 mt-0.5">{day.count}</p>
+                      <p className="text-xs text-gray-500">kisten</p>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
-      {filteredTransport.length === 0 && (
-        <div className="text-center py-12 text-gray-500">
-          Geen transport cases gevonden met de huidige filters.
+          {/* Groepstabel per case_type */}
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="font-semibold text-gray-800">Nog te transporteren — per case type</h3>
+              <span className="text-sm text-gray-500">{planningGroups.filter(g => g.needTransport > 0).length} types</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-100">
+                <thead className="bg-gray-50 text-xs uppercase text-gray-500 font-medium">
+                  <tr>
+                    <th className="px-5 py-3 text-left">Case Type</th>
+                    <th className="px-5 py-3 text-left">ERP Code</th>
+                    <th className="px-4 py-3 text-center">Stapel</th>
+                    <th className="px-4 py-3 text-center">Totaal</th>
+                    <th className="px-4 py-3 text-center">In WB</th>
+                    <th className="px-4 py-3 text-center">Te sturen</th>
+                    <th className="px-4 py-3 text-center">Te laat</th>
+                    <th className="px-4 py-3 text-center">Deze week</th>
+                    <th className="px-5 py-3 text-left">Vroegste datum</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {planningGroups.length === 0 && (
+                    <tr>
+                      <td colSpan={9} className="px-5 py-10 text-center text-gray-400">
+                        Geen transport data. Upload een PILS bestand om te beginnen.
+                      </td>
+                    </tr>
+                  )}
+                  {planningGroups.map(group => {
+                    const badge = urgencyBadge(group.nextArrival, group.needTransport === 0)
+                    return (
+                      <tr key={group.case_type} className={`hover:bg-gray-50 ${group.overdue > 0 ? 'bg-red-50/40' : ''}`}>
+                        <td className="px-5 py-3 font-medium text-gray-900">{group.case_type}</td>
+                        <td className="px-5 py-3 text-sm text-gray-600 font-mono">{group.erp_code}</td>
+                        <td className="px-4 py-3 text-center text-sm text-gray-600">{group.stapel}</td>
+                        <td className="px-4 py-3 text-center font-semibold text-gray-800">{group.total}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className="text-green-700 font-medium">{group.inWillebroek}</span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`font-bold ${group.needTransport > 0 ? 'text-blue-700' : 'text-gray-400'}`}>
+                            {group.needTransport}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {group.overdue > 0
+                            ? <span className="inline-flex items-center gap-1 bg-red-100 text-red-800 text-xs font-bold px-2 py-0.5 rounded-full">{group.overdue}</span>
+                            : <span className="text-gray-300">—</span>
+                          }
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {group.thisWeek > 0
+                            ? <span className="inline-flex items-center gap-1 bg-orange-100 text-orange-800 text-xs font-bold px-2 py-0.5 rounded-full">{group.thisWeek}</span>
+                            : <span className="text-gray-300">—</span>
+                          }
+                        </td>
+                        <td className="px-5 py-3">
+                          {group.needTransport > 0 && group.nextArrival ? (
+                            <div className="flex items-center gap-2">
+                              <span className={`text-sm ${urgencyClass(group.nextArrival)}`}>
+                                {new Date(group.nextArrival).toLocaleDateString('nl-NL')}
+                              </span>
+                              <span className={`text-xs px-1.5 py-0.5 rounded-full ${badge.cls}`}>{badge.label}</span>
+                            </div>
+                          ) : <span className="text-gray-300">—</span>}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Statistics */}
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <h3 className="font-semibold mb-2">Per Case Type</h3>
-          <div className="space-y-1">
-            {caseTypeCounts.slice(0, 10).map(([type, count]) => (
-              <div key={type} className="flex justify-between text-sm">
-                <span>{type}:</span>
-                <span className="font-medium">{count}</span>
+      {/* ── DETAILWEERGAVE ── */}
+      {viewMode === 'detail' && (
+        <div>
+          {/* Filters */}
+          <div className="bg-gray-50 rounded-lg p-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <select
+                  value={filterStatus}
+                  onChange={e => setFilterStatus(e.target.value as any)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                >
+                  <option>Alle</option>
+                  <option>In Willebroek</option>
+                  <option>Niet in Willebroek</option>
+                </select>
               </div>
-            ))}
-          </div>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <h3 className="font-semibold mb-2">Per Status</h3>
-          <div className="space-y-1">
-            {statusCounts.map(([status, count]) => (
-              <div key={status} className="flex justify-between text-sm">
-                <span>{status}:</span>
-                <span className="font-medium">{count}</span>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Van datum</label>
+                <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
               </div>
-            ))}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tot datum</label>
+                <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <Search className="inline w-4 h-4 mr-1" />Zoeken
+                </label>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Case, type, ERP code..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                />
+              </div>
+            </div>
           </div>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <h3 className="font-semibold mb-2">Transport Nodig</h3>
-          <p className="text-2xl font-bold mb-2">{needTransport}</p>
-          <p className="text-sm text-gray-600">Te transporteren cases</p>
-        </div>
-      </div>
 
-      {/* Info box */}
-      <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <p className="text-blue-800 text-sm">
-          💡 <strong>Tips:</strong> Filter op &apos;Niet in Willebroek&apos; om te zien wat getransporteerd moet worden.
-          Gebruik &apos;Genereer Transport Planning&apos; voor een Excel met alle details voor de volgende werkdag.
-        </p>
-      </div>
+          <div className="text-sm text-gray-500 mb-2">{filteredTransport.length} cases</div>
+
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50 text-xs uppercase text-gray-500 font-medium">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Case Label</th>
+                    <th className="px-4 py-3 text-left">Case Type</th>
+                    <th className="px-4 py-3 text-left">ERP Code</th>
+                    <th className="px-4 py-3 text-left">Arrival Date</th>
+                    <th className="px-4 py-3 text-center">In WB</th>
+                    <th className="px-4 py-3 text-left">Stock Location</th>
+                    <th className="px-4 py-3 text-left">Status</th>
+                    <th className="px-4 py-3 text-left">Comment</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-100">
+                  {filteredTransport.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="py-10 text-center text-gray-400">Geen resultaten.</td>
+                    </tr>
+                  )}
+                  {filteredTransport.map((item) => {
+                    const edited = editedData.get(item.case_label) || {}
+                    const di = { ...item, ...edited }
+                    const urgCls = di.in_willebroek ? 'text-gray-700' : urgencyClass(di.arrival_date)
+                    return (
+                      <tr key={item.case_label} className="hover:bg-gray-50">
+                        <td className="px-4 py-2.5 text-sm font-medium text-gray-900">{di.case_label}</td>
+                        <td className="px-4 py-2.5 text-sm text-gray-700">{di.case_type || '-'}</td>
+                        <td className="px-4 py-2.5 text-sm text-gray-500 font-mono">{di.erp_code || '-'}</td>
+                        <td className={`px-4 py-2.5 text-sm ${urgCls}`}>
+                          {di.arrival_date ? new Date(di.arrival_date).toLocaleDateString('nl-NL') : '-'}
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          <input
+                            type="checkbox"
+                            checked={di.in_willebroek || false}
+                            onChange={e => handleFieldChange(item.case_label, 'in_willebroek', e.target.checked)}
+                            className="w-4 h-4 cursor-pointer"
+                          />
+                        </td>
+                        <td className="px-4 py-2.5 text-sm text-gray-600">{di.stock_location || '-'}</td>
+                        <td className="px-4 py-2.5">
+                          <select
+                            value={di.status ?? ''}
+                            onChange={e => handleFieldChange(item.case_label, 'status', e.target.value)}
+                            className="text-sm border border-gray-300 rounded px-2 py-1"
+                          >
+                            <option value="">-</option>
+                            <option>In productie</option>
+                            <option>Gereed</option>
+                            <option>Verzonden</option>
+                            <option>In transit</option>
+                            <option>Ontvangen</option>
+                          </select>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <input
+                            type="text"
+                            value={di.comment || ''}
+                            onChange={e => handleFieldChange(item.case_label, 'comment', e.target.value)}
+                            placeholder="Opmerking..."
+                            className="text-sm w-full border border-gray-300 rounded px-2 py-1"
+                          />
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

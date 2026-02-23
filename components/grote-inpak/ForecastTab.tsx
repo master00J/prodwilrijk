@@ -1,11 +1,56 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Upload, Download, TrendingUp } from 'lucide-react'
+import { Upload, Download, TrendingUp, ChevronDown, ChevronRight, Plus, Minus, Calendar, RefreshCw } from 'lucide-react'
+
+type ChangeType = 'added' | 'removed' | 'date_change'
+
+interface Snapshot {
+  id: string
+  snapshot_at: string
+  source_files: string[]
+  total_records: number
+  cnt_added: number
+  cnt_removed: number
+  cnt_date_change: number
+}
+
+interface ForecastChange {
+  id: number
+  case_label: string
+  case_type: string
+  old_arrival_date: string | null
+  new_arrival_date: string | null
+  source_file: string
+  change_type: ChangeType
+  snapshot_id: string
+  changed_at: string
+}
+
+function fmtDate(d: string | null | undefined) {
+  if (!d) return '—'
+  return new Date(d).toLocaleDateString('nl-NL')
+}
+
+function fmtTs(d: string) {
+  return new Date(d).toLocaleString('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+function shiftDays(old_date: string | null, new_date: string | null): string {
+  if (!old_date || !new_date) return '—'
+  const diff = Math.round((new Date(new_date).getTime() - new Date(old_date).getTime()) / 86400000)
+  if (diff === 0) return '0 dagen'
+  return diff > 0 ? `+${diff} dagen` : `${diff} dagen`
+}
+
+const CHANGE_COLORS: Record<ChangeType, { bg: string; text: string; badge: string; icon: string; label: string }> = {
+  added:       { bg: 'bg-green-50',  text: 'text-green-800',  badge: 'bg-green-100 text-green-800',  icon: '🟢', label: 'Nieuw' },
+  removed:     { bg: 'bg-red-50',    text: 'text-red-800',    badge: 'bg-red-100 text-red-800',      icon: '🔴', label: 'Verwijderd' },
+  date_change: { bg: 'bg-orange-50', text: 'text-orange-800', badge: 'bg-orange-100 text-orange-800',icon: '🟠', label: 'Datum' },
+}
 
 export default function ForecastTab() {
   const [forecastData, setForecastData] = useState<any[]>([])
-  const [forecastChanges, setForecastChanges] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -13,79 +58,15 @@ export default function ForecastTab() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [searchQuery, setSearchQuery] = useState('')
 
-  const shiftSummary = useMemo(() => {
-    const currentByLabel = new Map<string, string>()
-    forecastData.forEach((row: any) => {
-      const label = String(row.case_label || '').trim()
-      if (!label) return
-      const arrival = String(row.arrival_date || '').trim()
-      if (arrival) {
-        currentByLabel.set(label, arrival)
-      }
-    })
-
-    const byLabel = new Map<
-      string,
-      {
-        case_label: string
-        case_type: string
-        total_shift_days: number
-        change_count: number
-        last_old_date: string | null
-        last_new_date: string | null
-        last_changed_at: string | null
-        history_dates: string[]
-        current_date: string | null
-      }
-    >()
-    forecastChanges.forEach((change: any) => {
-      const label = String(change.case_label || '').trim()
-      if (!label) return
-      const oldDate = change.old_arrival_date ? new Date(change.old_arrival_date) : null
-      const newDate = change.new_arrival_date ? new Date(change.new_arrival_date) : null
-      const deltaDays =
-        oldDate && newDate
-          ? Math.round((newDate.getTime() - oldDate.getTime()) / 86400000)
-          : 0
-      const current = byLabel.get(label) || {
-        case_label: label,
-        case_type: String(change.case_type || '').trim(),
-        total_shift_days: 0,
-        change_count: 0,
-        last_old_date: null,
-        last_new_date: null,
-        last_changed_at: null,
-        history_dates: [],
-        current_date: currentByLabel.get(label) || null,
-      }
-      current.total_shift_days += deltaDays
-      current.change_count += 1
-      current.last_old_date = String(change.old_arrival_date || current.last_old_date || '')
-      current.last_new_date = String(change.new_arrival_date || current.last_new_date || '')
-      current.last_changed_at = String(change.changed_at || current.last_changed_at || '')
-      const oldDateValue = String(change.old_arrival_date || '').trim()
-      const newDateValue = String(change.new_arrival_date || '').trim()
-      if (oldDateValue) current.history_dates.push(oldDateValue)
-      if (newDateValue) current.history_dates.push(newDateValue)
-      if (!current.case_type && change.case_type) {
-        current.case_type = String(change.case_type)
-      }
-      if (!current.current_date) {
-        current.current_date = currentByLabel.get(label) || null
-      }
-      byLabel.set(label, current)
-    })
-    return Array.from(byLabel.values())
-      .map((item) => ({
-        ...item,
-        history_dates: Array.from(new Set(item.history_dates)).sort((a, b) => {
-          const da = new Date(a)
-          const db = new Date(b)
-          return da.getTime() - db.getTime()
-        }),
-      }))
-      .sort((a, b) => Math.abs(b.total_shift_days) - Math.abs(a.total_shift_days))
-  }, [forecastChanges, forecastData])
+  // Snapshot systeem
+  const [snapshots, setSnapshots] = useState<Snapshot[]>([])
+  const [snapshotsLoading, setSnapshotsLoading] = useState(false)
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null)
+  const [snapshotChanges, setSnapshotChanges] = useState<ForecastChange[]>([])
+  const [changesLoading, setChangesLoading] = useState(false)
+  const [changeTypeFilter, setChangeTypeFilter] = useState<ChangeType | 'all'>('all')
+  const [expandedSnapshots, setExpandedSnapshots] = useState<Set<string>>(new Set())
+  const [lastUploadResult, setLastUploadResult] = useState<{ added: number; removed: number; date_change: number } | null>(null)
 
   const loadForecast = useCallback(async () => {
     setLoading(true)
@@ -93,47 +74,64 @@ export default function ForecastTab() {
       const params = new URLSearchParams()
       if (dateFrom) params.append('date_from', dateFrom)
       if (dateTo) params.append('date_to', dateTo)
-
-      const response = await fetch(`/api/grote-inpak/forecast?${params.toString()}`)
-      if (response.ok) {
-        const result = await response.json()
+      const res = await fetch(`/api/grote-inpak/forecast?${params}`)
+      if (res.ok) {
+        const result = await res.json()
         setForecastData(result.data || [])
       }
-
-      const changesParams = new URLSearchParams()
-      if (dateFrom) changesParams.append('date_from', dateFrom)
-      if (dateTo) changesParams.append('date_to', dateTo)
-      const changesResponse = await fetch(`/api/grote-inpak/forecast-changes?${changesParams.toString()}`)
-      if (changesResponse.ok) {
-        const changesResult = await changesResponse.json()
-        setForecastChanges(changesResult.data || [])
-      }
-    } catch (error) {
-      console.error('Error loading forecast:', error)
-    } finally {
+    } catch { /* ignore */ } finally {
       setLoading(false)
     }
   }, [dateFrom, dateTo])
 
+  const loadSnapshots = useCallback(async () => {
+    setSnapshotsLoading(true)
+    try {
+      const res = await fetch('/api/grote-inpak/forecast-snapshots')
+      if (res.ok) {
+        const result = await res.json()
+        setSnapshots(result.data || [])
+        // Auto-select meest recente snapshot
+        if (result.data?.length > 0 && !selectedSnapshotId) {
+          setSelectedSnapshotId(result.data[0].id)
+        }
+      }
+    } catch { /* ignore */ } finally {
+      setSnapshotsLoading(false)
+    }
+  }, [selectedSnapshotId])
+
+  const loadSnapshotChanges = useCallback(async (snapshotId: string) => {
+    setChangesLoading(true)
+    try {
+      const res = await fetch(`/api/grote-inpak/forecast-changes?snapshot_id=${snapshotId}`)
+      if (res.ok) {
+        const result = await res.json()
+        setSnapshotChanges(result.data || [])
+      }
+    } catch { /* ignore */ } finally {
+      setChangesLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { loadForecast() }, [loadForecast])
+  useEffect(() => { loadSnapshots() }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
-    loadForecast()
-  }, [loadForecast])
+    if (selectedSnapshotId) loadSnapshotChanges(selectedSnapshotId)
+  }, [selectedSnapshotId, loadSnapshotChanges])
 
   const handleFileSelect = (files: FileList | File[] | null) => {
     if (!files || files.length === 0) return
-    const list = Array.from(files)
-    const valid = list.filter((file) => file.name.toLowerCase().endsWith('.csv'))
-    if (valid.length === 0) {
-      alert('Ongeldig bestandstype. Verwacht: .csv')
-      return
-    }
+    const valid = Array.from(files).filter(f => f.name.toLowerCase().endsWith('.csv'))
+    if (valid.length === 0) { alert('Ongeldig bestandstype. Verwacht: .csv'); return }
     setSelectedFiles(valid)
   }
 
   const handleFileUpload = async (files: File[]) => {
-    if (!files || files.length === 0) return
-
+    if (!files?.length) return
     setLoading(true)
+    setLastUploadResult(null)
     try {
       const allRows: any[] = []
       const errors: string[] = []
@@ -142,367 +140,364 @@ export default function ForecastTab() {
         const formData = new FormData()
         formData.append('file', file)
         formData.append('fileType', 'forecast')
-
-        const uploadResponse = await fetch('/api/grote-inpak/upload', {
-          method: 'POST',
-          body: formData,
-        })
-
-        if (uploadResponse.ok) {
-          const result = await uploadResponse.json()
+        const uploadRes = await fetch('/api/grote-inpak/upload', { method: 'POST', body: formData })
+        if (uploadRes.ok) {
+          const result = await uploadRes.json()
           allRows.push(...(result.data || []))
         } else {
-          const error = await uploadResponse.json()
-          errors.push(`${file.name}: ${error.error || 'Upload mislukt'}`)
+          const err = await uploadRes.json()
+          errors.push(`${file.name}: ${err.error || 'Upload mislukt'}`)
         }
       }
 
       if (allRows.length > 0) {
-        const saveResponse = await fetch('/api/grote-inpak/forecast', {
+        const saveRes = await fetch('/api/grote-inpak/forecast', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ forecastData: allRows, replace: true }),
         })
-
-        if (!saveResponse.ok) {
-          const error = await saveResponse.json()
-          throw new Error(error.error || 'Failed to save forecast data')
+        if (!saveRes.ok) {
+          const err = await saveRes.json()
+          throw new Error(err.error || 'Opslaan mislukt')
+        }
+        const saveResult = await saveRes.json()
+        if (saveResult.changes) {
+          setLastUploadResult(saveResult.changes)
+          setSelectedSnapshotId(saveResult.snapshot_id)
         }
       }
 
       await loadForecast()
+      await loadSnapshots()
       setSelectedFiles([])
 
-      if (errors.length > 0) {
-        alert(`Sommige bestanden faalden:\n${errors.join('\n')}`)
-      } else {
-        alert('Forecast data succesvol geüpload!')
-      }
-    } catch (error: any) {
-      console.error('Error uploading forecast:', error)
-      alert(`Error uploading forecast file: ${error.message || 'Unknown error'}`)
+      if (errors.length > 0) alert(`Sommige bestanden faalden:\n${errors.join('\n')}`)
+    } catch (err: any) {
+      alert(`Fout bij uploaden: ${err.message || 'Onbekende fout'}`)
     } finally {
       setLoading(false)
     }
   }
 
   const handleDrag = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    const isActive = e.type === 'dragenter' || e.type === 'dragover'
-    setDragActive(isActive)
+    e.preventDefault(); e.stopPropagation()
+    setDragActive(e.type === 'dragenter' || e.type === 'dragover')
   }, [])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
+    e.preventDefault(); e.stopPropagation()
     setDragActive(false)
-
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleFileSelect(e.dataTransfer.files)
-    }
-  }, [])
+    if (e.dataTransfer.files?.length) handleFileSelect(e.dataTransfer.files)
+  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const downloadForecastMatrix = async (location: 'Genk' | 'Wilrijk') => {
     try {
-      const response = await fetch('/api/grote-inpak/forecast-export', {
+      const res = await fetch('/api/grote-inpak/forecast-export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          location,
-          dateFrom: dateFrom || null,
-          dateTo: dateTo || null,
-        }),
+        body: JSON.stringify({ location, dateFrom: dateFrom || null, dateTo: dateTo || null }),
       })
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Export mislukt')
-      }
-      const blob = await response.blob()
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Export mislukt') }
+      const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
-      a.href = url
-      a.download = `Forecast_${location}.xlsx`
-      a.click()
+      a.href = url; a.download = `Forecast_${location}.xlsx`; a.click()
       URL.revokeObjectURL(url)
-    } catch (error: any) {
-      console.error('Forecast export error:', error)
-      alert(`Forecast export mislukt: ${error.message || 'Unknown error'}`)
+    } catch (err: any) {
+      alert(`Forecast export mislukt: ${err.message}`)
     }
   }
 
-  const filteredData = forecastData.filter((item) => {
+  const filteredForecast = forecastData.filter(item => {
     if (!searchQuery) return true
-    const query = searchQuery.toLowerCase()
+    const q = searchQuery.toLowerCase()
     return (
-      String(item.case_label || '').toLowerCase().includes(query) ||
-      String(item.case_type || '').toLowerCase().includes(query) ||
-      String(item.source_file || '').toLowerCase().includes(query)
+      String(item.case_label || '').toLowerCase().includes(q) ||
+      String(item.case_type || '').toLowerCase().includes(q) ||
+      String(item.source_file || '').toLowerCase().includes(q)
     )
   })
 
+  // Gefilterde wijzigingen voor geselecteerde snapshot
+  const filteredChanges = useMemo(() => {
+    if (changeTypeFilter === 'all') return snapshotChanges
+    return snapshotChanges.filter(c => c.change_type === changeTypeFilter)
+  }, [snapshotChanges, changeTypeFilter])
+
+  const selectedSnapshot = snapshots.find(s => s.id === selectedSnapshotId)
+
   return (
-    <div>
-      <div className="mb-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold">📈 Forecast</h2>
-          <div className="flex gap-2">
-            <button
-              onClick={() => downloadForecastMatrix('Genk')}
-              disabled={forecastData.length === 0}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Download className="w-4 h-4" />
-              Matrix Genk
-            </button>
-            <button
-              onClick={() => downloadForecastMatrix('Wilrijk')}
-              disabled={forecastData.length === 0}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Download className="w-4 h-4" />
-              Matrix Wilrijk
-            </button>
-          </div>
-        </div>
-
-        {/* Forecast File Upload with Drag and Drop */}
-        <div
-          className={`border-2 border-dashed rounded-lg p-6 text-center transition-all ${
-            dragActive
-              ? 'border-blue-500 bg-blue-50 scale-105'
-              : selectedFiles.length > 0
-              ? 'border-green-400 bg-green-50'
-              : 'border-gray-300 hover:border-blue-400'
-          }`}
-          onDragEnter={handleDrag}
-          onDragLeave={handleDrag}
-          onDragOver={handleDrag}
-          onDrop={handleDrop}
-        >
-          <Upload className={`w-12 h-12 mx-auto mb-2 ${dragActive ? 'text-blue-500' : 'text-gray-400'}`} />
-          <p className="font-medium mb-1">Forecast CSV</p>
-          {selectedFiles.length > 0 ? (
-            <p className="text-sm text-gray-500 mb-3">
-              <span className="text-green-700 font-semibold">
-                {selectedFiles.length} bestand(en) geselecteerd
-              </span>
-            </p>
-          ) : (
-            <p className="text-sm text-gray-500 mb-3">
-              Sleep bestand hierheen of<br />
-              klik om te selecteren
-            </p>
-          )}
-          <input
-            type="file"
-            accept=".csv"
-            className="hidden"
-            id="forecast-upload"
-            multiple
-            onChange={(e) => handleFileSelect(e.target.files)}
-          />
-          <div className="flex gap-2 justify-center">
-            <label
-              htmlFor="forecast-upload"
-              className="inline-block px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 cursor-pointer transition-colors"
-            >
-              {selectedFiles.length > 0 ? 'Wijzig Bestanden' : 'Selecteer Bestanden'}
-            </label>
-            {selectedFiles.length > 0 && (
-              <button
-                onClick={() => handleFileUpload(selectedFiles)}
-                disabled={loading}
-                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {loading ? 'Uploaden...' : 'Upload'}
-              </button>
-            )}
-          </div>
-          <p className="text-xs text-gray-500 mt-2">
-            Upload alle forecast CSV bestanden tegelijk (FOR1953 en FORESCO)
-          </p>
+    <div className="space-y-6">
+      {/* Header + export knoppen */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold">📈 Forecast</h2>
+        <div className="flex gap-2">
+          <button
+            onClick={() => downloadForecastMatrix('Genk')}
+            disabled={forecastData.length === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm disabled:opacity-50"
+          >
+            <Download className="w-4 h-4" /> Matrix Genk
+          </button>
+          <button
+            onClick={() => downloadForecastMatrix('Wilrijk')}
+            disabled={forecastData.length === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm disabled:opacity-50"
+          >
+            <Download className="w-4 h-4" /> Matrix Wilrijk
+          </button>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-gray-50 rounded-lg p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Date From</label>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Date To</label>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">🔍 Zoeken</label>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Zoek case, type, file"
-            />
-          </div>
-        </div>
-      </div>
-
-      {forecastData.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5" />
-            Forecast Overzicht
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-blue-50 rounded-lg p-4">
-              <p className="text-sm text-gray-600">Totaal Forecast</p>
-              <p className="text-2xl font-bold">{forecastData.length}</p>
-            </div>
-            <div className="bg-purple-50 rounded-lg p-4">
-              <p className="text-sm text-gray-600">Gefilterd</p>
-              <p className="text-2xl font-bold">{filteredData.length}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Table */}
-      {loading ? (
-        <div className="text-center py-12 text-gray-500">Loading...</div>
-      ) : filteredData.length > 0 ? (
-        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Case Label</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Case Type</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Arrival Date</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Source File</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredData.map((item, index) => (
-                <tr key={index} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{item.case_label || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{item.case_type || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">
-                    {item.arrival_date ? new Date(item.arrival_date).toLocaleDateString('nl-NL') : '-'}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{item.source_file || '-'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <div className="text-center py-12 text-gray-500">
-          Geen forecast data gevonden. Upload een forecast CSV bestand om te beginnen.
-        </div>
-      )}
-
-      <div className="bg-white border border-gray-200 rounded-lg p-6 mt-8">
-        <h3 className="text-lg font-semibold mb-4">📅 Forecast datumwijzigingen</h3>
-        {forecastChanges.length === 0 ? (
-          <p className="text-sm text-gray-500">Geen datumwijzigingen gevonden in deze periode.</p>
+      {/* Upload zone */}
+      <div
+        className={`border-2 border-dashed rounded-xl p-6 text-center transition-all ${
+          dragActive ? 'border-blue-500 bg-blue-50 scale-105'
+          : selectedFiles.length > 0 ? 'border-green-400 bg-green-50'
+          : 'border-gray-300 hover:border-blue-400'
+        }`}
+        onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}
+      >
+        <Upload className={`w-10 h-10 mx-auto mb-2 ${dragActive ? 'text-blue-500' : 'text-gray-400'}`} />
+        <p className="font-medium mb-1">Forecast CSV</p>
+        {selectedFiles.length > 0 ? (
+          <p className="text-sm text-green-700 font-semibold mb-3">{selectedFiles.length} bestand(en) geselecteerd</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Case Label</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Case Type</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Oude Datum</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Nieuwe Datum</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Bronbestand</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Verschuiving</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Gewijzigd</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {forecastChanges.map((item: any, index: number) => (
-                  <tr key={`${item.case_label}-${index}`} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{item.case_label || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{item.case_type || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
-                      {item.old_arrival_date ? new Date(item.old_arrival_date).toLocaleDateString('nl-NL') : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
-                      {item.new_arrival_date ? new Date(item.new_arrival_date).toLocaleDateString('nl-NL') : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{item.source_file || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
-                      {item.old_arrival_date && item.new_arrival_date
-                        ? `${Math.round(
-                            (new Date(item.new_arrival_date).getTime() - new Date(item.old_arrival_date).getTime()) /
-                              86400000
-                          )} dagen`
-                        : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
-                      {item.changed_at ? new Date(item.changed_at).toLocaleString('nl-NL') : '-'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <p className="text-sm text-gray-500 mb-3">Sleep bestanden hierheen of klik om te selecteren</p>
+        )}
+        <input type="file" accept=".csv" className="hidden" id="forecast-upload" multiple onChange={e => handleFileSelect(e.target.files)} />
+        <div className="flex gap-2 justify-center">
+          <label htmlFor="forecast-upload" className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 cursor-pointer">
+            {selectedFiles.length > 0 ? 'Wijzig bestanden' : 'Selecteer bestanden'}
+          </label>
+          {selectedFiles.length > 0 && (
+            <button
+              onClick={() => handleFileUpload(selectedFiles)}
+              disabled={loading}
+              className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              {loading ? 'Uploaden...' : 'Upload'}
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-gray-400 mt-2">Upload alle forecast CSV bestanden tegelijk (FOR1953 en FORESCO)</p>
+      </div>
+
+      {/* Resultaat na upload */}
+      {lastUploadResult && (
+        <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-wrap gap-4 items-center">
+          <p className="font-semibold text-gray-700 mr-2">Laatste upload:</p>
+          <span className="flex items-center gap-1.5 bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+            <Plus className="w-3.5 h-3.5" /> {lastUploadResult.added} nieuw
+          </span>
+          <span className="flex items-center gap-1.5 bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">
+            <Minus className="w-3.5 h-3.5" /> {lastUploadResult.removed} verwijderd
+          </span>
+          <span className="flex items-center gap-1.5 bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-medium">
+            <Calendar className="w-3.5 h-3.5" /> {lastUploadResult.date_change} datumwijzigingen
+          </span>
+        </div>
+      )}
+
+      {/* ── WIJZIGINGEN PER SNAPSHOT ── */}
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-blue-600" /> Wijzigingen per upload
+          </h3>
+          <button onClick={loadSnapshots} className="text-gray-400 hover:text-gray-700 transition-colors">
+            <RefreshCw className={`w-4 h-4 ${snapshotsLoading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+
+        {snapshots.length === 0 ? (
+          <div className="p-8 text-center text-gray-400">
+            Nog geen uploads. Upload een forecast CSV om wijzigingen bij te houden.
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {snapshots.map(snap => {
+              const isExpanded = expandedSnapshots.has(snap.id)
+              const isSelected = selectedSnapshotId === snap.id
+              const hasChanges = snap.cnt_added + snap.cnt_removed + snap.cnt_date_change > 0
+
+              return (
+                <div key={snap.id}>
+                  {/* Snapshot header rij */}
+                  <div
+                    className={`px-5 py-3 flex items-center gap-3 cursor-pointer hover:bg-gray-50 transition-colors ${isSelected && isExpanded ? 'bg-blue-50' : ''}`}
+                    onClick={() => {
+                      setSelectedSnapshotId(snap.id)
+                      setExpandedSnapshots(prev => {
+                        const next = new Set(prev)
+                        isExpanded ? next.delete(snap.id) : next.add(snap.id)
+                        return next
+                      })
+                    }}
+                  >
+                    <div className="text-gray-400">
+                      {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className="text-sm font-medium text-gray-900">{fmtTs(snap.snapshot_at)}</span>
+                        {snap.source_files?.length > 0 && (
+                          <span className="text-xs text-gray-400">{snap.source_files.join(', ')}</span>
+                        )}
+                        <span className="text-xs text-gray-500">{snap.total_records} records</span>
+                      </div>
+                    </div>
+                    {/* Change badges */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {snap.cnt_added > 0 && (
+                        <span className="flex items-center gap-1 bg-green-100 text-green-800 text-xs font-bold px-2 py-0.5 rounded-full">
+                          <Plus className="w-3 h-3" />{snap.cnt_added}
+                        </span>
+                      )}
+                      {snap.cnt_removed > 0 && (
+                        <span className="flex items-center gap-1 bg-red-100 text-red-800 text-xs font-bold px-2 py-0.5 rounded-full">
+                          <Minus className="w-3 h-3" />{snap.cnt_removed}
+                        </span>
+                      )}
+                      {snap.cnt_date_change > 0 && (
+                        <span className="flex items-center gap-1 bg-orange-100 text-orange-800 text-xs font-bold px-2 py-0.5 rounded-full">
+                          <Calendar className="w-3 h-3" />{snap.cnt_date_change}
+                        </span>
+                      )}
+                      {!hasChanges && (
+                        <span className="text-xs text-gray-400">Geen wijzigingen</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Uitgevouwen wijzigingen voor deze snapshot */}
+                  {isExpanded && isSelected && (
+                    <div className="bg-gray-50 border-t border-gray-100">
+                      {/* Filter knoppen */}
+                      <div className="px-5 py-3 flex items-center gap-2">
+                        {(['all', 'added', 'removed', 'date_change'] as const).map(type => {
+                          const active = changeTypeFilter === type
+                          const info = type === 'all' ? { label: 'Alle', badge: 'bg-gray-200 text-gray-700' } : CHANGE_COLORS[type]
+                          const count = type === 'all' ? snapshotChanges.length
+                            : snapshotChanges.filter(c => c.change_type === type).length
+                          return (
+                            <button
+                              key={type}
+                              onClick={() => setChangeTypeFilter(type)}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+                                active ? 'border-gray-400 bg-white shadow-sm' : 'border-transparent hover:bg-gray-200'
+                              } ${info.badge}`}
+                            >
+                              {type === 'all' ? 'Alle' : CHANGE_COLORS[type].label}
+                              <span className="font-bold">{count}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      {changesLoading ? (
+                        <div className="px-5 py-6 text-center text-gray-400 text-sm">Laden...</div>
+                      ) : filteredChanges.length === 0 ? (
+                        <div className="px-5 py-6 text-center text-gray-400 text-sm">Geen wijzigingen in dit filter.</div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full text-sm">
+                            <thead>
+                              <tr className="text-xs uppercase text-gray-500 font-medium border-b border-gray-200">
+                                <th className="px-5 py-2 text-left">Type</th>
+                                <th className="px-5 py-2 text-left">Case Label</th>
+                                <th className="px-4 py-2 text-left">Case Type</th>
+                                <th className="px-4 py-2 text-left">Oude datum</th>
+                                <th className="px-4 py-2 text-left">Nieuwe datum</th>
+                                <th className="px-4 py-2 text-left">Verschuiving</th>
+                                <th className="px-4 py-2 text-left">Bronbestand</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {filteredChanges.map((c, i) => {
+                                const style = CHANGE_COLORS[c.change_type]
+                                return (
+                                  <tr key={i} className={`${style.bg} hover:brightness-95 transition-all`}>
+                                    <td className="px-5 py-2.5">
+                                      <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${style.badge}`}>
+                                        {style.icon} {style.label}
+                                      </span>
+                                    </td>
+                                    <td className="px-5 py-2.5 font-medium text-gray-900">{c.case_label}</td>
+                                    <td className="px-4 py-2.5 text-gray-600">{c.case_type || '—'}</td>
+                                    <td className="px-4 py-2.5 text-gray-600">{fmtDate(c.old_arrival_date)}</td>
+                                    <td className="px-4 py-2.5 text-gray-600">{fmtDate(c.new_arrival_date)}</td>
+                                    <td className={`px-4 py-2.5 font-medium ${style.text}`}>
+                                      {c.change_type === 'date_change' ? shiftDays(c.old_arrival_date, c.new_arrival_date) : '—'}
+                                    </td>
+                                    <td className="px-4 py-2.5 text-gray-400 text-xs">{c.source_file || '—'}</td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-lg p-6 mt-8">
-        <h3 className="text-lg font-semibold mb-4">📌 Overzicht verschuivingen per case</h3>
-        {shiftSummary.length === 0 ? (
-          <p className="text-sm text-gray-500">Geen verschuivingen gevonden om te tonen.</p>
+      {/* ── HUIDIGE FORECAST DATA ── */}
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="font-semibold text-gray-800">Huidige forecast</h3>
+          <div className="flex items-center gap-3">
+            {/* Filters */}
+            <input
+              type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+              className="text-sm border border-gray-300 rounded-lg px-3 py-1.5"
+            />
+            <span className="text-gray-400 text-sm">—</span>
+            <input
+              type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+              className="text-sm border border-gray-300 rounded-lg px-3 py-1.5"
+            />
+            <input
+              type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Zoeken..."
+              className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 w-40"
+            />
+          </div>
+        </div>
+
+        {/* KPI balk */}
+        <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex gap-6 text-sm">
+          <span><span className="font-semibold text-gray-900">{forecastData.length}</span> <span className="text-gray-500">totaal</span></span>
+          <span><span className="font-semibold text-gray-900">{filteredForecast.length}</span> <span className="text-gray-500">gefilterd</span></span>
+        </div>
+
+        {loading ? (
+          <div className="py-10 text-center text-gray-400">Laden...</div>
+        ) : filteredForecast.length === 0 ? (
+          <div className="py-10 text-center text-gray-400">Geen forecast data. Upload een forecast CSV.</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-gray-100 text-sm">
+              <thead className="bg-gray-50 text-xs uppercase text-gray-500 font-medium">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Case Label</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Case Type</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Totaal verschoven</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Aantal wijzigingen</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Historiek datums</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Huidige datum</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Laatste wijziging</th>
+                  <th className="px-5 py-3 text-left">Case Label</th>
+                  <th className="px-5 py-3 text-left">Case Type</th>
+                  <th className="px-4 py-3 text-left">Aankomstdatum</th>
+                  <th className="px-4 py-3 text-left">Bronbestand</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {shiftSummary.map((item) => (
-                  <tr key={item.case_label} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{item.case_label}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{item.case_type || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
-                      {item.total_shift_days === 0 ? '0 dagen' : `${item.total_shift_days} dagen`}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{item.change_count}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
-                      {item.history_dates.length > 0
-                        ? item.history_dates
-                            .map((date) =>
-                              new Date(date).toLocaleDateString('nl-NL')
-                            )
-                            .join(', ')
-                        : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
-                      {item.current_date ? new Date(item.current_date).toLocaleDateString('nl-NL') : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
-                      {item.last_changed_at ? new Date(item.last_changed_at).toLocaleString('nl-NL') : '-'}
-                    </td>
+              <tbody className="divide-y divide-gray-100">
+                {filteredForecast.map((item, i) => (
+                  <tr key={i} className="hover:bg-gray-50">
+                    <td className="px-5 py-2.5 font-medium text-gray-900">{item.case_label || '—'}</td>
+                    <td className="px-5 py-2.5 text-gray-700">{item.case_type || '—'}</td>
+                    <td className="px-4 py-2.5 text-gray-700">{fmtDate(item.arrival_date)}</td>
+                    <td className="px-4 py-2.5 text-gray-400 text-xs">{item.source_file || '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -513,4 +508,3 @@ export default function ForecastTab() {
     </div>
   )
 }
-
