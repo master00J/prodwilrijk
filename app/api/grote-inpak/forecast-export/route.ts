@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import ExcelJS from 'exceljs'
 import { supabaseAdmin } from '@/lib/supabase/server'
+
+export const dynamic = 'force-dynamic'
 import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
 
 type ForecastRow = {

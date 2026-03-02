@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 
+export const dynamic = 'force-dynamic'
+
 const DEFAULTS = {
   po_apf: 'MF-4536602',
   po_s4: 'MF-4536602',
