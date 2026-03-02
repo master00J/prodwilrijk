@@ -1,4 +1,6 @@
-import { NextResponse } from 'next/server'
+﻿import { NextResponse } from 'next/server'
+
+export const dynamic = 'force-dynamic'
 
 export async function POST() {
   // Logout is handled client-side with Supabase
