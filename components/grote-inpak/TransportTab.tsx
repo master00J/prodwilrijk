@@ -1,13 +1,27 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { Download, FileSpreadsheet, Search, Save, LayoutGrid, List, AlertTriangle, CheckCircle, Clock, Truck } from 'lucide-react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
+import { Download, FileSpreadsheet, Search, Save, LayoutGrid, List, AlertTriangle, CheckCircle, Clock, Truck, Flame, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import type { GroteInpakCase } from '@/types/database'
 
 interface TransportTabProps {
   transport: any[]
   overview: GroteInpakCase[]
+}
+
+interface UrgencyGroup {
+  case_type: string
+  erp_code: string | null
+  description: string | null
+  stapel: number
+  total_count: number
+  oldest_arrival: string | null
+  stock_genk: number
+  stock_willebroek: number
+  stock_wilrijk: number
+  stock_in_productie: number
+  cases: { case_label: string; arrival_date: string | null; dagen_te_laat: number }[]
 }
 
 function addWorkdays(date: Date, days: number): Date {
@@ -47,12 +61,63 @@ function urgencyBadge(arrivalDate: string | null | undefined, inWillebroek: bool
 }
 
 export default function TransportTab({ transport, overview }: TransportTabProps) {
-  const [viewMode, setViewMode] = useState<'planning' | 'detail'>('planning')
+  const [viewMode, setViewMode] = useState<'planning' | 'urgency' | 'detail'>('planning')
   const [filterStatus, setFilterStatus] = useState<'Alle' | 'In Willebroek' | 'Niet in Willebroek'>('Niet in Willebroek')
   const [searchQuery, setSearchQuery] = useState('')
   const [dateFrom, setDateFrom] = useState<string>('')
   const [dateTo, setDateTo] = useState<string>('')
   const [editedData, setEditedData] = useState<Map<string, Partial<GroteInpakCase>>>(new Map())
+
+  // Urgentielijst state
+  const [urgencyData, setUrgencyData] = useState<UrgencyGroup[]>([])
+  const [urgencyLoading, setUrgencyLoading] = useState(false)
+  const [urgencyError, setUrgencyError] = useState<string | null>(null)
+  const [expandedUrgency, setExpandedUrgency] = useState<Set<string>>(new Set())
+  const [isExportingUrgency, setIsExportingUrgency] = useState(false)
+
+  const loadUrgency = useCallback(async () => {
+    setUrgencyLoading(true)
+    setUrgencyError(null)
+    try {
+      const res = await fetch('/api/grote-inpak/genk-urgency')
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Laden mislukt') }
+      const result = await res.json()
+      setUrgencyData(result.data || [])
+    } catch (e: any) {
+      setUrgencyError(e.message)
+    } finally {
+      setUrgencyLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (viewMode === 'urgency' && urgencyData.length === 0 && !urgencyLoading) {
+      loadUrgency()
+    }
+  }, [viewMode, urgencyData.length, urgencyLoading, loadUrgency])
+
+  const handleExportUrgency = async () => {
+    setIsExportingUrgency(true)
+    try {
+      const res = await fetch('/api/grote-inpak/genk-urgency', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: urgencyData }),
+      })
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Export mislukt') }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Urgentielijst_Genk_${new Date().toISOString().split('T')[0]}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e: any) {
+      alert(`Export mislukt: ${e.message}`)
+    } finally {
+      setIsExportingUrgency(false)
+    }
+  }
   const [isGenerating, setIsGenerating] = useState(false)
 
   // Merge transport met case details
@@ -280,6 +345,12 @@ export default function TransportTab({ transport, overview }: TransportTabProps)
             <LayoutGrid className="w-4 h-4" /> Planningsoverzicht
           </button>
           <button
+            onClick={() => setViewMode('urgency')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'urgency' ? 'bg-white shadow text-red-700' : 'text-gray-600 hover:text-gray-800'}`}
+          >
+            <Flame className="w-4 h-4" /> Urgentielijst Genk
+          </button>
+          <button
             onClick={() => setViewMode('detail')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'detail' ? 'bg-white shadow text-blue-700' : 'text-gray-600 hover:text-gray-800'}`}
           >
@@ -437,6 +508,162 @@ export default function TransportTab({ transport, overview }: TransportTabProps)
               </table>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── URGENTIELIJST GENK ── */}
+      {viewMode === 'urgency' && (
+        <div className="space-y-4">
+          {/* Header + acties */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-gray-900 text-lg flex items-center gap-2">
+                <Flame className="w-5 h-5 text-red-600" /> K-kisten urgentielijst voor Genk
+              </h3>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Gesorteerd op oudste aankomstdatum — kisten die het langst wachten staan bovenaan
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={loadUrgency}
+                disabled={urgencyLoading}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${urgencyLoading ? 'animate-spin' : ''}`} /> Vernieuwen
+              </button>
+              <button
+                onClick={handleExportUrgency}
+                disabled={isExportingUrgency || urgencyData.length === 0}
+                className="flex items-center gap-1.5 px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                {isExportingUrgency ? 'Exporteren...' : 'Exporteer naar Excel (sturen naar Genk)'}
+              </button>
+            </div>
+          </div>
+
+          {urgencyError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" /> {urgencyError}
+            </div>
+          )}
+
+          {urgencyLoading ? (
+            <div className="py-12 text-center text-gray-400">Laden...</div>
+          ) : urgencyData.length === 0 ? (
+            <div className="py-12 text-center text-gray-400">
+              Geen K-kisten gevonden in Genk die nog niet in Willebroek zijn.<br />
+              <span className="text-xs">Upload een PILS bestand om te beginnen.</span>
+            </div>
+          ) : (
+            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-100 text-sm">
+                <thead className="bg-gray-50 text-xs uppercase text-gray-500 font-medium">
+                  <tr>
+                    <th className="px-3 py-3 text-center w-10">#</th>
+                    <th className="px-4 py-3 text-left">Kisttype</th>
+                    <th className="px-4 py-3 text-left">Omschrijving</th>
+                    <th className="px-4 py-3 text-left">ERP Code</th>
+                    <th className="px-4 py-3 text-center">Stapel</th>
+                    <th className="px-4 py-3 text-center">Aantal</th>
+                    <th className="px-4 py-3 text-left">Vroegste datum</th>
+                    <th className="px-4 py-3 text-center">Stock Genk</th>
+                    <th className="px-4 py-3 text-center">Stock WB</th>
+                    <th className="px-4 py-3 text-center">Stock Wilrijk</th>
+                    <th className="px-4 py-3 text-center">In productie</th>
+                    <th className="px-3 py-3 text-center w-10"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {urgencyData.map((group, i) => {
+                    const isOverdue = group.cases.some(c => c.dagen_te_laat > 0)
+                    const maxOverdue = Math.max(0, ...group.cases.map(c => c.dagen_te_laat || 0))
+                    const isExpanded = expandedUrgency.has(group.case_type)
+                    return (
+                      <>
+                        <tr
+                          key={group.case_type}
+                          className={`hover:bg-gray-50 cursor-pointer ${isOverdue ? 'bg-red-50/50' : ''}`}
+                          onClick={() => setExpandedUrgency(prev => {
+                            const next = new Set(prev)
+                            isExpanded ? next.delete(group.case_type) : next.add(group.case_type)
+                            return next
+                          })}
+                        >
+                          <td className="px-3 py-3 text-center">
+                            <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${isOverdue ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-700'}`}>{i + 1}</span>
+                          </td>
+                          <td className="px-4 py-3 font-bold text-gray-900">{group.case_type}</td>
+                          <td className="px-4 py-3 text-gray-600 text-xs">{group.description || '—'}</td>
+                          <td className="px-4 py-3 text-gray-500 font-mono text-xs">{group.erp_code || '—'}</td>
+                          <td className="px-4 py-3 text-center text-gray-600">{group.stapel}</td>
+                          <td className="px-4 py-3 text-center font-bold text-gray-900">{group.total_count}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <span className={`text-sm ${urgencyClass(group.oldest_arrival)}`}>
+                                {group.oldest_arrival ? new Date(group.oldest_arrival).toLocaleDateString('nl-NL') : '—'}
+                              </span>
+                              {isOverdue && (
+                                <span className="text-xs bg-red-100 text-red-800 font-bold px-1.5 py-0.5 rounded-full">
+                                  {maxOverdue}d te laat
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`font-medium ${group.stock_genk > 0 ? 'text-green-700' : 'text-gray-400'}`}>{group.stock_genk || '—'}</span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`font-medium ${group.stock_willebroek > 0 ? 'text-blue-700' : 'text-gray-400'}`}>{group.stock_willebroek || '—'}</span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`font-medium ${group.stock_wilrijk > 0 ? 'text-purple-700' : 'text-gray-400'}`}>{group.stock_wilrijk || '—'}</span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`font-medium ${group.stock_in_productie > 0 ? 'text-orange-700' : 'text-gray-400'}`}>{group.stock_in_productie || '—'}</span>
+                          </td>
+                          <td className="px-3 py-3 text-center text-gray-400">
+                            {isExpanded ? <ChevronDown className="w-4 h-4 mx-auto" /> : <ChevronRight className="w-4 h-4 mx-auto" />}
+                          </td>
+                        </tr>
+                        {/* Uitgevouwen caselabels */}
+                        {isExpanded && group.cases
+                          .slice()
+                          .sort((a, b) => {
+                            if (!a.arrival_date && !b.arrival_date) return 0
+                            if (!a.arrival_date) return 1
+                            if (!b.arrival_date) return -1
+                            return a.arrival_date.localeCompare(b.arrival_date)
+                          })
+                          .map((c, ci) => (
+                            <tr key={`${group.case_type}-${c.case_label}`} className="bg-gray-50/80">
+                              <td className="px-3 py-2 text-center text-xs text-gray-400">{ci + 1}</td>
+                              <td className="px-4 py-2 text-xs text-gray-500 pl-8" colSpan={2}>
+                                <span className="font-mono font-medium text-gray-700">{c.case_label}</span>
+                              </td>
+                              <td className="px-4 py-2" colSpan={3}></td>
+                              <td className="px-4 py-2 text-xs">
+                                <span className={urgencyClass(c.arrival_date)}>
+                                  {c.arrival_date ? new Date(c.arrival_date).toLocaleDateString('nl-NL') : '—'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2 text-center text-xs" colSpan={4}>
+                                {c.dagen_te_laat > 0 && (
+                                  <span className="bg-red-100 text-red-800 font-bold px-1.5 py-0.5 rounded-full text-xs">{c.dagen_te_laat}d te laat</span>
+                                )}
+                              </td>
+                              <td></td>
+                            </tr>
+                          ))
+                        }
+                      </>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
