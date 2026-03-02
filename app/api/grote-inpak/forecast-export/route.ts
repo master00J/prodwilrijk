@@ -365,16 +365,17 @@ export async function POST(request: NextRequest) {
       const [caseType, loc] = key.split('||')
       if (loc.toLowerCase() !== location.toLowerCase()) return
       const normalizedCase = normalizeCaseType(caseType)
+      // forecast_aantal = units nog in forecast (niet op PILS) + units al op PILS = totale verwachte vraag
       const forecastAantal = (forecastByCaseLoc.get(key) || 0) + (pilsByCaseLoc.get(key) || 0)
+      // op_pils = units die aangemeld zijn om verpakt te worden → hiervoor moeten kisten voorzien worden
       const opPils = pilsByCaseLoc.get(key) || 0
       const opStock = stockByCase.get(normalizedCase) || 0
       const inTransfer = transferByCase.get(normalizedCase) || 0
       const inProductie = productieByCase.get(normalizedCase) || 0
       const inInkoop = inkoopByCase.get(normalizedCase) || 0
-      const nettoNodig = Math.max(
-        0,
-        forecastAantal - (netAvailableByCase.get(normalizedCase) || 0)
-      )
+      // netto_nodig = hoeveel kisten er nog gemaakt/besteld moeten worden voor de huidige PILS-vraag
+      // = op_pils - (kisten al beschikbaar: stock + transfer + productie + inkoop)
+      const nettoNodig = Math.max(0, opPils - (opStock + inTransfer + inProductie + inInkoop))
       statusRows.push({
         'BC CODE': erpByCase.get(normalizedCase)?.erp_code || 'Special',
         case_type: normalizedCase,
