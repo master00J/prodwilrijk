@@ -338,7 +338,7 @@ export async function POST(request: NextRequest) {
       'in_transfer',
       'in_productie',
       'in_inkooporder',
-      'netto_nodig',
+      'nog_te_produceren',
     ]
 
     const pilsByCaseLoc = new Map<string, number>()
@@ -386,7 +386,7 @@ export async function POST(request: NextRequest) {
         in_transfer: inTransfer,
         in_productie: inProductie,
         in_inkooporder: inInkoop,
-        netto_nodig: nettoNodig,
+        nog_te_produceren: nettoNodig,
       })
     })
 
