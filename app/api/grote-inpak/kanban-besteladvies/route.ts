@@ -259,7 +259,7 @@ export async function POST(request: NextRequest) {
     return new Response(new Uint8Array(buffer) as BodyInit, {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="Besteladvies_Cкisten_${dateStr}.xlsx"`,
+        'Content-Disposition': `attachment; filename="Besteladvies_Ckisten_${dateStr}.xlsx"`,
       },
     })
   } catch (error: any) {
