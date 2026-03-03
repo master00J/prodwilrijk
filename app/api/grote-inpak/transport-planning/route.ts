@@ -142,6 +142,19 @@ async function generateTransportPlanningExcel(
     alignment: { horizontal: 'center' as const, vertical: 'middle' as const },
   }
 
+  // Haal transferorders op — al geproduceerd en onderweg, telt mee als "beschikbaar"
+  const transferMap = new Map<string, number>()
+  try {
+    const { data: transferRows } = await supabaseAdmin
+      .from('grote_inpak_transfer')
+      .select('kistnummer, quantity')
+    ;(transferRows || []).forEach((row: any) => {
+      const kt = String(row.kistnummer || '').trim().toUpperCase()
+      if (!kt) return
+      transferMap.set(kt, (transferMap.get(kt) || 0) + (Number(row.quantity) || 0))
+    })
+  } catch (_) { /* niet-kritiek, gewoon doorgaan zonder */ }
+
   // Build stock maps by kistnummer (case_type)
   const wlbStockMap = new Map<string, number>()
   const genkStockMap = new Map<string, number>()
@@ -226,7 +239,8 @@ async function generateTransportPlanningExcel(
 
       if (destinationKeyword.toLowerCase() === 'willebroek') {
         const wlbStock = wlbStockMap.get(normalizedCaseType) || 0
-        count = Math.max(0, count - wlbStock)
+        const inTransfer = transferMap.get(normalizedCaseType) || 0
+        count = Math.max(0, count - wlbStock - inTransfer)
       }
 
       const stapel = group.stapel || 1
@@ -234,12 +248,16 @@ async function generateTransportPlanningExcel(
 
       if (adjusted > 0) {
         const genkStock = genkStockMap.get(normalizedCaseType) || 0
+        const inTransfer = transferMap.get(normalizedCaseType) || 0
+        const stockLabel = genkStock > 0
+          ? inTransfer > 0 ? `${genkStock} (${inTransfer} in transfer)` : String(genkStock)
+          : inTransfer > 0 ? `Geen stock (${inTransfer} in transfer)` : 'Geen stock'
         result.push({
           TO: '',
           'BC CODE': group.erp_code || '',
           OMSCHRIJVING: normalizedCaseType,
           AANTAL: `${adjusted}st`,
-          'STOCK GENK': genkStock > 0 ? String(genkStock) : 'Geen stock',
+          'STOCK GENK': stockLabel,
           GELADEN: '',
           OPMERKING: '',
         })
