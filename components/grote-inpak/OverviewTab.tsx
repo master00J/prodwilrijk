@@ -24,6 +24,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
   const [statusFilter, setStatusFilter] = useState('Alle')
   const [willebroekFilter, setWillebroekFilter] = useState('Alle')
   const [priorityFilter, setPriorityFilter] = useState('Alle')
+  const [kistTypeFilter, setKistTypeFilter] = useState<'Alle' | 'C' | 'K'>('Alle')
   const [searchQuery, setSearchQuery] = useState('')
 
   // Get unique values for filters
@@ -61,6 +62,15 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
       filtered = filtered.filter(item => item.priority === false)
     }
 
+    if (kistTypeFilter === 'C') {
+      filtered = filtered.filter(item => String(item.case_type || '').toUpperCase().startsWith('C'))
+    } else if (kistTypeFilter === 'K') {
+      filtered = filtered.filter(item => {
+        const ct = String(item.case_type || '').toUpperCase()
+        return ct.startsWith('K') || ct.startsWith('V') // V-kisten = K
+      })
+    }
+
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
       filtered = filtered.filter(item =>
@@ -73,7 +83,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
     }
 
     setFilteredData(filtered)
-  }, [overview, locationFilter, statusFilter, willebroekFilter, priorityFilter, searchQuery])
+  }, [overview, locationFilter, statusFilter, willebroekFilter, priorityFilter, kistTypeFilter, searchQuery])
 
   // Sort filtered data
   const sortedData = useMemo(() => {
@@ -315,7 +325,19 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
 
         {/* Filters */}
         <div className="bg-gray-50 rounded-lg p-4 mb-4">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Soort kist</label>
+              <select
+                value={kistTypeFilter}
+                onChange={(e) => setKistTypeFilter(e.target.value as 'Alle' | 'C' | 'K')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="Alle">Alle</option>
+                <option value="C">C-kist</option>
+                <option value="K">K-kist</option>
+              </select>
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Locatie</label>
               <select
