@@ -33,8 +33,7 @@ interface BestelRij extends KanbanConfig {
   op_pils: number
   tekort: number
   bestel_aantal: number
-  status: 'Leeg' | 'Productie aanmaken' | 'Laag' | 'Vol'
-  actie?: string
+  status: 'Leeg' | 'Productie aanmaken' | 'Gedekt' | 'Laag' | 'Vol'
   priority_rank?: number
 }
 
@@ -47,10 +46,11 @@ const PRIORITEIT_COLORS: Record<string, { bg: string; text: string; label: strin
 }
 
 const STATUS_STYLE: Record<string, { bg: string; text: string; dot: string }> = {
-  'Leeg':      { bg: 'bg-red-100',    text: 'text-red-800',    dot: 'bg-red-500' },
+  'Leeg':               { bg: 'bg-red-100',    text: 'text-red-800',    dot: 'bg-red-500' },
   'Productie aanmaken': { bg: 'bg-orange-100', text: 'text-orange-800', dot: 'bg-orange-500' },
-  'Laag':      { bg: 'bg-yellow-100', text: 'text-yellow-800', dot: 'bg-yellow-500' },
-  'Vol':       { bg: 'bg-green-100',  text: 'text-green-800',  dot: 'bg-green-500' },
+  'Gedekt':             { bg: 'bg-blue-100',   text: 'text-blue-800',   dot: 'bg-blue-400' },
+  'Laag':               { bg: 'bg-yellow-100', text: 'text-yellow-800', dot: 'bg-yellow-500' },
+  'Vol':                { bg: 'bg-green-100',  text: 'text-green-800',  dot: 'bg-green-500' },
 }
 
 const EMPTY_FORM: Partial<KanbanConfig> = {
@@ -241,7 +241,7 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
       {activeView === 'besteladvies' && (
         <div className="space-y-5">
           {/* KPI cards */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
             <div className="bg-white border border-gray-200 rounded-xl p-4">
               <p className="text-xs text-gray-500 uppercase font-medium mb-1">Totaal kisten</p>
               <p className="text-3xl font-bold text-gray-900">{kpis.totaal}</p>
@@ -253,6 +253,10 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
             <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
               <p className="text-xs text-orange-700 uppercase font-medium mb-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block"></span>Productie aanmaken</p>
               <p className="text-3xl font-bold text-orange-700">{kpis.bestellen}</p>
+            </div>
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+              <p className="text-xs text-blue-700 uppercase font-medium mb-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400 inline-block"></span>Gedekt</p>
+              <p className="text-3xl font-bold text-blue-700">{bestelData.filter(r => r.status === 'Gedekt').length}</p>
             </div>
             <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
               <p className="text-xs text-yellow-700 uppercase font-medium mb-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-500 inline-block"></span>Laag</p>
@@ -361,14 +365,13 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
                       <th className="px-4 py-3 text-center">Op PILS</th>
                       <th className="px-4 py-3 text-center">Tekort</th>
                       <th className="px-4 py-3 text-center font-bold text-gray-700">Effectief te produceren</th>
-                      <th className="px-4 py-3 text-center">Verbruik/dag</th>
                       <th className="px-4 py-3 text-center">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {filteredBestel.length === 0 && (
                       <tr>
-                        <td colSpan={17} className="py-10 text-center text-gray-400">
+                        <td colSpan={16} className="py-10 text-center text-gray-400">
                           {bestelData.length === 0
                             ? 'Geen rekindeling geconfigureerd. Ga naar "Rekindeling beheren" om kisten toe te voegen.'
                             : 'Geen kisten gevonden met de huidige filters.'}
@@ -379,7 +382,7 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
                       const statusStyle = STATUS_STYLE[row.status] || STATUS_STYLE['Vol']
                       const prio = row.prioriteit ? PRIORITEIT_COLORS[row.prioriteit] : null
                       return (
-                        <tr key={row.case_type} className={`hover:bg-gray-50 ${row.status === 'Leeg' ? 'bg-red-50/40' : row.status === 'Productie aanmaken' ? 'bg-orange-50/30' : ''}`}>
+                        <tr key={row.case_type} className={`hover:bg-gray-50 ${row.status === 'Leeg' ? 'bg-red-50/40' : row.status === 'Productie aanmaken' ? 'bg-orange-50/30' : row.status === 'Gedekt' ? 'bg-blue-50/20' : ''}`}>
                           <td className="px-4 py-3 text-center">
                             <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-200 text-gray-700 font-bold text-sm">{row.priority_rank ?? i + 1}</span>
                           </td>
@@ -439,9 +442,6 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
                             ) : (
                               <span className="text-gray-300">—</span>
                             )}
-                          </td>
-                          <td className="px-4 py-3 text-center text-gray-500 text-xs">
-                            {row.verbruik_per_dag ? Number(row.verbruik_per_dag).toFixed(2) : '—'}
                           </td>
                           <td className="px-4 py-3 text-center">
                             <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-1 rounded-full ${statusStyle.bg} ${statusStyle.text}`}>

@@ -163,42 +163,28 @@ export async function GET() {
       const stockNaPils = stockInRek - opPils
       const effectiefTekort = Math.max(0, maxVoorraad - stockNaPils - stockElders - inProductie - inTransfer)
       const bestelAantal = effectiefTekort > 0 ? Math.ceil(effectiefTekort / row.stapel) * row.stapel : 0
-      const statusLabel =
-        stockInRek === 0 ? 'Leeg'
-        : stockInRek < bestelpunt ? 'Productie aanmaken'
-        : stockInRek < maxVoorraad ? 'Laag'
-        : 'Vol'
 
-      // gedekt = alles wat de fysieke tekort in de rek kan opvangen (maar nog niet in rek staat)
+      // gedekt = alles wat de tekort in de rek kan opvangen maar er nog niet staat
       const gedekt = stockElders + inProductie + inTransfer
       const oudstePils = oldestPilsDateByKist.get(kt) || null
 
-      // Actie label — wordt ook in Excel getoond
-      const actieLabel =
-        bestelAantal > 0 && statusLabel === 'Leeg'       ? '🔴 PRODUCEREN — Leeg'
-        : bestelAantal > 0                                ? '🔴 PRODUCEREN'
-        : statusLabel === 'Leeg' && gedekt > 0            ? '🟠 WATCH — Leeg maar gedekt'
-        : statusLabel === 'Productie aanmaken' && gedekt > 0 ? '🟠 WATCH — Prod. aanmaken, gedekt'
-        : statusLabel === 'Productie aanmaken'            ? '🟠 PRODUCTIE AANMAKEN'
-        : statusLabel === 'Laag'                          ? '🟡 LAAG'
-        : '🟢 OK'
+      // Status is consistent met bestelAantal: "Productie aanmaken" alleen als er écht iets te produceren valt
+      const statusLabel =
+        bestelAantal > 0 && stockInRek === 0 ? 'Leeg'
+        : bestelAantal > 0                   ? 'Productie aanmaken'
+        : stockInRek === 0                   ? 'Gedekt'
+        : stockInRek < bestelpunt            ? 'Gedekt'
+        : stockInRek < maxVoorraad           ? 'Laag'
+        : 'Vol'
 
-      // Prioriteit tiers:
-      // 1: Effectief te produceren > 0 + Leeg           → URGENT produceren
-      // 2: Effectief te produceren > 0 (niet leeg)      → Produceren
-      // 3: Leeg maar gedekt door productie/transfer      → Watch
-      // 4: Productie aanmaken maar gedekt               → Watch
-      // 5: Productie aanmaken (niet gedekt)             → Actie nodig
-      // 6: Laag                                         → Lage prioriteit
-      // 7: Vol                                          → OK
+      // Prioriteit tiers
       const priorityTier =
-        bestelAantal > 0 && statusLabel === 'Leeg'            ? 1
-        : bestelAantal > 0                                     ? 2
-        : statusLabel === 'Leeg' && gedekt > 0                 ? 3
-        : statusLabel === 'Productie aanmaken' && gedekt > 0   ? 4
-        : statusLabel === 'Productie aanmaken'                 ? 5
-        : statusLabel === 'Laag'                               ? 6
-        : 7
+        bestelAantal > 0 && stockInRek === 0  ? 1  // Leeg + productie nodig
+        : bestelAantal > 0                    ? 2  // Productie aanmaken
+        : stockInRek === 0 && gedekt > 0      ? 3  // Leeg maar gedekt
+        : stockInRek < bestelpunt && gedekt > 0 ? 4 // Onder bestelpunt maar gedekt
+        : statusLabel === 'Laag'              ? 5
+        : 6
 
       return {
         id: row.id,
@@ -227,7 +213,6 @@ export async function GET() {
         tekort,
         bestel_aantal: bestelAantal,
         status: statusLabel,
-        actie: actieLabel,
         oldest_pils_date: oudstePils,
         _priority_tier: priorityTier,
         _tekort: tekort,

@@ -7,16 +7,18 @@ export function buildDailyOrderWorkbook(locatieLabel: string, data: any[], today
   const STATUS_COLORS: Record<string, string> = {
     'Leeg':               'FFFF0000',
     'Productie aanmaken': 'FFFF6600',
+    'Gedekt':             'FFD6E4F0',
     'Laag':               'FFFFFF00',
     'Vol':                'FF92D050',
   }
-  const headers = ['Prioriteit', 'Kisttype', 'Prod.locatie', 'Max voorraad', 'Stock in rek', 'Stock Genk', 'Stock Wilrijk', 'In productie', 'In transfer', 'Op PILS', 'Tekort', 'Effectief te produceren', 'Verbruik/dag', 'Status']
+  const STATUS_FONT_WHITE = new Set(['Leeg'])
+  const headers = ['Prioriteit', 'Kisttype', 'Prod.locatie', 'Max voorraad', 'Stock in rek', 'Stock Genk', 'Stock Wilrijk', 'In productie', 'In transfer', 'Op PILS', 'Tekort', 'Effectief te produceren', 'Status']
   const numCols = headers.length
 
   const ws = wb.addWorksheet(`C kisten daily order ${locatieLabel}`)
   ws.columns = [
     { width: 10 }, { width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 13 },
-    { width: 12 }, { width: 12 }, { width: 10 }, { width: 12 }, { width: 22 }, { width: 13 }, { width: 12 },
+    { width: 12 }, { width: 12 }, { width: 10 }, { width: 12 }, { width: 22 }, { width: 16 },
   ]
   const titleRow = ws.addRow([`C kisten daily order ${locatieLabel} — ${today}`])
   ws.mergeCells(1, 1, 1, numCols)
@@ -50,7 +52,6 @@ export function buildDailyOrderWorkbook(locatieLabel: string, data: any[], today
       row.op_pils ?? 0,
       row.tekort,
       row.bestel_aantal,
-      row.verbruik_per_dag ? Number(row.verbruik_per_dag).toFixed(2) : '—',
       row.status,
     ])
     dRow.eachCell((cell, col) => {
@@ -67,11 +68,11 @@ export function buildDailyOrderWorkbook(locatieLabel: string, data: any[], today
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD6E4F0' } }
         cell.font = { bold: true, color: { argb: 'FF1F497D' } }
       }
-      if (col === 14) {
+      if (col === 13) {
         const statusColor = STATUS_COLORS[row.status]
         if (statusColor) {
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: statusColor } }
-          cell.font = { bold: true, color: { argb: row.status === 'Leeg' ? 'FFFFFFFF' : 'FF000000' } }
+          cell.font = { bold: true, color: { argb: STATUS_FONT_WHITE.has(row.status) ? 'FFFFFFFF' : 'FF000000' } }
         }
       }
       if (col === 12 && row.bestel_aantal > 0) {
