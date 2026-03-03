@@ -60,7 +60,7 @@ export async function GET() {
       willebroek: number
       wilrijk: number
       totaal: number
-      in_productie_willebroek: number
+      in_productie: number  // som van alle locaties (Genk + Willebroek + Wilrijk)
     }>()
 
     ;(stockRaw || []).forEach((s: any) => {
@@ -84,18 +84,19 @@ export async function GET() {
       const productie = Math.max(0, Number(s.productie || 0))
 
       if (!stockByKist.has(kist)) {
-        stockByKist.set(kist, { genk: 0, willebroek: 0, wilrijk: 0, totaal: 0, in_productie_willebroek: 0 })
+        stockByKist.set(kist, { genk: 0, willebroek: 0, wilrijk: 0, totaal: 0, in_productie: 0 })
       }
       const entry = stockByKist.get(kist)!
       if (loc.includes('genk')) {
         entry.genk += qty
       } else if (loc.includes('willebroek') || loc.includes('wlb') || loc.includes('pac3pl')) {
         entry.willebroek += qty
-        entry.in_productie_willebroek += productie
       } else if (loc.includes('wilrijk')) {
         entry.wilrijk += qty
       }
       entry.totaal += qty
+      // In productie = som van Qty. on Prod. Order over alle locaties
+      entry.in_productie += productie
     })
 
     // 5. Combineer config met stock en bereken besteladvies
@@ -105,9 +106,9 @@ export async function GET() {
       const maxVoorraad = row.posities * row.stapel * stapelsPerPos
       const bestelpunt = Math.ceil(maxVoorraad * 0.5) // 50% = bestelpunt (1 kanban leeg)
 
-      const stock = stockByKist.get(kt) || { genk: 0, willebroek: 0, wilrijk: 0, totaal: 0, in_productie_willebroek: 0 }
+      const stock = stockByKist.get(kt) || { genk: 0, willebroek: 0, wilrijk: 0, totaal: 0, in_productie: 0 }
       const stockInRek = stock.willebroek
-      const inProductie = stock.in_productie_willebroek ?? 0
+      const inProductie = stock.in_productie ?? 0
       // Tekort en status alleen op fysieke stock in rek; in productie telt niet mee als stock
       const tekort = Math.max(0, maxVoorraad - stockInRek)
       const bestelAantal = tekort > 0 ? Math.ceil(tekort / row.stapel) * row.stapel : 0
@@ -155,6 +156,8 @@ export async function GET() {
       .filter(([, v]) => v.willebroek > 0).map(([k]) => k)
     const kistenZonderWillebroek = Array.from(stockByKist.entries())
       .filter(([, v]) => v.willebroek === 0 && v.totaal > 0).map(([k]) => k)
+    const kistenMetProductie = Array.from(stockByKist.entries())
+      .filter(([, v]) => v.in_productie > 0).map(([k, v]) => `${k}:${v.in_productie}`)
 
     let warning: string | null = null
     if (erpLinkCount === 0) {
@@ -175,6 +178,7 @@ export async function GET() {
         stock_locaties_in_db: uniqueLocations,
         kisten_met_willebroek_stock: kistenMetWillebroekStock.length,
         kisten_zonder_willebroek: kistenZonderWillebroek.slice(0, 10),
+        kisten_met_productie: kistenMetProductie.slice(0, 10),
         warning,
       },
     })
