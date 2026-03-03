@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import ExcelJS from 'exceljs'
+import JSZip from 'jszip'
 
 export const dynamic = 'force-dynamic'
 
@@ -130,7 +131,78 @@ export async function GET() {
   }
 }
 
-// POST: Genereer besteladvies Excel per locatie (Genk / Wilrijk apart)
+// Hulpfunctie: maak één besteladvies-workbook voor één locatie (zonder Sectie, Niveau, Stapel, Posities)
+function buildBesteladviesWorkbook(locatieLabel: string, data: any[], today: string) {
+  const wb = new ExcelJS.Workbook()
+  const thin = { style: 'thin' as const }
+  const border = { top: thin, left: thin, bottom: thin, right: thin }
+  const STATUS_COLORS: Record<string, string> = {
+    'Leeg':     'FFFF0000',
+    'Bestellen':'FFFF6600',
+    'Laag':     'FFFFFF00',
+    'Vol':      'FF92D050',
+  }
+  // Vereenvoudigde kolommen: Sectie, Niveau, Stapel, Posities weg — alleen wat nog in productie moet
+  const headers = ['Kisttype', 'Prod.locatie', 'Max voorraad', 'Stock in rek', 'In productie', 'Tekort', 'Effectief te produceren', 'Verbruik/dag', 'Status']
+  const numCols = headers.length
+
+  const ws = wb.addWorksheet(`Besteladvies ${locatieLabel}`)
+  ws.columns = [
+    { width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 12 },
+    { width: 18 }, { width: 12 }, { width: 12 },
+  ]
+  const titleRow = ws.addRow([`Besteladvies C-kisten ${locatieLabel} — ${today}`])
+  ws.mergeCells(1, 1, 1, numCols)
+  titleRow.getCell(1).font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } }
+  titleRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } }
+  titleRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' }
+  titleRow.height = 28
+  ws.addRow([])
+  const hRow = ws.addRow(headers)
+  hRow.eachCell(cell => {
+    cell.style = {
+      font: { bold: true, color: { argb: 'FFFFFFFF' } },
+      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2E75B6' } },
+      alignment: { horizontal: 'center', vertical: 'middle' },
+      border,
+    }
+  })
+  hRow.height = 18
+  data.forEach((row: any, i: number) => {
+    const fgColor = i % 2 === 0 ? 'FFFFFFFF' : 'FFF2F2F2'
+    const dRow = ws.addRow([
+      row.case_type,
+      row.productielocatie || '—',
+      row.max_voorraad,
+      row.stock_in_rek,
+      row.in_productie ?? 0,
+      row.tekort,
+      row.bestel_aantal,
+      row.verbruik_per_dag ? Number(row.verbruik_per_dag).toFixed(2) : '—',
+      row.status,
+    ])
+    dRow.eachCell((cell, col) => {
+      cell.style = {
+        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: fgColor } },
+        border,
+        alignment: { horizontal: col === 1 || col === 2 ? 'left' : 'center', vertical: 'middle' },
+      }
+      if (col === 9) {
+        const statusColor = STATUS_COLORS[row.status]
+        if (statusColor) {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: statusColor } }
+          cell.font = { bold: true, color: { argb: row.status === 'Leeg' ? 'FFFFFFFF' : 'FF000000' } }
+        }
+      }
+      if (col === 7 && row.bestel_aantal > 0) {
+        cell.font = { bold: true, color: { argb: 'FFCC0000' } }
+      }
+    })
+  })
+  return wb
+}
+
+// POST: Genereer 2 aparte Excel-bestanden (Genk + Wilrijk) in één ZIP, zonder Sectie/Niveau/Stapel/Posities
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -140,135 +212,29 @@ export async function POST(request: NextRequest) {
       ? (rows || []).filter((r: any) => r.bestel_aantal > 0)
       : (rows || [])
 
-    const wb = new ExcelJS.Workbook()
     const today = new Date().toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric' })
-
-    const thin = { style: 'thin' as const }
-    const border = { top: thin, left: thin, bottom: thin, right: thin }
-    const STATUS_COLORS: Record<string, string> = {
-      'Leeg':     'FFFF0000',
-      'Bestellen':'FFFF6600',
-      'Laag':     'FFFFFF00',
-      'Vol':      'FF92D050',
-    }
-    const headers = ['Kisttype', 'Prod.locatie', 'Sectie', 'Niveau', 'Stapel', 'Posities', 'Max voorraad', 'Stock in rek', 'In productie', 'Tekort', 'Effectief te produceren', 'Verbruik/dag', 'Status']
-
-    const addBesteladviesSheet = (locatieLabel: string, data: any[]) => {
-      const ws = wb.addWorksheet(`Besteladvies ${locatieLabel}`)
-      ws.columns = [
-        { width: 12 }, { width: 14 }, { width: 10 }, { width: 10 }, { width: 10 }, { width: 10 },
-        { width: 14 }, { width: 14 }, { width: 12 }, { width: 12 }, { width: 14 }, { width: 18 }, { width: 12 }, { width: 12 },
-      ].slice(0, 13)
-      const titleRow = ws.addRow([`Besteladvies C-kisten ${locatieLabel} — ${today}`])
-      ws.mergeCells(1, 1, 1, 13)
-      titleRow.getCell(1).font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } }
-      titleRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } }
-      titleRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' }
-      titleRow.height = 28
-      ws.addRow([])
-      const hRow = ws.addRow(headers)
-      hRow.eachCell(cell => {
-        cell.style = {
-          font: { bold: true, color: { argb: 'FFFFFFFF' } },
-          fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2E75B6' } },
-          alignment: { horizontal: 'center', vertical: 'middle' },
-          border,
-        }
-      })
-      hRow.height = 18
-      data.forEach((row: any, i: number) => {
-        const fgColor = i % 2 === 0 ? 'FFFFFFFF' : 'FFF2F2F2'
-        const dRow = ws.addRow([
-          row.case_type,
-          row.productielocatie || '—',
-          row.rek_sectie || '—',
-          row.rek_niveau ? `Niveau ${row.rek_niveau}` : '—',
-          row.stapel,
-          row.posities,
-          row.max_voorraad,
-          row.stock_in_rek,
-          row.in_productie ?? 0,
-          row.tekort,
-          row.bestel_aantal,
-          row.verbruik_per_dag ? Number(row.verbruik_per_dag).toFixed(2) : '—',
-          row.status,
-        ])
-        dRow.eachCell((cell, col) => {
-          cell.style = {
-            fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: fgColor } },
-            border,
-            alignment: { horizontal: col === 1 || col === 2 ? 'left' : 'center', vertical: 'middle' },
-          }
-          if (col === 13) {
-            const statusColor = STATUS_COLORS[row.status]
-            if (statusColor) {
-              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: statusColor } }
-              cell.font = { bold: true, color: { argb: row.status === 'Leeg' ? 'FFFFFFFF' : 'FF000000' } }
-            }
-          }
-          if (col === 11 && row.bestel_aantal > 0) {
-            cell.font = { bold: true, color: { argb: 'FFCC0000' } }
-          }
-        })
-      })
-    }
+    const dateStr = new Date().toISOString().split('T')[0]
 
     const locGenk = (loc: string) => String(loc || '').toLowerCase().includes('genk')
     const locWilrijk = (loc: string) => String(loc || '').toLowerCase().includes('wilrijk')
     const genkRows = toExport.filter((r: any) => locGenk(r.productielocatie))
     const wilrijkRows = toExport.filter((r: any) => locWilrijk(r.productielocatie))
 
-    addBesteladviesSheet('Genk', genkRows)
-    addBesteladviesSheet('Wilrijk', wilrijkRows)
+    const wbGenk = buildBesteladviesWorkbook('Genk', genkRows, today)
+    const wbWilrijk = buildBesteladviesWorkbook('Wilrijk', wilrijkRows, today)
 
-    // ── Sheet 3: Volledig overzicht met stock per locatie ─────────────────
-    const ws2 = wb.addWorksheet('Stock detail')
-    ws2.columns = [
-      { width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 12 },
-    ]
-    const t2Row = ws2.addRow([`Stock detail per locatie — ${today}`])
-    ws2.mergeCells(1, 1, 1, 8)
-    t2Row.getCell(1).font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } }
-    t2Row.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } }
-    t2Row.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' }
-    t2Row.height = 28
-    ws2.addRow([])
-    const h2Row = ws2.addRow(['Kisttype', 'Max voorraad', 'Stock Willebroek', 'Stock Genk', 'Stock Wilrijk', 'Totaal stock', 'Tekort', 'Status'])
-    h2Row.eachCell(cell => {
-      cell.style = {
-        font: { bold: true, color: { argb: 'FFFFFFFF' } },
-        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2E75B6' } },
-        alignment: { horizontal: 'center', vertical: 'middle' },
-        border,
-      }
-    })
-    rows.forEach((row: any, i: number) => {
-      const fgColor = i % 2 === 0 ? 'FFFFFFFF' : 'FFF2F2F2'
-      const r2 = ws2.addRow([
-        row.case_type,
-        row.max_voorraad,
-        row.stock_willebroek,
-        row.stock_genk,
-        row.stock_wilrijk,
-        row.stock_totaal,
-        row.tekort,
-        row.status,
-      ])
-      r2.eachCell((cell, col) => {
-        cell.style = { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: fgColor } }, border, alignment: { horizontal: col === 1 ? 'left' : 'center', vertical: 'middle' } }
-        if (col === 8) {
-          const statusColor = STATUS_COLORS[row.status]
-          if (statusColor) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: statusColor } }
-        }
-      })
-    })
+    const bufGenk = await wbGenk.xlsx.writeBuffer() as ArrayBuffer
+    const bufWilrijk = await wbWilrijk.xlsx.writeBuffer() as ArrayBuffer
 
-    const buffer = await wb.xlsx.writeBuffer()
-    const dateStr = new Date().toISOString().split('T')[0]
-    return new Response(new Uint8Array(buffer) as BodyInit, {
+    const zip = new JSZip()
+    zip.file(`Besteladvies_Genk_${dateStr}.xlsx`, bufGenk)
+    zip.file(`Besteladvies_Wilrijk_${dateStr}.xlsx`, bufWilrijk)
+
+    const zipBuffer = await zip.generateAsync({ type: 'uint8array' })
+    return new Response(zipBuffer, {
       headers: {
-        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="Besteladvies_Ckisten_${dateStr}.xlsx"`,
+        'Content-Type': 'application/zip',
+        'Content-Disposition': `attachment; filename="Besteladvies_Genk_Wilrijk_${dateStr}.zip"`,
       },
     })
   } catch (error: any) {

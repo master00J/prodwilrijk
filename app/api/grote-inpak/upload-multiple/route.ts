@@ -311,7 +311,7 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
   // Look for common header patterns like "ERP Code", "Quantity", "Aantal", "No.", "Inventory", etc.
   let startRow = 0
   let headerRowIndex: number | null = null
-  const headerKeywords = ['erp', 'code', 'quantity', 'aantal', 'qty', 'stock', 'voorraad', 'no.', 'inventory', 'consumption']
+  const headerKeywords = ['erp', 'code', 'quantity', 'aantal', 'qty', 'stock', 'voorraad', 'no.', 'inventory', 'consumption', 'prod', 'order', 'productie']
   
   for (let checkRow = 0; checkRow < Math.min(5, range.e.r + 1); checkRow++) {
     const rowCells: string[] = []
@@ -385,6 +385,9 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
     'prod. order',
     'production order',
     'productie',
+    'on prod. order',
+    'on prod order',
+    'prod order',
   ])
 
   const erpCandidateIndices = [
