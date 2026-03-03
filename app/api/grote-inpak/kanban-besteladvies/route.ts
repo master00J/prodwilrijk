@@ -38,15 +38,10 @@ export async function GET() {
     })
 
     // 1c. Transfer orders: kisten onderweg naar Willebroek (al geproduceerd, nog niet op stock)
+    // ERP code → kistnummer mapping wordt hier gedaan (niet bij upload) zodat ERP LINK altijd actueel is
     const { data: transferRaw } = await supabaseAdmin
       .from('grote_inpak_transfer')
-      .select('kistnummer, quantity')
-    const transferByKist = new Map<string, number>()
-    ;(transferRaw || []).forEach((t: any) => {
-      const kist = String(t.kistnummer || '').toUpperCase().trim()
-      if (!kist) return
-      transferByKist.set(kist, (transferByKist.get(kist) || 0) + Number(t.quantity || 0))
-    })
+      .select('erp_code, quantity')
 
     // 2. Haal stock op (alle locaties, incl. productie = Qty. on Prod. Order)
     const { data: stockRaw, error: stockError } = await supabaseAdmin
@@ -94,6 +89,25 @@ export async function GET() {
           if (!current || dateRaw < current) oldestPilsDateByKist.set(caseType, dateRaw)
         }
       }
+    })
+
+    // 3c. Bouw transferByKist map — nu ERP LINK beschikbaar is
+    const transferByKist = new Map<string, number>()
+    ;(transferRaw || []).forEach((t: any) => {
+      const rawErp = String(t.erp_code || '').trim()
+      const qty = Number(t.quantity || 0)
+      if (!rawErp || qty <= 0) return
+
+      const erpNorm = normalizeErpCode(rawErp)
+      // Probeer via ERP LINK
+      let kist = erpNorm ? erpToKist.get(erpNorm) || null : null
+      // Fallback: via cases-tabel
+      if (!kist && erpNorm) kist = erpToCaseType.get(erpNorm) || null
+      // Fallback: als de code zelf al een C-code is
+      if (!kist && rawErp.match(/^C\d+/i)) kist = rawErp.toUpperCase()
+
+      if (!kist) return
+      transferByKist.set(kist, (transferByKist.get(kist) || 0) + qty)
     })
 
     // 4. Bouw stockmap per kistnummer per locatie (quantity + productie = Qty. on Prod. Order)
