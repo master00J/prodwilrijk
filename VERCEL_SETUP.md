@@ -65,10 +65,21 @@ Als automatische deploy niet werkt, kun je handmatig deployen:
 - Controleer de build logs in Vercel dashboard
 - Zorg ervoor dat `npm run build` lokaal werkt
 
-### Geen automatische deploy
-- Controleer of Vercel for GitHub app is geïnstalleerd
-- Controleer of de repository correct is gekoppeld
-- Controleer de GitHub webhook settings
+### Geen automatische deploy (push komt niet aan in Vercel)
+1. **GitHub webhook controleren**
+   - Ga op GitHub naar **master00J/prodwilrijk** → **Settings** → **Webhooks**
+   - Staat er een webhook voor `https://api.vercel.com/...`? Zo niet, koppel het project opnieuw in Vercel.
+2. **Vercel Git-instellingen**
+   - Vercel Dashboard → jouw project → **Settings** → **Git**
+   - **Production Branch** moet `main` zijn (niet `master`).
+   - Zet **Automatically deploy** aan.
+3. **Handmatig redeployen (zonder nieuwe push)**
+   - Vercel Dashboard → **Deployments** → klik op de **...** naast de laatste deployment → **Redeploy**.
+   - Of: **Deployments** → **Create Deployment** → kies branch `main` en laat Vercel de laatste commit bouwen.
+4. **Deploy via Deploy Hook (optioneel)**
+   - Vercel → **Settings** → **Git** → **Deploy Hooks**
+   - Maak een hook (bijv. "Manual") en kopieer de URL.
+   - Trigger met: `curl -X POST "https://api.vercel.com/v1/integrations/deploy/..."` of in de browser een tool zoals Postman.
 
 ### Environment Variables niet beschikbaar
 - Zorg ervoor dat variabelen zijn ingesteld voor de juiste environment (Production/Preview/Development)

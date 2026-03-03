@@ -249,10 +249,8 @@ export async function POST(request: NextRequest) {
 }
 
 function extractLocationFromFilename(filename: string): string {
-  // Extract location from filename like "Stock Genk.xlsx" -> "Genk"
-  // Or "Stock Willebroek.xlsx" -> "Willebroek"
-  // Or "Stock in Willebroek.xlsx" -> "Willebroek"
-  // Or "Stock_Willebroek.xlsx" -> "Willebroek"
+  // Locatie komt uit de bestandsnaam: "Stock Genk.xlsx" → Genk, "Stock Wilrijk.xlsx" → Wilrijk, "Stock Willebroek.xlsx" → Willebroek.
+  // Elke file heeft de locatie in de naam, zodat de stock aan de juiste locatie wordt toegewezen (niet uit de Excel-inhoud).
   const name = filename.replace(/\.(xlsx|xls)$/i, '').trim()
   
   // Normalize common location names
@@ -295,64 +293,72 @@ function extractLocationFromFilename(filename: string): string {
   return locationMap[fallback.toLowerCase()] || fallback || 'Unknown'
 }
 
+/**
+ * Verwachte layout Stock Excel. Dezelfde kolomindeling voor alle drie de bestanden;
+ * de locatie (Genk / Wilrijk / Willebroek) wordt bepaald door de bestandsnaam (Stock Genk.xlsx, etc.), niet door de inhoud.
+ * - Kolom A (index 0): "No." = ERP code (GP-codes, koppeling via ERP LINK naar type kist)
+ * - Kolom C (index 2): "Inventory" = aantallen op stock
+ * - Kolom K (index 10): "Qty. on Prod. Order" = aantallen in productie (→ kanban "In productie")
+ * Overige: B = Consumption Item No., D–H = o.a. Description, I = Qty. on Purch. Order, J = Qty. on Sales Order.
+ */
 async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTransfer: boolean = false): Promise<any[]> {
   const sheetName = workbook.SheetNames[0]
   const worksheet = workbook.Sheets[sheetName]
-  
-  // Read by Excel column letters: A = ERP code, C = quantity
-  // Stock files: Kolom A = ERP code, Kolom C = quantity, Locatie uit bestandsnaam
   const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
   
   console.log(`Parsing stock file for location ${location}: Range is ${worksheet['!ref']}, total rows: ${range.e.r + 1}`)
   
   const results: any[] = []
   
-  // First, try to detect header row by checking first few rows
-  // Look for common header patterns like "ERP Code", "Quantity", "Aantal", "No.", "Inventory", etc.
-  let startRow = 0
-  let headerRowIndex: number | null = null
-  const headerKeywords = ['erp', 'code', 'quantity', 'aantal', 'qty', 'stock', 'voorraad', 'no.', 'inventory', 'consumption', 'prod', 'order', 'productie']
-  
-  for (let checkRow = 0; checkRow < Math.min(5, range.e.r + 1); checkRow++) {
+  // Normaliseer koptekst: kleine letters, spaties samenvoegen (NAV/BC export kan extra spaties hebben)
+  const normalizeHeader = (s: string) =>
+    String(s || '').toLowerCase().replace(/\s+/g, ' ').trim()
+
+  // Zoek de echte headerrij: moet zowel een identifier-kolom (No./Item) als een quantity-kolom bevatten,
+  // anders pakken we per ongeluk een titelrij ("Stock Genk") als header.
+  const numRowsToCheck = Math.min(6, range.e.r + 1)
+  const numColsToScan = Math.min(30, range.e.c + 1)
+  let bestHeaderRow = 0
+  let bestScore = 0
+
+  for (let checkRow = 0; checkRow < numRowsToCheck; checkRow++) {
     const rowCells: string[] = []
-    for (let c = 0; c < Math.min(5, range.e.c + 1); c++) {
+    for (let c = 0; c < numColsToScan; c++) {
       const cell = XLSX.utils.encode_cell({ r: checkRow, c })
       const cellValue = worksheet[cell]
-      if (cellValue) {
-        rowCells.push(String(cellValue.v || '').toLowerCase())
-      }
+      rowCells.push(normalizeHeader(cellValue ? String(cellValue.v || '') : ''))
     }
-    
-    // Check if this row contains header keywords
-    const isHeaderRow = rowCells.some(cell => 
-      headerKeywords.some(keyword => cell.includes(keyword))
-    )
-    
-    if (isHeaderRow) {
-      startRow = checkRow + 1 // Start data from next row
-      headerRowIndex = checkRow
-      console.log(`Detected header row at row ${checkRow + 1}, starting data from row ${startRow + 1}`)
-      break
+    const hasNo = rowCells.some(c => c === 'no.' || c === 'no' || (c.length <= 4 && c.includes('no')))
+    const hasItem = rowCells.some(c => /^(no\.?|item|article|code|erp|product|bom|routing|number)$/.test(c) || c.includes('item number') || c.includes('erp code'))
+    const hasQty = rowCells.some(c => /inventory|quantity|qty|stock|voorraad|balance|available|on hand/i.test(c))
+    const hasProdOrder = rowCells.some(c => /prod\.?\s*order|production\s*order|productie/.test(c))
+    const hasPurchOrder = rowCells.some(c => /purch\.?\s*order|purchase\s*order|inkoop/.test(c))
+    const score = (hasNo || hasItem ? 2 : 0) + (hasQty ? 2 : 0) + (hasProdOrder ? 1 : 0) + (hasPurchOrder ? 1 : 0)
+    if (score > bestScore) {
+      bestScore = score
+      bestHeaderRow = checkRow
     }
-  }
-  if (headerRowIndex === null && range.e.r >= 0) {
-    headerRowIndex = 0
-    startRow = 1
-    console.log(`No header row detected; using row 1 as header, data from row 2`)
   }
 
+  const headerRowIndex = bestScore >= 2 ? bestHeaderRow : 0
+  const startRow = headerRowIndex + 1
+  console.log(`Using row ${headerRowIndex + 1} as header (score ${bestScore}), data from row ${startRow + 1}`)
+
   const headerCells: string[] = []
-  if (headerRowIndex !== null) {
-    for (let c = 0; c <= range.e.c; c++) {
-      const cell = XLSX.utils.encode_cell({ r: headerRowIndex, c })
-      const cellValue = worksheet[cell]
-      headerCells.push(cellValue ? String(cellValue.v || '').toLowerCase().trim() : '')
-    }
+  for (let c = 0; c <= range.e.c; c++) {
+    const cell = XLSX.utils.encode_cell({ r: headerRowIndex, c })
+    const cellValue = worksheet[cell]
+    headerCells.push(cellValue ? normalizeHeader(String(cellValue.v || '')) : '')
   }
 
   const findColumnIndex = (names: string[]) => {
     if (!headerCells.length) return -1
-    return headerCells.findIndex((cell) => names.some((name) => cell === name || cell.includes(name)))
+    return headerCells.findIndex((cell) =>
+      names.some((name) => {
+        const n = normalizeHeader(name)
+        return cell === n || cell.includes(n) || (n.length > 3 && cell.replace(/\s/g, '').includes(n.replace(/\s/g, '')))
+      })
+    )
   }
 
   const inventoryIdx = findColumnIndex([
@@ -366,6 +372,9 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
     'available',
     'on hand',
     'quantity on hand',
+    'in stock',
+    'inventory quantity',
+    'quantity available',
   ])
   const purchaseIdx = findColumnIndex([
     'qty. on purch. order',
@@ -390,12 +399,17 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
     'prod order',
   ])
 
+  const noIdx = findColumnIndex(['no.', 'no'])
   const erpCandidateIndices = [
-    findColumnIndex(['no.', 'no']),
+    noIdx,
     findColumnIndex(['production bom no.', 'production bom', 'bom']),
     findColumnIndex(['routing no.', 'routing']),
-    findColumnIndex(['item', 'article', 'code', 'product', 'erp code', 'erp_code', 'item number']),
+    findColumnIndex(['item', 'article', 'code', 'product', 'erp code', 'erp_code', 'item number', 'item no.', 'item no']),
   ].filter((idx) => idx >= 0)
+  // NAV/BC: itemnummer staat vaak in kolom A (index 0); als we geen "No." kolom vonden, kolom 0 toch proberen
+  if (noIdx < 0 && !erpCandidateIndices.includes(0)) {
+    erpCandidateIndices.unshift(0)
+  }
 
   let quantityColumnIndex = inventoryIdx >= 0 ? inventoryIdx : 2
   if (inventoryIdx < 0 && startRow <= range.e.r) {
@@ -428,7 +442,9 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
       const cellValue = worksheet[cell]
       const rawValue = cellValue ? String(cellValue.v || '').trim() : ''
       const normalized = normalizeErpCode(rawValue)
-      if (normalized && (/^[A-Z]{2,}\d+/.test(normalized) || /^C\d+/.test(normalized.toUpperCase()))) {
+      const isAlphanumericCode = normalized && (/^[A-Z]{2,}\d+/.test(normalized) || /^C\d+/.test(normalized.toUpperCase()))
+      const isNumericItemNo = normalized && /^\d+$/.test(normalized)
+      if (normalized && (isAlphanumericCode || isNumericItemNo)) {
         erpCode = normalized
         break
       }
