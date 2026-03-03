@@ -18,7 +18,7 @@ export async function GET() {
     // 2. Haal stock op (alle locaties)
     const { data: stockRaw, error: stockError } = await supabaseAdmin
       .from('grote_inpak_stock')
-      .select('erp_code, kistnummer, location, quantity')
+      .select('erp_code, kistnummer, location, quantity, item_number')
 
     if (stockError) throw stockError
 
@@ -41,14 +41,16 @@ export async function GET() {
 
     ;(stockRaw || []).forEach((s: any) => {
       let kist = s.kistnummer ? String(s.kistnummer).toUpperCase().trim() : null
-      if (!kist && s.erp_code) {
-        kist = erpToKist.get(String(s.erp_code).toUpperCase().trim()) || null
+      const erp = s.erp_code ? String(s.erp_code).toUpperCase().trim() : ''
+      const itemNo = s.item_number ? String(s.item_number).toUpperCase().trim() : ''
+      if (!kist && erp) {
+        kist = erpToKist.get(erp) || null
       }
-      // Probeer ook directe match als erp_code zelf een kistnummer is (C-kisten)
-      if (!kist && s.erp_code) {
-        const code = String(s.erp_code).toUpperCase().trim()
-        if (code.match(/^C\d+/)) kist = code
+      if (!kist && itemNo) {
+        kist = erpToKist.get(itemNo) || null
       }
+      if (!kist && erp && erp.match(/^C\d+/)) kist = erp
+      if (!kist && itemNo && itemNo.match(/^C\d+/)) kist = itemNo
       if (!kist) return
 
       const loc = String(s.location || '').toLowerCase()
@@ -59,7 +61,7 @@ export async function GET() {
       }
       const entry = stockByKist.get(kist)!
       if (loc.includes('genk')) entry.genk += qty
-      else if (loc.includes('willebroek') || loc === 'wlb') entry.willebroek += qty
+      else if (loc.includes('willebroek') || loc.includes('wlb') || loc.includes('pac3pl')) entry.willebroek += qty
       else if (loc.includes('wilrijk')) entry.wilrijk += qty
       entry.totaal += qty
     })

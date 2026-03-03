@@ -350,7 +350,18 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
     return headerCells.findIndex((cell) => names.some((name) => cell === name || cell.includes(name)))
   }
 
-  const inventoryIdx = findColumnIndex(['inventory', 'voorraad', 'stock'])
+  const inventoryIdx = findColumnIndex([
+    'inventory',
+    'voorraad',
+    'stock',
+    'quantity',
+    'qty',
+    'aantal',
+    'balance',
+    'available',
+    'on hand',
+    'quantity on hand',
+  ])
   const purchaseIdx = findColumnIndex([
     'qty. on purch. order',
     'qty on purch. order',
@@ -375,7 +386,22 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
     findColumnIndex(['no.', 'no']),
     findColumnIndex(['production bom no.', 'production bom', 'bom']),
     findColumnIndex(['routing no.', 'routing']),
+    findColumnIndex(['item', 'article', 'code', 'product', 'erp code', 'erp_code', 'item number']),
   ].filter((idx) => idx >= 0)
+
+  let quantityColumnIndex = inventoryIdx >= 0 ? inventoryIdx : 2
+  if (inventoryIdx < 0 && startRow <= range.e.r) {
+    for (const tryCol of [2, 3, 4, 5, 6, 7]) {
+      const cell = XLSX.utils.encode_cell({ r: startRow, c: tryCol })
+      const val = worksheet[cell]
+      const n = val && typeof val.v === 'number' ? val.v : parseFloat(String(val?.v ?? ''))
+      if (Number.isFinite(n) && n >= 0) {
+        quantityColumnIndex = tryCol
+        console.log(`Stock column not found by header; using column index ${tryCol} for quantity (first data row value: ${n})`)
+        break
+      }
+    }
+  }
   
   // Process data rows
   for (let rowNum = startRow; rowNum <= range.e.r; rowNum++) {
@@ -394,7 +420,7 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
       const cellValue = worksheet[cell]
       const rawValue = cellValue ? String(cellValue.v || '').trim() : ''
       const normalized = normalizeErpCode(rawValue)
-      if (normalized && /^[A-Z]{2,}\d+/.test(normalized)) {
+      if (normalized && (/^[A-Z]{2,}\d+/.test(normalized) || /^C\d+/.test(normalized.toUpperCase()))) {
         erpCode = normalized
         break
       }
@@ -454,11 +480,10 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
       const quantityCell = worksheet[colF]
       inTransfer = parseNumericCell(quantityCell)
     } else {
-      const invCol = inventoryIdx >= 0 ? inventoryIdx : 2
       const purchCol = purchaseIdx >= 0 ? purchaseIdx : 8
       const prodCol = productionIdx >= 0 ? productionIdx : 10
 
-      const colC = XLSX.utils.encode_cell({ r: rowNum, c: invCol })
+      const colC = XLSX.utils.encode_cell({ r: rowNum, c: quantityColumnIndex })
       const quantityCell = worksheet[colC]
       stock = parseNumericCell(quantityCell)
 
