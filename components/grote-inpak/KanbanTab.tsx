@@ -27,6 +27,7 @@ interface BestelRij extends KanbanConfig {
   stock_wilrijk: number
   stock_totaal: number
   stock_in_rek: number
+  in_productie: number
   tekort: number
   bestel_aantal: number
   status: 'Leeg' | 'Bestellen' | 'Laag' | 'Vol'
@@ -288,6 +289,11 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
             <strong>Bestelpunt</strong> = 50% van max voorraad &nbsp;·&nbsp;
             <strong>Bestellen</strong> = afgerond op stapelhoogte
           </div>
+          {bestelData.length > 0 && bestelData.every((r: any) => (r.stock_in_rek || 0) === 0) && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+              <strong>Stock in rek = 0?</strong> Stock komt uit het bestand <strong>Stock Willebroek</strong>. Upload dat bestand bij &quot;Bestanden uploaden&quot;. Het bestand moet een kolom met voorraad (Stock, Inventory of Quantity) en een kolom met kistcode (C165, C352, …) of een ERP-code die in ERP LINK aan een C-kist gekoppeld is, bevatten.
+            </div>
+          )}
 
           {bestelLoading ? (
             <div className="py-12 text-center text-gray-400">Laden...</div>
@@ -304,8 +310,9 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
                       <th className="px-4 py-3 text-center">Posities</th>
                       <th className="px-4 py-3 text-center">Max voorraad</th>
                       <th className="px-4 py-3 text-center">Stock in rek</th>
+                      <th className="px-4 py-3 text-center">In productie</th>
                       <th className="px-4 py-3 text-center">Tekort</th>
-                      <th className="px-4 py-3 text-center font-bold text-gray-700">Bestellen (st)</th>
+                      <th className="px-4 py-3 text-center font-bold text-gray-700">Effectief te produceren</th>
                       <th className="px-4 py-3 text-center">Verbruik/dag</th>
                       <th className="px-4 py-3 text-center">Status</th>
                     </tr>
@@ -313,7 +320,7 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
                   <tbody className="divide-y divide-gray-100">
                     {filteredBestel.length === 0 && (
                       <tr>
-                        <td colSpan={11} className="py-10 text-center text-gray-400">
+                        <td colSpan={12} className="py-10 text-center text-gray-400">
                           {bestelData.length === 0
                             ? 'Geen rekindeling geconfigureerd. Ga naar "Rekindeling beheren" om kisten toe te voegen.'
                             : 'Geen kisten gevonden met de huidige filters.'}
@@ -354,6 +361,9 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
                               </div>
                               <span className="text-gray-700 font-medium">{row.stock_in_rek}</span>
                             </div>
+                          </td>
+                          <td className="px-4 py-3 text-center text-gray-700">
+                            {(row.in_productie ?? 0) > 0 ? row.in_productie : '—'}
                           </td>
                           <td className="px-4 py-3 text-center">
                             <span className={row.tekort > 0 ? 'text-red-700 font-medium' : 'text-gray-400'}>{row.tekort > 0 ? row.tekort : '—'}</span>

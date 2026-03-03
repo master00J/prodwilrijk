@@ -335,6 +335,11 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
       break
     }
   }
+  if (headerRowIndex === null && range.e.r >= 0) {
+    headerRowIndex = 0
+    startRow = 1
+    console.log(`No header row detected; using row 1 as header, data from row 2`)
+  }
 
   const headerCells: string[] = []
   if (headerRowIndex !== null) {
@@ -447,6 +452,7 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
       continue
     }
     // Negatieve waarden uit stock files worden op 0 gezet
+    // Inventory-kolom kan formaat "aantal, beschrijving" hebben (bv. "5, 9424-6013-82 K") → neem enkel getal vóór de komma
     const parseNumericCell = (cell: any): number => {
       if (!cell) return 0
       const cellValue = cell.v
@@ -454,10 +460,11 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
       if (typeof cellValue === 'number') {
         num = Math.floor(cellValue)
       } else if (typeof cellValue === 'string') {
-        let cleanStr = cellValue.replace(/\s/g, '').trim()
-        if (cleanStr.endsWith(',') && !cleanStr.includes('.')) {
-          cleanStr = cleanStr.replace(/,$/, '')
+        let str = String(cellValue).trim()
+        if (str.includes(',')) {
+          str = str.split(',')[0].trim()
         }
+        let cleanStr = str.replace(/\s+/g, '')
         cleanStr = cleanStr.replace(',', '.')
         cleanStr = cleanStr.replace(/[^\d.-]/g, '')
         const parsed = parseFloat(cleanStr)

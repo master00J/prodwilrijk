@@ -15,10 +15,10 @@ export async function GET() {
 
     if (configError) throw configError
 
-    // 2. Haal stock op (alle locaties)
+    // 2. Haal stock op (alle locaties, incl. productie = Qty. on Prod. Order)
     const { data: stockRaw, error: stockError } = await supabaseAdmin
       .from('grote_inpak_stock')
-      .select('erp_code, kistnummer, location, quantity, item_number')
+      .select('erp_code, kistnummer, location, quantity, productie, item_number')
 
     if (stockError) throw stockError
 
@@ -36,8 +36,14 @@ export async function GET() {
       }
     })
 
-    // 4. Bouw stockmap per kistnummer per locatie
-    const stockByKist = new Map<string, { genk: number; willebroek: number; wilrijk: number; totaal: number }>()
+    // 4. Bouw stockmap per kistnummer per locatie (quantity + productie = Qty. on Prod. Order)
+    const stockByKist = new Map<string, {
+      genk: number
+      willebroek: number
+      wilrijk: number
+      totaal: number
+      in_productie_willebroek: number
+    }>()
 
     ;(stockRaw || []).forEach((s: any) => {
       let kist = s.kistnummer ? String(s.kistnummer).toUpperCase().trim() : null
@@ -55,14 +61,20 @@ export async function GET() {
 
       const loc = String(s.location || '').toLowerCase()
       const qty = Math.max(0, Number(s.quantity || 0))
+      const productie = Math.max(0, Number(s.productie || 0))
 
       if (!stockByKist.has(kist)) {
-        stockByKist.set(kist, { genk: 0, willebroek: 0, wilrijk: 0, totaal: 0 })
+        stockByKist.set(kist, { genk: 0, willebroek: 0, wilrijk: 0, totaal: 0, in_productie_willebroek: 0 })
       }
       const entry = stockByKist.get(kist)!
-      if (loc.includes('genk')) entry.genk += qty
-      else if (loc.includes('willebroek') || loc.includes('wlb') || loc.includes('pac3pl')) entry.willebroek += qty
-      else if (loc.includes('wilrijk')) entry.wilrijk += qty
+      if (loc.includes('genk')) {
+        entry.genk += qty
+      } else if (loc.includes('willebroek') || loc.includes('wlb') || loc.includes('pac3pl')) {
+        entry.willebroek += qty
+        entry.in_productie_willebroek += productie
+      } else if (loc.includes('wilrijk')) {
+        entry.wilrijk += qty
+      }
       entry.totaal += qty
     })
 
@@ -73,16 +85,16 @@ export async function GET() {
       const maxVoorraad = row.posities * row.stapel * stapelsPerPos
       const bestelpunt = Math.ceil(maxVoorraad * 0.5) // 50% = bestelpunt (1 kanban leeg)
 
-      const stock = stockByKist.get(kt) || { genk: 0, willebroek: 0, wilrijk: 0, totaal: 0 }
-      // Kanban stock = enkel Stock Willebroek (wat er in het rek ligt)
+      const stock = stockByKist.get(kt) || { genk: 0, willebroek: 0, wilrijk: 0, totaal: 0, in_productie_willebroek: 0 }
       const stockInRek = stock.willebroek
-      const tekort = Math.max(0, maxVoorraad - stockInRek)
-      // Besteladvies = afgerond op stapelhoogte
+      const inProductie = stock.in_productie_willebroek ?? 0
+      const beschikbaar = stockInRek + inProductie
+      const tekort = Math.max(0, maxVoorraad - beschikbaar)
       const bestelAantal = tekort > 0 ? Math.ceil(tekort / row.stapel) * row.stapel : 0
       const statusLabel =
-        stockInRek === 0 ? 'Leeg'
-        : stockInRek < bestelpunt ? 'Bestellen'
-        : stockInRek < maxVoorraad ? 'Laag'
+        beschikbaar === 0 ? 'Leeg'
+        : beschikbaar < bestelpunt ? 'Bestellen'
+        : beschikbaar < maxVoorraad ? 'Laag'
         : 'Vol'
 
       return {
@@ -105,6 +117,7 @@ export async function GET() {
         stock_wilrijk: stock.wilrijk,
         stock_totaal: stock.totaal,
         stock_in_rek: stockInRek,
+        in_productie: inProductie,
         tekort,
         bestel_aantal: bestelAantal,
         status: statusLabel,
@@ -138,16 +151,16 @@ export async function POST(request: NextRequest) {
       'Laag':     'FFFFFF00',
       'Vol':      'FF92D050',
     }
-    const headers = ['Kisttype', 'Prod.locatie', 'Sectie', 'Niveau', 'Stapel', 'Posities', 'Max voorraad', 'Stock in rek', 'Tekort', 'Bestellen (st)', 'Verbruik/dag', 'Status']
+    const headers = ['Kisttype', 'Prod.locatie', 'Sectie', 'Niveau', 'Stapel', 'Posities', 'Max voorraad', 'Stock in rek', 'In productie', 'Tekort', 'Effectief te produceren', 'Verbruik/dag', 'Status']
 
     const addBesteladviesSheet = (locatieLabel: string, data: any[]) => {
       const ws = wb.addWorksheet(`Besteladvies ${locatieLabel}`)
       ws.columns = [
         { width: 12 }, { width: 14 }, { width: 10 }, { width: 10 }, { width: 10 }, { width: 10 },
-        { width: 14 }, { width: 14 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 12 },
-      ]
+        { width: 14 }, { width: 14 }, { width: 12 }, { width: 12 }, { width: 14 }, { width: 18 }, { width: 12 }, { width: 12 },
+      ].slice(0, 13)
       const titleRow = ws.addRow([`Besteladvies C-kisten ${locatieLabel} — ${today}`])
-      ws.mergeCells(1, 1, 1, 12)
+      ws.mergeCells(1, 1, 1, 13)
       titleRow.getCell(1).font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } }
       titleRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } }
       titleRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' }
@@ -174,6 +187,7 @@ export async function POST(request: NextRequest) {
           row.posities,
           row.max_voorraad,
           row.stock_in_rek,
+          row.in_productie ?? 0,
           row.tekort,
           row.bestel_aantal,
           row.verbruik_per_dag ? Number(row.verbruik_per_dag).toFixed(2) : '—',
@@ -185,14 +199,14 @@ export async function POST(request: NextRequest) {
             border,
             alignment: { horizontal: col === 1 || col === 2 ? 'left' : 'center', vertical: 'middle' },
           }
-          if (col === 12) {
+          if (col === 13) {
             const statusColor = STATUS_COLORS[row.status]
             if (statusColor) {
               cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: statusColor } }
               cell.font = { bold: true, color: { argb: row.status === 'Leeg' ? 'FFFFFFFF' : 'FF000000' } }
             }
           }
-          if (col === 10 && row.bestel_aantal > 0) {
+          if (col === 11 && row.bestel_aantal > 0) {
             cell.font = { bold: true, color: { argb: 'FFCC0000' } }
           }
         })
