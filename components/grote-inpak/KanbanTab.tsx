@@ -28,10 +28,12 @@ interface BestelRij extends KanbanConfig {
   stock_totaal: number
   stock_in_rek: number
   in_productie: number
+  in_transfer: number
   op_pils: number
   tekort: number
   bestel_aantal: number
   status: 'Leeg' | 'Bestellen' | 'Laag' | 'Vol'
+  priority_rank?: number
 }
 
 const PRIORITEIT_COLORS: Record<string, { bg: string; text: string; label: string }> = {
@@ -144,7 +146,7 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `Besteladvies_Genk_Wilrijk_${new Date().toISOString().split('T')[0]}.zip`
+      a.download = `C_kisten_daily_order_Genk_Wilrijk_${new Date().toISOString().split('T')[0]}.zip`
       a.click()
       URL.revokeObjectURL(url)
     } catch (e: any) {
@@ -201,7 +203,7 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
             onClick={() => setActiveView('besteladvies')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeView === 'besteladvies' ? 'bg-white shadow text-blue-700' : 'text-gray-600 hover:text-gray-800'}`}
           >
-            <ShoppingCart className="w-4 h-4" /> Besteladvies
+            <ShoppingCart className="w-4 h-4" /> C kisten daily order
           </button>
           <button
             onClick={() => setActiveView('rekindeling')}
@@ -212,7 +214,7 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
         </div>
       </div>
 
-      {/* ── BESTELADVIES ── */}
+      {/* ── C KISTEN DAILY ORDER ── */}
       {activeView === 'besteladvies' && (
         <div className="space-y-5">
           {/* KPI cards */}
@@ -276,7 +278,7 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
               className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50"
             >
               <Download className="w-4 h-4" />
-              {isExporting ? 'Exporteren...' : 'Exporteer besteladvies (ZIP: Genk + Wilrijk)'}
+              {isExporting ? 'Exporteren...' : 'Exporteer C kisten daily order (ZIP: Genk + Wilrijk)'}
             </button>
           </div>
 
@@ -306,6 +308,7 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
                 <table className="min-w-full divide-y divide-gray-100 text-sm">
                   <thead className="bg-gray-50 text-xs uppercase text-gray-500 font-medium">
                     <tr>
+                      <th className="px-4 py-3 text-center">Prioriteit</th>
                       <th className="px-4 py-3 text-left">Kisttype</th>
                       <th className="px-4 py-3 text-left">Locatie</th>
                       <th className="px-4 py-3 text-left">Sectie / Niveau</th>
@@ -314,6 +317,7 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
                       <th className="px-4 py-3 text-center">Max voorraad</th>
                       <th className="px-4 py-3 text-center">Stock in rek</th>
                       <th className="px-4 py-3 text-center">In productie</th>
+                      <th className="px-4 py-3 text-center">In transfer</th>
                       <th className="px-4 py-3 text-center">Op PILS</th>
                       <th className="px-4 py-3 text-center">Tekort</th>
                       <th className="px-4 py-3 text-center font-bold text-gray-700">Effectief te produceren</th>
@@ -324,7 +328,7 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
                   <tbody className="divide-y divide-gray-100">
                     {filteredBestel.length === 0 && (
                       <tr>
-                        <td colSpan={13} className="py-10 text-center text-gray-400">
+                        <td colSpan={15} className="py-10 text-center text-gray-400">
                           {bestelData.length === 0
                             ? 'Geen rekindeling geconfigureerd. Ga naar "Rekindeling beheren" om kisten toe te voegen.'
                             : 'Geen kisten gevonden met de huidige filters.'}
@@ -336,6 +340,9 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
                       const prio = row.prioriteit ? PRIORITEIT_COLORS[row.prioriteit] : null
                       return (
                         <tr key={row.case_type} className={`hover:bg-gray-50 ${row.status === 'Leeg' ? 'bg-red-50/40' : row.status === 'Bestellen' ? 'bg-orange-50/30' : ''}`}>
+                          <td className="px-4 py-3 text-center">
+                            <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-200 text-gray-700 font-bold text-sm">{row.priority_rank ?? i + 1}</span>
+                          </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-gray-900">{row.case_type}</span>
@@ -368,6 +375,9 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
                           </td>
                           <td className="px-4 py-3 text-center text-gray-700">
                             {(row.in_productie ?? 0) > 0 ? row.in_productie : '—'}
+                          </td>
+                          <td className="px-4 py-3 text-center text-orange-700 font-medium">
+                            {(row.in_transfer ?? 0) > 0 ? row.in_transfer : '—'}
                           </td>
                           <td className="px-4 py-3 text-center text-blue-700 font-medium">
                             {(row.op_pils ?? 0) > 0 ? row.op_pils : '—'}

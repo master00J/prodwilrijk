@@ -18,6 +18,10 @@ export default function GroteInpakPage() {
   const [pilsFile, setPilsFile] = useState<File | null>(null)
   const [erpLinkFile, setErpLinkFile] = useState<File | null>(null)
   const [stockFiles, setStockFiles] = useState<File[]>([])
+  const [transferFiles, setTransferFiles] = useState<File[]>([])
+  const [transferUploading, setTransferUploading] = useState(false)
+  const [transferFiles_DB, setTransferFiles_DB] = useState<any[]>([])
+  const [dragActiveTransfer, setDragActiveTransfer] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [overviewData, setOverviewData] = useState<any[]>([])
@@ -30,6 +34,7 @@ export default function GroteInpakPage() {
   const pilsInputRef = useRef<HTMLInputElement>(null)
   const erpLinkInputRef = useRef<HTMLInputElement>(null)
   const stockInputRef = useRef<HTMLInputElement>(null)
+  const transferInputRef = useRef<HTMLInputElement>(null)
 
   const tabs = [
     { id: 0, label: '📋 Overzicht', icon: '📋' },
@@ -70,6 +75,69 @@ export default function GroteInpakPage() {
       setStockFiles(validFiles)
       setError(null)
     }
+  }
+
+  // Transfer orders
+  const loadTransferFiles = useCallback(async () => {
+    try {
+      const res = await fetch('/api/grote-inpak/transfer')
+      if (res.ok) {
+        const result = await res.json()
+        setTransferFiles_DB(result.files || [])
+      }
+    } catch {}
+  }, [])
+
+  useEffect(() => { loadTransferFiles() }, [loadTransferFiles])
+
+  const handleTransferDrag = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActiveTransfer(e.type === 'dragenter' || e.type === 'dragover')
+  }, [])
+
+  const handleTransferDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActiveTransfer(false)
+    if (e.dataTransfer.files?.length > 0) {
+      setTransferFiles(Array.from(e.dataTransfer.files).filter(f => /\.xlsx?$/i.test(f.name)))
+    }
+  }, [])
+
+  const handleTransferUpload = async () => {
+    if (transferFiles.length === 0) return
+    setTransferUploading(true)
+    try {
+      const fd = new FormData()
+      transferFiles.forEach(f => fd.append('files', f))
+      const res = await fetch('/api/grote-inpak/transfer', { method: 'POST', body: fd })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Upload mislukt')
+      const ok = (result.results || []).filter((r: any) => r.status === 'ok')
+      const skip = (result.results || []).filter((r: any) => r.status === 'skip')
+      setSuccess(`Transfer: ${ok.map((r: any) => `${r.file} (${r.rijen} rijen, ${r.totaal_stuks} stuks)`).join(', ')}${skip.length > 0 ? ` — ${skip.length} overgeslagen` : ''}`)
+      setTransferFiles([])
+      await loadTransferFiles()
+      setStockUploadTrigger(t => t + 1)
+    } catch (err: any) {
+      setError(err.message || 'Fout bij uploaden transferorders')
+    } finally {
+      setTransferUploading(false)
+    }
+  }
+
+  const handleDeleteTransfer = async (sourceFile: string) => {
+    if (!confirm(`Verwijder transferorder "${sourceFile}"?`)) return
+    try {
+      await fetch('/api/grote-inpak/transfer', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source_file: sourceFile }),
+      })
+      await loadTransferFiles()
+      setStockUploadTrigger(t => t + 1)
+    } catch {}
   }
 
   const handleStockDrag = useCallback((e: React.DragEvent) => {
@@ -562,6 +630,67 @@ export default function GroteInpakPage() {
               Upload meerdere Excel bestanden (bijv. Stock Genk.xlsx, Stock Willebroek.xlsx, Stock Wilrijk.xlsx)
             </p>
           </div>
+        </div>
+
+        {/* Transfer Orders Upload */}
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            🚛 Transferorders (Kisten onderweg naar Willebroek — kolom A = ERP code, kolom F = stuks)
+          </label>
+          <div
+            className={`border-2 border-dashed rounded-lg p-6 text-center transition-all ${
+              dragActiveTransfer
+                ? 'border-orange-500 bg-orange-50 scale-105'
+                : transferFiles.length > 0
+                ? 'border-green-400 bg-green-50'
+                : 'border-gray-300 hover:border-orange-400'
+            }`}
+            onDragEnter={handleTransferDrag}
+            onDragLeave={handleTransferDrag}
+            onDragOver={handleTransferDrag}
+            onDrop={handleTransferDrop}
+          >
+            <Upload className={`w-12 h-12 mx-auto mb-2 ${dragActiveTransfer ? 'text-orange-500' : 'text-gray-400'}`} />
+            <p className="font-medium mb-1">Transferorder Excel(s)</p>
+            {transferFiles.length > 0 ? (
+              <ul className="text-sm text-green-700 font-semibold mt-2 space-y-0.5">
+                {transferFiles.map((f, i) => <li key={i}>{f.name}</li>)}
+              </ul>
+            ) : (
+              <p className="text-sm text-gray-500 mb-3">Sleep één of meerdere bestanden hierheen</p>
+            )}
+            <input ref={transferInputRef} type="file" accept=".xlsx,.xls" multiple className="hidden" id="transfer-upload"
+              onChange={e => setTransferFiles(Array.from(e.target.files || []))} />
+            <label htmlFor="transfer-upload" className="inline-block mt-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 cursor-pointer transition-colors">
+              {transferFiles.length > 0 ? 'Wijzig bestanden' : 'Selecteer bestanden'}
+            </label>
+            {transferFiles.length > 0 && (
+              <button onClick={handleTransferUpload} disabled={transferUploading}
+                className="ml-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors">
+                {transferUploading ? 'Uploaden...' : 'Upload transferorders'}
+              </button>
+            )}
+          </div>
+          {/* Actieve transferorders */}
+          {transferFiles_DB.length > 0 && (
+            <div className="mt-3 bg-orange-50 border border-orange-200 rounded-lg p-3">
+              <p className="text-sm font-semibold text-orange-800 mb-2">Actieve transferorders in database:</p>
+              <ul className="space-y-1">
+                {transferFiles_DB.map((tf: any) => (
+                  <li key={tf.source_file} className="flex items-center justify-between text-sm">
+                    <span className="text-gray-700">
+                      <span className="font-medium">{tf.source_file}</span>
+                      <span className="text-gray-500 ml-2">— {tf.aantal_rijen} kisttypen · {tf.totaal_stuks} stuks</span>
+                    </span>
+                    <button onClick={() => handleDeleteTransfer(tf.source_file)}
+                      className="text-red-500 hover:text-red-700 text-xs px-2 py-0.5 rounded hover:bg-red-50 transition-colors">
+                      Verwijder
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
             <div className="flex gap-4">

@@ -37,6 +37,17 @@ export async function GET() {
       verbruikPerDagByKist.set(kist, Math.round((totaal / dagenInPeriode) * 100) / 100)
     })
 
+    // 1c. Transfer orders: kisten onderweg naar Willebroek (al geproduceerd, nog niet op stock)
+    const { data: transferRaw } = await supabaseAdmin
+      .from('grote_inpak_transfer')
+      .select('kistnummer, quantity')
+    const transferByKist = new Map<string, number>()
+    ;(transferRaw || []).forEach((t: any) => {
+      const kist = String(t.kistnummer || '').toUpperCase().trim()
+      if (!kist) return
+      transferByKist.set(kist, (transferByKist.get(kist) || 0) + Number(t.quantity || 0))
+    })
+
     // 2. Haal stock op (alle locaties, incl. productie = Qty. on Prod. Order)
     const { data: stockRaw, error: stockError } = await supabaseAdmin
       .from('grote_inpak_stock')
@@ -62,21 +73,26 @@ export async function GET() {
       }
     })
 
-    // 3b. Cases-tabel: erp_code → case_type (fallback koppeling) + tellen hoeveel er op PILS staan
+    // 3b. Cases-tabel: erp_code → case_type (fallback) + aantal op PILS + oudste PILS-datum per kisttype
     const { data: casesLink } = await supabaseAdmin
       .from('grote_inpak_cases')
-      .select('case_label, erp_code, case_type')
+      .select('case_label, erp_code, case_type, arrival_date')
     const erpToCaseType = new Map<string, string>()
-    const pilsByKist = new Map<string, number>()  // case_type → aantal op PILS
+    const pilsByKist = new Map<string, number>()
+    const oldestPilsDateByKist = new Map<string, string>()  // case_type → oudste arrival_date (YYYY-MM-DD)
     ;(casesLink || []).forEach((c: any) => {
       const caseType = c.case_type ? String(c.case_type).toUpperCase().trim() : null
       if (c.erp_code && caseType) {
         const erpNorm = normalizeErpCode(c.erp_code)
         if (erpNorm) erpToCaseType.set(erpNorm, caseType)
       }
-      // Elke rij in grote_inpak_cases = één kist op PILS
       if (caseType) {
         pilsByKist.set(caseType, (pilsByKist.get(caseType) || 0) + 1)
+        const dateRaw = c.arrival_date ? String(c.arrival_date).split('T')[0] : null
+        if (dateRaw && /^\d{4}-\d{2}-\d{2}$/.test(dateRaw)) {
+          const current = oldestPilsDateByKist.get(caseType)
+          if (!current || dateRaw < current) oldestPilsDateByKist.set(caseType, dateRaw)
+        }
       }
     })
 
@@ -136,18 +152,25 @@ export async function GET() {
       const stockInRek = stock.willebroek
       const inProductie = stock.in_productie ?? 0
       const opPils = pilsByKist.get(kt) || 0
-      // Tekort = wat er fysiek in de rek ontbreekt (zonder rekening te houden met productie)
+      const inTransfer = transferByKist.get(kt) || 0
+      // Tekort = wat er fysiek in de rek ontbreekt (zonder rekening te houden met productie/transfer)
       const tekort = Math.max(0, maxVoorraad - stockInRek)
-      // PILS = directe vraag (units wachten op kist). We rekenen: stock "na PILS" = stock_in_rek - op_pils.
-      // Effectief tekort = wat nog nodig om rek tot max te vullen, gegeven die reserve en wat al in productie is.
-      const stockNaPils = stockInRek - opPils  // kan negatief = we komen tekort voor PILS
-      const effectiefTekort = Math.max(0, maxVoorraad - stockNaPils - inProductie)
+      // PILS = directe vraag. Stock "na PILS" = stock_in_rek - op_pils (kan negatief).
+      // Transfer = al geproduceerd en onderweg → telt mee zoals "in productie"
+      const stockNaPils = stockInRek - opPils
+      const effectiefTekort = Math.max(0, maxVoorraad - stockNaPils - inProductie - inTransfer)
       const bestelAantal = effectiefTekort > 0 ? Math.ceil(effectiefTekort / row.stapel) * row.stapel : 0
       const statusLabel =
         stockInRek === 0 ? 'Leeg'
         : stockInRek < bestelpunt ? 'Bestellen'
         : stockInRek < maxVoorraad ? 'Laag'
         : 'Vol'
+
+      const oldestPils = oldestPilsDateByKist.get(kt) || null
+      // Prioriteit: 1 = op PILS + geen/weinig stock, 2 = op PILS + stock ok, 3 = rest. Binnen tier: oudste PILS eerst.
+      const heeftPils = opPils > 0
+      const weinigStock = stockInRek < bestelpunt || stockInRek === 0
+      const priorityTier = heeftPils && weinigStock ? 1 : heeftPils ? 2 : 3
 
       return {
         id: row.id,
@@ -170,11 +193,26 @@ export async function GET() {
         stock_totaal: stock.totaal,
         stock_in_rek: stockInRek,
         in_productie: inProductie,
+        in_transfer: inTransfer,
         op_pils: opPils,
         tekort,
         bestel_aantal: bestelAantal,
         status: statusLabel,
+        oldest_pils_date: oldestPils,
+        _priority_tier: priorityTier,
       }
+    })
+
+    // Sorteer op prioriteit: tier 1 (PILS + weinig stock) eerst, dan tier 2 (PILS), dan tier 3. Binnen elke tier: oudste PILS-datum eerst.
+    const sorted = (result as any[]).sort((a, b) => {
+      if (a._priority_tier !== b._priority_tier) return a._priority_tier - b._priority_tier
+      const dateA = a.oldest_pils_date || '9999-99-99'
+      const dateB = b.oldest_pils_date || '9999-99-99'
+      return dateA.localeCompare(dateB)
+    })
+    sorted.forEach((row: any, idx: number) => {
+      row.priority_rank = idx + 1
+      delete row._priority_tier
     })
 
     // Diagnostiek
@@ -202,7 +240,7 @@ export async function GET() {
     }
 
     return NextResponse.json({
-      data: result,
+      data: sorted,
       _debug: {
         erp_link_entries: erpLinkCount,
         stock_rows_total: totalStockRows,
@@ -219,8 +257,8 @@ export async function GET() {
   }
 }
 
-// Hulpfunctie: maak één besteladvies-workbook voor één locatie (zonder Sectie, Niveau, Stapel, Posities)
-function buildBesteladviesWorkbook(locatieLabel: string, data: any[], today: string) {
+// Hulpfunctie: maak één C kisten daily order-workbook voor één locatie
+function buildDailyOrderWorkbook(locatieLabel: string, data: any[], today: string) {
   const wb = new ExcelJS.Workbook()
   const thin = { style: 'thin' as const }
   const border = { top: thin, left: thin, bottom: thin, right: thin }
@@ -230,16 +268,15 @@ function buildBesteladviesWorkbook(locatieLabel: string, data: any[], today: str
     'Laag':     'FFFFFF00',
     'Vol':      'FF92D050',
   }
-  // Kolommen: Kisttype, Prod.locatie, Max voorraad, Stock in rek, In productie, Op PILS, Tekort, Effectief te produceren, Verbruik/dag, Status
-  const headers = ['Kisttype', 'Prod.locatie', 'Max voorraad', 'Stock in rek', 'In productie', 'Op PILS', 'Tekort', 'Effectief te produceren', 'Verbruik/dag', 'Status']
+  const headers = ['Prioriteit', 'Kisttype', 'Prod.locatie', 'Max voorraad', 'Stock in rek', 'In productie', 'In transfer', 'Op PILS', 'Tekort', 'Effectief te produceren', 'Verbruik/dag', 'Status']
   const numCols = headers.length
 
-  const ws = wb.addWorksheet(`Besteladvies ${locatieLabel}`)
+  const ws = wb.addWorksheet(`C kisten daily order ${locatieLabel}`)
   ws.columns = [
-    { width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 10 },
-    { width: 12 }, { width: 22 }, { width: 13 }, { width: 12 },
+    { width: 10 }, { width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 12 },
+    { width: 10 }, { width: 12 }, { width: 22 }, { width: 13 }, { width: 12 },
   ]
-  const titleRow = ws.addRow([`Besteladvies C-kisten ${locatieLabel} — ${today}`])
+  const titleRow = ws.addRow([`C kisten daily order ${locatieLabel} — ${today}`])
   ws.mergeCells(1, 1, 1, numCols)
   titleRow.getCell(1).font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } }
   titleRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } }
@@ -259,11 +296,13 @@ function buildBesteladviesWorkbook(locatieLabel: string, data: any[], today: str
   data.forEach((row: any, i: number) => {
     const fgColor = i % 2 === 0 ? 'FFFFFFFF' : 'FFF2F2F2'
     const dRow = ws.addRow([
+      row.priority_rank ?? i + 1,
       row.case_type,
       row.productielocatie || '—',
       row.max_voorraad,
       row.stock_in_rek,
       row.in_productie ?? 0,
+      row.in_transfer ?? 0,
       row.op_pils ?? 0,
       row.tekort,
       row.bestel_aantal,
@@ -274,18 +313,16 @@ function buildBesteladviesWorkbook(locatieLabel: string, data: any[], today: str
       cell.style = {
         fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: fgColor } },
         border,
-        alignment: { horizontal: col === 1 || col === 2 ? 'left' : 'center', vertical: 'middle' },
+        alignment: { horizontal: col === 2 || col === 3 ? 'left' : 'center', vertical: 'middle' },
       }
-      if (col === 10) {
-        // Status kolom
+      if (col === 12) {
         const statusColor = STATUS_COLORS[row.status]
         if (statusColor) {
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: statusColor } }
           cell.font = { bold: true, color: { argb: row.status === 'Leeg' ? 'FFFFFFFF' : 'FF000000' } }
         }
       }
-      if (col === 8 && row.bestel_aantal > 0) {
-        // Effectief te produceren kolom — rood als er iets te produceren is
+      if (col === 10 && row.bestel_aantal > 0) {
         cell.font = { bold: true, color: { argb: 'FFCC0000' } }
       }
     })
@@ -293,7 +330,7 @@ function buildBesteladviesWorkbook(locatieLabel: string, data: any[], today: str
   return wb
 }
 
-// POST: Genereer 2 aparte Excel-bestanden (Genk + Wilrijk) in één ZIP, zonder Sectie/Niveau/Stapel/Posities
+// POST: Genereer 2 aparte Excel-bestanden (Genk + Wilrijk) in één ZIP — C kisten daily order
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -311,21 +348,21 @@ export async function POST(request: NextRequest) {
     const genkRows = toExport.filter((r: any) => locGenk(r.productielocatie))
     const wilrijkRows = toExport.filter((r: any) => locWilrijk(r.productielocatie))
 
-    const wbGenk = buildBesteladviesWorkbook('Genk', genkRows, today)
-    const wbWilrijk = buildBesteladviesWorkbook('Wilrijk', wilrijkRows, today)
+    const wbGenk = buildDailyOrderWorkbook('Genk', genkRows, today)
+    const wbWilrijk = buildDailyOrderWorkbook('Wilrijk', wilrijkRows, today)
 
     const bufGenk = await wbGenk.xlsx.writeBuffer() as ArrayBuffer
     const bufWilrijk = await wbWilrijk.xlsx.writeBuffer() as ArrayBuffer
 
     const zip = new JSZip()
-    zip.file(`Besteladvies_Genk_${dateStr}.xlsx`, bufGenk)
-    zip.file(`Besteladvies_Wilrijk_${dateStr}.xlsx`, bufWilrijk)
+    zip.file(`C_kisten_daily_order_Genk_${dateStr}.xlsx`, bufGenk)
+    zip.file(`C_kisten_daily_order_Wilrijk_${dateStr}.xlsx`, bufWilrijk)
 
     const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' })
     return new Response(zipBuffer as unknown as BodyInit, {
       headers: {
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="Besteladvies_Genk_Wilrijk_${dateStr}.zip"`,
+        'Content-Disposition': `attachment; filename="C_kisten_daily_order_Genk_Wilrijk_${dateStr}.zip"`,
       },
     })
   } catch (error: any) {
