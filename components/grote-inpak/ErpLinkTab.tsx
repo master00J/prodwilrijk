@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Edit2, Trash2, Save, X, Upload, AlertCircle } from 'lucide-react'
+import { Plus, Edit2, Trash2, Save, X, Upload, AlertCircle, Copy } from 'lucide-react'
 
 interface ErpLinkEntry {
   id?: number
@@ -24,6 +24,7 @@ export default function ErpLinkTab() {
   const [isAdding, setIsAdding] = useState(false)
   const [filterLocatie, setFilterLocatie] = useState<string>('')
   const [filterKisttype, setFilterKisttype] = useState<string>('')
+  const [copyMessage, setCopyMessage] = useState<string | null>(null)
   const [formData, setFormData] = useState<ErpLinkEntry>({
     kistnummer: '',
     erp_code: '',
@@ -257,6 +258,31 @@ export default function ErpLinkTab() {
     return true
   })
 
+  const columnLabels: Record<string, string> = {
+    kistnummer: 'Kistnummer',
+    erp_code: 'ERP Code',
+    productielocatie: 'Productielocatie',
+    description: 'Beschrijving',
+    stapel: 'Stapel',
+  }
+
+  const copyColumn = async (field: 'kistnummer' | 'erp_code' | 'productielocatie' | 'description' | 'stapel') => {
+    const values = filteredEntries.map((entry) => {
+      if (field === 'stapel') return String(entry.stapel ?? 1)
+      const v = entry[field]
+      return v != null && String(v).trim() !== '' ? String(v).trim() : ''
+    })
+    const text = values.join('\n')
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopyMessage(`${columnLabels[field]} gekopieerd (${values.length} waarden)`)
+      setTimeout(() => setCopyMessage(null), 2500)
+    } catch {
+      setCopyMessage('Kopiëren mislukt')
+      setTimeout(() => setCopyMessage(null), 2500)
+    }
+  }
+
   if (loading && entries.length === 0) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -304,6 +330,13 @@ export default function ErpLinkTab() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
           <span>{success}</span>
+        </div>
+      )}
+
+      {copyMessage && (
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2 text-blue-800 text-sm">
+          <Copy className="w-4 h-4 shrink-0" />
+          <span>{copyMessage}</span>
         </div>
       )}
 
@@ -439,19 +472,54 @@ export default function ErpLinkTab() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Kistnummer
+                  <button
+                    type="button"
+                    onClick={() => copyColumn('kistnummer')}
+                    className="inline-flex items-center gap-1.5 hover:text-blue-600 hover:bg-blue-50 rounded px-1 -ml-1 transition-colors"
+                    title="Klik om hele kolom te kopiëren"
+                  >
+                    Kistnummer <Copy className="w-3.5 h-3.5 opacity-60" />
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  ERP Code
+                  <button
+                    type="button"
+                    onClick={() => copyColumn('erp_code')}
+                    className="inline-flex items-center gap-1.5 hover:text-blue-600 hover:bg-blue-50 rounded px-1 -ml-1 transition-colors"
+                    title="Klik om hele kolom te kopiëren"
+                  >
+                    ERP Code <Copy className="w-3.5 h-3.5 opacity-60" />
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Productielocatie
+                  <button
+                    type="button"
+                    onClick={() => copyColumn('productielocatie')}
+                    className="inline-flex items-center gap-1.5 hover:text-blue-600 hover:bg-blue-50 rounded px-1 -ml-1 transition-colors"
+                    title="Klik om hele kolom te kopiëren"
+                  >
+                    Productielocatie <Copy className="w-3.5 h-3.5 opacity-60" />
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Beschrijving
+                  <button
+                    type="button"
+                    onClick={() => copyColumn('description')}
+                    className="inline-flex items-center gap-1.5 hover:text-blue-600 hover:bg-blue-50 rounded px-1 -ml-1 transition-colors"
+                    title="Klik om hele kolom te kopiëren"
+                  >
+                    Beschrijving <Copy className="w-3.5 h-3.5 opacity-60" />
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Stapel
+                  <button
+                    type="button"
+                    onClick={() => copyColumn('stapel')}
+                    className="inline-flex items-center gap-1.5 hover:text-blue-600 hover:bg-blue-50 rounded px-1 -ml-1 transition-colors"
+                    title="Klik om hele kolom te kopiëren"
+                  >
+                    Stapel <Copy className="w-3.5 h-3.5 opacity-60" />
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Acties
