@@ -40,6 +40,9 @@ export interface GroteInpakCase {
   created_at: string
   updated_at: string
   forecast_date?: string | null
+  stock_willebroek?: number | null
+  in_productie_qty?: number | null
+  in_transfer_qty?: number | null
 }
 
 export interface GroteInpakTransport {

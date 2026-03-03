@@ -44,25 +44,72 @@ export async function GET(request: NextRequest) {
       throw error
     }
 
-    // Haal forecast datums op voor alle caselabels in één query
     let filteredData = data || []
+
     if (filteredData.length > 0) {
+      // Forecast datums ophalen per caselabel
       const caseLabels = filteredData.map((item: any) => item.case_label).filter(Boolean)
       const { data: forecastRows } = await supabaseAdmin
         .from('grote_inpak_forecast')
         .select('case_label, arrival_date')
         .in('case_label', caseLabels)
 
-      if (forecastRows && forecastRows.length > 0) {
-        const forecastMap = new Map<string, string>()
-        forecastRows.forEach((row: any) => {
-          if (row.case_label) forecastMap.set(row.case_label, row.arrival_date)
+      const forecastMap = new Map<string, string>()
+      ;(forecastRows || []).forEach((row: any) => {
+        if (row.case_label) forecastMap.set(row.case_label, row.arrival_date)
+      })
+
+      // Stock + productie ophalen per kistnummer (= case_type)
+      const caseTypes = [...new Set(
+        filteredData.map((item: any) => String(item.case_type || '').trim().toUpperCase()).filter(Boolean)
+      )]
+
+      const stockWillebroekMap = new Map<string, number>()   // kistnummer → stock in Willebroek
+      const inProductieMap     = new Map<string, number>()   // kistnummer → totaal in productie
+      const inTransferMap      = new Map<string, number>()   // kistnummer → in transfer
+
+      if (caseTypes.length > 0) {
+        const { data: stockRows } = await supabaseAdmin
+          .from('grote_inpak_stock')
+          .select('kistnummer, location, quantity, in_productie')
+          .in('kistnummer', caseTypes)
+
+        ;(stockRows || []).forEach((row: any) => {
+          const kt = String(row.kistnummer || '').trim().toUpperCase()
+          if (!kt) return
+          const loc = String(row.location || '').toLowerCase()
+          const qty = Number(row.quantity) || 0
+          const prod = Number(row.in_productie) || 0
+
+          if (loc.includes('willebroek')) {
+            stockWillebroekMap.set(kt, (stockWillebroekMap.get(kt) || 0) + qty)
+          }
+          inProductieMap.set(kt, (inProductieMap.get(kt) || 0) + prod)
         })
-        filteredData = filteredData.map((item: any) => ({
-          ...item,
-          forecast_date: forecastMap.get(item.case_label) ?? null,
-        }))
+
+        // Transfer orders ophalen
+        const { data: transferRows } = await supabaseAdmin
+          .from('grote_inpak_transfer')
+          .select('kistnummer, quantity')
+          .in('kistnummer', caseTypes)
+
+        ;(transferRows || []).forEach((row: any) => {
+          const kt = String(row.kistnummer || '').trim().toUpperCase()
+          if (!kt) return
+          inTransferMap.set(kt, (inTransferMap.get(kt) || 0) + (Number(row.quantity) || 0))
+        })
       }
+
+      filteredData = filteredData.map((item: any) => {
+        const kt = String(item.case_type || '').trim().toUpperCase()
+        return {
+          ...item,
+          forecast_date:       forecastMap.get(item.case_label) ?? null,
+          stock_willebroek:    stockWillebroekMap.get(kt) ?? 0,
+          in_productie_qty:    inProductieMap.get(kt) ?? 0,
+          in_transfer_qty:     inTransferMap.get(kt) ?? 0,
+        }
+      })
     }
 
     // Apply search filter in memory

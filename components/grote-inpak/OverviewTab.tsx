@@ -26,6 +26,9 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
   const [priorityFilter, setPriorityFilter] = useState('Alle')
   const [kistTypeFilter, setKistTypeFilter] = useState<'Alle' | 'C' | 'K'>('Alle')
   const [searchQuery, setSearchQuery] = useState('')
+  const [verbergInProductie, setVerbergInProductie] = useState(false)
+  const [verbergOpStock, setVerbergOpStock] = useState(false)
+  const [verbergInTransfer, setVerbergInTransfer] = useState(false)
 
   // Get unique values for filters
   const locations = useMemo(() => {
@@ -82,8 +85,20 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
       )
     }
 
+    if (verbergInProductie) {
+      filtered = filtered.filter(item => !((item.in_productie_qty ?? 0) > 0))
+    }
+
+    if (verbergOpStock) {
+      filtered = filtered.filter(item => !((item.stock_willebroek ?? 0) > 0 || item.in_willebroek === true))
+    }
+
+    if (verbergInTransfer) {
+      filtered = filtered.filter(item => !((item.in_transfer_qty ?? 0) > 0))
+    }
+
     setFilteredData(filtered)
-  }, [overview, locationFilter, statusFilter, willebroekFilter, priorityFilter, kistTypeFilter, searchQuery])
+  }, [overview, locationFilter, statusFilter, willebroekFilter, priorityFilter, kistTypeFilter, searchQuery, verbergInProductie, verbergOpStock, verbergInTransfer])
 
   // Sort filtered data
   const sortedData = useMemo(() => {
@@ -403,6 +418,65 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
           </div>
         </div>
 
+        {/* Snelfilters productiestatus */}
+        <div className="flex flex-wrap gap-2 mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+          <span className="text-sm font-medium text-blue-800 self-center mr-1">🔍 Verberg:</span>
+          <button
+            onClick={() => setVerbergInProductie(v => !v)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+              verbergInProductie
+                ? 'bg-orange-500 text-white border-orange-500'
+                : 'bg-white text-gray-600 border-gray-300 hover:border-orange-400'
+            }`}
+          >
+            {verbergInProductie ? '✓' : ''} Al in productie
+          </button>
+          <button
+            onClick={() => setVerbergOpStock(v => !v)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+              verbergOpStock
+                ? 'bg-green-500 text-white border-green-500'
+                : 'bg-white text-gray-600 border-gray-300 hover:border-green-400'
+            }`}
+          >
+            {verbergOpStock ? '✓' : ''} Op stock in Willebroek
+          </button>
+          <button
+            onClick={() => setVerbergInTransfer(v => !v)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+              verbergInTransfer
+                ? 'bg-blue-500 text-white border-blue-500'
+                : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+            }`}
+          >
+            {verbergInTransfer ? '✓' : ''} In transfer
+          </button>
+          <div className="ml-auto self-center">
+            <button
+              onClick={() => {
+                setVerbergInProductie(true)
+                setVerbergOpStock(true)
+                setVerbergInTransfer(true)
+              }}
+              className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-full hover:bg-blue-700 transition-colors"
+            >
+              🎯 Enkel nog te produceren
+            </button>
+            {(verbergInProductie || verbergOpStock || verbergInTransfer) && (
+              <button
+                onClick={() => {
+                  setVerbergInProductie(false)
+                  setVerbergOpStock(false)
+                  setVerbergInTransfer(false)
+                }}
+                className="ml-2 px-3 py-1.5 bg-gray-200 text-gray-600 text-sm rounded-full hover:bg-gray-300 transition-colors"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Actions */}
         <div className="flex flex-wrap gap-2 mb-4">
           <button
@@ -511,6 +585,9 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
               >
                 In WB{getSortIcon('in_willebroek')}
               </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-orange-600 uppercase" title="Hoeveelheid van dit kisttype momenteel in productie">In Productie</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-green-600 uppercase" title="Stock van dit kisttype in Willebroek">Stock WLB</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-blue-600 uppercase" title="Hoeveelheid onderweg via transferorder">In Transfer</th>
               <th 
                 className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
                 onClick={() => handleSort('status')}
@@ -598,6 +675,21 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                     <span className={`px-2 py-1 rounded-full text-xs ${displayItem.in_willebroek ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
                       {displayItem.in_willebroek ? 'Ja' : 'Nee'}
                     </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center">
+                    {(displayItem.in_productie_qty ?? 0) > 0
+                      ? <span className="bg-orange-100 text-orange-700 font-semibold px-2 py-0.5 rounded-full text-xs">{displayItem.in_productie_qty}</span>
+                      : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center">
+                    {(displayItem.stock_willebroek ?? 0) > 0
+                      ? <span className="bg-green-100 text-green-700 font-semibold px-2 py-0.5 rounded-full text-xs">{displayItem.stock_willebroek}</span>
+                      : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center">
+                    {(displayItem.in_transfer_qty ?? 0) > 0
+                      ? <span className="bg-blue-100 text-blue-700 font-semibold px-2 py-0.5 rounded-full text-xs">{displayItem.in_transfer_qty}</span>
+                      : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-4 py-3">
                     <select
