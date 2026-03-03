@@ -412,6 +412,7 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
   }
 
   let quantityColumnIndex = inventoryIdx >= 0 ? inventoryIdx : 2
+  console.log(`Column mapping: No./ERP=${noIdx >= 0 ? noIdx : 0}, Inventory=${inventoryIdx >= 0 ? inventoryIdx : 2}(fallback), PurchOrder=${purchaseIdx >= 0 ? purchaseIdx : 8}, ProdOrder=${productionIdx >= 0 ? productionIdx : 10}`)
   if (inventoryIdx < 0 && startRow <= range.e.r) {
     for (const tryCol of [2, 3, 4, 5, 6, 7]) {
       const cell = XLSX.utils.encode_cell({ r: startRow, c: tryCol })
@@ -537,9 +538,8 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
       })
       
       // Log first few rows for debugging
-      if (results.length <= 10) {
-        const quantitySource = isTransfer ? 'col F' : 'col C'
-        console.log(`Row ${rowNum + 1}: ERP Code="${erpCode}", Quantity=${quantity}, Location="${location}" (from col A: "${colAValue}", ${quantitySource})`)
+      if (results.length <= 5) {
+        console.log(`Row ${rowNum + 1}: ERP="${erpCode}", Inventory=${stock}, Productie=${productie}, Location="${location}"`)
       }
     }
   }
@@ -555,7 +555,7 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
     console.log(`Unique ERP codes in parsed data: ${uniqueErpCodes.size}`)
     const sampleErpCodes = Array.from(uniqueErpCodes).slice(0, 20)
     console.log(`Sample ERP codes (first 20):`, sampleErpCodes)
-    console.log(`Sample items (first 10):`, results.slice(0, 10).map(r => `${r.erp_code}: ${r.quantity}`))
+    console.log(`Sample items (first 10):`, results.slice(0, 10).map(r => `${r.erp_code}: stock=${r.quantity}, productie=${r.productie}`))
   } else {
     console.warn(`⚠️ No stock items parsed from ${range.e.r + 1} rows. Check if header detection is correct.`)
     // Log first few rows to help debug

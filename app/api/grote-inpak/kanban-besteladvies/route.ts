@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
 import ExcelJS from 'exceljs'
 import JSZip from 'jszip'
 
@@ -32,8 +33,12 @@ export async function GET() {
     const erpToKist = new Map<string, string>()
     ;(erpLink || []).forEach((e: any) => {
       if (e.kistnummer && e.erp_code) {
-        kistToErp.set(String(e.kistnummer).toUpperCase().trim(), String(e.erp_code).toUpperCase().trim())
-        erpToKist.set(String(e.erp_code).toUpperCase().trim(), String(e.kistnummer).toUpperCase().trim())
+        const kist = String(e.kistnummer).toUpperCase().trim()
+        const erpNorm = normalizeErpCode(e.erp_code)
+        if (erpNorm) {
+          kistToErp.set(kist, erpNorm)
+          erpToKist.set(erpNorm, kist)
+        }
       }
     })
 
@@ -48,16 +53,17 @@ export async function GET() {
 
     ;(stockRaw || []).forEach((s: any) => {
       let kist = s.kistnummer ? String(s.kistnummer).toUpperCase().trim() : null
-      const erp = s.erp_code ? String(s.erp_code).toUpperCase().trim() : ''
+      const erpRaw = s.erp_code ? String(s.erp_code).trim() : ''
+      const erpNorm = erpRaw ? normalizeErpCode(erpRaw) : null
       const itemNo = s.item_number ? String(s.item_number).toUpperCase().trim() : ''
-      if (!kist && erp) {
-        kist = erpToKist.get(erp) || null
+      if (!kist && erpNorm) {
+        kist = erpToKist.get(erpNorm) || null
       }
       if (!kist && itemNo) {
-        kist = erpToKist.get(itemNo) || null
+        kist = erpToKist.get(normalizeErpCode(itemNo) || itemNo) || null
       }
-      if (!kist && erp && erp.match(/^C\d+/)) kist = erp
-      if (!kist && itemNo && itemNo.match(/^C\d+/)) kist = itemNo
+      if (!kist && erpNorm && /^C\d+/.test(erpNorm)) kist = erpNorm
+      if (!kist && itemNo && /^C\d+/.test(itemNo)) kist = itemNo
       if (!kist) return
 
       const loc = String(s.location || '').toLowerCase()
