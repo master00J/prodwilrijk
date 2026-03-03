@@ -521,7 +521,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
               <th 
                 className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
                 onClick={() => handleSort('stock_location')}
-                title="Fysieke opslaglocatie van de lege kist in het Willebroek-magazijn (WMS-locatiecode)"
+                title="Locatie van de kist uit de PILS file. PAC3PL = Willebroek (interne code), wordt automatisch omgezet."
               >
                 WMS Locatie{getSortIcon('stock_location')}
               </th>

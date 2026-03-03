@@ -181,7 +181,11 @@ async function parsePILSCSV(csvText: string): Promise<any[]> {
       if (itemNumberIdx >= 0) row.item_number = values[itemNumberIdx] || ''
       if (arrivalDateIdx >= 0) row.arrival_date = values[arrivalDateIdx] || ''
       if (locationIdx >= 0) row.productielocatie = values[locationIdx] || ''
-      if (stockLocationIdx >= 0) row.stock_location = values[stockLocationIdx] || ''
+      if (stockLocationIdx >= 0) {
+        const rawLoc = values[stockLocationIdx] || ''
+        // PAC3PL = interne code voor Willebroek
+        row.stock_location = rawLoc.toLowerCase().includes('pac3pl') ? 'Willebroek' : rawLoc
+      }
       
       // Also store all original columns for flexibility
       // This ensures we can access columns by their original names or by index
