@@ -105,6 +105,10 @@ export async function POST(request: NextRequest) {
       'grote_inpak_cases',
       'case_label, case_type, arrival_date'
     )
+    const transferData = await fetchAllRows<{ kistnummer: string | null; quantity: number }>(
+      'grote_inpak_transfer',
+      'kistnummer, quantity'
+    )
 
     const pilsLabels = new Set(
       (casesData || []).map((row: CaseRow) => String(row.case_label || '').trim()).filter(Boolean)
@@ -157,6 +161,13 @@ export async function POST(request: NextRequest) {
           productieByCase.set(caseType, (productieByCase.get(caseType) || 0) + productie)
         }
       }
+    })
+
+    // Transferorders (grote_inpak_transfer) — al geproduceerd, onderweg via ERP LINK
+    ;(transferData || []).forEach((row) => {
+      const kt = normalizeCaseType(row.kistnummer || '')
+      if (!kt) return
+      transferByCase.set(kt, (transferByCase.get(kt) || 0) + parseNumber(row.quantity))
     })
 
     const pilsNeedByCase = new Map<string, number>()
