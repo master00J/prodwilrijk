@@ -415,8 +415,10 @@ export async function POST(request: NextRequest) {
     const genkRows = toExport.filter((r: any) => locGenk(r.productielocatie))
     const wilrijkRows = toExport.filter((r: any) => locWilrijk(r.productielocatie))
 
-    const wbGenk = buildDailyOrderWorkbook('Genk', genkRows, today)
-    const wbWilrijk = buildDailyOrderWorkbook('Wilrijk', wilrijkRows, today)
+    // Hernummer per locatie zodat elke Excel begint bij 1, 2, 3...
+    const renumber = (rows: any[]) => rows.map((r, i) => ({ ...r, priority_rank: i + 1 }))
+    const wbGenk = buildDailyOrderWorkbook('Genk', renumber(genkRows), today)
+    const wbWilrijk = buildDailyOrderWorkbook('Wilrijk', renumber(wilrijkRows), today)
 
     const bufGenk = await wbGenk.xlsx.writeBuffer() as ArrayBuffer
     const bufWilrijk = await wbWilrijk.xlsx.writeBuffer() as ArrayBuffer
