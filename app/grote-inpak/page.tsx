@@ -358,8 +358,9 @@ export default function GroteInpakPage() {
         }
 
         const processResult = await processResponse.json()
-        setOverviewData(processResult.cases || [])
-        setTransportData(processResult.transport || [])
+        const processedCases = processResult.cases || []
+        setOverviewData(processedCases)
+        setTransportData(processedCases)
         setDataLoaded(true)
 
         // Build success message
@@ -405,13 +406,9 @@ export default function GroteInpakPage() {
         const cases = casesResult.data || []
         setOverviewData(cases)
         
-        // If we have cases, also load transport and mark as loaded
+        // Transport = alle PILS cases (TransportTab filtert zelf op locatie/status)
         if (cases.length > 0) {
-          const transportResponse = await fetch('/api/grote-inpak/transport')
-          if (transportResponse.ok) {
-            const transportResult = await transportResponse.json()
-            setTransportData(transportResult.data || [])
-          }
+          setTransportData(cases)
           setDataLoaded(true)
         }
       }

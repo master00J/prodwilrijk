@@ -120,13 +120,15 @@ export default function TransportTab({ transport, overview }: TransportTabProps)
   }
   const [isGenerating, setIsGenerating] = useState(false)
 
-  // Merge transport met case details
+  // Transport = PILS cases, al volledige data — alleen Genk-cases zijn relevant
   const transportWithDetails = useMemo(() => {
-    return transport.map((t) => {
-      const caseData = overview.find(c => c.case_label === t.case_label)
-      return { ...t, ...caseData, ...editedData.get(t.case_label) }
-    })
-  }, [transport, overview, editedData])
+    return transport
+      .filter((t) => {
+        const loc = String(t.productielocatie || '').toLowerCase()
+        return loc.includes('genk')
+      })
+      .map((t) => ({ ...t, ...editedData.get(t.case_label) }))
+  }, [transport, editedData])
 
   // Filters voor de detailweergave
   const filteredTransport = useMemo(() => {
