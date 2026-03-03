@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Download, RefreshCw, Plus, Pencil, Trash2, AlertTriangle, CheckCircle, Package, ShoppingCart, LayoutGrid } from 'lucide-react'
+import { Download, RefreshCw, Plus, Pencil, Trash2, AlertTriangle, CheckCircle, Package, ShoppingCart, LayoutGrid, Mail } from 'lucide-react'
 
 // ── Types ─────────────────────────────────────────────────────────────────
 interface KanbanConfig {
@@ -73,6 +73,8 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
   const [debugInfo, setDebugInfo] = useState<any>(null)
   const [alleenBestellen, setAlleenBestellen] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
+  const [isSendingEmail, setIsSendingEmail] = useState(false)
+  const [emailStatus, setEmailStatus] = useState<{ ok: boolean; msg: string } | null>(null)
   const [zoekterm, setZoekterm] = useState('')
 
   // Rekindeling (config) state
@@ -155,6 +157,25 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
       alert(`Export mislukt: ${e.message}`)
     } finally {
       setIsExporting(false)
+    }
+  }
+
+  const handleSendEmail = async () => {
+    setIsSendingEmail(true)
+    setEmailStatus(null)
+    try {
+      const res = await fetch('/api/grote-inpak/send-daily-order-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: filteredBestel, alleenBestellen }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      setEmailStatus({ ok: true, msg: json.message || 'E-mail verstuurd naar prodwilrijk@foresco.eu' })
+    } catch (e: any) {
+      setEmailStatus({ ok: false, msg: `Versturen mislukt: ${e.message}` })
+    } finally {
+      setIsSendingEmail(false)
     }
   }
 
@@ -282,7 +303,22 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
               <Download className="w-4 h-4" />
               {isExporting ? 'Exporteren...' : 'Exporteer C kisten daily order (ZIP: Genk + Wilrijk)'}
             </button>
+            <button
+              onClick={handleSendEmail}
+              disabled={isSendingEmail || bestelData.length === 0}
+              className="flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              <Mail className="w-4 h-4" />
+              {isSendingEmail ? 'Versturen...' : 'Mail Genk order'}
+            </button>
           </div>
+
+          {emailStatus && (
+            <div className={`rounded-lg p-3 text-sm flex items-center gap-2 ${emailStatus.ok ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-700'}`}>
+              {emailStatus.ok ? <CheckCircle className="w-4 h-4 flex-shrink-0" /> : <AlertTriangle className="w-4 h-4 flex-shrink-0" />}
+              {emailStatus.msg}
+            </div>
+          )}
 
           {bestelError && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm flex items-center gap-2">
