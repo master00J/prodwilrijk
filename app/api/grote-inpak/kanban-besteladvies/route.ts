@@ -153,15 +153,15 @@ export async function GET() {
 
       const stock = stockByKist.get(kt) || { genk: 0, willebroek: 0, wilrijk: 0, totaal: 0, in_productie: 0 }
       const stockInRek = stock.willebroek
+      const stockElders = (stock.genk ?? 0) + (stock.wilrijk ?? 0) // beschikbaar maar nog niet in rek
       const inProductie = stock.in_productie ?? 0
       const opPils = pilsByKist.get(kt) || 0
       const inTransfer = transferByKist.get(kt) || 0
-      // Tekort = wat er fysiek in de rek ontbreekt (zonder rekening te houden met productie/transfer)
+      // Tekort = wat er fysiek in de rek ontbreekt (status van de rek)
       const tekort = Math.max(0, maxVoorraad - stockInRek)
-      // PILS = directe vraag. Stock "na PILS" = stock_in_rek - op_pils (kan negatief).
-      // Transfer = al geproduceerd en onderweg → telt mee zoals "in productie"
+      // Effectief te produceren houdt rekening met: PILS (directe vraag), stock elders, in productie, in transfer
       const stockNaPils = stockInRek - opPils
-      const effectiefTekort = Math.max(0, maxVoorraad - stockNaPils - inProductie - inTransfer)
+      const effectiefTekort = Math.max(0, maxVoorraad - stockNaPils - stockElders - inProductie - inTransfer)
       const bestelAantal = effectiefTekort > 0 ? Math.ceil(effectiefTekort / row.stapel) * row.stapel : 0
       const statusLabel =
         stockInRek === 0 ? 'Leeg'
@@ -169,7 +169,8 @@ export async function GET() {
         : stockInRek < maxVoorraad ? 'Laag'
         : 'Vol'
 
-      const gedekt = inProductie + inTransfer
+      // gedekt = alles wat de fysieke tekort in de rek kan opvangen (maar nog niet in rek staat)
+      const gedekt = stockElders + inProductie + inTransfer
       const oudstePils = oldestPilsDateByKist.get(kt) || null
 
       // Actie label — wordt ook in Excel getoond
@@ -219,6 +220,7 @@ export async function GET() {
         stock_wilrijk: stock.wilrijk,
         stock_totaal: stock.totaal,
         stock_in_rek: stockInRek,
+        stock_elders: stockElders,
         in_productie: inProductie,
         in_transfer: inTransfer,
         op_pils: opPils,
@@ -308,13 +310,13 @@ function buildDailyOrderWorkbook(locatieLabel: string, data: any[], today: strin
     '🟡 LAAG':                           'FFFFFF00',
     '🟢 OK':                             'FF92D050',
   }
-  const headers = ['Prioriteit', 'Actie', 'Kisttype', 'Prod.locatie', 'Max voorraad', 'Stock in rek', 'In productie', 'In transfer', 'Op PILS', 'Tekort', 'Effectief te produceren', 'Verbruik/dag', 'Status']
+  const headers = ['Prioriteit', 'Actie', 'Kisttype', 'Prod.locatie', 'Max voorraad', 'Stock in rek', 'Stock elders', 'In productie', 'In transfer', 'Op PILS', 'Tekort', 'Effectief te produceren', 'Verbruik/dag', 'Status']
   const numCols = headers.length
 
   const ws = wb.addWorksheet(`C kisten daily order ${locatieLabel}`)
   ws.columns = [
-    { width: 10 }, { width: 30 }, { width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 12 },
-    { width: 10 }, { width: 12 }, { width: 22 }, { width: 13 }, { width: 12 },
+    { width: 10 }, { width: 30 }, { width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 13 },
+    { width: 12 }, { width: 12 }, { width: 10 }, { width: 12 }, { width: 22 }, { width: 13 }, { width: 12 },
   ]
   const titleRow = ws.addRow([`C kisten daily order ${locatieLabel} — ${today}`])
   ws.mergeCells(1, 1, 1, numCols)
@@ -342,6 +344,7 @@ function buildDailyOrderWorkbook(locatieLabel: string, data: any[], today: strin
       row.productielocatie || '—',
       row.max_voorraad,
       row.stock_in_rek,
+      row.stock_elders ?? 0,
       row.in_productie ?? 0,
       row.in_transfer ?? 0,
       row.op_pils ?? 0,
@@ -366,16 +369,21 @@ function buildDailyOrderWorkbook(locatieLabel: string, data: any[], today: strin
         }
         cell.alignment = { horizontal: 'left', vertical: 'middle' }
       }
-      // Status kolom (col 13)
-      if (col === 13) {
+      // Stock elders (col 7) — licht blauw als > 0
+      if (col === 7 && (row.stock_elders ?? 0) > 0) {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD6E4F0' } }
+        cell.font = { bold: true, color: { argb: 'FF1F497D' } }
+      }
+      // Status kolom (col 14)
+      if (col === 14) {
         const statusColor = STATUS_COLORS[row.status]
         if (statusColor) {
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: statusColor } }
           cell.font = { bold: true, color: { argb: row.status === 'Leeg' ? 'FFFFFFFF' : 'FF000000' } }
         }
       }
-      // Effectief te produceren (col 11) — rood + vet als > 0
-      if (col === 11 && row.bestel_aantal > 0) {
+      // Effectief te produceren (col 12) — rood + vet als > 0
+      if (col === 12 && row.bestel_aantal > 0) {
         cell.font = { bold: true, color: { argb: 'FFCC0000' } }
       }
     })

@@ -27,6 +27,7 @@ interface BestelRij extends KanbanConfig {
   stock_wilrijk: number
   stock_totaal: number
   stock_in_rek: number
+  stock_elders: number
   in_productie: number
   in_transfer: number
   op_pils: number
@@ -317,6 +318,7 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
                       <th className="px-4 py-3 text-center">Posities</th>
                       <th className="px-4 py-3 text-center">Max voorraad</th>
                       <th className="px-4 py-3 text-center">Stock in rek</th>
+                      <th className="px-4 py-3 text-center">Stock elders</th>
                       <th className="px-4 py-3 text-center">In productie</th>
                       <th className="px-4 py-3 text-center">In transfer</th>
                       <th className="px-4 py-3 text-center">Op PILS</th>
@@ -329,7 +331,7 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
                   <tbody className="divide-y divide-gray-100">
                     {filteredBestel.length === 0 && (
                       <tr>
-                        <td colSpan={15} className="py-10 text-center text-gray-400">
+                        <td colSpan={16} className="py-10 text-center text-gray-400">
                           {bestelData.length === 0
                             ? 'Geen rekindeling geconfigureerd. Ga naar "Rekindeling beheren" om kisten toe te voegen.'
                             : 'Geen kisten gevonden met de huidige filters.'}
@@ -373,6 +375,9 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
                               </div>
                               <span className="text-gray-700 font-medium">{row.stock_in_rek}</span>
                             </div>
+                          </td>
+                          <td className="px-4 py-3 text-center text-blue-800 font-medium">
+                            {(row.stock_elders ?? 0) > 0 ? row.stock_elders : '—'}
                           </td>
                           <td className="px-4 py-3 text-center text-gray-700">
                             {(row.in_productie ?? 0) > 0 ? row.in_productie : '—'}
