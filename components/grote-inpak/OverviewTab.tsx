@@ -566,18 +566,25 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                       if (!displayItem.forecast_date) return <span className="text-gray-300">—</span>
                       const fDate = new Date(displayItem.forecast_date)
                       const pDate = displayItem.arrival_date ? new Date(displayItem.arrival_date) : null
-                      const diffDays = pDate ? Math.round((fDate.getTime() - pDate.getTime()) / 86400000) : null
-                      // Rood = forecast meer dan 14 dagen vroeger dan PILS (vervroegd)
-                      // Oranje = 7-14 dagen vroeger
-                      // Groen = op tijd of later
+                      // Positief = forecast vóór PILS = kist op tijd klaar (goed)
+                      // Negatief = forecast ná PILS = kist te laat (probleem)
+                      const diffDays = pDate ? Math.round((pDate.getTime() - fDate.getTime()) / 86400000) : null
                       const colorClass =
-                        diffDays !== null && diffDays < -14 ? 'text-red-700 font-semibold' :
-                        diffDays !== null && diffDays < -7  ? 'text-orange-600 font-medium' :
-                        'text-gray-700'
-                      const badge =
-                        diffDays !== null && diffDays < -14 ? <span className="ml-1.5 text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full font-bold">{diffDays}d</span> :
-                        diffDays !== null && diffDays < -7  ? <span className="ml-1.5 text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full">{diffDays}d</span> :
-                        null
+                        diffDays === null                  ? 'text-gray-700' :
+                        diffDays < -7                     ? 'text-red-700 font-semibold' :  // >7 dagen te laat
+                        diffDays < 0                      ? 'text-orange-600 font-medium' : // 1-7 dagen te laat
+                        diffDays < 7                      ? 'text-yellow-600' :              // <7 dagen marge
+                        'text-green-700'                                                      // ruim op tijd
+                      const badge = diffDays !== null ? (
+                        <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full font-bold ${
+                          diffDays < -7   ? 'bg-red-100 text-red-700' :
+                          diffDays < 0    ? 'bg-orange-100 text-orange-700' :
+                          diffDays < 7    ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-green-100 text-green-700'
+                        }`}>
+                          {diffDays >= 0 ? `+${diffDays}d` : `${diffDays}d`}
+                        </span>
+                      ) : null
                       return (
                         <span className={colorClass}>
                           {fDate.toLocaleDateString('nl-NL')}{badge}
