@@ -63,9 +63,6 @@ export async function GET() {
       in_productie_willebroek: number
     }>()
 
-    // Normaliseer kistnummer: K792 → C792 (K en C zijn equivalent voor C-kisten)
-    const normalizeKist = (k: string) => k.replace(/^K(\d)/, 'C$1')
-
     ;(stockRaw || []).forEach((s: any) => {
       let kist = s.kistnummer ? String(s.kistnummer).toUpperCase().trim() : null
       const erpRaw = s.erp_code ? String(s.erp_code).trim() : ''
@@ -77,12 +74,10 @@ export async function GET() {
       // 2. Fallback: via cases-tabel
       if (!kist && erpNorm) kist = erpToCaseType.get(erpNorm) || null
       if (!kist && itemNo) kist = erpToCaseType.get(normalizeErpCode(itemNo) || itemNo) || null
-      // 3. Als de erp_code zelf al een C/K-code is
-      if (!kist && erpNorm && /^[CK]\d+/.test(erpNorm)) kist = erpNorm
-      if (!kist && itemNo && /^[CK]\d+/.test(itemNo)) kist = itemNo
+      // 3. Als de erp_code zelf al een C-code is (K-kisten zijn aparte types, niet converteren)
+      if (!kist && erpNorm && /^C\d+/.test(erpNorm)) kist = erpNorm
+      if (!kist && itemNo && /^C\d+/.test(itemNo)) kist = itemNo
       if (!kist) return
-      // K792 en C792 zijn hetzelfde: normaliseer K→C
-      kist = normalizeKist(kist)
 
       const loc = String(s.location || '').toLowerCase()
       const qty = Math.max(0, Number(s.quantity || 0))
@@ -152,6 +147,10 @@ export async function GET() {
     // Diagnostiek
     const erpLinkCount = (erpLink || []).length
     const totalStockRows = (stockRaw || []).length
+
+    // Unieke locaties in de stocktabel ophalen voor diagnose
+    const uniqueLocations = [...new Set((stockRaw || []).map((s: any) => s.location).filter(Boolean))]
+
     const kistenMetWillebroekStock = Array.from(stockByKist.entries())
       .filter(([, v]) => v.willebroek > 0).map(([k]) => k)
     const kistenZonderWillebroek = Array.from(stockByKist.entries())
@@ -163,7 +162,8 @@ export async function GET() {
     } else if (stockByKist.size === 0) {
       warning = `ERP LINK heeft ${erpLinkCount} entries maar geen enkele stock-rij kon gekoppeld worden. Controleer of de GP-codes in de stock files overeenkomen met de ERP-codes in ERP LINK.`
     } else if (kistenMetWillebroekStock.length === 0 && kistenZonderWillebroek.length > 0) {
-      warning = `Stock gevonden voor ${kistenZonderWillebroek.length} kisttype(n) (${kistenZonderWillebroek.slice(0, 8).join(', ')}…) maar enkel in Genk/Wilrijk, niet in Willebroek. Upload "Stock Willebroek.xlsx" om de Stock in rek te vullen.`
+      const locStr = uniqueLocations.join(', ')
+      warning = `Stock gevonden voor ${kistenZonderWillebroek.length} kisttype(n) maar 0 in Willebroek. Locaties in database: [${locStr}]. Upload "Stock Willebroek.xlsx" (bestandsnaam moet "willebroek" bevatten).`
     }
 
     return NextResponse.json({
@@ -172,6 +172,7 @@ export async function GET() {
         erp_link_entries: erpLinkCount,
         stock_rows_total: totalStockRows,
         stock_kisten_matched: stockByKist.size,
+        stock_locaties_in_db: uniqueLocations,
         kisten_met_willebroek_stock: kistenMetWillebroekStock.length,
         kisten_zonder_willebroek: kistenZonderWillebroek.slice(0, 10),
         warning,
