@@ -42,15 +42,21 @@ export async function GET() {
       }
     })
 
-    // 3b. Fallback: cases-tabel heeft erp_code → case_type koppeling (zelfde als transport route)
+    // 3b. Cases-tabel: erp_code → case_type (fallback koppeling) + tellen hoeveel er op PILS staan
     const { data: casesLink } = await supabaseAdmin
       .from('grote_inpak_cases')
-      .select('erp_code, case_type')
+      .select('case_label, erp_code, case_type')
     const erpToCaseType = new Map<string, string>()
+    const pilsByKist = new Map<string, number>()  // case_type → aantal op PILS
     ;(casesLink || []).forEach((c: any) => {
-      if (c.erp_code && c.case_type) {
+      const caseType = c.case_type ? String(c.case_type).toUpperCase().trim() : null
+      if (c.erp_code && caseType) {
         const erpNorm = normalizeErpCode(c.erp_code)
-        if (erpNorm) erpToCaseType.set(erpNorm, String(c.case_type).toUpperCase().trim())
+        if (erpNorm) erpToCaseType.set(erpNorm, caseType)
+      }
+      // Elke rij in grote_inpak_cases = één kist op PILS
+      if (caseType) {
+        pilsByKist.set(caseType, (pilsByKist.get(caseType) || 0) + 1)
       }
     })
 
@@ -109,9 +115,12 @@ export async function GET() {
       const stock = stockByKist.get(kt) || { genk: 0, willebroek: 0, wilrijk: 0, totaal: 0, in_productie: 0 }
       const stockInRek = stock.willebroek
       const inProductie = stock.in_productie ?? 0
-      // Tekort en status alleen op fysieke stock in rek; in productie telt niet mee als stock
+      const opPils = pilsByKist.get(kt) || 0
+      // Tekort = wat er fysiek in de rek ontbreekt (zonder rekening te houden met productie)
       const tekort = Math.max(0, maxVoorraad - stockInRek)
-      const bestelAantal = tekort > 0 ? Math.ceil(tekort / row.stapel) * row.stapel : 0
+      // Effectief te produceren = tekort minus wat al in productie is (nooit negatief)
+      const effectiefTekort = Math.max(0, maxVoorraad - stockInRek - inProductie)
+      const bestelAantal = effectiefTekort > 0 ? Math.ceil(effectiefTekort / row.stapel) * row.stapel : 0
       const statusLabel =
         stockInRek === 0 ? 'Leeg'
         : stockInRek < bestelpunt ? 'Bestellen'
@@ -139,6 +148,7 @@ export async function GET() {
         stock_totaal: stock.totaal,
         stock_in_rek: stockInRek,
         in_productie: inProductie,
+        op_pils: opPils,
         tekort,
         bestel_aantal: bestelAantal,
         status: statusLabel,
@@ -198,14 +208,14 @@ function buildBesteladviesWorkbook(locatieLabel: string, data: any[], today: str
     'Laag':     'FFFFFF00',
     'Vol':      'FF92D050',
   }
-  // Vereenvoudigde kolommen: Sectie, Niveau, Stapel, Posities weg — alleen wat nog in productie moet
-  const headers = ['Kisttype', 'Prod.locatie', 'Max voorraad', 'Stock in rek', 'In productie', 'Tekort', 'Effectief te produceren', 'Verbruik/dag', 'Status']
+  // Kolommen: Kisttype, Prod.locatie, Max voorraad, Stock in rek, In productie, Op PILS, Tekort, Effectief te produceren, Verbruik/dag, Status
+  const headers = ['Kisttype', 'Prod.locatie', 'Max voorraad', 'Stock in rek', 'In productie', 'Op PILS', 'Tekort', 'Effectief te produceren', 'Verbruik/dag', 'Status']
   const numCols = headers.length
 
   const ws = wb.addWorksheet(`Besteladvies ${locatieLabel}`)
   ws.columns = [
-    { width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 12 },
-    { width: 18 }, { width: 12 }, { width: 12 },
+    { width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 10 },
+    { width: 12 }, { width: 22 }, { width: 13 }, { width: 12 },
   ]
   const titleRow = ws.addRow([`Besteladvies C-kisten ${locatieLabel} — ${today}`])
   ws.mergeCells(1, 1, 1, numCols)
@@ -232,6 +242,7 @@ function buildBesteladviesWorkbook(locatieLabel: string, data: any[], today: str
       row.max_voorraad,
       row.stock_in_rek,
       row.in_productie ?? 0,
+      row.op_pils ?? 0,
       row.tekort,
       row.bestel_aantal,
       row.verbruik_per_dag ? Number(row.verbruik_per_dag).toFixed(2) : '—',
@@ -243,14 +254,16 @@ function buildBesteladviesWorkbook(locatieLabel: string, data: any[], today: str
         border,
         alignment: { horizontal: col === 1 || col === 2 ? 'left' : 'center', vertical: 'middle' },
       }
-      if (col === 9) {
+      if (col === 10) {
+        // Status kolom
         const statusColor = STATUS_COLORS[row.status]
         if (statusColor) {
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: statusColor } }
           cell.font = { bold: true, color: { argb: row.status === 'Leeg' ? 'FFFFFFFF' : 'FF000000' } }
         }
       }
-      if (col === 7 && row.bestel_aantal > 0) {
+      if (col === 8 && row.bestel_aantal > 0) {
+        // Effectief te produceren kolom — rood als er iets te produceren is
         cell.font = { bold: true, color: { argb: 'FFCC0000' } }
       }
     })
