@@ -292,18 +292,8 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
             <strong>Bestellen</strong> = afgerond op stapelhoogte
           </div>
           {debugInfo?.warning && (
-            <div className="bg-red-50 border border-red-300 rounded-lg p-3 text-sm text-red-800">
-              <strong>⚠️ Koppeling mislukt:</strong> {debugInfo.warning}
-            </div>
-          )}
-          {debugInfo && !debugInfo.warning && debugInfo.stock_kisten_matched === 0 && (
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
-              <strong>Stock in rek = 0?</strong> ERP LINK heeft <strong>{debugInfo.erp_link_entries}</strong> entries en stock heeft <strong>{debugInfo.stock_rows_total}</strong> rijen, maar geen enkele kon gekoppeld worden. Controleer of de GP-codes in de stock files overeenkomen met de ERP-codes in het ERP LINK tabblad.
-            </div>
-          )}
-          {debugInfo && debugInfo.stock_kisten_matched > 0 && bestelData.every((r: any) => (r.stock_in_rek || 0) === 0) && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
-              <strong>Stock in rek = 0?</strong> {debugInfo.stock_kisten_matched} kisten gevonden in stock ({debugInfo.matched_kisten?.join(', ')}), maar geen match met de geconfigureerde kisttypen ({debugInfo.config_case_types?.join(', ')}). Controleer of de kistnummers in ERP LINK overeenkomen met de kisttypen in de Rekindeling.
+              <strong>⚠️ Stock in rek = 0?</strong> {debugInfo.warning}
             </div>
           )}
 
