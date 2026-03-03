@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Upload, Download, TrendingUp, ChevronDown, ChevronRight, Plus, Minus, Calendar, RefreshCw, Search, Clock } from 'lucide-react'
+import { Upload, Download, TrendingUp, ChevronDown, ChevronRight, Plus, Minus, Calendar, RefreshCw, Search, Clock, History } from 'lucide-react'
 
 type ChangeType = 'added' | 'removed' | 'date_change'
 
@@ -63,6 +63,7 @@ export default function ForecastTab() {
     upload: true,
     historiek: true,
     wijzigingen: true,
+    historiekOverzicht: false,
     huidig: true,
   })
   const toggleSection = (key: string) =>
@@ -227,6 +228,32 @@ export default function ForecastTab() {
       String(item.source_file || '').toLowerCase().includes(q)
     )
   })
+
+  // ── HISTORIEK OVERZICHT (alle caselabels) ──
+  const [historyData, setHistoryData] = useState<any[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyLoaded, setHistoryLoaded] = useState(false)
+  const [historySearch, setHistorySearch] = useState('')
+  const [historyTypeFilter, setHistoryTypeFilter] = useState<'Alle' | 'C' | 'K'>('Alle')
+  const [historyOnlyChanged, setHistoryOnlyChanged] = useState(false)
+
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (historySearch) params.set('search', historySearch)
+      if (historyTypeFilter !== 'Alle') params.set('case_type', historyTypeFilter)
+      if (historyOnlyChanged) params.set('only_changed', '1')
+      const res = await fetch(`/api/grote-inpak/forecast-history?${params}`)
+      if (res.ok) {
+        const result = await res.json()
+        setHistoryData(result.data || [])
+        setHistoryLoaded(true)
+      }
+    } catch { /* ignore */ } finally {
+      setHistoryLoading(false)
+    }
+  }, [historySearch, historyTypeFilter, historyOnlyChanged])
 
   // Case label historiek lookup
   const [caseLabelSearch, setCaseLabelSearch] = useState('')
@@ -618,6 +645,155 @@ export default function ForecastTab() {
             })}
           </div>
         ))}
+      </div>
+
+      {/* ── HISTORIEK OVERZICHT ALLE CASELABELS ── */}
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="flex items-center border-b border-gray-100">
+          <button
+            onClick={() => {
+              toggleSection('historiekOverzicht')
+              if (!historyLoaded) loadHistory()
+            }}
+            className="flex-1 px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+          >
+            <span className="font-semibold text-gray-800 flex items-center gap-2">
+              <History className="w-5 h-5 text-indigo-600" /> Datumhistoriek alle caselabels
+              {historyData.length > 0 && (
+                <span className="text-xs font-normal text-gray-400">({historyData.length} caselabels)</span>
+              )}
+            </span>
+            {openSections.historiekOverzicht ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+          </button>
+          {openSections.historiekOverzicht && (
+            <button onClick={loadHistory} className="px-4 text-gray-400 hover:text-gray-700 transition-colors">
+              <RefreshCw className={`w-4 h-4 ${historyLoading ? 'animate-spin' : ''}`} />
+            </button>
+          )}
+        </div>
+
+        {openSections.historiekOverzicht && (
+          <>
+            {/* Filters */}
+            <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex flex-wrap items-center gap-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={historySearch}
+                  onChange={e => setHistorySearch(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && loadHistory()}
+                  placeholder="Zoek caselabel of type..."
+                  className="pl-9 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 w-52"
+                />
+              </div>
+              <select
+                value={historyTypeFilter}
+                onChange={e => setHistoryTypeFilter(e.target.value as 'Alle' | 'C' | 'K')}
+                className="text-sm border border-gray-300 rounded-lg px-3 py-1.5"
+              >
+                <option value="Alle">Alle types</option>
+                <option value="C">C-kisten</option>
+                <option value="K">K-kisten</option>
+              </select>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={historyOnlyChanged}
+                  onChange={e => setHistoryOnlyChanged(e.target.checked)}
+                  className="rounded border-gray-300 text-indigo-600"
+                />
+                Alleen gewijzigde datums
+              </label>
+              <button
+                onClick={loadHistory}
+                disabled={historyLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+              >
+                <Search className="w-3.5 h-3.5" />
+                {historyLoading ? 'Laden...' : 'Toepassen'}
+              </button>
+            </div>
+
+            {!historyLoaded ? (
+              <div className="px-5 py-8 text-center text-gray-400 text-sm">
+                Klik op het tabblad om de historiek te laden.
+              </div>
+            ) : historyLoading ? (
+              <div className="px-5 py-8 text-center text-gray-400 text-sm">Laden...</div>
+            ) : historyData.length === 0 ? (
+              <div className="px-5 py-8 text-center text-gray-400 text-sm">Geen historiek gevonden.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="text-xs uppercase text-gray-500 font-medium border-b border-gray-200 bg-gray-50">
+                      <th className="px-4 py-3 text-left">Case Label</th>
+                      <th className="px-4 py-3 text-left">Type</th>
+                      <th className="px-4 py-3 text-left">Huidige datum</th>
+                      <th className="px-4 py-3 text-left">Datumprogressie</th>
+                      <th className="px-4 py-3 text-left w-24">Wijzigingen</th>
+                      <th className="px-4 py-3 text-left w-28">Totale verschuiving</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {historyData.map((row, i) => {
+                      const shiftClass =
+                        row.shift_days !== null && row.shift_days < -14 ? 'text-red-700 font-semibold' :
+                        row.shift_days !== null && row.shift_days < -7  ? 'text-orange-600 font-medium' :
+                        row.shift_days !== null && row.shift_days > 14  ? 'text-green-700' :
+                        'text-gray-500'
+                      const shiftLabel = row.shift_days === null ? '—'
+                        : row.shift_days === 0 ? '0 dagen'
+                        : row.shift_days > 0 ? `+${row.shift_days} dagen`
+                        : `${row.shift_days} dagen`
+
+                      return (
+                        <tr key={i} className={`hover:bg-gray-50 ${row.date_count > 0 ? '' : 'opacity-60'}`}>
+                          <td className="px-4 py-2.5 font-medium text-gray-900">{row.case_label}</td>
+                          <td className="px-4 py-2.5">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                              String(row.case_type).startsWith('C') ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+                            }`}>{row.case_type || '—'}</span>
+                          </td>
+                          <td className="px-4 py-2.5 text-gray-700 font-medium">
+                            {row.current_date ? new Date(row.current_date).toLocaleDateString('nl-NL') : <span className="text-gray-300">—</span>}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            {row.dates.length === 0 ? (
+                              <span className="text-gray-300 text-xs">Geen historiek</span>
+                            ) : (
+                              <div className="flex items-center gap-1 flex-wrap">
+                                {row.dates.map((d: string, di: number) => (
+                                  <span key={di} className="flex items-center gap-1">
+                                    <span className={`text-xs px-2 py-0.5 rounded ${
+                                      di === row.dates.length - 1 ? 'bg-indigo-100 text-indigo-800 font-semibold' : 'bg-gray-100 text-gray-500 line-through'
+                                    }`}>
+                                      {new Date(d).toLocaleDateString('nl-NL')}
+                                    </span>
+                                    {di < row.dates.length - 1 && <span className="text-gray-300 text-xs">→</span>}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5 text-center">
+                            {row.date_count > 0 ? (
+                              <span className="inline-block bg-orange-100 text-orange-700 text-xs font-bold px-2 py-0.5 rounded-full">{row.date_count}×</span>
+                            ) : (
+                              <span className="text-gray-300 text-xs">—</span>
+                            )}
+                          </td>
+                          <td className={`px-4 py-2.5 text-sm ${shiftClass}`}>{shiftLabel}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* ── HUIDIGE FORECAST DATA ── */}
