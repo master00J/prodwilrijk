@@ -236,8 +236,8 @@ export async function POST(request: NextRequest) {
     zip.file(`Besteladvies_Genk_${dateStr}.xlsx`, bufGenk)
     zip.file(`Besteladvies_Wilrijk_${dateStr}.xlsx`, bufWilrijk)
 
-    const zipBuffer = await zip.generateAsync({ type: 'uint8array' })
-    return new Response(zipBuffer, {
+    const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' })
+    return new Response(zipBuffer as unknown as BodyInit, {
       headers: {
         'Content-Type': 'application/zip',
         'Content-Disposition': `attachment; filename="Besteladvies_Genk_Wilrijk_${dateStr}.zip"`,
