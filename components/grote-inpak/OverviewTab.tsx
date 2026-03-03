@@ -90,7 +90,12 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
     }
 
     if (verbergOpStock) {
-      filtered = filtered.filter(item => !((item.stock_willebroek ?? 0) > 0 || item.in_willebroek === true))
+      filtered = filtered.filter(item => !(
+        (item.stock_willebroek ?? 0) > 0 ||
+        (item.stock_genk ?? 0) > 0 ||
+        (item.stock_wilrijk ?? 0) > 0 ||
+        item.in_willebroek === true
+      ))
     }
 
     if (verbergInTransfer) {
@@ -439,7 +444,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                 : 'bg-white text-gray-600 border-gray-300 hover:border-green-400'
             }`}
           >
-            {verbergOpStock ? '✓' : ''} Op stock in Willebroek
+            {verbergOpStock ? '✓' : ''} Op stock (Genk / Wilrijk / WLB)
           </button>
           <button
             onClick={() => setVerbergInTransfer(v => !v)}
@@ -586,8 +591,10 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                 In WB{getSortIcon('in_willebroek')}
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-orange-600 uppercase" title="Hoeveelheid van dit kisttype momenteel in productie">In Productie</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-green-600 uppercase" title="Stock van dit kisttype in Willebroek">Stock WLB</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-blue-600 uppercase" title="Hoeveelheid onderweg via transferorder">In Transfer</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-green-700 uppercase" title="Stock van dit kisttype in Willebroek">Stock WLB</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-blue-700 uppercase" title="Stock van dit kisttype in Genk">Stock Genk</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-purple-700 uppercase" title="Stock van dit kisttype in Wilrijk">Stock Wilrijk</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-cyan-700 uppercase" title="Hoeveelheid onderweg via transferorder">In Transfer</th>
               <th 
                 className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
                 onClick={() => handleSort('status')}
@@ -687,8 +694,18 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                       : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-4 py-3 text-sm text-center">
+                    {(displayItem.stock_genk ?? 0) > 0
+                      ? <span className="bg-blue-100 text-blue-700 font-semibold px-2 py-0.5 rounded-full text-xs">{displayItem.stock_genk}</span>
+                      : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center">
+                    {(displayItem.stock_wilrijk ?? 0) > 0
+                      ? <span className="bg-purple-100 text-purple-700 font-semibold px-2 py-0.5 rounded-full text-xs">{displayItem.stock_wilrijk}</span>
+                      : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center">
                     {(displayItem.in_transfer_qty ?? 0) > 0
-                      ? <span className="bg-blue-100 text-blue-700 font-semibold px-2 py-0.5 rounded-full text-xs">{displayItem.in_transfer_qty}</span>
+                      ? <span className="bg-cyan-100 text-cyan-700 font-semibold px-2 py-0.5 rounded-full text-xs">{displayItem.in_transfer_qty}</span>
                       : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-4 py-3">

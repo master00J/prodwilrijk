@@ -64,26 +64,42 @@ export async function GET(request: NextRequest) {
         filteredData.map((item: any) => String(item.case_type || '').trim().toUpperCase()).filter(Boolean)
       )]
 
-      const stockWillebroekMap = new Map<string, number>()   // kistnummer → stock in Willebroek
-      const inProductieMap     = new Map<string, number>()   // kistnummer → totaal in productie
-      const inTransferMap      = new Map<string, number>()   // kistnummer → in transfer
+      const stockWillebroekMap = new Map<string, number>()
+      const stockGenkMap       = new Map<string, number>()
+      const stockWilrijkMap    = new Map<string, number>()
+      const inProductieMap     = new Map<string, number>()
+      const inTransferMap      = new Map<string, number>()
 
       if (caseTypes.length > 0) {
         const { data: stockRows } = await supabaseAdmin
           .from('grote_inpak_stock')
-          .select('kistnummer, location, quantity, in_productie')
-          .in('kistnummer', caseTypes)
+          .select('kistnummer, erp_code, location, quantity, in_productie')
+
+        // Ook opzoeken via erp_code → kistnummer koppeling
+        const erpToKist = new Map<string, string>()
+        ;(stockRows || []).forEach((row: any) => {
+          if (row.erp_code && row.kistnummer) {
+            erpToKist.set(String(row.erp_code).trim().toUpperCase(), String(row.kistnummer).trim().toUpperCase())
+          }
+        })
 
         ;(stockRows || []).forEach((row: any) => {
-          const kt = String(row.kistnummer || '').trim().toUpperCase()
-          if (!kt) return
+          let kt = String(row.kistnummer || '').trim().toUpperCase()
+          if (!kt && row.erp_code) kt = erpToKist.get(String(row.erp_code).trim().toUpperCase()) || ''
+          if (!kt || !caseTypes.includes(kt)) return
+
           const loc = String(row.location || '').toLowerCase()
           const qty = Number(row.quantity) || 0
           const prod = Number(row.in_productie) || 0
 
           if (loc.includes('willebroek')) {
             stockWillebroekMap.set(kt, (stockWillebroekMap.get(kt) || 0) + qty)
+          } else if (loc.includes('genk')) {
+            stockGenkMap.set(kt, (stockGenkMap.get(kt) || 0) + qty)
+          } else if (loc.includes('wilrijk')) {
+            stockWilrijkMap.set(kt, (stockWilrijkMap.get(kt) || 0) + qty)
           }
+          // in_productie telt over alle locaties
           inProductieMap.set(kt, (inProductieMap.get(kt) || 0) + prod)
         })
 
@@ -106,6 +122,8 @@ export async function GET(request: NextRequest) {
           ...item,
           forecast_date:       forecastMap.get(item.case_label) ?? null,
           stock_willebroek:    stockWillebroekMap.get(kt) ?? 0,
+          stock_genk:          stockGenkMap.get(kt) ?? 0,
+          stock_wilrijk:       stockWilrijkMap.get(kt) ?? 0,
           in_productie_qty:    inProductieMap.get(kt) ?? 0,
           in_transfer_qty:     inTransferMap.get(kt) ?? 0,
         }
