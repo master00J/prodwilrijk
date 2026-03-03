@@ -88,13 +88,13 @@ export async function GET() {
       const stock = stockByKist.get(kt) || { genk: 0, willebroek: 0, wilrijk: 0, totaal: 0, in_productie_willebroek: 0 }
       const stockInRek = stock.willebroek
       const inProductie = stock.in_productie_willebroek ?? 0
-      const beschikbaar = stockInRek + inProductie
-      const tekort = Math.max(0, maxVoorraad - beschikbaar)
+      // Tekort en status alleen op fysieke stock in rek; in productie telt niet mee als stock
+      const tekort = Math.max(0, maxVoorraad - stockInRek)
       const bestelAantal = tekort > 0 ? Math.ceil(tekort / row.stapel) * row.stapel : 0
       const statusLabel =
-        beschikbaar === 0 ? 'Leeg'
-        : beschikbaar < bestelpunt ? 'Bestellen'
-        : beschikbaar < maxVoorraad ? 'Laag'
+        stockInRek === 0 ? 'Leeg'
+        : stockInRek < bestelpunt ? 'Bestellen'
+        : stockInRek < maxVoorraad ? 'Laag'
         : 'Vol'
 
       return {
