@@ -149,7 +149,8 @@ export async function GET() {
       const kt = String(row.case_type).toUpperCase().trim()
       const stapelsPerPos = row.stapels_per_pos || 2
       const maxVoorraad = row.posities * row.stapel * stapelsPerPos
-      const bestelpunt = Math.ceil(maxVoorraad * 0.5) // 50% = bestelpunt (1 kanban leeg)
+      // Trigger = zodra 1 item verbruikt is → 1 stapel aanmaken (echte kanban logica)
+      const bestelpunt = maxVoorraad
 
       const stock = stockByKist.get(kt) || { genk: 0, willebroek: 0, wilrijk: 0, totaal: 0, in_productie: 0 }
       const stockInRek = stock.willebroek
@@ -168,23 +169,20 @@ export async function GET() {
       const gedekt = stockElders + inProductie + inTransfer
       const oudstePils = oldestPilsDateByKist.get(kt) || null
 
-      // Status is consistent met bestelAantal: "Productie aanmaken" alleen als er écht iets te produceren valt
+      // Status consistent met bestelAantal — bestelpunt = max → trigger bij elke verbruikte stapel
       const statusLabel =
         bestelAantal > 0 && stockInRek === 0 ? 'Leeg'
         : bestelAantal > 0                   ? 'Productie aanmaken'
-        : stockInRek === 0                   ? 'Gedekt'
-        : stockInRek < bestelpunt            ? 'Gedekt'
-        : stockInRek < maxVoorraad           ? 'Laag'
+        : stockInRek < maxVoorraad           ? 'Gedekt'   // rek niet vol, maar al gedekt door productie/transfer/elders
         : 'Vol'
 
       // Prioriteit tiers
       const priorityTier =
         bestelAantal > 0 && stockInRek === 0  ? 1  // Leeg + productie nodig
         : bestelAantal > 0                    ? 2  // Productie aanmaken
-        : stockInRek === 0 && gedekt > 0      ? 3  // Leeg maar gedekt
-        : stockInRek < bestelpunt && gedekt > 0 ? 4 // Onder bestelpunt maar gedekt
-        : statusLabel === 'Laag'              ? 5
-        : 6
+        : stockInRek === 0                    ? 3  // Leeg maar gedekt
+        : stockInRek < maxVoorraad            ? 4  // Niet vol maar gedekt
+        : 5                                        // Vol
 
       return {
         id: row.id,

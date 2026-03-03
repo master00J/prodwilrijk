@@ -33,7 +33,7 @@ interface BestelRij extends KanbanConfig {
   op_pils: number
   tekort: number
   bestel_aantal: number
-  status: 'Leeg' | 'Productie aanmaken' | 'Gedekt' | 'Laag' | 'Vol'
+  status: 'Leeg' | 'Productie aanmaken' | 'Gedekt' | 'Vol'
   priority_rank?: number
 }
 
@@ -49,7 +49,6 @@ const STATUS_STYLE: Record<string, { bg: string; text: string; dot: string }> = 
   'Leeg':               { bg: 'bg-red-100',    text: 'text-red-800',    dot: 'bg-red-500' },
   'Productie aanmaken': { bg: 'bg-orange-100', text: 'text-orange-800', dot: 'bg-orange-500' },
   'Gedekt':             { bg: 'bg-blue-100',   text: 'text-blue-800',   dot: 'bg-blue-400' },
-  'Laag':               { bg: 'bg-yellow-100', text: 'text-yellow-800', dot: 'bg-yellow-500' },
   'Vol':                { bg: 'bg-green-100',  text: 'text-green-800',  dot: 'bg-green-500' },
 }
 
@@ -75,6 +74,9 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
   const [isExporting, setIsExporting] = useState(false)
   const [isSendingEmail, setIsSendingEmail] = useState(false)
   const [emailStatus, setEmailStatus] = useState<{ ok: boolean; msg: string } | null>(null)
+  const [inlineEditId, setInlineEditId] = useState<number | null>(null)
+  const [inlineEditValues, setInlineEditValues] = useState<{ stapel: number; posities: number; stapels_per_pos: number }>({ stapel: 1, posities: 1, stapels_per_pos: 2 })
+  const [inlineSaving, setInlineSaving] = useState(false)
   const [zoekterm, setZoekterm] = useState('')
 
   // Rekindeling (config) state
@@ -132,7 +134,7 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
     totaal: bestelData.length,
     leeg: bestelData.filter(r => r.status === 'Leeg').length,
     bestellen: bestelData.filter(r => r.status === 'Productie aanmaken').length,
-    laag: bestelData.filter(r => r.status === 'Laag').length,
+    gedekt: bestelData.filter(r => r.status === 'Gedekt').length,
     vol: bestelData.filter(r => r.status === 'Vol').length,
     totalBestelAantal: bestelData.reduce((s, r) => s + r.bestel_aantal, 0),
   }), [bestelData])
@@ -176,6 +178,30 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
       setEmailStatus({ ok: false, msg: `Versturen mislukt: ${e.message}` })
     } finally {
       setIsSendingEmail(false)
+    }
+  }
+
+  const startInlineEdit = (row: BestelRij) => {
+    setInlineEditId(row.id)
+    setInlineEditValues({ stapel: row.stapel, posities: row.posities, stapels_per_pos: row.stapels_per_pos })
+  }
+
+  const handleInlineSave = async () => {
+    if (!inlineEditId) return
+    setInlineSaving(true)
+    try {
+      const res = await fetch('/api/grote-inpak/kanban-config', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: inlineEditId, ...inlineEditValues }),
+      })
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error) }
+      setInlineEditId(null)
+      await loadBesteladvies()
+    } catch (e: any) {
+      alert(`Opslaan mislukt: ${e.message}`)
+    } finally {
+      setInlineSaving(false)
     }
   }
 
@@ -241,7 +267,7 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
       {activeView === 'besteladvies' && (
         <div className="space-y-5">
           {/* KPI cards */}
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <div className="bg-white border border-gray-200 rounded-xl p-4">
               <p className="text-xs text-gray-500 uppercase font-medium mb-1">Totaal kisten</p>
               <p className="text-3xl font-bold text-gray-900">{kpis.totaal}</p>
@@ -256,11 +282,7 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
             </div>
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
               <p className="text-xs text-blue-700 uppercase font-medium mb-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400 inline-block"></span>Gedekt</p>
-              <p className="text-3xl font-bold text-blue-700">{bestelData.filter(r => r.status === 'Gedekt').length}</p>
-            </div>
-            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-              <p className="text-xs text-yellow-700 uppercase font-medium mb-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-500 inline-block"></span>Laag</p>
-              <p className="text-3xl font-bold text-yellow-700">{kpis.laag}</p>
+              <p className="text-3xl font-bold text-blue-700">{kpis.gedekt}</p>
             </div>
             <div className="bg-green-50 border border-green-200 rounded-xl p-4">
               <p className="text-xs text-green-700 uppercase font-medium mb-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block"></span>Vol</p>
@@ -354,8 +376,8 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
                       <th className="px-4 py-3 text-left">Kisttype</th>
                       <th className="px-4 py-3 text-left">Locatie</th>
                       <th className="px-4 py-3 text-left">Sectie / Niveau</th>
-                      <th className="px-4 py-3 text-center">Stapel</th>
-                      <th className="px-4 py-3 text-center">Posities</th>
+                      <th className="px-4 py-3 text-center cursor-help" title="Klik op de waarde in de rij om te bewerken">Stapel ✎</th>
+                      <th className="px-4 py-3 text-center cursor-help" title="Klik op de waarde in de rij om te bewerken">Posities ✎</th>
                       <th className="px-4 py-3 text-center">Max voorraad</th>
                       <th className="px-4 py-3 text-center">Stock in rek</th>
                       <th className="px-4 py-3 text-center">Stock Genk</th>
@@ -402,9 +424,29 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
                           <td className="px-4 py-3 text-gray-600 text-xs">
                             {row.rek_sectie || '—'}{row.rek_niveau ? ` · Niv ${row.rek_niveau}` : ''}{row.rek_kolom ? ` · Kol ${row.rek_kolom}` : ''}
                           </td>
-                          <td className="px-4 py-3 text-center text-gray-700">{row.stapel}</td>
-                          <td className="px-4 py-3 text-center text-gray-700">{row.posities}</td>
-                          <td className="px-4 py-3 text-center font-semibold text-gray-900">{row.max_voorraad}</td>
+                          {inlineEditId === row.id ? (
+                            <>
+                              <td className="px-2 py-2 text-center">
+                                <input type="number" min={1} value={inlineEditValues.stapel} onChange={e => setInlineEditValues(v => ({ ...v, stapel: Number(e.target.value) }))} className="w-14 border border-blue-300 rounded px-1 py-0.5 text-sm text-center" />
+                              </td>
+                              <td className="px-2 py-2 text-center">
+                                <input type="number" min={1} value={inlineEditValues.posities} onChange={e => setInlineEditValues(v => ({ ...v, posities: Number(e.target.value) }))} className="w-14 border border-blue-300 rounded px-1 py-0.5 text-sm text-center" />
+                              </td>
+                              <td className="px-2 py-2 text-center text-gray-400 text-xs">
+                                {inlineEditValues.posities * inlineEditValues.stapel * inlineEditValues.stapels_per_pos}
+                              </td>
+                            </>
+                          ) : (
+                            <>
+                              <td className="px-4 py-3 text-center">
+                                <button onClick={() => startInlineEdit(row)} className="text-gray-700 hover:text-blue-600 hover:underline font-medium">{row.stapel}</button>
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <button onClick={() => startInlineEdit(row)} className="text-gray-700 hover:text-blue-600 hover:underline font-medium">{row.posities}</button>
+                              </td>
+                              <td className="px-4 py-3 text-center font-semibold text-gray-900">{row.max_voorraad}</td>
+                            </>
+                          )}
                           <td className="px-4 py-3 text-center">
                             <div className="flex items-center justify-center gap-1">
                               <div className="w-16 bg-gray-200 rounded-full h-1.5">
@@ -444,10 +486,21 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
                             )}
                           </td>
                           <td className="px-4 py-3 text-center">
-                            <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-1 rounded-full ${statusStyle.bg} ${statusStyle.text}`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`}></span>
-                              {row.status}
-                            </span>
+                            {inlineEditId === row.id ? (
+                              <div className="flex items-center justify-center gap-1">
+                                <button onClick={handleInlineSave} disabled={inlineSaving} className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 disabled:opacity-50">
+                                  {inlineSaving ? '...' : 'Opslaan'}
+                                </button>
+                                <button onClick={() => setInlineEditId(null)} className="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded hover:bg-gray-300">
+                                  Annuleer
+                                </button>
+                              </div>
+                            ) : (
+                              <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-1 rounded-full ${statusStyle.bg} ${statusStyle.text}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`}></span>
+                                {row.status}
+                              </span>
+                            )}
                           </td>
                         </tr>
                       )
