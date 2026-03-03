@@ -17,6 +17,26 @@ export async function GET() {
 
     if (configError) throw configError
 
+    // 1b. Verbruik/dag uit packed-data (laatste 30 dagen): gemiddeld aantal gepakte kisten per dag per case_type
+    const packedFrom = new Date()
+    packedFrom.setDate(packedFrom.getDate() - 30)
+    const packedFromStr = packedFrom.toISOString().split('T')[0]
+    const { data: packedRaw } = await supabaseAdmin
+      .from('grote_inpak_packed')
+      .select('case_type, packed_date')
+      .gte('packed_date', packedFromStr)
+    const verbruikPerDagByKist = new Map<string, number>()
+    const totalByCase = new Map<string, number>()
+    ;(packedRaw || []).forEach((p: any) => {
+      const kist = String(p.case_type || '').toUpperCase().trim()
+      if (!kist) return
+      totalByCase.set(kist, (totalByCase.get(kist) || 0) + 1)
+    })
+    const dagenInPeriode = 30
+    totalByCase.forEach((totaal, kist) => {
+      verbruikPerDagByKist.set(kist, Math.round((totaal / dagenInPeriode) * 100) / 100)
+    })
+
     // 2. Haal stock op (alle locaties, incl. productie = Qty. on Prod. Order)
     const { data: stockRaw, error: stockError } = await supabaseAdmin
       .from('grote_inpak_stock')
@@ -118,8 +138,10 @@ export async function GET() {
       const opPils = pilsByKist.get(kt) || 0
       // Tekort = wat er fysiek in de rek ontbreekt (zonder rekening te houden met productie)
       const tekort = Math.max(0, maxVoorraad - stockInRek)
-      // Effectief te produceren = tekort minus wat al in productie is (nooit negatief)
-      const effectiefTekort = Math.max(0, maxVoorraad - stockInRek - inProductie)
+      // PILS = directe vraag (units wachten op kist). We rekenen: stock "na PILS" = stock_in_rek - op_pils.
+      // Effectief tekort = wat nog nodig om rek tot max te vullen, gegeven die reserve en wat al in productie is.
+      const stockNaPils = stockInRek - opPils  // kan negatief = we komen tekort voor PILS
+      const effectiefTekort = Math.max(0, maxVoorraad - stockNaPils - inProductie)
       const bestelAantal = effectiefTekort > 0 ? Math.ceil(effectiefTekort / row.stapel) * row.stapel : 0
       const statusLabel =
         stockInRek === 0 ? 'Leeg'
@@ -139,7 +161,7 @@ export async function GET() {
         stapels_per_pos: stapelsPerPos,
         max_voorraad: maxVoorraad,
         bestelpunt,
-        verbruik_per_dag: row.verbruik_per_dag,
+        verbruik_per_dag: verbruikPerDagByKist.has(kt) ? verbruikPerDagByKist.get(kt)! : row.verbruik_per_dag,
         prioriteit: row.prioriteit,
         notitie: row.notitie,
         stock_genk: stock.genk,
