@@ -58,6 +58,16 @@ export default function ForecastTab() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [searchQuery, setSearchQuery] = useState('')
 
+  // Collapsible secties
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    upload: true,
+    historiek: true,
+    wijzigingen: true,
+    huidig: true,
+  })
+  const toggleSection = (key: string) =>
+    setOpenSections(prev => ({ ...prev, [key]: !prev[key] }))
+
   // Snapshot systeem
   const [snapshots, setSnapshots] = useState<Snapshot[]>([])
   const [snapshotsLoading, setSnapshotsLoading] = useState(false)
@@ -249,11 +259,21 @@ export default function ForecastTab() {
   const selectedSnapshot = snapshots.find(s => s.id === selectedSnapshotId)
 
   return (
-    <div className="space-y-6">
-      {/* Header + export knoppen */}
-      <div className="flex justify-between items-center">
+    <div className="space-y-4">
+      {/* Header + globale zoekbalk + export knoppen */}
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <h2 className="text-2xl font-bold">📈 Forecast</h2>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2 flex-1 justify-end">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Zoek caselabel, type, bestand..."
+              className="pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 w-60"
+            />
+          </div>
           <button
             onClick={() => downloadForecastMatrix('Genk')}
             disabled={forecastData.length === 0}
@@ -271,63 +291,86 @@ export default function ForecastTab() {
         </div>
       </div>
 
-      {/* Upload zone */}
-      <div
-        className={`border-2 border-dashed rounded-xl p-6 text-center transition-all ${
-          dragActive ? 'border-blue-500 bg-blue-50 scale-105'
-          : selectedFiles.length > 0 ? 'border-green-400 bg-green-50'
-          : 'border-gray-300 hover:border-blue-400'
-        }`}
-        onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}
-      >
-        <Upload className={`w-10 h-10 mx-auto mb-2 ${dragActive ? 'text-blue-500' : 'text-gray-400'}`} />
-        <p className="font-medium mb-1">Forecast CSV</p>
-        {selectedFiles.length > 0 ? (
-          <p className="text-sm text-green-700 font-semibold mb-3">{selectedFiles.length} bestand(en) geselecteerd</p>
-        ) : (
-          <p className="text-sm text-gray-500 mb-3">Sleep bestanden hierheen of klik om te selecteren</p>
-        )}
-        <input type="file" accept=".csv" className="hidden" id="forecast-upload" multiple onChange={e => handleFileSelect(e.target.files)} />
-        <div className="flex gap-2 justify-center">
-          <label htmlFor="forecast-upload" className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 cursor-pointer">
-            {selectedFiles.length > 0 ? 'Wijzig bestanden' : 'Selecteer bestanden'}
-          </label>
-          {selectedFiles.length > 0 && (
-            <button
-              onClick={() => handleFileUpload(selectedFiles)}
-              disabled={loading}
-              className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50"
-            >
-              {loading ? 'Uploaden...' : 'Upload'}
-            </button>
-          )}
-        </div>
-        <p className="text-xs text-gray-400 mt-2">Upload alle forecast CSV bestanden tegelijk (FOR1953 en FORESCO)</p>
-      </div>
+      {/* ── UPLOAD SECTIE ── */}
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <button
+          onClick={() => toggleSection('upload')}
+          className="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+        >
+          <span className="font-semibold text-gray-800 flex items-center gap-2">
+            <Upload className="w-5 h-5 text-blue-500" /> Forecast uploaden
+          </span>
+          {openSections.upload ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+        </button>
 
-      {/* Resultaat na upload */}
-      {lastUploadResult && (
-        <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-wrap gap-4 items-center">
-          <p className="font-semibold text-gray-700 mr-2">Laatste upload:</p>
-          <span className="flex items-center gap-1.5 bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
-            <Plus className="w-3.5 h-3.5" /> {lastUploadResult.added} nieuw
-          </span>
-          <span className="flex items-center gap-1.5 bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">
-            <Minus className="w-3.5 h-3.5" /> {lastUploadResult.removed} verwijderd
-          </span>
-          <span className="flex items-center gap-1.5 bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-medium">
-            <Calendar className="w-3.5 h-3.5" /> {lastUploadResult.date_change} datumwijzigingen
-          </span>
-        </div>
-      )}
+        {openSections.upload && (
+          <div className="px-5 pb-5 border-t border-gray-100 pt-4 space-y-4">
+            <div
+              className={`border-2 border-dashed rounded-xl p-6 text-center transition-all ${
+                dragActive ? 'border-blue-500 bg-blue-50 scale-105'
+                : selectedFiles.length > 0 ? 'border-green-400 bg-green-50'
+                : 'border-gray-300 hover:border-blue-400'
+              }`}
+              onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}
+            >
+              <Upload className={`w-10 h-10 mx-auto mb-2 ${dragActive ? 'text-blue-500' : 'text-gray-400'}`} />
+              <p className="font-medium mb-1">Forecast CSV</p>
+              {selectedFiles.length > 0 ? (
+                <p className="text-sm text-green-700 font-semibold mb-3">{selectedFiles.length} bestand(en) geselecteerd</p>
+              ) : (
+                <p className="text-sm text-gray-500 mb-3">Sleep bestanden hierheen of klik om te selecteren</p>
+              )}
+              <input type="file" accept=".csv" className="hidden" id="forecast-upload" multiple onChange={e => handleFileSelect(e.target.files)} />
+              <div className="flex gap-2 justify-center">
+                <label htmlFor="forecast-upload" className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 cursor-pointer">
+                  {selectedFiles.length > 0 ? 'Wijzig bestanden' : 'Selecteer bestanden'}
+                </label>
+                {selectedFiles.length > 0 && (
+                  <button
+                    onClick={() => handleFileUpload(selectedFiles)}
+                    disabled={loading}
+                    className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50"
+                  >
+                    {loading ? 'Uploaden...' : 'Upload'}
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-gray-400 mt-2">Upload alle forecast CSV bestanden tegelijk (FOR1953 en FORESCO)</p>
+            </div>
+
+            {lastUploadResult && (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 flex flex-wrap gap-4 items-center">
+                <p className="font-semibold text-gray-700 mr-2">Laatste upload:</p>
+                <span className="flex items-center gap-1.5 bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+                  <Plus className="w-3.5 h-3.5" /> {lastUploadResult.added} nieuw
+                </span>
+                <span className="flex items-center gap-1.5 bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">
+                  <Minus className="w-3.5 h-3.5" /> {lastUploadResult.removed} verwijderd
+                </span>
+                <span className="flex items-center gap-1.5 bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-medium">
+                  <Calendar className="w-3.5 h-3.5" /> {lastUploadResult.date_change} datumwijzigingen
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* ── CASE LABEL HISTORIEK ── */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <h3 className="font-semibold text-gray-800 flex items-center gap-2 mb-3">
+        <button
+          onClick={() => toggleSection('historiek')}
+          className="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+        >
+          <span className="font-semibold text-gray-800 flex items-center gap-2">
             <Clock className="w-5 h-5 text-purple-600" /> Datumhistoriek per caselabel
-          </h3>
-          <div className="flex gap-2">
+          </span>
+          {openSections.historiek ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+        </button>
+
+        {openSections.historiek && (
+        <div className="px-5 pb-5 border-t border-gray-100 pt-4">
+          <div className="flex gap-2 mb-4">
             <input
               type="text"
               value={caseLabelSearch}
@@ -345,10 +388,9 @@ export default function ForecastTab() {
               {caseLabelLoading ? 'Laden...' : 'Opzoeken'}
             </button>
           </div>
-        </div>
 
         {caseLabelSearched && !caseLabelLoading && (
-          <div className="px-5 py-4">
+          <div className="mt-0">
             {caseLabelHistory.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-4">Geen historiek gevonden voor <strong>{caseLabelSearched}</strong>.</p>
             ) : (
@@ -420,20 +462,28 @@ export default function ForecastTab() {
             )}
           </div>
         )}
+        </div>
+        )}
       </div>
 
       {/* ── WIJZIGINGEN PER SNAPSHOT ── */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="font-semibold text-gray-800 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-blue-600" /> Wijzigingen per upload
-          </h3>
-          <button onClick={loadSnapshots} className="text-gray-400 hover:text-gray-700 transition-colors">
+        <div className="flex items-center border-b border-gray-100">
+          <button
+            onClick={() => toggleSection('wijzigingen')}
+            className="flex-1 px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+          >
+            <span className="font-semibold text-gray-800 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-blue-600" /> Wijzigingen per upload
+            </span>
+            {openSections.wijzigingen ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+          </button>
+          <button onClick={loadSnapshots} className="px-4 text-gray-400 hover:text-gray-700 transition-colors">
             <RefreshCw className={`w-4 h-4 ${snapshotsLoading ? 'animate-spin' : ''}`} />
           </button>
         </div>
 
-        {snapshots.length === 0 ? (
+        {openSections.wijzigingen && (snapshots.length === 0 ? (
           <div className="p-8 text-center text-gray-400">
             Nog geen uploads. Upload een forecast CSV om wijzigingen bij te houden.
           </div>
@@ -567,15 +617,28 @@ export default function ForecastTab() {
               )
             })}
           </div>
-        )}
+        ))}
       </div>
 
       {/* ── HUIDIGE FORECAST DATA ── */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="font-semibold text-gray-800">Huidige forecast</h3>
-          <div className="flex items-center gap-3">
-            {/* Filters */}
+        <div className="flex items-center border-b border-gray-100">
+          <button
+            onClick={() => toggleSection('huidig')}
+            className="flex-1 px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+          >
+            <span className="font-semibold text-gray-800 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-gray-500" /> Huidige forecast
+              {forecastData.length > 0 && (
+                <span className="text-xs font-normal text-gray-400">({filteredForecast.length} / {forecastData.length})</span>
+              )}
+            </span>
+            {openSections.huidig ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+          </button>
+        </div>
+
+        {openSections.huidig && <>
+        <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex flex-wrap items-center gap-2">
             <input
               type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
               className="text-sm border border-gray-300 rounded-lg px-3 py-1.5"
@@ -587,16 +650,9 @@ export default function ForecastTab() {
             />
             <input
               type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Zoeken..."
-              className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 w-40"
+              placeholder="Zoeken op caselabel, type..."
+              className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 w-52"
             />
-          </div>
-        </div>
-
-        {/* KPI balk */}
-        <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex gap-6 text-sm">
-          <span><span className="font-semibold text-gray-900">{forecastData.length}</span> <span className="text-gray-500">totaal</span></span>
-          <span><span className="font-semibold text-gray-900">{filteredForecast.length}</span> <span className="text-gray-500">gefilterd</span></span>
         </div>
 
         {loading ? (
@@ -627,6 +683,7 @@ export default function ForecastTab() {
             </table>
           </div>
         )}
+        </>}
       </div>
     </div>
   )
