@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Upload, Download, TrendingUp, ChevronDown, ChevronRight, Plus, Minus, Calendar, RefreshCw } from 'lucide-react'
+import { Upload, Download, TrendingUp, ChevronDown, ChevronRight, Plus, Minus, Calendar, RefreshCw, Search, Clock } from 'lucide-react'
 
 type ChangeType = 'added' | 'removed' | 'date_change'
 
@@ -218,6 +218,28 @@ export default function ForecastTab() {
     )
   })
 
+  // Case label historiek lookup
+  const [caseLabelSearch, setCaseLabelSearch] = useState('')
+  const [caseLabelHistory, setCaseLabelHistory] = useState<ForecastChange[]>([])
+  const [caseLabelLoading, setCaseLabelLoading] = useState(false)
+  const [caseLabelSearched, setCaseLabelSearched] = useState('')
+
+  const loadCaseLabelHistory = useCallback(async (label: string) => {
+    const trimmed = label.trim()
+    if (!trimmed) return
+    setCaseLabelLoading(true)
+    setCaseLabelSearched(trimmed)
+    try {
+      const res = await fetch(`/api/grote-inpak/forecast-changes?case_label=${encodeURIComponent(trimmed)}`)
+      if (res.ok) {
+        const result = await res.json()
+        setCaseLabelHistory(result.data || [])
+      }
+    } catch { /* ignore */ } finally {
+      setCaseLabelLoading(false)
+    }
+  }, [])
+
   // Gefilterde wijzigingen voor geselecteerde snapshot
   const filteredChanges = useMemo(() => {
     if (changeTypeFilter === 'all') return snapshotChanges
@@ -298,6 +320,107 @@ export default function ForecastTab() {
           </span>
         </div>
       )}
+
+      {/* ── CASE LABEL HISTORIEK ── */}
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h3 className="font-semibold text-gray-800 flex items-center gap-2 mb-3">
+            <Clock className="w-5 h-5 text-purple-600" /> Datumhistoriek per caselabel
+          </h3>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={caseLabelSearch}
+              onChange={e => setCaseLabelSearch(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && loadCaseLabelHistory(caseLabelSearch)}
+              placeholder="Bv. WLB-2026-04-K80-001"
+              className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400"
+            />
+            <button
+              onClick={() => loadCaseLabelHistory(caseLabelSearch)}
+              disabled={caseLabelLoading || !caseLabelSearch.trim()}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50"
+            >
+              <Search className="w-4 h-4" />
+              {caseLabelLoading ? 'Laden...' : 'Opzoeken'}
+            </button>
+          </div>
+        </div>
+
+        {caseLabelSearched && !caseLabelLoading && (
+          <div className="px-5 py-4">
+            {caseLabelHistory.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-4">Geen historiek gevonden voor <strong>{caseLabelSearched}</strong>.</p>
+            ) : (
+              <>
+                <p className="text-xs text-gray-500 mb-4 font-medium uppercase tracking-wide">
+                  {caseLabelHistory.length} wijziging(en) gevonden voor <span className="text-gray-800 font-semibold">{caseLabelSearched}</span>
+                </p>
+                {/* Tijdlijn */}
+                <div className="relative">
+                  {/* Verticale lijn */}
+                  <div className="absolute left-[18px] top-0 bottom-0 w-0.5 bg-gray-200" />
+                  <div className="space-y-4">
+                    {caseLabelHistory.map((c, i) => {
+                      const style = CHANGE_COLORS[c.change_type]
+                      const isFirst = i === 0
+                      return (
+                        <div key={c.id} className="relative flex items-start gap-4 pl-10">
+                          {/* Tijdlijn dot */}
+                          <div className={`absolute left-0 w-9 h-9 rounded-full flex items-center justify-center text-base border-2 border-white shadow-sm z-10 ${
+                            c.change_type === 'added' ? 'bg-green-100'
+                            : c.change_type === 'removed' ? 'bg-red-100'
+                            : 'bg-orange-100'
+                          }`}>
+                            {style.icon}
+                          </div>
+                          {/* Kaartje */}
+                          <div className={`flex-1 rounded-lg border p-3 text-sm ${
+                            isFirst ? 'border-purple-200 bg-purple-50' : 'border-gray-100 bg-gray-50'
+                          }`}>
+                            <div className="flex items-center justify-between flex-wrap gap-2">
+                              <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${style.badge}`}>
+                                {style.icon} {style.label}
+                              </span>
+                              <span className="text-xs text-gray-400">{fmtTs(c.changed_at)}</span>
+                            </div>
+                            <div className="mt-2 flex items-center gap-3 flex-wrap">
+                              {c.change_type === 'date_change' ? (
+                                <>
+                                  <span className="text-gray-500 line-through">{fmtDate(c.old_arrival_date)}</span>
+                                  <span className="text-gray-400">→</span>
+                                  <span className="font-semibold text-gray-900">{fmtDate(c.new_arrival_date)}</span>
+                                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                                    shiftDays(c.old_arrival_date, c.new_arrival_date).startsWith('-')
+                                      ? 'bg-red-100 text-red-700'
+                                      : 'bg-green-100 text-green-700'
+                                  }`}>
+                                    {shiftDays(c.old_arrival_date, c.new_arrival_date)}
+                                  </span>
+                                </>
+                              ) : c.change_type === 'added' ? (
+                                <span className="font-semibold text-gray-900">Ingepland op {fmtDate(c.new_arrival_date)}</span>
+                              ) : (
+                                <span className="text-gray-500">Was gepland op {fmtDate(c.old_arrival_date)}</span>
+                              )}
+                              {c.case_type && (
+                                <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">{c.case_type}</span>
+                              )}
+                            </div>
+                            {c.source_file && (
+                              <p className="text-xs text-gray-400 mt-1.5">📄 {c.source_file}</p>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* ── WIJZIGINGEN PER SNAPSHOT ── */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
