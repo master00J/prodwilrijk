@@ -165,24 +165,21 @@ export async function GET() {
       const effectiefTekort = Math.max(0, maxVoorraad - stockNaPils - stockElders - inProductie - inTransfer)
       const bestelAantal = effectiefTekort > 0 ? Math.ceil(effectiefTekort / row.stapel) * row.stapel : 0
 
-      // gedekt = alles wat de tekort in de rek kan opvangen maar er nog niet staat
-      const gedekt = stockElders + inProductie + inTransfer
       const oudstePils = oldestPilsDateByKist.get(kt) || null
 
-      // Status consistent met bestelAantal — bestelpunt = max → trigger bij elke verbruikte stapel
+      // Status = enkel "Productie aanmaken" / "Leeg" als bestelAantal > 0, anders "Gedekt" of "Vol"
       const statusLabel =
         bestelAantal > 0 && stockInRek === 0 ? 'Leeg'
         : bestelAantal > 0                   ? 'Productie aanmaken'
-        : stockInRek < maxVoorraad           ? 'Gedekt'   // rek niet vol, maar al gedekt door productie/transfer/elders
+        : stockInRek < maxVoorraad           ? 'Gedekt'
         : 'Vol'
 
-      // Prioriteit tiers
       const priorityTier =
-        bestelAantal > 0 && stockInRek === 0  ? 1  // Leeg + productie nodig
-        : bestelAantal > 0                    ? 2  // Productie aanmaken
-        : stockInRek === 0                    ? 3  // Leeg maar gedekt
-        : stockInRek < maxVoorraad            ? 4  // Niet vol maar gedekt
-        : 5                                        // Vol
+        bestelAantal > 0 && stockInRek === 0 ? 1
+        : bestelAantal > 0                   ? 2
+        : stockInRek === 0                   ? 3
+        : stockInRek < maxVoorraad           ? 4
+        : 5
 
       return {
         id: row.id,
