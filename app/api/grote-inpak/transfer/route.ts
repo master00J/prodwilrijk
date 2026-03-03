@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import * as XLSX from 'xlsx'
+import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,6 +50,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Geen bestanden aangeleverd' }, { status: 400 })
     }
 
+    // ERP LINK ophalen: alleen C-kisten die relevant zijn voor grote inpak
+    const { data: erpLinkData } = await supabaseAdmin
+      .from('grote_inpak_erp_link')
+      .select('kistnummer, erp_code')
+
+    const erpToKist = new Map<string, string>()
+    ;(erpLinkData || []).forEach((row: any) => {
+      const norm = normalizeErpCode(row.erp_code)
+      if (norm && row.kistnummer) erpToKist.set(norm, String(row.kistnummer).toUpperCase().trim())
+    })
+
     const results = []
 
     for (const file of files) {
@@ -58,38 +70,52 @@ export async function POST(request: NextRequest) {
       const ws = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }) as any[][]
 
-      const parsed: { erp_code: string; kistnummer: null; quantity: number; source_file: string }[] = []
-      let skipped = 0
+      const parsed: { erp_code: string; kistnummer: string; quantity: number; source_file: string }[] = []
+      const nietGematcht: string[] = []
+      let headerOvergeslagen = 0
 
       for (const row of rows) {
         const rawErp = String(row[0] ?? '').trim()
         const rawQty = row[5]  // Kolom F = stuks
 
-        // Sla lege rijen en headerrij over
-        if (!rawErp || rawErp === '') { skipped++; continue }
-        // Header detectie: kolom A bevat letters zonder cijfers achteraan (bijv. "Item No.")
-        if (/^[a-z\s.]+$/i.test(rawErp) && !/\d/.test(rawErp)) { skipped++; continue }
+        // Lege rijen en header (bijv. "Item No.") overslaan
+        if (!rawErp) continue
+        if (/^[a-z\s.]+$/i.test(rawErp) && !/\d/.test(rawErp)) { headerOvergeslagen++; continue }
 
         const qty = Number(rawQty)
-        if (isNaN(qty) || qty <= 0) { skipped++; continue }
+        if (isNaN(qty) || qty <= 0) continue
 
-        // Sla ERP code op zoals hij is — mapping naar kistnummer gebeurt in de kanban route
-        parsed.push({
-          erp_code: rawErp,
-          kistnummer: null,
-          quantity: Math.round(qty),
-          source_file: fileName,
-        })
+        // Match via ERP LINK
+        const erpNorm = normalizeErpCode(rawErp)
+        const kist = erpNorm ? erpToKist.get(erpNorm) || null : null
+
+        if (!kist) {
+          // Niet in ERP LINK → niet relevant voor grote inpak, bijhouden voor feedback
+          if (!nietGematcht.includes(rawErp)) nietGematcht.push(rawErp)
+          continue
+        }
+
+        // Zelfde kistnummer samenvoegen
+        const existing = parsed.find(p => p.kistnummer === kist)
+        if (existing) {
+          existing.quantity += Math.round(qty)
+        } else {
+          parsed.push({ erp_code: rawErp, kistnummer: kist, quantity: Math.round(qty), source_file: fileName })
+        }
       }
 
       if (parsed.length === 0) {
-        results.push({ file: fileName, status: 'skip', message: `Geen geldige rijen gevonden (${skipped} overgeslagen)` })
+        results.push({
+          file: fileName,
+          status: 'skip',
+          message: `Geen C-kisten gevonden via ERP LINK. Niet-gematchte codes: ${nietGematcht.slice(0, 5).join(', ')}${nietGematcht.length > 5 ? '…' : ''}`,
+          niet_gematcht: nietGematcht,
+        })
         continue
       }
 
-      // Verwijder bestaande data voor dit bestand (per-file overschrijven)
+      // Verwijder bestaande data voor dit bestand en sla nieuw op
       await supabaseAdmin.from('grote_inpak_transfer').delete().eq('source_file', fileName)
-
       const { error: insertError } = await supabaseAdmin.from('grote_inpak_transfer').insert(parsed)
       if (insertError) throw insertError
 
@@ -98,7 +124,8 @@ export async function POST(request: NextRequest) {
         status: 'ok',
         rijen: parsed.length,
         totaal_stuks: parsed.reduce((s, r) => s + r.quantity, 0),
-        overgeslagen: skipped,
+        niet_gematcht_aantal: nietGematcht.length,
+        niet_gematcht_preview: nietGematcht.slice(0, 5),
       })
     }
 

@@ -115,8 +115,14 @@ export default function GroteInpakPage() {
       const result = await res.json()
       if (!res.ok) throw new Error(result.error || 'Upload mislukt')
       const ok = (result.results || []).filter((r: any) => r.status === 'ok')
-      const skip = (result.results || []).filter((r: any) => r.status === 'skip')
-      setSuccess(`Transfer: ${ok.map((r: any) => `${r.file} (${r.rijen} rijen, ${r.totaal_stuks} stuks)`).join(', ')}${skip.length > 0 ? ` — ${skip.length} overgeslagen` : ''}`)
+      const skipFiles = (result.results || []).filter((r: any) => r.status === 'skip')
+      const successParts = ok.map((r: any) => {
+        let msg = `${r.file}: ${r.rijen} kisttype(n) gematcht, ${r.totaal_stuks} stuks`
+        if (r.niet_gematcht_aantal > 0) msg += ` (${r.niet_gematcht_aantal} codes niet in ERP LINK: ${r.niet_gematcht_preview?.join(', ')})`
+        return msg
+      })
+      if (skipFiles.length > 0) successParts.push(...skipFiles.map((r: any) => `⚠️ ${r.file}: ${r.message}`))
+      setSuccess(`Transfer upload: ${successParts.join(' | ')}`)
       setTransferFiles([])
       await loadTransferFiles()
       setStockUploadTrigger(t => t + 1)
