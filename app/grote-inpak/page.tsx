@@ -26,6 +26,7 @@ export default function GroteInpakPage() {
   const [dragActiveErpLink, setDragActiveErpLink] = useState(false)
   const [dragActiveStock, setDragActiveStock] = useState(false)
   const [uploadSectionExpanded, setUploadSectionExpanded] = useState(false)
+  const [stockUploadTrigger, setStockUploadTrigger] = useState(0)
   const pilsInputRef = useRef<HTMLInputElement>(null)
   const erpLinkInputRef = useRef<HTMLInputElement>(null)
   const stockInputRef = useRef<HTMLInputElement>(null)
@@ -299,6 +300,7 @@ export default function GroteInpakPage() {
         }
         if (stockUploaded > 0) {
           successParts.push(`Stock: ${stockUploaded} bestand(en), ${stockItemsProcessed} items verwerkt`)
+          setStockUploadTrigger((k) => k + 1)
         }
         if (successParts.length > 0) {
           setSuccess(`✅ Bestanden succesvol verwerkt! ${successParts.join(' | ')}`)
@@ -308,6 +310,7 @@ export default function GroteInpakPage() {
         // If only stock files are uploaded, just refresh the stock tab
         // The stock data is already saved to the database
         setDataLoaded(true)
+        setStockUploadTrigger((k) => k + 1)
         setSuccess(`✅ Stock bestanden succesvol geüpload! ${stockUploaded} bestand(en), ${stockItemsProcessed} items verwerkt.`)
         setTimeout(() => setSuccess(null), 5000)
       }
@@ -628,7 +631,7 @@ export default function GroteInpakPage() {
           {activeTab === 2 && dataLoaded && <ForecastTab />}
           {activeTab === 3 && dataLoaded && <PackedTab />}
           {activeTab === 4 && <StockAnalysisTab />}
-          {activeTab === 5 && <KanbanTab />}
+          {activeTab === 5 && <KanbanTab stockUploadTrigger={stockUploadTrigger} />}
           {activeTab === 6 && dataLoaded && <BacklogTab overview={overviewData} />}
           {activeTab === 7 && <ErpLinkTab />}
           {activeTab !== 4 && activeTab !== 5 && activeTab !== 7 && !dataLoaded && (

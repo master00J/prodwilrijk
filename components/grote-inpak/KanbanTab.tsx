@@ -53,7 +53,11 @@ const EMPTY_FORM: Partial<KanbanConfig> = {
   verbruik_per_dag: null, prioriteit: 'low', notitie: '',
 }
 
-export default function KanbanTab() {
+interface KanbanTabProps {
+  stockUploadTrigger?: number
+}
+
+export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
   const [activeView, setActiveView] = useState<'besteladvies' | 'rekindeling'>('besteladvies')
 
   // Besteladvies state
@@ -100,6 +104,7 @@ export default function KanbanTab() {
   }, [])
 
   useEffect(() => { loadBesteladvies() }, [loadBesteladvies])
+  useEffect(() => { loadBesteladvies() }, [loadBesteladvies, stockUploadTrigger])
   useEffect(() => { if (activeView === 'rekindeling') loadConfig() }, [activeView, loadConfig])
 
   const filteredBestel = useMemo(() => {
