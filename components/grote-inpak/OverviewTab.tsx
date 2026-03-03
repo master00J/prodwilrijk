@@ -186,11 +186,12 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
 
   const handleExport = () => {
     const csv = [
-      ['Case Label', 'Case Type', 'Arrival Date', 'Item Number', 'Productielocatie', 'In Willebroek', 'Status', 'Priority', 'Comment', 'Stock Location'],
+      ['Case Label', 'Case Type', 'PILS Datum', 'Forecast Datum', 'Item Number', 'Productielocatie', 'In Willebroek', 'Status', 'Priority', 'Comment', 'WMS Locatie'],
       ...filteredData.map(item => [
         item.case_label || '',
         item.case_type || '',
         item.arrival_date || '',
+        item.forecast_date || '',
         item.item_number || '',
         item.productielocatie || '',
         item.in_willebroek ? 'Ja' : 'Nee',
@@ -484,7 +485,13 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                 className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
                 onClick={() => handleSort('arrival_date')}
               >
-                Arrival Date{getSortIcon('arrival_date')}
+                PILS Datum{getSortIcon('arrival_date')}
+              </th>
+              <th 
+                className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                onClick={() => handleSort('forecast_date')}
+              >
+                Forecast Datum{getSortIcon('forecast_date')}
               </th>
               <th 
                 className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
@@ -514,8 +521,9 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
               <th 
                 className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
                 onClick={() => handleSort('stock_location')}
+                title="Fysieke opslaglocatie van de lege kist in het Willebroek-magazijn (WMS-locatiecode)"
               >
-                Stock Location{getSortIcon('stock_location')}
+                WMS Locatie{getSortIcon('stock_location')}
               </th>
             </tr>
           </thead>
@@ -552,6 +560,30 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                   <td className="px-4 py-3 text-sm text-gray-700">{displayItem.case_type || '-'}</td>
                   <td className="px-4 py-3 text-sm text-gray-700">
                     {displayItem.arrival_date ? new Date(displayItem.arrival_date).toLocaleDateString('nl-NL') : '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm">
+                    {(() => {
+                      if (!displayItem.forecast_date) return <span className="text-gray-300">—</span>
+                      const fDate = new Date(displayItem.forecast_date)
+                      const pDate = displayItem.arrival_date ? new Date(displayItem.arrival_date) : null
+                      const diffDays = pDate ? Math.round((fDate.getTime() - pDate.getTime()) / 86400000) : null
+                      // Rood = forecast meer dan 14 dagen vroeger dan PILS (vervroegd)
+                      // Oranje = 7-14 dagen vroeger
+                      // Groen = op tijd of later
+                      const colorClass =
+                        diffDays !== null && diffDays < -14 ? 'text-red-700 font-semibold' :
+                        diffDays !== null && diffDays < -7  ? 'text-orange-600 font-medium' :
+                        'text-gray-700'
+                      const badge =
+                        diffDays !== null && diffDays < -14 ? <span className="ml-1.5 text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full font-bold">{diffDays}d</span> :
+                        diffDays !== null && diffDays < -7  ? <span className="ml-1.5 text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full">{diffDays}d</span> :
+                        null
+                      return (
+                        <span className={colorClass}>
+                          {fDate.toLocaleDateString('nl-NL')}{badge}
+                        </span>
+                      )
+                    })()}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-700">{displayItem.item_number || '-'}</td>
                   <td className="px-4 py-3 text-sm text-gray-700">{displayItem.productielocatie || '-'}</td>

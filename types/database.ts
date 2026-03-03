@@ -39,6 +39,7 @@ export interface GroteInpakCase {
   dagen_in_willebroek: number
   created_at: string
   updated_at: string
+  forecast_date?: string | null
 }
 
 export interface GroteInpakTransport {

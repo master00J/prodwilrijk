@@ -44,8 +44,28 @@ export async function GET(request: NextRequest) {
       throw error
     }
 
-    // Apply search filter in memory (can be optimized with database search)
+    // Haal forecast datums op voor alle caselabels in één query
     let filteredData = data || []
+    if (filteredData.length > 0) {
+      const caseLabels = filteredData.map((item: any) => item.case_label).filter(Boolean)
+      const { data: forecastRows } = await supabaseAdmin
+        .from('grote_inpak_forecast')
+        .select('case_label, arrival_date')
+        .in('case_label', caseLabels)
+
+      if (forecastRows && forecastRows.length > 0) {
+        const forecastMap = new Map<string, string>()
+        forecastRows.forEach((row: any) => {
+          if (row.case_label) forecastMap.set(row.case_label, row.arrival_date)
+        })
+        filteredData = filteredData.map((item: any) => ({
+          ...item,
+          forecast_date: forecastMap.get(item.case_label) ?? null,
+        }))
+      }
+    }
+
+    // Apply search filter in memory
     if (search) {
       const searchLower = search.toLowerCase()
       filteredData = filteredData.filter((item: any) => {
