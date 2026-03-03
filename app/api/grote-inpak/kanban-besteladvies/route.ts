@@ -144,7 +144,26 @@ export async function GET() {
       }
     })
 
-    return NextResponse.json({ data: result })
+    // Diagnostiek: hoeveel stock-rijen werden gematcht?
+    const matchedKisten = stockByKist.size
+    const totalStockRows = (stockRaw || []).length
+    const erpLinkCount = (erpLink || []).length
+
+    return NextResponse.json({
+      data: result,
+      _debug: {
+        erp_link_entries: erpLinkCount,
+        stock_rows_total: totalStockRows,
+        stock_kisten_matched: matchedKisten,
+        matched_kisten: Array.from(stockByKist.keys()).slice(0, 20),
+        config_case_types: (config || []).map((r: any) => r.case_type).slice(0, 20),
+        warning: erpLinkCount === 0
+          ? 'ERP LINK tabel is leeg. Voeg GP-code → C-kist koppelingen toe via het ERP LINK tabblad.'
+          : matchedKisten === 0
+            ? `ERP LINK heeft ${erpLinkCount} entries maar geen enkele stock-rij kon gekoppeld worden aan een kistnummer.`
+            : null,
+      },
+    })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
