@@ -138,6 +138,15 @@ export async function PUT(request: NextRequest) {
       throw error
     }
 
+    // Sync productielocatie naar kanban_config als die velden gewijzigd zijn
+    const kistKey = (updateData.kistnummer || data.kistnummer || '').toUpperCase().trim()
+    if (kistKey && updateData.productielocatie !== undefined) {
+      await supabaseAdmin
+        .from('grote_inpak_kanban_config')
+        .update({ productielocatie: updateData.productielocatie })
+        .eq('case_type', kistKey)
+    }
+
     return NextResponse.json({
       success: true,
       data,
