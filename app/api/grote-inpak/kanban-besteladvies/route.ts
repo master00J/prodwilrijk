@@ -165,15 +165,39 @@ export async function GET() {
       const bestelAantal = effectiefTekort > 0 ? Math.ceil(effectiefTekort / row.stapel) * row.stapel : 0
       const statusLabel =
         stockInRek === 0 ? 'Leeg'
-        : stockInRek < bestelpunt ? 'Bestellen'
+        : stockInRek < bestelpunt ? 'Productie aanmaken'
         : stockInRek < maxVoorraad ? 'Laag'
         : 'Vol'
 
-      const oldestPils = oldestPilsDateByKist.get(kt) || null
-      // Prioriteit: 1 = op PILS + geen/weinig stock, 2 = op PILS + stock ok, 3 = rest. Binnen tier: oudste PILS eerst.
-      const heeftPils = opPils > 0
-      const weinigStock = stockInRek < bestelpunt || stockInRek === 0
-      const priorityTier = heeftPils && weinigStock ? 1 : heeftPils ? 2 : 3
+      const gedekt = inProductie + inTransfer
+      const oudstePils = oldestPilsDateByKist.get(kt) || null
+
+      // Actie label — wordt ook in Excel getoond
+      const actieLabel =
+        bestelAantal > 0 && statusLabel === 'Leeg'       ? '🔴 PRODUCEREN — Leeg'
+        : bestelAantal > 0                                ? '🔴 PRODUCEREN'
+        : statusLabel === 'Leeg' && gedekt > 0            ? '🟠 WATCH — Leeg maar gedekt'
+        : statusLabel === 'Productie aanmaken' && gedekt > 0 ? '🟠 WATCH — Prod. aanmaken, gedekt'
+        : statusLabel === 'Productie aanmaken'            ? '🟠 PRODUCTIE AANMAKEN'
+        : statusLabel === 'Laag'                          ? '🟡 LAAG'
+        : '🟢 OK'
+
+      // Prioriteit tiers:
+      // 1: Effectief te produceren > 0 + Leeg           → URGENT produceren
+      // 2: Effectief te produceren > 0 (niet leeg)      → Produceren
+      // 3: Leeg maar gedekt door productie/transfer      → Watch
+      // 4: Productie aanmaken maar gedekt               → Watch
+      // 5: Productie aanmaken (niet gedekt)             → Actie nodig
+      // 6: Laag                                         → Lage prioriteit
+      // 7: Vol                                          → OK
+      const priorityTier =
+        bestelAantal > 0 && statusLabel === 'Leeg'            ? 1
+        : bestelAantal > 0                                     ? 2
+        : statusLabel === 'Leeg' && gedekt > 0                 ? 3
+        : statusLabel === 'Productie aanmaken' && gedekt > 0   ? 4
+        : statusLabel === 'Productie aanmaken'                 ? 5
+        : statusLabel === 'Laag'                               ? 6
+        : 7
 
       return {
         id: row.id,
@@ -201,14 +225,17 @@ export async function GET() {
         tekort,
         bestel_aantal: bestelAantal,
         status: statusLabel,
-        oldest_pils_date: oldestPils,
+        actie: actieLabel,
+        oldest_pils_date: oudstePils,
         _priority_tier: priorityTier,
+        _tekort: tekort,
       }
     })
 
-    // Sorteer op prioriteit: tier 1 (PILS + weinig stock) eerst, dan tier 2 (PILS), dan tier 3. Binnen elke tier: oudste PILS-datum eerst.
+    // Sorteer: tier eerst, dan tekort aflopend (meest urgent), dan oudste PILS datum
     const sorted = (result as any[]).sort((a, b) => {
       if (a._priority_tier !== b._priority_tier) return a._priority_tier - b._priority_tier
+      if (b._tekort !== a._tekort) return b._tekort - a._tekort
       const dateA = a.oldest_pils_date || '9999-99-99'
       const dateB = b.oldest_pils_date || '9999-99-99'
       return dateA.localeCompare(dateB)
@@ -216,6 +243,7 @@ export async function GET() {
     sorted.forEach((row: any, idx: number) => {
       row.priority_rank = idx + 1
       delete row._priority_tier
+      delete row._tekort
     })
 
     // Diagnostiek
@@ -266,17 +294,26 @@ function buildDailyOrderWorkbook(locatieLabel: string, data: any[], today: strin
   const thin = { style: 'thin' as const }
   const border = { top: thin, left: thin, bottom: thin, right: thin }
   const STATUS_COLORS: Record<string, string> = {
-    'Leeg':     'FFFF0000',
-    'Bestellen':'FFFF6600',
-    'Laag':     'FFFFFF00',
-    'Vol':      'FF92D050',
+    'Leeg':               'FFFF0000',
+    'Productie aanmaken': 'FFFF6600',
+    'Laag':               'FFFFFF00',
+    'Vol':                'FF92D050',
   }
-  const headers = ['Prioriteit', 'Kisttype', 'Prod.locatie', 'Max voorraad', 'Stock in rek', 'In productie', 'In transfer', 'Op PILS', 'Tekort', 'Effectief te produceren', 'Verbruik/dag', 'Status']
+  const ACTIE_COLORS: Record<string, string> = {
+    '🔴 PRODUCEREN — Leeg':              'FFFF0000',
+    '🔴 PRODUCEREN':                     'FFFF4444',
+    '🟠 WATCH — Leeg maar gedekt':       'FFFFC000',
+    '🟠 WATCH — Prod. aanmaken, gedekt': 'FFFFD966',
+    '🟠 PRODUCTIE AANMAKEN':             'FFFF6600',
+    '🟡 LAAG':                           'FFFFFF00',
+    '🟢 OK':                             'FF92D050',
+  }
+  const headers = ['Prioriteit', 'Actie', 'Kisttype', 'Prod.locatie', 'Max voorraad', 'Stock in rek', 'In productie', 'In transfer', 'Op PILS', 'Tekort', 'Effectief te produceren', 'Verbruik/dag', 'Status']
   const numCols = headers.length
 
   const ws = wb.addWorksheet(`C kisten daily order ${locatieLabel}`)
   ws.columns = [
-    { width: 10 }, { width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 12 },
+    { width: 10 }, { width: 30 }, { width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 12 },
     { width: 10 }, { width: 12 }, { width: 22 }, { width: 13 }, { width: 12 },
   ]
   const titleRow = ws.addRow([`C kisten daily order ${locatieLabel} — ${today}`])
@@ -300,6 +337,7 @@ function buildDailyOrderWorkbook(locatieLabel: string, data: any[], today: strin
     const fgColor = i % 2 === 0 ? 'FFFFFFFF' : 'FFF2F2F2'
     const dRow = ws.addRow([
       row.priority_rank ?? i + 1,
+      row.actie || '🟢 OK',
       row.case_type,
       row.productielocatie || '—',
       row.max_voorraad,
@@ -316,16 +354,28 @@ function buildDailyOrderWorkbook(locatieLabel: string, data: any[], today: strin
       cell.style = {
         fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: fgColor } },
         border,
-        alignment: { horizontal: col === 2 || col === 3 ? 'left' : 'center', vertical: 'middle' },
+        alignment: { horizontal: col === 3 || col === 4 ? 'left' : 'center', vertical: 'middle' },
       }
-      if (col === 12) {
+      // Actie kolom (col 2) — gekleurde achtergrond
+      if (col === 2) {
+        const actieColor = ACTIE_COLORS[row.actie || '🟢 OK']
+        if (actieColor) {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: actieColor } }
+          const isDark = ['FFFF0000', 'FFFF4444'].includes(actieColor)
+          cell.font = { bold: true, color: { argb: isDark ? 'FFFFFFFF' : 'FF000000' } }
+        }
+        cell.alignment = { horizontal: 'left', vertical: 'middle' }
+      }
+      // Status kolom (col 13)
+      if (col === 13) {
         const statusColor = STATUS_COLORS[row.status]
         if (statusColor) {
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: statusColor } }
           cell.font = { bold: true, color: { argb: row.status === 'Leeg' ? 'FFFFFFFF' : 'FF000000' } }
         }
       }
-      if (col === 10 && row.bestel_aantal > 0) {
+      // Effectief te produceren (col 11) — rood + vet als > 0
+      if (col === 11 && row.bestel_aantal > 0) {
         cell.font = { bold: true, color: { argb: 'FFCC0000' } }
       }
     })
