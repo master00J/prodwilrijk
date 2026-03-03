@@ -17,14 +17,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Upsert stock data (update if exists, insert if not)
-    // Use item_number + location as unique key
+    // Negatieve waarden uit stock files worden op 0 gezet
     for (const item of stockData) {
+      const quantity = Math.max(0, Number(item.quantity) || 0)
       await supabaseAdmin
         .from('grote_inpak_stock')
         .upsert({
           item_number: item.item_number,
           location: item.location,
-          quantity: item.quantity || 0,
+          quantity,
           erp_code: item.erp_code || null,
         }, {
           onConflict: 'item_number,location',

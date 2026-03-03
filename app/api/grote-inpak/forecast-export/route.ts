@@ -46,7 +46,7 @@ function normalizeCaseType(value: string): string {
 
 function parseNumber(value: unknown): number {
   if (value === null || value === undefined) return 0
-  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+  if (typeof value === 'number') return Number.isFinite(value) ? Math.max(0, value) : 0
   const raw = String(value).trim()
   if (!raw) return 0
   let cleaned = raw.replace(/\s+/g, '')
@@ -56,7 +56,7 @@ function parseNumber(value: unknown): number {
     cleaned = cleaned.replace(',', '.')
   }
   const num = Number(cleaned)
-  return Number.isFinite(num) ? num : 0
+  return Number.isFinite(num) ? Math.max(0, num) : 0
 }
 
 function formatDateLabel(value: string): string {

@@ -129,6 +129,8 @@ export async function POST(request: NextRequest) {
               // Insert new stock data for this location
               // Stock files: kolom A = ERP code, kolom C = quantity
               // Use empty string for item_number if column is NOT NULL, otherwise null
+              // Negatieve waarden op 0 zetten
+              const clamp = (v: any) => Math.max(0, Number(v) || 0)
               const { error: insertError } = await supabaseAdmin
                 .from('grote_inpak_stock')
                 .insert(
@@ -136,11 +138,11 @@ export async function POST(request: NextRequest) {
                     erp_code: item.erp_code,
                     kistnummer: item.kistnummer,
                     location: item.location,
-                    quantity: item.quantity,
-                    stock: item.stock || 0,
-                    inkoop: item.inkoop || 0,
-                    productie: item.productie || 0,
-                    in_transfer: item.in_transfer || 0,
+                    quantity: clamp(item.quantity),
+                    stock: clamp(item.stock),
+                    inkoop: clamp(item.inkoop),
+                    productie: clamp(item.productie),
+                    in_transfer: clamp(item.in_transfer),
                     item_number: '', // Use empty string instead of null to avoid NOT NULL constraint
                   }))
                 )
@@ -418,13 +420,14 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
     if (!erpCode || erpCode.length < 2) { // Skip very short codes that are likely not ERP codes
       continue
     }
+    // Negatieve waarden uit stock files worden op 0 gezet
     const parseNumericCell = (cell: any): number => {
       if (!cell) return 0
       const cellValue = cell.v
+      let num = 0
       if (typeof cellValue === 'number') {
-        return Math.floor(Math.abs(cellValue))
-      }
-      if (typeof cellValue === 'string') {
+        num = Math.floor(cellValue)
+      } else if (typeof cellValue === 'string') {
         let cleanStr = cellValue.replace(/\s/g, '').trim()
         if (cleanStr.endsWith(',') && !cleanStr.includes('.')) {
           cleanStr = cleanStr.replace(/,$/, '')
@@ -432,9 +435,11 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
         cleanStr = cleanStr.replace(',', '.')
         cleanStr = cleanStr.replace(/[^\d.-]/g, '')
         const parsed = parseFloat(cleanStr)
-        return isNaN(parsed) ? 0 : Math.floor(Math.abs(parsed))
+        num = isNaN(parsed) ? 0 : Math.floor(parsed)
+      } else {
+        num = Math.floor(parseFloat(String(cellValue || '0')) || 0)
       }
-      return Math.floor(Math.abs(parseFloat(String(cellValue || '0')) || 0))
+      return Math.max(0, num)
     }
 
     let stock = 0

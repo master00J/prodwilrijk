@@ -52,7 +52,7 @@ export async function GET() {
       if (!kist) return
 
       const loc = String(s.location || '').toLowerCase()
-      const qty = Number(s.quantity || 0)
+      const qty = Math.max(0, Number(s.quantity || 0))
 
       if (!stockByKist.has(kist)) {
         stockByKist.set(kist, { genk: 0, willebroek: 0, wilrijk: 0, totaal: 0 })
@@ -72,7 +72,7 @@ export async function GET() {
       const bestelpunt = Math.ceil(maxVoorraad * 0.5) // 50% = bestelpunt (1 kanban leeg)
 
       const stock = stockByKist.get(kt) || { genk: 0, willebroek: 0, wilrijk: 0, totaal: 0 }
-      // Relevante stock = Willebroek (wat er in het rek ligt)
+      // Kanban stock = enkel Stock Willebroek (wat er in het rek ligt)
       const stockInRek = stock.willebroek
       const tekort = Math.max(0, maxVoorraad - stockInRek)
       // Besteladvies = afgerond op stapelhoogte
@@ -115,7 +115,7 @@ export async function GET() {
   }
 }
 
-// POST: Genereer besteladvies Excel voor Genk
+// POST: Genereer besteladvies Excel per locatie (Genk / Wilrijk apart)
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -128,91 +128,84 @@ export async function POST(request: NextRequest) {
     const wb = new ExcelJS.Workbook()
     const today = new Date().toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
-    // ── Sheet 1: Besteladvies ─────────────────────────────────────────────
-    const ws = wb.addWorksheet('Besteladvies')
-    ws.columns = [
-      { width: 12 }, // Kisttype
-      { width: 14 }, // Locatie
-      { width: 10 }, // Sectie
-      { width: 10 }, // Niveau
-      { width: 10 }, // Stapel
-      { width: 10 }, // Posities
-      { width: 14 }, // Max voorraad
-      { width: 14 }, // Stock in rek
-      { width: 12 }, // Tekort
-      { width: 14 }, // Bestellen (stuks)
-      { width: 12 }, // Verbruik/dag
-      { width: 12 }, // Status
-    ]
-
     const thin = { style: 'thin' as const }
     const border = { top: thin, left: thin, bottom: thin, right: thin }
-
-    // Titel
-    const titleRow = ws.addRow([`Besteladvies C-kisten Willebroek — ${today}`])
-    ws.mergeCells(1, 1, 1, 12)
-    titleRow.getCell(1).font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } }
-    titleRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } }
-    titleRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' }
-    titleRow.height = 28
-
-    ws.addRow([])
-
-    const headers = ['Kisttype', 'Prod.locatie', 'Sectie', 'Niveau', 'Stapel', 'Posities', 'Max voorraad', 'Stock in rek', 'Tekort', 'Bestellen (st)', 'Verbruik/dag', 'Status']
-    const hRow = ws.addRow(headers)
-    hRow.eachCell(cell => {
-      cell.style = {
-        font: { bold: true, color: { argb: 'FFFFFFFF' } },
-        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2E75B6' } },
-        alignment: { horizontal: 'center', vertical: 'middle' },
-        border,
-      }
-    })
-    hRow.height = 18
-
     const STATUS_COLORS: Record<string, string> = {
       'Leeg':     'FFFF0000',
       'Bestellen':'FFFF6600',
       'Laag':     'FFFFFF00',
       'Vol':      'FF92D050',
     }
+    const headers = ['Kisttype', 'Prod.locatie', 'Sectie', 'Niveau', 'Stapel', 'Posities', 'Max voorraad', 'Stock in rek', 'Tekort', 'Bestellen (st)', 'Verbruik/dag', 'Status']
 
-    toExport.forEach((row: any, i: number) => {
-      const fgColor = i % 2 === 0 ? 'FFFFFFFF' : 'FFF2F2F2'
-      const dRow = ws.addRow([
-        row.case_type,
-        row.productielocatie || '—',
-        row.rek_sectie || '—',
-        row.rek_niveau ? `Niveau ${row.rek_niveau}` : '—',
-        row.stapel,
-        row.posities,
-        row.max_voorraad,
-        row.stock_in_rek,
-        row.tekort,
-        row.bestel_aantal,
-        row.verbruik_per_dag ? Number(row.verbruik_per_dag).toFixed(2) : '—',
-        row.status,
-      ])
-      dRow.eachCell((cell, col) => {
+    const addBesteladviesSheet = (locatieLabel: string, data: any[]) => {
+      const ws = wb.addWorksheet(`Besteladvies ${locatieLabel}`)
+      ws.columns = [
+        { width: 12 }, { width: 14 }, { width: 10 }, { width: 10 }, { width: 10 }, { width: 10 },
+        { width: 14 }, { width: 14 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 12 },
+      ]
+      const titleRow = ws.addRow([`Besteladvies C-kisten ${locatieLabel} — ${today}`])
+      ws.mergeCells(1, 1, 1, 12)
+      titleRow.getCell(1).font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } }
+      titleRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } }
+      titleRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' }
+      titleRow.height = 28
+      ws.addRow([])
+      const hRow = ws.addRow(headers)
+      hRow.eachCell(cell => {
         cell.style = {
-          fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: fgColor } },
+          font: { bold: true, color: { argb: 'FFFFFFFF' } },
+          fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2E75B6' } },
+          alignment: { horizontal: 'center', vertical: 'middle' },
           border,
-          alignment: { horizontal: col === 1 || col === 2 ? 'left' : 'center', vertical: 'middle' },
-        }
-        if (col === 12) {
-          const statusColor = STATUS_COLORS[row.status]
-          if (statusColor) {
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: statusColor } }
-            cell.font = { bold: true, color: { argb: row.status === 'Leeg' ? 'FFFFFFFF' : 'FF000000' } }
-          }
-        }
-        if (col === 10 && row.bestel_aantal > 0) {
-          cell.font = { bold: true, color: { argb: 'FFCC0000' } }
         }
       })
-    })
+      hRow.height = 18
+      data.forEach((row: any, i: number) => {
+        const fgColor = i % 2 === 0 ? 'FFFFFFFF' : 'FFF2F2F2'
+        const dRow = ws.addRow([
+          row.case_type,
+          row.productielocatie || '—',
+          row.rek_sectie || '—',
+          row.rek_niveau ? `Niveau ${row.rek_niveau}` : '—',
+          row.stapel,
+          row.posities,
+          row.max_voorraad,
+          row.stock_in_rek,
+          row.tekort,
+          row.bestel_aantal,
+          row.verbruik_per_dag ? Number(row.verbruik_per_dag).toFixed(2) : '—',
+          row.status,
+        ])
+        dRow.eachCell((cell, col) => {
+          cell.style = {
+            fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: fgColor } },
+            border,
+            alignment: { horizontal: col === 1 || col === 2 ? 'left' : 'center', vertical: 'middle' },
+          }
+          if (col === 12) {
+            const statusColor = STATUS_COLORS[row.status]
+            if (statusColor) {
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: statusColor } }
+              cell.font = { bold: true, color: { argb: row.status === 'Leeg' ? 'FFFFFFFF' : 'FF000000' } }
+            }
+          }
+          if (col === 10 && row.bestel_aantal > 0) {
+            cell.font = { bold: true, color: { argb: 'FFCC0000' } }
+          }
+        })
+      })
+    }
 
-    // ── Sheet 2: Volledig overzicht met stock per locatie ─────────────────
+    const locGenk = (loc: string) => String(loc || '').toLowerCase().includes('genk')
+    const locWilrijk = (loc: string) => String(loc || '').toLowerCase().includes('wilrijk')
+    const genkRows = toExport.filter((r: any) => locGenk(r.productielocatie))
+    const wilrijkRows = toExport.filter((r: any) => locWilrijk(r.productielocatie))
+
+    addBesteladviesSheet('Genk', genkRows)
+    addBesteladviesSheet('Wilrijk', wilrijkRows)
+
+    // ── Sheet 3: Volledig overzicht met stock per locatie ─────────────────
     const ws2 = wb.addWorksheet('Stock detail')
     ws2.columns = [
       { width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 12 },
