@@ -22,6 +22,8 @@ export default function ErpLinkTab() {
   const [uploading, setUploading] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [isAdding, setIsAdding] = useState(false)
+  const [filterLocatie, setFilterLocatie] = useState<string>('')
+  const [filterKisttype, setFilterKisttype] = useState<string>('')
   const [formData, setFormData] = useState<ErpLinkEntry>({
     kistnummer: '',
     erp_code: '',
@@ -239,6 +241,22 @@ export default function ErpLinkTab() {
     }
   }
 
+  const filteredEntries = entries.filter((entry) => {
+    if (filterLocatie) {
+      const loc = (entry.productielocatie || '').toLowerCase().trim()
+      const want = filterLocatie.toLowerCase()
+      if (want === 'genk' && !loc.includes('genk')) return false
+      if (want === 'wilrijk' && !loc.includes('wilrijk')) return false
+    }
+    if (filterKisttype) {
+      const kist = (entry.kistnummer || '').trim().toUpperCase()
+      const first = kist.charAt(0)
+      if (filterKisttype === 'C' && first !== 'C') return false
+      if (filterKisttype === 'K' && first !== 'K') return false
+    }
+    return true
+  })
+
   if (loading && entries.length === 0) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -295,6 +313,37 @@ export default function ErpLinkTab() {
           <span>ERP LINK bestand wordt geüpload en verwerkt...</span>
         </div>
       )}
+
+      <div className="flex flex-wrap items-center gap-4">
+        <span className="text-sm font-medium text-gray-700">Filter:</span>
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600">Locatie</label>
+          <select
+            value={filterLocatie}
+            onChange={(e) => setFilterLocatie(e.target.value)}
+            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="">Alle</option>
+            <option value="Genk">Genk</option>
+            <option value="Wilrijk">Wilrijk</option>
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600">Kisttype</label>
+          <select
+            value={filterKisttype}
+            onChange={(e) => setFilterKisttype(e.target.value)}
+            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="">Alle</option>
+            <option value="C">C-kisten</option>
+            <option value="K">K-kisten</option>
+          </select>
+        </div>
+        <span className="text-sm text-gray-500">
+          {filteredEntries.length} van {entries.length} rijen
+        </span>
+      </div>
 
       {(isAdding || editingId !== null) && (
         <div className="bg-white rounded-lg shadow p-6">
@@ -410,7 +459,7 @@ export default function ErpLinkTab() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {entries.map((entry) => (
+              {filteredEntries.map((entry) => (
                 <tr key={entry.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {entry.kistnummer}
