@@ -71,11 +71,12 @@ export async function GET(request: NextRequest) {
       const inTransferMap      = new Map<string, number>()
 
       if (caseTypes.length > 0) {
+        // 'productie' = kolom K uit stock file (Qty. on Prod. Order)
         const { data: stockRows } = await supabaseAdmin
           .from('grote_inpak_stock')
-          .select('kistnummer, erp_code, location, quantity, in_productie')
+          .select('kistnummer, erp_code, location, quantity, productie')
 
-        // Ook opzoeken via erp_code → kistnummer koppeling
+        // Bouw erp_code → kistnummer map voor items zonder kistnummer
         const erpToKist = new Map<string, string>()
         ;(stockRows || []).forEach((row: any) => {
           if (row.erp_code && row.kistnummer) {
@@ -90,7 +91,7 @@ export async function GET(request: NextRequest) {
 
           const loc = String(row.location || '').toLowerCase()
           const qty = Number(row.quantity) || 0
-          const prod = Number(row.in_productie) || 0
+          const prod = Number(row.productie) || 0  // 'productie' = Qty. on Prod. Order (kolom K)
 
           if (loc.includes('willebroek')) {
             stockWillebroekMap.set(kt, (stockWillebroekMap.get(kt) || 0) + qty)
