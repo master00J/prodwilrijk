@@ -42,6 +42,18 @@ export async function GET() {
       }
     })
 
+    // 3b. Fallback: cases-tabel heeft erp_code → case_type koppeling (zelfde als transport route)
+    const { data: casesLink } = await supabaseAdmin
+      .from('grote_inpak_cases')
+      .select('erp_code, case_type')
+    const erpToCaseType = new Map<string, string>()
+    ;(casesLink || []).forEach((c: any) => {
+      if (c.erp_code && c.case_type) {
+        const erpNorm = normalizeErpCode(c.erp_code)
+        if (erpNorm) erpToCaseType.set(erpNorm, String(c.case_type).toUpperCase().trim())
+      }
+    })
+
     // 4. Bouw stockmap per kistnummer per locatie (quantity + productie = Qty. on Prod. Order)
     const stockByKist = new Map<string, {
       genk: number
@@ -56,12 +68,13 @@ export async function GET() {
       const erpRaw = s.erp_code ? String(s.erp_code).trim() : ''
       const erpNorm = erpRaw ? normalizeErpCode(erpRaw) : null
       const itemNo = s.item_number ? String(s.item_number).toUpperCase().trim() : ''
-      if (!kist && erpNorm) {
-        kist = erpToKist.get(erpNorm) || null
-      }
-      if (!kist && itemNo) {
-        kist = erpToKist.get(normalizeErpCode(itemNo) || itemNo) || null
-      }
+      // 1. Via ERP LINK tabel
+      if (!kist && erpNorm) kist = erpToKist.get(erpNorm) || null
+      if (!kist && itemNo) kist = erpToKist.get(normalizeErpCode(itemNo) || itemNo) || null
+      // 2. Fallback: via cases-tabel (zelfde als transport route)
+      if (!kist && erpNorm) kist = erpToCaseType.get(erpNorm) || null
+      if (!kist && itemNo) kist = erpToCaseType.get(normalizeErpCode(itemNo) || itemNo) || null
+      // 3. Als de erp_code zelf al een C-code is
       if (!kist && erpNorm && /^C\d+/.test(erpNorm)) kist = erpNorm
       if (!kist && itemNo && /^C\d+/.test(itemNo)) kist = itemNo
       if (!kist) return
