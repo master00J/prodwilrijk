@@ -50,20 +50,14 @@ export async function POST(request: NextRequest) {
       auth: { user: smtpUser, pass: smtpPass },
     })
 
-    const aantalTeProduceren = renumbered.filter((r: any) => r.bestel_aantal > 0).length
-
     await transporter.sendMail({
       from: process.env.SMTP_FROM || smtpUser,
       to: TO_EMAIL,
       subject: `Dagelijkse order C kisten Genk ${today}`,
       html: `
-        <p>Beste,</p>
-        <p>In bijlage vind je de dagelijkse order voor C kisten <strong>Genk</strong> van <strong>${today}</strong>.</p>
-        <ul>
-          <li>Totaal kisttypen: <strong>${renumbered.length}</strong></li>
-          <li>Effectief te produceren: <strong>${aantalTeProduceren}</strong></li>
-        </ul>
-        <p>Met vriendelijke groeten,<br/>Prod Wilrijk systeem</p>
+        <p>Goedemorgen,</p>
+        <p>In bijlage status C kisten ${today}</p>
+        <p>Met vriendelijke groeten,<br/>Jason</p>
       `,
       attachments: [
         {
