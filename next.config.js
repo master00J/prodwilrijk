@@ -3,6 +3,10 @@ const webpack = require('webpack')
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  experimental: {
+    // Grote Excel-bestanden (bv. Stock Willebroek 10000+ rijen) toelaten
+    proxyClientMaxBodySize: '50mb',
+  },
   images: {
     domains: ['localhost'],
   },
