@@ -253,7 +253,7 @@ export default function ErpLinkTab() {
       const kist = (entry.kistnummer || '').trim().toUpperCase()
       const first = kist.charAt(0)
       if (filterKisttype === 'C' && first !== 'C') return false
-      if (filterKisttype === 'K' && first !== 'K') return false
+      if (filterKisttype === 'K' && first !== 'K' && first !== 'V') return false
     }
     return true
   })

@@ -124,11 +124,14 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Filter: kisttype
+    // Filter: kisttype (V = vaszak-variant van K, tel mee bij K-filter)
     if (caseType) {
-      result = result.filter(r =>
-        r.case_type.toUpperCase().startsWith(caseType.toUpperCase())
-      )
+      const ct = caseType.toUpperCase()
+      result = result.filter(r => {
+        const t = (r.case_type || '').toUpperCase()
+        if (ct === 'K') return t.startsWith('K') || t.startsWith('V')
+        return t.startsWith(ct)
+      })
     }
 
     // Sortering: meest gewijzigd bovenaan, dan op caselabel

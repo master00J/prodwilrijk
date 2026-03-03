@@ -49,7 +49,7 @@ export default function BacklogTab({ overview }: BacklogTabProps) {
 
   const kCases = backlog.filter(item => {
     const caseType = item.case_type?.toUpperCase() || ''
-    if (caseType.startsWith('K')) {
+    if (caseType.startsWith('K') || caseType.startsWith('V')) {
       const num = parseInt(caseType.substring(1), 10)
       return (num >= 1 && num <= 99) || (num >= 100 && num <= 999)
     }

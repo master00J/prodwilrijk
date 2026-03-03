@@ -10,11 +10,11 @@ export async function GET(request: NextRequest) {
     const sp = request.nextUrl.searchParams
     const onlyNotInWB = sp.get('only_not_in_wb') !== 'false' // default: true
 
-    // Haal alle Genk cases op die K-kisten zijn
+    // Haal alle Genk cases op die K-kisten zijn (incl. V = vaszak-variant van K)
     let query = supabaseAdmin
       .from('grote_inpak_cases')
       .select('case_label, case_type, arrival_date, item_number, erp_code, stapel, in_willebroek, productielocatie, deadline, dagen_te_laat')
-      .ilike('case_type', 'K%')
+      .or('case_type.ilike.K%,case_type.ilike.V%')
       .eq('productielocatie', 'Genk')
       .order('arrival_date', { ascending: true }) // oudste eerst = meest dringend
 
