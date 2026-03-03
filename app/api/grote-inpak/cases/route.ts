@@ -61,7 +61,11 @@ export async function GET(request: NextRequest) {
 
       // Stock + productie ophalen per kistnummer (= case_type)
       const caseTypes = [...new Set(
-        filteredData.map((item: any) => String(item.case_type || '').trim().toUpperCase()).filter(Boolean)
+        filteredData.flatMap((item: any) => {
+          const kt = String(item.case_type || '').trim().toUpperCase()
+          if (!kt) return []
+          return kt.startsWith('V') ? [kt, 'K' + kt.substring(1)] : [kt]
+        })
       )]
 
       const stockWillebroekMap = new Map<string, number>()
@@ -119,14 +123,16 @@ export async function GET(request: NextRequest) {
 
       filteredData = filteredData.map((item: any) => {
         const kt = String(item.case_type || '').trim().toUpperCase()
+        const ktAlt = kt.startsWith('V') ? 'K' + kt.substring(1) : null
+        const lookup = (m: Map<string, number>) => (m.get(kt) ?? 0) || (ktAlt ? (m.get(ktAlt) ?? 0) : 0)
         return {
           ...item,
           forecast_date:       forecastMap.get(item.case_label) ?? null,
-          stock_willebroek:    stockWillebroekMap.get(kt) ?? 0,
-          stock_genk:          stockGenkMap.get(kt) ?? 0,
-          stock_wilrijk:       stockWilrijkMap.get(kt) ?? 0,
-          in_productie_qty:    inProductieMap.get(kt) ?? 0,
-          in_transfer_qty:     inTransferMap.get(kt) ?? 0,
+          stock_willebroek:    lookup(stockWillebroekMap),
+          stock_genk:          lookup(stockGenkMap),
+          stock_wilrijk:       lookup(stockWilrijkMap),
+          in_productie_qty:    lookup(inProductieMap),
+          in_transfer_qty:     lookup(inTransferMap),
         }
       })
     }
