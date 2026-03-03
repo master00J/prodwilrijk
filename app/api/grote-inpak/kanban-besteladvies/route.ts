@@ -310,12 +310,12 @@ function buildDailyOrderWorkbook(locatieLabel: string, data: any[], today: strin
     '🟡 LAAG':                           'FFFFFF00',
     '🟢 OK':                             'FF92D050',
   }
-  const headers = ['Prioriteit', 'Actie', 'Kisttype', 'Prod.locatie', 'Max voorraad', 'Stock in rek', 'Stock Genk', 'Stock Wilrijk', 'In productie', 'In transfer', 'Op PILS', 'Tekort', 'Effectief te produceren', 'Verbruik/dag', 'Status']
+  const headers = ['Prioriteit', 'Kisttype', 'Prod.locatie', 'Max voorraad', 'Stock in rek', 'Stock Genk', 'Stock Wilrijk', 'In productie', 'In transfer', 'Op PILS', 'Tekort', 'Effectief te produceren', 'Verbruik/dag', 'Status']
   const numCols = headers.length
 
   const ws = wb.addWorksheet(`C kisten daily order ${locatieLabel}`)
   ws.columns = [
-    { width: 10 }, { width: 30 }, { width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 13 },
+    { width: 10 }, { width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 13 },
     { width: 12 }, { width: 12 }, { width: 10 }, { width: 12 }, { width: 22 }, { width: 13 }, { width: 12 },
   ]
   const titleRow = ws.addRow([`C kisten daily order ${locatieLabel} — ${today}`])
@@ -339,7 +339,6 @@ function buildDailyOrderWorkbook(locatieLabel: string, data: any[], today: strin
     const fgColor = i % 2 === 0 ? 'FFFFFFFF' : 'FFF2F2F2'
     const dRow = ws.addRow([
       row.priority_rank ?? i + 1,
-      row.actie || '🟢 OK',
       row.case_type,
       row.productielocatie || '—',
       row.max_voorraad,
@@ -358,38 +357,28 @@ function buildDailyOrderWorkbook(locatieLabel: string, data: any[], today: strin
       cell.style = {
         fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: fgColor } },
         border,
-        alignment: { horizontal: col === 3 || col === 4 ? 'left' : 'center', vertical: 'middle' },
+        alignment: { horizontal: col === 2 || col === 3 ? 'left' : 'center', vertical: 'middle' },
       }
-      // Actie kolom (col 2) — gekleurde achtergrond
-      if (col === 2) {
-        const actieColor = ACTIE_COLORS[row.actie || '🟢 OK']
-        if (actieColor) {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: actieColor } }
-          const isDark = ['FFFF0000', 'FFFF4444'].includes(actieColor)
-          cell.font = { bold: true, color: { argb: isDark ? 'FFFFFFFF' : 'FF000000' } }
-        }
-        cell.alignment = { horizontal: 'left', vertical: 'middle' }
-      }
-      // Stock Genk (col 7) — licht blauw als > 0
-      if (col === 7 && (row.stock_genk ?? 0) > 0) {
+      // Stock Genk (col 6) — licht blauw als > 0
+      if (col === 6 && (row.stock_genk ?? 0) > 0) {
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD6E4F0' } }
         cell.font = { bold: true, color: { argb: 'FF1F497D' } }
       }
-      // Stock Wilrijk (col 8) — licht blauw als > 0
-      if (col === 8 && (row.stock_wilrijk ?? 0) > 0) {
+      // Stock Wilrijk (col 7) — licht blauw als > 0
+      if (col === 7 && (row.stock_wilrijk ?? 0) > 0) {
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD6E4F0' } }
         cell.font = { bold: true, color: { argb: 'FF1F497D' } }
       }
-      // Status kolom (col 15)
-      if (col === 15) {
+      // Status kolom (col 14)
+      if (col === 14) {
         const statusColor = STATUS_COLORS[row.status]
         if (statusColor) {
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: statusColor } }
           cell.font = { bold: true, color: { argb: row.status === 'Leeg' ? 'FFFFFFFF' : 'FF000000' } }
         }
       }
-      // Effectief te produceren (col 13) — rood + vet als > 0
-      if (col === 13 && row.bestel_aantal > 0) {
+      // Effectief te produceren (col 12) — rood + vet als > 0
+      if (col === 12 && row.bestel_aantal > 0) {
         cell.font = { bold: true, color: { argb: 'FFCC0000' } }
       }
     })
