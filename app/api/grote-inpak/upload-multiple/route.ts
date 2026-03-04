@@ -45,7 +45,13 @@ export async function POST(request: NextRequest) {
         erpLinkData.forEach((row: any) => {
           const normalized = normalizeErpCode(row.erp_code)
           if (!normalized || !row.kistnummer) return
-          erpToKist.set(normalized, String(row.kistnummer).toUpperCase().trim())
+          const kist = String(row.kistnummer).toUpperCase().trim()
+          erpToKist.set(normalized, kist)
+          if (/^GP\d+$/i.test(normalized)) {
+            const numPart = normalized.replace(/^GP/i, '')
+            const asNum = parseInt(numPart, 10)
+            if (!isNaN(asNum)) erpToKist.set(String(asNum), kist)
+          }
         })
       }
 
@@ -91,7 +97,8 @@ export async function POST(request: NextRequest) {
               // Remove duplicates by erp_code before inserting (in case Excel has duplicate rows)
               const uniqueData = new Map<string, any>()
               for (const item of processedData) {
-                const key = `${item.erp_code}_${item.location}`
+                const canonErp = normalizeErpCode(item.erp_code) || item.erp_code
+                const key = `${canonErp}_${item.location}`
                 if (uniqueData.has(key)) {
                   // If duplicate, sum the quantities
                   const existing = uniqueData.get(key)
@@ -100,7 +107,7 @@ export async function POST(request: NextRequest) {
                   existing.inkoop += item.inkoop || 0
                   existing.productie += item.productie || 0
                   existing.in_transfer += item.in_transfer || 0
-                  console.log(`Found duplicate ERP code ${item.erp_code} in ${location}, summing quantities: ${existing.quantity - item.quantity} + ${item.quantity} = ${existing.quantity}`)
+                  console.log(`Found duplicate ERP code ${canonErp} in ${location}, summing quantities: ${existing.quantity - item.quantity} + ${item.quantity} = ${existing.quantity}`)
                 } else {
                   let kistnummer: string | null = null
                   const erpCodeStr = String(item.erp_code || '').toUpperCase().trim()
@@ -111,9 +118,13 @@ export async function POST(request: NextRequest) {
                     if (normalized && erpToKist.has(normalized)) {
                       kistnummer = erpToKist.get(normalized) || null
                     }
+                    if (!kistnummer && /^\d{4,8}$/.test(String(item.erp_code || ''))) {
+                      kistnummer = erpToKist.get(String(item.erp_code)) || null
+                    }
                   }
                   uniqueData.set(key, {
                     ...item,
+                    erp_code: canonErp,
                     stock: item.stock || 0,
                     inkoop: item.inkoop || 0,
                     productie: item.productie || 0,

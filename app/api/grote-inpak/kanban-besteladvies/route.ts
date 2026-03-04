@@ -63,6 +63,12 @@ export async function GET() {
         if (erpNorm) {
           kistToErp.set(kist, erpNorm)
           erpToKist.set(erpNorm, kist)
+          // Fallback: GP-codes ook als cijfer-only (Excel slaat soms 6064 op i.p.v. GP006064)
+          if (/^GP\d+$/i.test(erpNorm)) {
+            const numPart = erpNorm.replace(/^GP/i, '')
+            const asNum = parseInt(numPart, 10)
+            if (!isNaN(asNum)) erpToKist.set(String(asNum), kist)
+          }
         }
       }
     })
@@ -120,6 +126,7 @@ export async function GET() {
       const itemNo = s.item_number ? String(s.item_number).toUpperCase().trim() : ''
       // 1. Via ERP LINK tabel
       if (!kist && erpNorm) kist = erpToKist.get(erpNorm) || null
+      if (!kist && erpRaw && /^\d{4,8}$/.test(erpRaw)) kist = erpToKist.get(erpRaw) || null
       if (!kist && itemNo) kist = erpToKist.get(normalizeErpCode(itemNo) || itemNo) || null
       // 2. Fallback: via cases-tabel
       if (!kist && erpNorm) kist = erpToCaseType.get(erpNorm) || null
