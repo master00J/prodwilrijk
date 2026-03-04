@@ -9,49 +9,93 @@ const TO_EMAIL = 'prodwilrijk@foresco.eu'
 
 async function fetchKKistenForExcel(): Promise<any[]> {
   try {
-    const baseUrl = process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : process.env.NEXTAUTH_URL || 'http://localhost:3000'
-    const res = await fetch(`${baseUrl}/api/grote-inpak/genk-urgency?only_not_in_wb=false`)
-    if (!res.ok) return []
-    const json = await res.json()
-    const kData = json.data || []
+    const { data: cases } = await supabaseAdmin
+      .from('grote_inpak_cases')
+      .select('case_label, case_type, arrival_date, erp_code, stapel')
+      .or('case_type.ilike.K%,case_type.ilike.V%')
+      .eq('productielocatie', 'Genk')
+
+    if (!cases || cases.length === 0) return []
+
+    const { data: stockData } = await supabaseAdmin
+      .from('grote_inpak_stock')
+      .select('erp_code, location, quantity, kistnummer, productie')
+
+    const { data: erpLink } = await supabaseAdmin
+      .from('grote_inpak_erp_link')
+      .select('kistnummer, erp_code')
 
     const { data: transferRows } = await supabaseAdmin
       .from('grote_inpak_transfer')
       .select('kistnummer, quantity')
+
+    const erpToKist = new Map<string, string>()
+    ;(erpLink || []).forEach((e: any) => {
+      if (e.erp_code && e.kistnummer) {
+        erpToKist.set(String(e.erp_code).toUpperCase().trim(), String(e.kistnummer).toUpperCase().trim())
+      }
+    })
+
+    const stockByKist = new Map<string, Map<string, number>>()
+    const productieByKist = new Map<string, number>()
+    ;(stockData || []).forEach((s: any) => {
+      let kist = s.kistnummer ? String(s.kistnummer).toUpperCase().trim() : null
+      if (!kist && s.erp_code) kist = erpToKist.get(String(s.erp_code).toUpperCase().trim()) || null
+      if (!kist) return
+
+      const loc = String(s.location || '').toLowerCase()
+      const qty = Number(s.quantity || 0)
+      const prod = Number(s.productie || 0)
+      if (!stockByKist.has(kist)) stockByKist.set(kist, new Map())
+      stockByKist.get(kist)!.set(loc, (stockByKist.get(kist)!.get(loc) || 0) + qty)
+      if (prod > 0) productieByKist.set(kist, (productieByKist.get(kist) || 0) + prod)
+    })
+
     const transferByKist = new Map<string, number>()
     ;(transferRows || []).forEach((row: any) => {
       const kt = row.kistnummer ? String(row.kistnummer).toUpperCase().trim() : ''
       if (kt) transferByKist.set(kt, (transferByKist.get(kt) || 0) + Number(row.quantity || 0))
     })
 
-    const kRows: any[] = kData.map((r: any) => {
-      const stockGenk = r.stock_genk ?? 0
-      const stockWillebroek = r.stock_willebroek ?? 0
-      const stockWilrijk = r.stock_wilrijk ?? 0
-      const inTransfer = transferByKist.get(r.case_type) || 0
-      const beschikbaar = stockGenk + stockWillebroek + stockWilrijk + inTransfer
-      const tekort = Math.max(0, (r.total_count || 0) - beschikbaar)
+    const grouped = new Map<string, { case_type: string; total_count: number }>()
+    ;(cases || []).forEach((c: any) => {
+      const kt = String(c.case_type || '').toUpperCase().trim()
+      if (!grouped.has(kt)) grouped.set(kt, { case_type: kt, total_count: 0 })
+      grouped.get(kt)!.total_count++
+    })
+
+    const kRows: any[] = []
+    grouped.forEach((data, caseType) => {
+      const stockMap = stockByKist.get(caseType) || new Map()
+      let stockGenk = 0, stockWB = 0, stockWilrijk = 0
+      stockMap.forEach((qty, loc) => {
+        if (loc.includes('genk')) stockGenk += qty
+        else if (loc.includes('willebroek') || loc === 'wlb') stockWB += qty
+        else if (loc.includes('wilrijk')) stockWilrijk += qty
+      })
+      const inProductie = productieByKist.get(caseType) || 0
+      const inTransfer = transferByKist.get(caseType) || 0
+      const beschikbaar = stockGenk + stockWB + stockWilrijk + inTransfer
+      const tekort = Math.max(0, data.total_count - beschikbaar)
       const status =
         tekort > 0 && beschikbaar === 0 ? 'Leeg'
         : tekort > 0 ? 'Productie aanmaken'
-        : beschikbaar < (r.total_count || 0) ? 'Gedekt'
+        : beschikbaar < data.total_count ? 'Gedekt'
         : 'Vol'
 
-      return {
-        case_type: r.case_type,
+      kRows.push({
+        case_type: caseType,
         productielocatie: 'Genk',
-        max_voorraad: r.total_count ?? 0,
-        stock_in_rek: stockWillebroek,
+        max_voorraad: data.total_count,
+        stock_in_rek: stockWB,
         stock_genk: stockGenk,
         stock_wilrijk: stockWilrijk,
-        in_productie: r.stock_in_productie ?? 0,
+        in_productie: inProductie,
         in_transfer: inTransfer,
-        op_pils: r.total_count ?? 0,
+        op_pils: data.total_count,
         tekort,
         status,
-      }
+      })
     })
 
     kRows.sort((a, b) => {
@@ -61,7 +105,8 @@ async function fetchKKistenForExcel(): Promise<any[]> {
       return String(a.case_type || '').localeCompare(String(b.case_type || ''))
     })
     return kRows.map((r, i) => ({ ...r, priority_rank: i + 1 }))
-  } catch {
+  } catch (err) {
+    console.error('fetchKKistenForExcel:', err)
     return []
   }
 }
