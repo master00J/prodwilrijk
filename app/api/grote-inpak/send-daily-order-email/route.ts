@@ -119,11 +119,15 @@ async function fetchKKistenForExcel(productieWilrijkByKist: Map<string, number>)
       const tekortTotaal = Math.max(0, data.total_count - beschikbaar)
       // Excel is Genk-gericht: productie in Wilrijk hoeft Genk niet te doen → effectief 0
       const tekort = Math.max(0, tekortTotaal - inProductieWilrijk)
-      const status =
+      const statusRaw =
         tekortTotaal > 0 && beschikbaar === 0 ? 'Leeg'
         : tekortTotaal > 0 ? 'Productie aanmaken'
         : beschikbaar < data.total_count ? 'Gedekt'
         : 'Vol'
+      const status = statusRaw === 'Vol' ? 'Ok'
+        : statusRaw === 'Leeg' || statusRaw === 'Productie aanmaken'
+          ? (inProductie > 0 ? 'In productie leggen' : 'Productie aanmaken en inleggen')
+        : statusRaw
 
       kRows.push({
         case_type: caseType,
