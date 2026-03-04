@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
         stockMap.forEach((qty, loc) => {
           const l = loc.toLowerCase()
           if (l.includes('genk')) stockGenk += qty
-          else if (l.includes('willebroek') || l === 'wlb') stockWB += qty
+          else if (l.includes('willebroek') || l === 'wlb' || l.includes('items (64)') || l.includes('items(64)')) stockWB += qty
           else if (l.includes('wilrijk')) stockWilrijk += qty
           else if (l.includes('productie') || l.includes('prod')) stockProd += qty
         })

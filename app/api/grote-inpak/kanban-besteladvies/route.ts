@@ -152,7 +152,7 @@ export async function GET() {
       if (loc.includes('genk')) {
         entry.genk += qty
         entry.prod_genk += productie
-      } else if (loc.includes('willebroek') || loc.includes('wlb') || loc.includes('pac3pl')) {
+      } else if (loc.includes('willebroek') || loc.includes('wlb') || loc.includes('pac3pl') || loc.includes('items (64)') || loc.includes('items(64)')) {
         entry.willebroek += qty
         entry.prod_willebroek += productie
       } else if (loc.includes('wilrijk')) {

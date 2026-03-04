@@ -264,13 +264,15 @@ function extractLocationFromFilename(filename: string): string {
   // Elke file heeft de locatie in de naam, zodat de stock aan de juiste locatie wordt toegewezen (niet uit de Excel-inhoud).
   const name = filename.replace(/\.(xlsx|xls)$/i, '').trim()
   
-  // Normalize common location names
+  // Normalize common location names (incl. NAV/BC warehouse codes zoals "Items (64)")
   const locationMap: { [key: string]: string } = {
     'willebroek': 'Willebroek',
     'wilrijk': 'Wilrijk',
     'wlb': 'Willebroek',
     'pac3pl': 'Willebroek',
     'genk': 'Genk',
+    'items (64)': 'Willebroek',
+    'items(64)': 'Willebroek',
   }
   
   // Try to find location in filename (case-insensitive)
@@ -285,6 +287,9 @@ function extractLocationFromFilename(filename: string): string {
   }
   if (lowerName.includes('genk')) {
     return 'Genk'
+  }
+  if (lowerName.includes('items (64)') || lowerName.includes('items(64)')) {
+    return 'Willebroek'
   }
   
   // Try to extract after "Stock" or "Stock in"

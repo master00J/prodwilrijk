@@ -185,7 +185,7 @@ async function generateTransportPlanningExcel(
           normalized = 'K' + normalized.substring(1)
         }
 
-        if (location.includes('willebroek') || location === 'wlb') {
+        if (location.includes('willebroek') || location === 'wlb' || location.includes('items (64)') || location.includes('items(64)')) {
           const current = wlbStockMap.get(normalized) || 0
           wlbStockMap.set(normalized, current + (item.quantity || item.stock || 0))
         }

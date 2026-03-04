@@ -184,7 +184,7 @@ async function buildOverview(
     const hasKistInWB = kistStockEntries.some((entry: any) => {
       const location = String(entry.location || '').toLowerCase()
       const quantity = Number(entry.quantity || 0)
-      return quantity > 0 && (location.includes('willebroek') || location === 'wlb')
+      return quantity > 0 && (location.includes('willebroek') || location === 'wlb' || location.includes('items (64)') || location.includes('items(64)'))
     })
     if (hasKistInWB) return true
     
@@ -194,7 +194,7 @@ async function buildOverview(
       const hasErpInWB = erpStockEntries.some((entry: any) => {
         const location = String(entry.location || '').toLowerCase()
         const quantity = Number(entry.quantity || 0)
-        return quantity > 0 && (location.includes('willebroek') || location === 'wlb')
+        return quantity > 0 && (location.includes('willebroek') || location === 'wlb' || location.includes('items (64)') || location.includes('items(64)'))
       })
       if (hasErpInWB) return true
     }
@@ -313,7 +313,7 @@ async function buildOverview(
       const kistStockEntries = stockMapByKistnummer.get(normalizedCaseType) || []
       const wbEntry = kistStockEntries.find((entry: any) => {
         const location = String(entry.location || '').toLowerCase()
-        return location.includes('willebroek') || location === 'wlb'
+        return location.includes('willebroek') || location === 'wlb' || location.includes('items (64)') || location.includes('items(64)')
       })
       
       if (wbEntry) {
@@ -322,7 +322,7 @@ async function buildOverview(
         const erpStockEntries = stockMapByErpCode.get(String(erpCode).trim()) || []
         const wbErpEntry = erpStockEntries.find((entry: any) => {
           const location = String(entry.location || '').toLowerCase()
-          return location.includes('willebroek') || location === 'wlb'
+          return location.includes('willebroek') || location === 'wlb' || location.includes('items (64)') || location.includes('items(64)')
         })
         if (wbErpEntry) {
           stockLocationFromStock = wbErpEntry.location || 'Willebroek'

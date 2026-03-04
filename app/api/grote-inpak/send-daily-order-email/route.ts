@@ -48,7 +48,7 @@ async function fetchStockForCKisten(caseTypes: string[]): Promise<Map<string, { 
       if (!stockByKist.has(kist)) stockByKist.set(kist, { genk: 0, willebroek: 0, wilrijk: 0 })
       const e = stockByKist.get(kist)!
       if (loc.includes('genk')) e.genk += qty
-      else if (loc.includes('willebroek') || loc.includes('wlb') || loc.includes('pac3pl')) e.willebroek += qty
+      else if (loc.includes('willebroek') || loc.includes('wlb') || loc.includes('pac3pl') || loc.includes('items (64)') || loc.includes('items(64)')) e.willebroek += qty
       else if (loc.includes('wilrijk')) e.wilrijk += qty
     })
   } catch (_) {}
@@ -191,7 +191,7 @@ async function fetchKKistenForExcel(
       let stockGenk = 0, stockWB = 0, stockWilrijk = 0
       stockMap.forEach((qty, loc) => {
         if (loc.includes('genk')) stockGenk += qty
-        else if (loc.includes('willebroek') || loc === 'wlb' || loc.includes('pac3pl')) stockWB += qty
+        else if (loc.includes('willebroek') || loc === 'wlb' || loc.includes('pac3pl') || loc.includes('items (64)') || loc.includes('items(64)')) stockWB += qty
         else if (loc.includes('wilrijk')) stockWilrijk += qty
       })
       const inProductie = productieByKist.get(caseType) || 0

@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
       const inTransfer = parseNumber(row.in_transfer)
       if (![qty, stock, inkoop, productie, inTransfer].some((val) => Number.isFinite(val))) return
       const loc = String(row.location || '').toLowerCase()
-      const locKey = loc.includes('genk') ? 'Genk' : loc.includes('wilrijk') ? 'Wilrijk' : loc.includes('willebroek') || loc.includes('wlb') || loc.includes('pac3pl') ? 'Willebroek' : loc.includes('transfer') ? 'Transfer' : null
+      const locKey = loc.includes('genk') ? 'Genk' : loc.includes('wilrijk') ? 'Wilrijk' : loc.includes('willebroek') || loc.includes('wlb') || loc.includes('pac3pl') || loc.includes('items (64)') || loc.includes('items(64)') ? 'Willebroek' : loc.includes('transfer') ? 'Transfer' : null
       if (loc.includes('transfer')) {
         transferByCase.set(caseType, (transferByCase.get(caseType) || 0) + (Number.isFinite(inTransfer) ? inTransfer : 0))
       } else {

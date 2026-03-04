@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Download, RefreshCw, Plus, Pencil, Trash2, AlertTriangle, CheckCircle, Package, ShoppingCart, LayoutGrid, Mail } from 'lucide-react'
+import { Download, RefreshCw, Plus, Pencil, Trash2, AlertTriangle, CheckCircle, Package, ShoppingCart, LayoutGrid, Mail, Search, ChevronDown, ChevronUp } from 'lucide-react'
 
 // ── Types ─────────────────────────────────────────────────────────────────
 interface KanbanConfig {
@@ -78,6 +78,10 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
   const [inlineEditValues, setInlineEditValues] = useState<{ stapel: number; posities: number; stapels_per_pos: number }>({ stapel: 1, posities: 1, stapels_per_pos: 2 })
   const [inlineSaving, setInlineSaving] = useState(false)
   const [zoekterm, setZoekterm] = useState('')
+  const [diagnostiekOpen, setDiagnostiekOpen] = useState(false)
+  const [diagnostiekKist, setDiagnostiekKist] = useState('C830')
+  const [diagnostiekResult, setDiagnostiekResult] = useState<any>(null)
+  const [diagnostiekLoading, setDiagnostiekLoading] = useState(false)
 
   // Rekindeling (config) state
   const [config, setConfig] = useState<KanbanConfig[]>([])
@@ -243,6 +247,23 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
     setShowForm(true)
   }
 
+  const runStockDiagnostiek = async () => {
+    const kist = diagnostiekKist.trim()
+    if (!kist) return
+    setDiagnostiekLoading(true)
+    setDiagnostiekResult(null)
+    try {
+      const res = await fetch(`/api/grote-inpak/stock-diagnostic?kist=${encodeURIComponent(kist)}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Fout bij ophalen')
+      setDiagnostiekResult(data)
+    } catch (e: any) {
+      setDiagnostiekResult({ error: e.message })
+    } finally {
+      setDiagnostiekLoading(false)
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -391,6 +412,59 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
               </ul>
             </div>
           )}
+
+          {/* Stock diagnostiek */}
+          <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setDiagnostiekOpen(!diagnostiekOpen)}
+              className="w-full flex items-center justify-between px-4 py-2 bg-gray-50 hover:bg-gray-100 text-sm font-medium text-gray-700"
+            >
+              <span className="flex items-center gap-2">
+                <Search className="w-4 h-4" /> Stock diagnostiek — bekijk wat er in de DB staat voor een kist
+              </span>
+              {diagnostiekOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+            {diagnostiekOpen && (
+              <div className="p-4 bg-white border-t border-gray-200 space-y-3">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={diagnostiekKist}
+                    onChange={e => setDiagnostiekKist(e.target.value)}
+                    placeholder="C830 of GP006064"
+                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm w-40 font-mono"
+                  />
+                  <button
+                    onClick={runStockDiagnostiek}
+                    disabled={diagnostiekLoading || !diagnostiekKist.trim()}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gray-700 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50"
+                  >
+                    <Search className="w-4 h-4" />
+                    {diagnostiekLoading ? 'Ophalen...' : 'Diagnostiek'}
+                  </button>
+                </div>
+                {diagnostiekResult && (
+                  <pre className="text-xs bg-gray-900 text-green-400 p-4 rounded-lg overflow-x-auto max-h-80 overflow-y-auto">
+                    {diagnostiekResult.error
+                      ? JSON.stringify({ error: diagnostiekResult.error }, null, 2)
+                      : JSON.stringify(
+                          {
+                            kist_gezocht: diagnostiekResult.kist_gezocht,
+                            erp_link: diagnostiekResult.erp_link,
+                            erp_norm: diagnostiekResult.erp_norm,
+                            alle_locaties_in_stock: diagnostiekResult.alle_locaties_in_stock,
+                            stock_rijen: diagnostiekResult.stock_rijen,
+                            stock_totaal_in_db: diagnostiekResult.stock_totaal_in_db,
+                          },
+                          null,
+                          2
+                        )}
+                  </pre>
+                )}
+              </div>
+            )}
+          </div>
 
           {bestelLoading ? (
             <div className="py-12 text-center text-gray-400">Laden...</div>
