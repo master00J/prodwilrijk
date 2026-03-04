@@ -184,7 +184,7 @@ export async function POST(request: NextRequest) {
       let kt = normalizeCaseType(row.kistnummer || '')
       if (!kt && row.erp_code) {
         const erpNorm = normalizeErpCode(String(row.erp_code))
-        kt = caseByErp.get(erpNorm) || erpToCaseType.get(erpNorm) || ''
+        if (erpNorm) kt = caseByErp.get(erpNorm) || erpToCaseType.get(erpNorm) || ''
         if (kt) kt = normalizeCaseType(kt)
       }
       if (!kt) return
