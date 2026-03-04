@@ -51,7 +51,7 @@ export function buildDailyOrderWorkbook(locatieLabel: string, data: any[], today
       row.in_transfer ?? 0,
       row.op_pils ?? 0,
       row.tekort,
-      row.bestel_aantal,
+      row.tekort,
       row.status,
     ])
     dRow.eachCell((cell, col) => {
@@ -75,7 +75,7 @@ export function buildDailyOrderWorkbook(locatieLabel: string, data: any[], today
           cell.font = { bold: true, color: { argb: STATUS_FONT_WHITE.has(row.status) ? 'FFFFFFFF' : 'FF000000' } }
         }
       }
-      if (col === 12 && row.bestel_aantal > 0) {
+      if (col === 12 && row.tekort > 0) {
         cell.font = { bold: true, color: { argb: 'FFCC0000' } }
       }
     })

@@ -477,13 +477,7 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
                             <span className={row.tekort > 0 ? 'text-red-700 font-medium' : 'text-gray-400'}>{row.tekort > 0 ? row.tekort : '—'}</span>
                           </td>
                           <td className="px-4 py-3 text-center">
-                            {row.bestel_aantal > 0 ? (
-                              <span className="inline-flex items-center gap-1 bg-red-100 text-red-800 font-bold text-sm px-3 py-1 rounded-full">
-                                <ShoppingCart className="w-3.5 h-3.5" /> {row.bestel_aantal} st
-                              </span>
-                            ) : (
-                              <span className="text-gray-300">—</span>
-                            )}
+                            <span className={row.tekort > 0 ? 'text-red-700 font-medium' : 'text-gray-400'}>{row.tekort > 0 ? row.tekort : '—'}</span>
                           </td>
                           <td className="px-4 py-3 text-center">
                             {inlineEditId === row.id ? (

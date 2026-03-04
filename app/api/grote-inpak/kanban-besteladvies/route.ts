@@ -160,9 +160,10 @@ export async function GET() {
       const inTransfer = transferByKist.get(kt) || 0
       // Tekort = wat er fysiek in de rek ontbreekt (status van de rek)
       const tekort = Math.max(0, maxVoorraad - stockInRek)
-      // Effectief te produceren houdt rekening met: PILS (directe vraag), stock elders, in productie, in transfer
+      // Effectief te produceren = tekort minus wat al fysiek bestaat of onderweg is
+      // "In productie" = order aangemaakt, NIET al geproduceerd → telt niet mee als beschikbaar
       const stockNaPils = stockInRek - opPils
-      const effectiefTekort = Math.max(0, maxVoorraad - stockNaPils - stockElders - inProductie - inTransfer)
+      const effectiefTekort = Math.max(0, maxVoorraad - stockNaPils - stockElders - inTransfer)
       const bestelAantal = effectiefTekort > 0 ? Math.ceil(effectiefTekort / row.stapel) * row.stapel : 0
 
       const oudstePils = oldestPilsDateByKist.get(kt) || null
@@ -214,9 +215,10 @@ export async function GET() {
       }
     })
 
-    // Sorteer: tier eerst, dan tekort aflopend (meest urgent), dan oudste PILS datum
+    // Sorteer: tier eerst, dan stock in rek laag → hoog (bijna leeg = urgenter), dan tekort aflopend, dan oudste PILS
     const sorted = (result as any[]).sort((a, b) => {
       if (a._priority_tier !== b._priority_tier) return a._priority_tier - b._priority_tier
+      if (a.stock_in_rek !== b.stock_in_rek) return a.stock_in_rek - b.stock_in_rek // Lager stock = urgenter
       if (b._tekort !== a._tekort) return b._tekort - a._tekort
       const dateA = a.oldest_pils_date || '9999-99-99'
       const dateB = b.oldest_pils_date || '9999-99-99'
