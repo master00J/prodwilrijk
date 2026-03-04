@@ -139,6 +139,7 @@ export async function POST(request: NextRequest) {
     const stockByCaseByLoc = new Map<string, Map<string, number>>() // caseType -> loc -> qty
     const inkoopByCase = new Map<string, number>()
     const productieByCase = new Map<string, number>()
+    const productieByCaseByLoc = new Map<string, Map<string, number>>() // caseType -> loc -> qty
     const transferByCase = new Map<string, number>()
     ;(stockData || []).forEach((row: StockRow) => {
       const erpCodeRaw = String(row.erp_code || '').trim()
@@ -173,8 +174,12 @@ export async function POST(request: NextRequest) {
         if (Number.isFinite(inkoop)) {
           inkoopByCase.set(caseType, (inkoopByCase.get(caseType) || 0) + inkoop)
         }
-        if (Number.isFinite(productie)) {
+        if (Number.isFinite(productie) && productie > 0) {
           productieByCase.set(caseType, (productieByCase.get(caseType) || 0) + productie)
+          if (locKey) {
+            if (!productieByCaseByLoc.has(caseType)) productieByCaseByLoc.set(caseType, new Map())
+            productieByCaseByLoc.get(caseType)!.set(locKey, (productieByCaseByLoc.get(caseType)!.get(locKey) || 0) + productie)
+          }
         }
       }
     })
@@ -245,7 +250,7 @@ export async function POST(request: NextRequest) {
     if (filtered.length === 0) {
       const wb = new ExcelJS.Workbook()
       const ws = wb.addWorksheet('Forecast')
-      ws.addRow(['GP CODE', 'kist', 'Totaal al in productie order', 'Totaal forecast', 'Totaal nog in productie order te leggen', 'op_stock', 'in_transfer', 'in_inkooporder'])
+      ws.addRow(['GP CODE', 'kist', 'Totaal al in productie order', 'Totaal forecast', 'Totaal nog in productie order te leggen', 'op stock', 'stock genk', 'stock wilrijk', 'stock willebroek', 'in transfer', 'in inkooporder', 'productie genk', 'productie wilrijk', 'productie willebroek'])
       const header = ws.getRow(1)
       header.font = { bold: true }
       header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'D9D9D9' } }
@@ -323,15 +328,23 @@ export async function POST(request: NextRequest) {
         const totalForecast = filteredDateCols.reduce((sum, date) => sum + Number(row[date] || 0), 0)
         row['Totaal forecast'] = totalForecast
         const kist = String(row['kist'])
+        const stockMap = stockByCaseByLoc.get(kist)
+        const prodMap = productieByCaseByLoc.get(kist)
         const opStock = stockByCase.get(kist) || 0
         const inTransfer = transferByCase.get(kist) || 0
         const inInkoop = inkoopByCase.get(kist) || 0
         const alInProd = productieByCase.get(kist) || 0
         const beschikbaar = opStock + inTransfer + inInkoop + alInProd
-        row['op_stock'] = opStock
-        row['in_transfer'] = inTransfer
-        row['in_inkooporder'] = inInkoop
+        row['op stock'] = opStock
+        row['stock genk'] = stockMap?.get('Genk') ?? 0
+        row['stock wilrijk'] = stockMap?.get('Wilrijk') ?? 0
+        row['stock willebroek'] = stockMap?.get('Willebroek') ?? 0
+        row['in transfer'] = inTransfer
+        row['in inkooporder'] = inInkoop
         row['Totaal al in productie order'] = alInProd
+        row['productie genk'] = prodMap?.get('Genk') ?? 0
+        row['productie wilrijk'] = prodMap?.get('Wilrijk') ?? 0
+        row['productie willebroek'] = prodMap?.get('Willebroek') ?? 0
         row['Totaal nog in productie order te leggen'] = Math.max(0, Math.round(totalForecast - beschikbaar))
         return totalForecast >= 0
       })
@@ -345,9 +358,15 @@ export async function POST(request: NextRequest) {
         output['Totaal al in productie order'] = row['Totaal al in productie order'] ?? 0
         output['Totaal forecast'] = row['Totaal forecast'] ?? 0
         output['Totaal nog in productie order te leggen'] = row['Totaal nog in productie order te leggen'] ?? 0
-        output['op_stock'] = row['op_stock'] ?? 0
-        output['in_transfer'] = row['in_transfer'] ?? 0
-        output['in_inkooporder'] = row['in_inkooporder'] ?? 0
+        output['op stock'] = row['op stock'] ?? 0
+        output['stock genk'] = row['stock genk'] ?? 0
+        output['stock wilrijk'] = row['stock wilrijk'] ?? 0
+        output['stock willebroek'] = row['stock willebroek'] ?? 0
+        output['in transfer'] = row['in transfer'] ?? 0
+        output['in inkooporder'] = row['in inkooporder'] ?? 0
+        output['productie genk'] = row['productie genk'] ?? 0
+        output['productie wilrijk'] = row['productie wilrijk'] ?? 0
+        output['productie willebroek'] = row['productie willebroek'] ?? 0
         output._coverage = row._coverage
         return output
       })
@@ -355,7 +374,7 @@ export async function POST(request: NextRequest) {
     const wb = new ExcelJS.Workbook()
     const ws = wb.addWorksheet('Forecast')
 
-    const forecastColumns = ['GP CODE', 'kist', ...filteredDateCols, 'Totaal al in productie order', 'Totaal forecast', 'Totaal nog in productie order te leggen', 'op_stock', 'in_transfer', 'in_inkooporder']
+    const forecastColumns = ['GP CODE', 'kist', ...filteredDateCols, 'Totaal al in productie order', 'Totaal forecast', 'Totaal nog in productie order te leggen', 'op stock', 'stock genk', 'stock wilrijk', 'stock willebroek', 'in transfer', 'in inkooporder', 'productie genk', 'productie wilrijk', 'productie willebroek']
     ws.addRow(forecastColumns)
     finalRows.forEach((row) => {
       ws.addRow(forecastColumns.map((col) => (col.startsWith('Totaal') ? row[col] : row[col]) ?? ''))
@@ -401,18 +420,21 @@ export async function POST(request: NextRequest) {
     const statusSheet = wb.addWorksheet('Status')
     const statusColumns = [
       'BC CODE',
-      'case_type',
+      'case type',
       'productielocatie',
-      'forecast_aantal',
-      'op_pils',
-      'stock_genk',
-      'stock_wilrijk',
-      'stock_willebroek',
-      'op_stock',
-      'in_transfer',
-      'in_productie',
-      'in_inkooporder',
-      'nog_te_produceren',
+      'forecast aantal',
+      'op pils',
+      'stock genk',
+      'stock wilrijk',
+      'stock willebroek',
+      'op stock',
+      'in transfer',
+      'productie genk',
+      'productie wilrijk',
+      'productie willebroek',
+      'in productie',
+      'in inkooporder',
+      'nog te produceren',
     ]
 
     const pilsByCaseLoc = new Map<string, number>()
@@ -442,32 +464,39 @@ export async function POST(request: NextRequest) {
       const forecastAantal = (forecastByCaseLoc.get(key) || 0) + (pilsByCaseLoc.get(key) || 0)
       const opPils = pilsByCaseLoc.get(key) || 0
       const stockMap = stockByCaseByLoc.get(normalizedCase)
+      const prodMap = productieByCaseByLoc.get(normalizedCase)
       const stockGenk = stockMap?.get('Genk') || 0
       const stockWilrijk = stockMap?.get('Wilrijk') || 0
       const stockWillebroek = stockMap?.get('Willebroek') || 0
       const opStock = stockByCase.get(normalizedCase) || 0
       const inTransfer = transferByCase.get(normalizedCase) || 0
       const inProductie = productieByCase.get(normalizedCase) || 0
+      const prodGenk = prodMap?.get('Genk') || 0
+      const prodWilrijk = prodMap?.get('Wilrijk') || 0
+      const prodWillebroek = prodMap?.get('Willebroek') || 0
       const inInkoop = inkoopByCase.get(normalizedCase) || 0
       const nettoNodig = Math.max(0, opPils - (opStock + inTransfer + inInkoop))
       statusRows.push({
         'BC CODE': erpByCase.get(normalizedCase)?.erp_code || 'Special',
-        case_type: normalizedCase,
+        'case type': normalizedCase,
         productielocatie: loc,
-        forecast_aantal: forecastAantal,
-        op_pils: opPils,
-        stock_genk: stockGenk,
-        stock_wilrijk: stockWilrijk,
-        stock_willebroek: stockWillebroek,
-        op_stock: opStock,
-        in_transfer: inTransfer,
-        in_productie: inProductie,
-        in_inkooporder: inInkoop,
-        nog_te_produceren: nettoNodig,
+        'forecast aantal': forecastAantal,
+        'op pils': opPils,
+        'stock genk': stockGenk,
+        'stock wilrijk': stockWilrijk,
+        'stock willebroek': stockWillebroek,
+        'op stock': opStock,
+        'in transfer': inTransfer,
+        'productie genk': prodGenk,
+        'productie wilrijk': prodWilrijk,
+        'productie willebroek': prodWillebroek,
+        'in productie': inProductie,
+        'in inkooporder': inInkoop,
+        'nog te produceren': nettoNodig,
       })
     })
 
-    statusRows.sort((a, b) => String(a.case_type).localeCompare(String(b.case_type)))
+    statusRows.sort((a, b) => String(a['case type']).localeCompare(String(b['case type'])))
 
     statusSheet.mergeCells(1, 1, 1, statusColumns.length)
     statusSheet.getCell(1, 1).value = `Status ${location}`
@@ -490,16 +519,22 @@ export async function POST(request: NextRequest) {
 
     const prioritySheet = wb.addWorksheet('Prioriteit')
     const priorityColumns = [
-      'priority_rank',
-      'case_type',
-      'kist_categorie',
-      'arrival_date',
-      'aantal_op_pils',
-      'op_stock',
-      'in_productie',
-      'in_inkooporder',
-      'in_transfer',
-      'totaal_beschikbaar',
+      'priority rank',
+      'case type',
+      'kist categorie',
+      'arrival date',
+      'aantal op pils',
+      'op stock',
+      'stock genk',
+      'stock wilrijk',
+      'stock willebroek',
+      'in transfer',
+      'productie genk',
+      'productie wilrijk',
+      'productie willebroek',
+      'in productie',
+      'in inkooporder',
+      'totaal beschikbaar',
       'tekort',
       'productielocatie',
       'BC CODE',
@@ -527,43 +562,56 @@ export async function POST(request: NextRequest) {
     pilsGrouped.forEach((data, caseType) => {
       if (String(data.loc).toLowerCase() !== location.toLowerCase()) return
       const normalizedCase = normalizeCaseType(caseType)
+      const stockMap = stockByCaseByLoc.get(normalizedCase)
+      const prodMap = productieByCaseByLoc.get(normalizedCase)
       const opStock = stockByCase.get(normalizedCase) || 0
+      const stockGenk = stockMap?.get('Genk') || 0
+      const stockWilrijk = stockMap?.get('Wilrijk') || 0
+      const stockWillebroek = stockMap?.get('Willebroek') || 0
       const inTransfer = transferByCase.get(normalizedCase) || 0
       const inProductie = productieByCase.get(normalizedCase) || 0
+      const prodGenk = prodMap?.get('Genk') || 0
+      const prodWilrijk = prodMap?.get('Wilrijk') || 0
+      const prodWillebroek = prodMap?.get('Willebroek') || 0
       const inInkoop = inkoopByCase.get(normalizedCase) || 0
-      // Fysiek beschikbaar: stock + transfer + inkoop. "In productie" = order, niet beschikbaar.
       const total = opStock + inInkoop + inTransfer
       if (data.count <= total) return
       const kategoriematch = String(normalizedCase).trim().toUpperCase().match(/^([KC])/)
       const kistCategorie = kategoriematch ? kategoriematch[1] : 'Overig'
       priorityRows.push({
-        case_type: normalizedCase,
-        kist_categorie: kistCategorie,
-        arrival_date: data.arrival ? formatDateLabel(data.arrival) : '',
-        aantal_op_pils: data.count,
-        op_stock: opStock,
-        in_productie: inProductie,
-        in_inkooporder: inInkoop,
-        in_transfer: inTransfer,
-        totaal_beschikbaar: total,
+        'case type': normalizedCase,
+        'kist categorie': kistCategorie,
+        'arrival date': data.arrival ? formatDateLabel(data.arrival) : '',
+        'aantal op pils': data.count,
+        'op stock': opStock,
+        'stock genk': stockGenk,
+        'stock wilrijk': stockWilrijk,
+        'stock willebroek': stockWillebroek,
+        'in transfer': inTransfer,
+        'productie genk': prodGenk,
+        'productie wilrijk': prodWilrijk,
+        'productie willebroek': prodWillebroek,
+        'in productie': inProductie,
+        'in inkooporder': inInkoop,
+        'totaal beschikbaar': total,
         tekort: Math.max(0, data.count - total),
         productielocatie: data.loc,
         'BC CODE': erpByCase.get(caseType)?.erp_code || 'Special',
       })
     })
 
-    // Sorteer: eerst stock laag → hoog (bijna leeg = urgenter), dan arrival_date, dan case_type
+    // Sorteer: eerst stock laag → hoog (bijna leeg = urgenter), dan arrival date, dan case type
     priorityRows.sort((a, b) => {
-      const stockA = Number(a.op_stock ?? 0)
-      const stockB = Number(b.op_stock ?? 0)
+      const stockA = Number(a['op stock'] ?? 0)
+      const stockB = Number(b['op stock'] ?? 0)
       if (stockA !== stockB) return stockA - stockB
-      const da = new Date(String(a.arrival_date || ''))
-      const db = new Date(String(b.arrival_date || ''))
+      const da = new Date(String(a['arrival date'] || ''))
+      const db = new Date(String(b['arrival date'] || ''))
       if (da.getTime() !== db.getTime()) return da.getTime() - db.getTime()
-      return String(a.case_type || '').localeCompare(String(b.case_type || ''))
+      return String(a['case type'] || '').localeCompare(String(b['case type'] || ''))
     })
     priorityRows.forEach((row, index) => {
-      row.priority_rank = index + 1
+      row['priority rank'] = index + 1
     })
 
     prioritySheet.mergeCells(1, 1, 1, priorityColumns.length)
