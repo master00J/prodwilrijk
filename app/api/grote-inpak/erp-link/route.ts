@@ -4,9 +4,12 @@ import { normalizeKistnummer } from '@/lib/utils/erp-code-normalizer'
 
 export const dynamic = 'force-dynamic'
 
-// GET - Fetch all ERP LINK entries
+// GET - Fetch all ERP LINK entries (query param ?sync_kanban=1 om ontbrekende kisten naar Kanban te syncen)
 export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = request.nextUrl
+    const syncKanban = searchParams.get('sync_kanban') === '1'
+
     const { data, error } = await supabaseAdmin
       .from('grote_inpak_erp_link')
       .select('*')
@@ -16,10 +19,34 @@ export async function GET(request: NextRequest) {
       throw error
     }
 
+    if (syncKanban && data && data.length > 0) {
+      for (const row of data) {
+        const kist = normalizeKistnummer(row.kistnummer)
+        if (!kist) continue
+        const prodLoc = row.productielocatie ? (String(row.productielocatie).toLowerCase().includes('genk') ? 'Genk' : 'Wilrijk') : 'Wilrijk'
+        await supabaseAdmin
+          .from('grote_inpak_kanban_config')
+          .upsert({
+            case_type: kist,
+            rek_sectie: 'Links',
+            rek_niveau: 4,
+            rek_kolom: 99,
+            productielocatie: prodLoc,
+            stapel: 1,
+            posities: 1,
+            stapels_per_pos: 2,
+            verbruik_per_dag: null,
+            prioriteit: 'low',
+            actief: true,
+          }, { onConflict: 'case_type' })
+      }
+    }
+
     return NextResponse.json({
       success: true,
       data: data || [],
       count: data?.length || 0,
+      ...(syncKanban && { _synced_kanban: true }),
     })
   } catch (error: any) {
     console.error('Error fetching ERP LINK data:', error)
@@ -75,6 +102,26 @@ export async function POST(request: NextRequest) {
         )
       }
       throw error
+    }
+
+    // Sync naar Kanban config: nieuwe kist moet ook in rekindeling staan voor stock/Excel
+    const kistNorm = normalizeKistnummer(kistnummer)
+    if (kistNorm) {
+      await supabaseAdmin
+        .from('grote_inpak_kanban_config')
+        .upsert({
+          case_type: kistNorm,
+          rek_sectie: 'Links',
+          rek_niveau: 4,
+          rek_kolom: 99,
+          productielocatie: normalizedProductielocatie || 'Wilrijk',
+          stapel: 1,
+          posities: 1,
+          stapels_per_pos: 2,
+          verbruik_per_dag: null,
+          prioriteit: 'low',
+          actief: true,
+        }, { onConflict: 'case_type' })
     }
 
     return NextResponse.json({

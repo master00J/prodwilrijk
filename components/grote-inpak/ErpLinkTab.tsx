@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Edit2, Trash2, Save, X, Upload, AlertCircle, Copy } from 'lucide-react'
+import { Plus, Edit2, Trash2, Save, X, Upload, AlertCircle, Copy, RefreshCw } from 'lucide-react'
 
 interface ErpLinkEntry {
   id?: number
@@ -25,6 +25,7 @@ export default function ErpLinkTab() {
   const [filterLocatie, setFilterLocatie] = useState<string>('')
   const [filterKisttype, setFilterKisttype] = useState<string>('')
   const [copyMessage, setCopyMessage] = useState<string | null>(null)
+  const [syncingKanban, setSyncingKanban] = useState(false)
   const [formData, setFormData] = useState<ErpLinkEntry>({
     kistnummer: '',
     erp_code: '',
@@ -33,23 +34,42 @@ export default function ErpLinkTab() {
     stapel: 1,
   })
 
-  const loadEntries = useCallback(async () => {
+  const loadEntries = useCallback(async (syncKanban = false) => {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch('/api/grote-inpak/erp-link')
+      const response = await fetch(`/api/grote-inpak/erp-link${syncKanban ? '?sync_kanban=1' : ''}`)
       if (!response.ok) {
         throw new Error('Failed to load ERP LINK data')
       }
       const result = await response.json()
       setEntries(result.data || [])
+      return result._synced_kanban
     } catch (err: any) {
       setError(err.message || 'Error loading ERP LINK data')
       console.error('Error loading ERP LINK:', err)
+      return false
     } finally {
       setLoading(false)
     }
   }, [])
+
+  const handleSyncKanban = async () => {
+    setSyncingKanban(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      const res = await fetch('/api/grote-inpak/erp-link?sync_kanban=1')
+      if (!res.ok) throw new Error('Sync mislukt')
+      const result = await res.json()
+      setEntries(result.data || [])
+      setSuccess('Alle ERP LINK kisten zijn gesynchroniseerd naar Kanban Rekken. Stock/Excel zou nu correct moeten koppelen.')
+    } catch (err: any) {
+      setError(err.message || 'Sync mislukt')
+    } finally {
+      setSyncingKanban(false)
+    }
+  }
 
   useEffect(() => {
     loadEntries()
@@ -307,6 +327,15 @@ export default function ErpLinkTab() {
               disabled={uploading}
             />
           </label>
+          <button
+            onClick={handleSyncKanban}
+            disabled={syncingKanban || entries.length === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 transition-colors"
+            title="Zorgt dat alle kisten uit ERP LINK ook in Kanban Rekken staan (nodig voor stock/Excel koppeling)"
+          >
+            <RefreshCw className={`w-4 h-4 ${syncingKanban ? 'animate-spin' : ''}`} />
+            {syncingKanban ? 'Syncen...' : 'Sync naar Kanban'}
+          </button>
           <button
             onClick={handleAdd}
             className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
