@@ -18,8 +18,8 @@ function mapStatusForDisplay(status: string, inProductie: number): string {
   return status || ''
 }
 
-const headersC = ['Prioriteit', 'Kisttype', 'Prod.locatie', 'Max voorraad', 'Stock in rek', 'Stock Genk', 'Stock Wilrijk', 'In productie', 'In transfer', 'Op PILS', 'Tekort', 'Effectief te produceren', 'Status']
-const headersK = ['Prioriteit', 'Kisttype', 'Prod.locatie', 'Stock Genk', 'Stock Wilrijk', 'In productie', 'In transfer', 'Op PILS', 'Tekort', 'Effectief te produceren', 'Status']
+const headersC = ['Prioriteit', 'Kisttype', 'Prod.locatie', 'Max voorraad', 'Stock in rek', 'Stock Genk', 'Stock Wilrijk', 'Prod. Genk', 'Prod. Wilrijk', 'Prod. Willebroek', 'In transfer', 'Op PILS', 'Tekort', 'Effectief te produceren', 'Status']
+const headersK = ['Prioriteit', 'Kisttype', 'Prod.locatie', 'Stock Genk', 'Stock Wilrijk', 'Stock Willebroek', 'Prod. Genk', 'Prod. Wilrijk', 'Prod. Willebroek', 'In transfer', 'Op PILS', 'Tekort', 'Effectief te produceren', 'Status']
 
 function addDailyOrderSheet(
   wb: ExcelJS.Workbook,
@@ -35,12 +35,12 @@ function addDailyOrderSheet(
   const ws = wb.addWorksheet(sheetTitle)
   ws.columns = variant === 'k'
     ? [
-        { width: 10 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 13 },
-        { width: 12 }, { width: 12 }, { width: 10 }, { width: 12 }, { width: 22 }, { width: 16 },
+        { width: 10 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 13 }, { width: 14 },
+        { width: 11 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 10 }, { width: 10 }, { width: 22 }, { width: 16 },
       ]
     : [
         { width: 10 }, { width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 13 },
-        { width: 12 }, { width: 12 }, { width: 10 }, { width: 12 }, { width: 22 }, { width: 16 },
+        { width: 11 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 12 }, { width: 10 }, { width: 22 }, { width: 16 },
       ]
 
   const titleRow = ws.addRow([`${titleLabel} — ${today}`])
@@ -66,16 +66,17 @@ function addDailyOrderSheet(
     return [
       row.priority_rank ?? i + 1, row.case_type, row.productielocatie || '—',
       row.max_voorraad, row.stock_in_rek, row.stock_genk ?? 0, row.stock_wilrijk ?? 0,
-      row.in_productie ?? 0, row.in_transfer ?? 0, row.op_pils ?? 0,
-      row.tekort, row.tekort, status,
+      row.in_productie_genk ?? 0, row.in_productie_wilrijk ?? 0, row.in_productie_willebroek ?? 0,
+      row.in_transfer ?? 0, row.op_pils ?? 0, row.tekort, row.tekort, status,
     ]
   }
   const rowValuesK = (row: any, i: number) => {
     const status = mapStatusForDisplay(row.status || '', row.in_productie ?? 0)
     return [
       row.priority_rank ?? i + 1, row.case_type, row.productielocatie || '—',
-      row.stock_genk ?? 0, row.stock_wilrijk ?? 0, row.in_productie ?? 0, row.in_transfer ?? 0,
-      row.op_pils ?? 0, row.tekort, row.tekort, status,
+      row.stock_genk ?? 0, row.stock_wilrijk ?? 0, row.stock_willebroek ?? row.stock_in_rek ?? 0,
+      row.in_productie_genk ?? 0, row.in_productie_wilrijk ?? 0, row.in_productie_willebroek ?? 0,
+      row.in_transfer ?? 0, row.op_pils ?? 0, row.tekort, row.tekort, status,
     ]
   }
 
@@ -85,8 +86,9 @@ function addDailyOrderSheet(
     const dRow = ws.addRow(values)
     const colStockGenk = variant === 'k' ? 4 : 6
     const colStockWilrijk = variant === 'k' ? 5 : 7
-    const colEffectief = variant === 'k' ? 10 : 12
-    const colStatus = variant === 'k' ? 11 : 13
+    const colStockWillebroek = variant === 'k' ? 6 : 0
+    const colEffectief = variant === 'k' ? 13 : 14
+    const colStatus = variant === 'k' ? 14 : 15
 
     dRow.eachCell((cell, col) => {
       cell.style = {
@@ -99,6 +101,10 @@ function addDailyOrderSheet(
         cell.font = { bold: true, color: { argb: 'FF1F497D' } }
       }
       if (col === colStockWilrijk && (row.stock_wilrijk ?? 0) > 0) {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD6E4F0' } }
+        cell.font = { bold: true, color: { argb: 'FF1F497D' } }
+      }
+      if (variant === 'k' && col === colStockWillebroek && ((row.stock_willebroek ?? row.stock_in_rek ?? 0) > 0)) {
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD6E4F0' } }
         cell.font = { bold: true, color: { argb: 'FF1F497D' } }
       }

@@ -99,13 +99,16 @@ export async function GET() {
       transferByKist.set(kist, (transferByKist.get(kist) || 0) + qty)
     })
 
-    // 4. Bouw stockmap per kistnummer per locatie (quantity + productie = Qty. on Prod. Order)
+    // 4. Bouw stockmap per kistnummer per locatie (quantity + productie per locatie)
     const stockByKist = new Map<string, {
       genk: number
       willebroek: number
       wilrijk: number
       totaal: number
-      in_productie: number  // som van alle locaties (Genk + Willebroek + Wilrijk)
+      in_productie: number
+      prod_genk: number
+      prod_wilrijk: number
+      prod_willebroek: number
     }>()
 
     ;(stockRaw || []).forEach((s: any) => {
@@ -129,18 +132,20 @@ export async function GET() {
       const productie = Math.max(0, Number(s.productie || 0))
 
       if (!stockByKist.has(kist)) {
-        stockByKist.set(kist, { genk: 0, willebroek: 0, wilrijk: 0, totaal: 0, in_productie: 0 })
+        stockByKist.set(kist, { genk: 0, willebroek: 0, wilrijk: 0, totaal: 0, in_productie: 0, prod_genk: 0, prod_wilrijk: 0, prod_willebroek: 0 })
       }
       const entry = stockByKist.get(kist)!
       if (loc.includes('genk')) {
         entry.genk += qty
+        entry.prod_genk += productie
       } else if (loc.includes('willebroek') || loc.includes('wlb') || loc.includes('pac3pl')) {
         entry.willebroek += qty
+        entry.prod_willebroek += productie
       } else if (loc.includes('wilrijk')) {
         entry.wilrijk += qty
+        entry.prod_wilrijk += productie
       }
       entry.totaal += qty
-      // In productie = som van Qty. on Prod. Order over alle locaties
       entry.in_productie += productie
     })
 
@@ -204,6 +209,9 @@ export async function GET() {
         stock_in_rek: stockInRek,
         stock_elders: stockElders,
         in_productie: inProductie,
+        in_productie_genk: stock.prod_genk ?? 0,
+        in_productie_wilrijk: stock.prod_wilrijk ?? 0,
+        in_productie_willebroek: stock.prod_willebroek ?? 0,
         in_transfer: inTransfer,
         op_pils: opPils,
         tekort,

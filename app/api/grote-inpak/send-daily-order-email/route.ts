@@ -137,6 +137,7 @@ async function fetchKKistenForExcel(
 
     const stockByKist = new Map<string, Map<string, number>>()
     const productieByKist = new Map<string, number>()
+    const productieByKistPerLoc = new Map<string, { genk: number; wilrijk: number; willebroek: number }>()
     ;(stockData || []).forEach((s: any) => {
       let kist = s.kistnummer ? normalizeKistnummer(s.kistnummer) : null
       const erpNorm = s.erp_code ? normalizeErpCode(s.erp_code) : null
@@ -155,7 +156,14 @@ async function fetchKKistenForExcel(
       const prod = Number(s.productie || 0)
       if (!stockByKist.has(kist)) stockByKist.set(kist, new Map())
       stockByKist.get(kist)!.set(loc, (stockByKist.get(kist)!.get(loc) || 0) + qty)
-      if (prod > 0) productieByKist.set(kist, (productieByKist.get(kist) || 0) + prod)
+      if (prod > 0) {
+        productieByKist.set(kist, (productieByKist.get(kist) || 0) + prod)
+        if (!productieByKistPerLoc.has(kist)) productieByKistPerLoc.set(kist, { genk: 0, wilrijk: 0, willebroek: 0 })
+        const ploc = productieByKistPerLoc.get(kist)!
+        if (loc.includes('genk')) ploc.genk += prod
+        else if (loc.includes('wilrijk')) ploc.wilrijk += prod
+        else if (loc.includes('willebroek') || loc === 'wlb' || loc.includes('pac3pl')) ploc.willebroek += prod
+      }
     })
 
     const transferByKist = new Map<string, number>()
@@ -187,11 +195,11 @@ async function fetchKKistenForExcel(
         else if (loc.includes('wilrijk')) stockWilrijk += qty
       })
       const inProductie = productieByKist.get(caseType) || 0
+      const prodPerLoc = productieByKistPerLoc.get(caseType) || { genk: 0, wilrijk: 0, willebroek: 0 }
       const inProductieAndereLoc = productieAndereLocByKist.get(caseType) || 0
       const inTransfer = transferByKist.get(caseType) || 0
       const beschikbaar = stockGenk + stockWB + stockWilrijk + inTransfer
       const tekortTotaal = Math.max(0, data.total_count - beschikbaar)
-      // Productie in andere locatie hoeft deze locatie niet te doen → effectief 0
       const tekort = Math.max(0, tekortTotaal - inProductieAndereLoc)
       const statusRaw =
         tekortTotaal > 0 && beschikbaar === 0 ? 'Leeg'
@@ -210,7 +218,11 @@ async function fetchKKistenForExcel(
         stock_in_rek: stockWB,
         stock_genk: stockGenk,
         stock_wilrijk: stockWilrijk,
+        stock_willebroek: stockWB,
         in_productie: inProductie,
+        in_productie_genk: prodPerLoc.genk,
+        in_productie_wilrijk: prodPerLoc.wilrijk,
+        in_productie_willebroek: prodPerLoc.willebroek,
         in_transfer: inTransfer,
         op_pils: data.total_count,
         tekort,
