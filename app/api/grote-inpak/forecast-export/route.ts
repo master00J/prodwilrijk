@@ -21,6 +21,7 @@ type ErpRow = {
 type StockRow = {
   erp_code: string | null
   kistnummer?: string | null
+  item_number?: string | null
   quantity: number | null
   location?: string | null
   stock?: number | null
@@ -99,15 +100,15 @@ export async function POST(request: NextRequest) {
     )
     const stockData = await fetchAllRows<StockRow>(
       'grote_inpak_stock',
-      'erp_code, kistnummer, quantity, location, stock, inkoop, productie, in_transfer'
+      'erp_code, kistnummer, quantity, location, stock, inkoop, productie, in_transfer, item_number'
     )
-    const casesData = await fetchAllRows<CaseRow>(
+    const casesData = await fetchAllRows<CaseRow & { erp_code?: string | null }>(
       'grote_inpak_cases',
-      'case_label, case_type, arrival_date'
+      'case_label, case_type, arrival_date, erp_code'
     )
-    const transferData = await fetchAllRows<{ kistnummer: string | null; quantity: number }>(
+    const transferData = await fetchAllRows<{ kistnummer: string | null; erp_code: string | null; quantity: number }>(
       'grote_inpak_transfer',
-      'kistnummer, quantity'
+      'kistnummer, erp_code, quantity'
     )
 
     const pilsLabels = new Set(
@@ -125,6 +126,14 @@ export async function POST(request: NextRequest) {
         caseByErp.set(normalized, caseType)
       }
     })
+    const erpToCaseType = new Map<string, string>()
+    ;(casesData || []).forEach((c: CaseRow & { erp_code?: string | null }) => {
+      const caseType = c.case_type ? normalizeCaseType(c.case_type) : null
+      if (c.erp_code && caseType) {
+        const erpNorm = normalizeErpCode(String(c.erp_code))
+        if (erpNorm) erpToCaseType.set(erpNorm, caseType)
+      }
+    })
 
     const stockByCase = new Map<string, number>()
     const stockByCaseByLoc = new Map<string, Map<string, number>>() // caseType -> loc -> qty
@@ -135,11 +144,12 @@ export async function POST(request: NextRequest) {
       const erpCodeRaw = String(row.erp_code || '').trim()
       const erpCode = normalizeErpCode(erpCodeRaw) || erpCodeRaw
       const kistnummer = normalizeCaseType((row as any).kistnummer || '')
-      if (!erpCode && !kistnummer) return
-      let caseType = kistnummer || caseByErp.get(erpCode)
-      if (!caseType && /^[KVC]/i.test(erpCode)) {
-        caseType = normalizeCaseType(erpCode)
-      }
+      const itemNo = row.item_number ? String(row.item_number).toUpperCase().trim() : ''
+      if (!erpCode && !kistnummer && !itemNo) return
+      let caseType = kistnummer || caseByErp.get(erpCode) || (itemNo ? caseByErp.get(normalizeErpCode(itemNo) || itemNo) : null)
+      if (!caseType) caseType = erpToCaseType.get(erpCode) || (itemNo ? erpToCaseType.get(normalizeErpCode(itemNo) || itemNo) : null)
+      if (!caseType && erpCode && /^[KVC]\d+/.test(erpCode)) caseType = normalizeCaseType(erpCode)
+      if (!caseType && itemNo && /^[KVC]\d+/.test(itemNo)) caseType = normalizeCaseType(itemNo)
       caseType = normalizeCaseType(caseType || '')
       if (!caseType) return
       const qty = parseNumber(row.quantity)
@@ -171,7 +181,12 @@ export async function POST(request: NextRequest) {
 
     // Transferorders (grote_inpak_transfer) — al geproduceerd, onderweg via ERP LINK
     ;(transferData || []).forEach((row) => {
-      const kt = normalizeCaseType(row.kistnummer || '')
+      let kt = normalizeCaseType(row.kistnummer || '')
+      if (!kt && row.erp_code) {
+        const erpNorm = normalizeErpCode(String(row.erp_code))
+        kt = caseByErp.get(erpNorm) || erpToCaseType.get(erpNorm) || ''
+        if (kt) kt = normalizeCaseType(kt)
+      }
       if (!kt) return
       transferByCase.set(kt, (transferByCase.get(kt) || 0) + parseNumber(row.quantity))
     })
@@ -230,7 +245,7 @@ export async function POST(request: NextRequest) {
     if (filtered.length === 0) {
       const wb = new ExcelJS.Workbook()
       const ws = wb.addWorksheet('Forecast')
-      ws.addRow(['GP CODE', 'kist', 'Totaal al in productie order', 'Totaal forecast', 'Totaal nog in productie order te leggen'])
+      ws.addRow(['GP CODE', 'kist', 'Totaal al in productie order', 'Totaal forecast', 'Totaal nog in productie order te leggen', 'op_stock', 'in_transfer', 'in_inkooporder'])
       const header = ws.getRow(1)
       header.font = { bold: true }
       header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'D9D9D9' } }
@@ -308,8 +323,14 @@ export async function POST(request: NextRequest) {
         const totalForecast = filteredDateCols.reduce((sum, date) => sum + Number(row[date] || 0), 0)
         row['Totaal forecast'] = totalForecast
         const kist = String(row['kist'])
+        const opStock = stockByCase.get(kist) || 0
+        const inTransfer = transferByCase.get(kist) || 0
+        const inInkoop = inkoopByCase.get(kist) || 0
         const alInProd = productieByCase.get(kist) || 0
-        const beschikbaar = (stockByCase.get(kist) || 0) + (inkoopByCase.get(kist) || 0) + (transferByCase.get(kist) || 0) + alInProd
+        const beschikbaar = opStock + inTransfer + inInkoop + alInProd
+        row['op_stock'] = opStock
+        row['in_transfer'] = inTransfer
+        row['in_inkooporder'] = inInkoop
         row['Totaal al in productie order'] = alInProd
         row['Totaal nog in productie order te leggen'] = Math.max(0, Math.round(totalForecast - beschikbaar))
         return totalForecast >= 0
@@ -324,6 +345,9 @@ export async function POST(request: NextRequest) {
         output['Totaal al in productie order'] = row['Totaal al in productie order'] ?? 0
         output['Totaal forecast'] = row['Totaal forecast'] ?? 0
         output['Totaal nog in productie order te leggen'] = row['Totaal nog in productie order te leggen'] ?? 0
+        output['op_stock'] = row['op_stock'] ?? 0
+        output['in_transfer'] = row['in_transfer'] ?? 0
+        output['in_inkooporder'] = row['in_inkooporder'] ?? 0
         output._coverage = row._coverage
         return output
       })
@@ -331,7 +355,7 @@ export async function POST(request: NextRequest) {
     const wb = new ExcelJS.Workbook()
     const ws = wb.addWorksheet('Forecast')
 
-    const forecastColumns = ['GP CODE', 'kist', ...filteredDateCols, 'Totaal al in productie order', 'Totaal forecast', 'Totaal nog in productie order te leggen']
+    const forecastColumns = ['GP CODE', 'kist', ...filteredDateCols, 'Totaal al in productie order', 'Totaal forecast', 'Totaal nog in productie order te leggen', 'op_stock', 'in_transfer', 'in_inkooporder']
     ws.addRow(forecastColumns)
     finalRows.forEach((row) => {
       ws.addRow(forecastColumns.map((col) => (col.startsWith('Totaal') ? row[col] : row[col]) ?? ''))
