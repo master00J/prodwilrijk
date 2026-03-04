@@ -249,6 +249,25 @@ export async function POST(request: NextRequest) {
 
     if (filtered.length === 0) {
       const wb = new ExcelJS.Workbook()
+      const legendaWs = wb.addWorksheet('Legenda')
+      legendaWs.mergeCells(1, 1, 1, 2)
+      legendaWs.getCell(1, 1).value = 'Legenda — Betekenis kleuren in Forecast-tabblad'
+      legendaWs.getCell(1, 1).font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } }
+      legendaWs.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2E75B6' } }
+      legendaWs.addRow([])
+      ;[
+        ['Kleur', 'Betekenis'],
+        ['Groen', 'Volledig gedekt'],
+        ['Geel', 'Gedeeltelijk gedekt'],
+        ['Rood', 'Niet gedekt'],
+      ].forEach(([label, uitleg], i) => {
+        const r = legendaWs.addRow([label, uitleg])
+        if (i === 0) { r.font = { bold: true }; r.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'D9D9D9' } } }
+        else if (label === 'Groen') r.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'C6EFCE' } }
+        else if (label === 'Geel') r.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEB9C' } }
+        else if (label === 'Rood') r.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC7CE' } }
+      })
+      legendaWs.columns = [{ width: 14 }, { width: 70 }]
       const ws = wb.addWorksheet('Forecast')
       ws.addRow(['GP CODE', 'kist', 'Totaal al in productie order', 'Totaal forecast', 'Totaal nog in productie order te leggen', 'op stock', 'stock genk', 'stock wilrijk', 'stock willebroek', 'in transfer', 'in inkooporder', 'productie genk', 'productie wilrijk', 'productie willebroek'])
       const header = ws.getRow(1)
@@ -372,6 +391,41 @@ export async function POST(request: NextRequest) {
       })
 
     const wb = new ExcelJS.Workbook()
+
+    // Legenda als eerste tabblad
+    const legendaSheet = wb.addWorksheet('Legenda')
+    legendaSheet.mergeCells(1, 1, 1, 2)
+    legendaSheet.getCell(1, 1).value = 'Legenda — Betekenis kleuren in Forecast-tabblad'
+    legendaSheet.getCell(1, 1).font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } }
+    legendaSheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2E75B6' } }
+    legendaSheet.getCell(1, 1).alignment = { horizontal: 'left', vertical: 'middle' }
+    legendaSheet.addRow([])
+    const legendaData = [
+      ['Kleur', 'Betekenis'],
+      ['Groen', 'Volledig gedekt — vraag is gedekt door stock, transfer, inkoop of productie'],
+      ['Geel', 'Gedeeltelijk gedekt — een deel van de vraag is gedekt'],
+      ['Rood', 'Niet gedekt — nog productie order nodig'],
+    ]
+    legendaData.forEach(([label, uitleg], i) => {
+      const r = legendaSheet.addRow([label, uitleg])
+      if (i === 0) {
+        r.font = { bold: true }
+        r.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'D9D9D9' } }
+      } else if (label === 'Groen') {
+        r.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'C6EFCE' } }
+      } else if (label === 'Geel') {
+        r.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEB9C' } }
+      } else if (label === 'Rood') {
+        r.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC7CE' } }
+      }
+    })
+    legendaSheet.columns = [{ width: 14 }, { width: 70 }]
+    legendaSheet.eachRow((row) => {
+      row.eachCell((cell) => {
+        cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } }
+      })
+    })
+
     const ws = wb.addWorksheet('Forecast')
 
     const forecastColumns = ['GP CODE', 'kist', ...filteredDateCols, 'Totaal al in productie order', 'Totaal forecast', 'Totaal nog in productie order te leggen', 'op stock', 'stock genk', 'stock wilrijk', 'stock willebroek', 'in transfer', 'in inkooporder', 'productie genk', 'productie wilrijk', 'productie willebroek']
