@@ -127,6 +127,7 @@ export async function POST(request: NextRequest) {
     })
 
     const stockByCase = new Map<string, number>()
+    const stockByCaseByLoc = new Map<string, Map<string, number>>() // caseType -> loc -> qty
     const inkoopByCase = new Map<string, number>()
     const productieByCase = new Map<string, number>()
     const transferByCase = new Map<string, number>()
@@ -148,11 +149,16 @@ export async function POST(request: NextRequest) {
       const inTransfer = parseNumber(row.in_transfer)
       if (![qty, stock, inkoop, productie, inTransfer].some((val) => Number.isFinite(val))) return
       const loc = String(row.location || '').toLowerCase()
+      const locKey = loc.includes('genk') ? 'Genk' : loc.includes('wilrijk') ? 'Wilrijk' : loc.includes('willebroek') || loc.includes('wlb') || loc.includes('pac3pl') ? 'Willebroek' : loc.includes('transfer') ? 'Transfer' : null
       if (loc.includes('transfer')) {
         transferByCase.set(caseType, (transferByCase.get(caseType) || 0) + (Number.isFinite(inTransfer) ? inTransfer : 0))
       } else {
         if (Number.isFinite(stock)) {
           stockByCase.set(caseType, (stockByCase.get(caseType) || 0) + stock)
+          if (locKey) {
+            if (!stockByCaseByLoc.has(caseType)) stockByCaseByLoc.set(caseType, new Map())
+            stockByCaseByLoc.get(caseType)!.set(locKey, (stockByCaseByLoc.get(caseType)!.get(locKey) || 0) + stock)
+          }
         }
         if (Number.isFinite(inkoop)) {
           inkoopByCase.set(caseType, (inkoopByCase.get(caseType) || 0) + inkoop)
@@ -186,12 +192,13 @@ export async function POST(request: NextRequest) {
       ...Array.from(transferByCase.keys()),
       ...Array.from(pilsNeedByCase.keys()),
     ])
-    // "In productie" = order aangemaakt, NIET fysiek beschikbaar → telt niet mee
+    // Beschikbaar = stock + inkoop + transfer + productie (alle locaties) — productie telt mee als "al in order"
     allCases.forEach((caseType) => {
       const available =
         (stockByCase.get(caseType) || 0) +
         (inkoopByCase.get(caseType) || 0) +
-        (transferByCase.get(caseType) || 0)
+        (transferByCase.get(caseType) || 0) +
+        (productieByCase.get(caseType) || 0)
       availableByCase.set(caseType, available)
       const used = pilsNeedByCase.get(caseType) || 0
       netAvailableByCase.set(caseType, Math.max(0, Math.round(available) - used))
@@ -221,10 +228,9 @@ export async function POST(request: NextRequest) {
       .filter((row) => String(row.productielocatie || '').toLowerCase() === location.toLowerCase())
 
     if (filtered.length === 0) {
-      // Still return an empty export with headers to match old behavior
       const wb = new ExcelJS.Workbook()
       const ws = wb.addWorksheet('Forecast')
-      ws.addRow(['GP CODE', 'kist', 'TOTAAL'])
+      ws.addRow(['GP CODE', 'kist', 'Totaal al in productie order', 'Totaal forecast', 'Totaal nog in productie order te leggen'])
       const header = ws.getRow(1)
       header.font = { bold: true }
       header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'D9D9D9' } }
@@ -259,9 +265,9 @@ export async function POST(request: NextRequest) {
       return da.getTime() - db.getTime()
     })
 
-    const rows: Array<Record<string, string | number>> = []
+    const rows: Array<Record<string, string | number> & { _coverage?: Map<string, number> }> = []
     counts.forEach((map, caseType) => {
-      const row: Record<string, string | number> = {}
+      const row: Record<string, string | number> & { _coverage?: Map<string, number> } = {}
       const normalizedCaseType = normalizeCaseType(caseType)
       row['GP CODE'] = erpByCase.get(normalizedCaseType)?.erp_code || 'Special'
       row['kist'] = normalizedCaseType
@@ -271,46 +277,64 @@ export async function POST(request: NextRequest) {
       rows.push(row)
     })
 
+    // Voor elke rij: volledige forecast tonen + per-datum coverage voor kleur (gedekt/niet gedekt)
+    const fullAvailableByCase = new Map<string, number>()
+    allCases.forEach((caseType) => {
+      fullAvailableByCase.set(
+        caseType,
+        (stockByCase.get(caseType) || 0) +
+        (inkoopByCase.get(caseType) || 0) +
+        (transferByCase.get(caseType) || 0) +
+        (productieByCase.get(caseType) || 0)
+      )
+    })
     rows.forEach((row) => {
-      let available = netAvailableByCase.get(String(row['kist'])) || 0
-      if (available <= 0) return
+      const kist = String(row['kist'])
+      let available = Math.max(0, (fullAvailableByCase.get(kist) || 0) - (pilsNeedByCase.get(kist) || 0))
+      const coverage = new Map<string, number>()
       for (const date of dateCols) {
-        if (available <= 0) break
         const need = Number(row[date] || 0)
         if (need <= 0) continue
         const take = Math.min(need, available)
-        row[date] = need - take
+        coverage.set(date, take)
         available -= take
       }
+      row._coverage = coverage
     })
 
     const filteredDateCols = dateCols.filter((date) => rows.some((row) => Number(row[date] || 0) > 0))
     const finalRows = rows
       .filter((row) => {
-        const total = filteredDateCols.reduce((sum, date) => sum + Number(row[date] || 0), 0)
-        row['TOTAAL'] = total
-        return total > 0
+        const totalForecast = filteredDateCols.reduce((sum, date) => sum + Number(row[date] || 0), 0)
+        row['Totaal forecast'] = totalForecast
+        const kist = String(row['kist'])
+        const alInProd = productieByCase.get(kist) || 0
+        const beschikbaar = (stockByCase.get(kist) || 0) + (inkoopByCase.get(kist) || 0) + (transferByCase.get(kist) || 0) + alInProd
+        row['Totaal al in productie order'] = alInProd
+        row['Totaal nog in productie order te leggen'] = Math.max(0, Math.round(totalForecast - beschikbaar))
+        return totalForecast >= 0
       })
       .map((row) => {
-        const output: Record<string, string | number> = {}
+        const output: Record<string, string | number> & { _coverage?: Map<string, number> } = {}
         output['GP CODE'] = row['GP CODE']
         output['kist'] = row['kist']
         filteredDateCols.forEach((date) => {
           output[date] = row[date]
         })
-        output['TOTAAL'] = row['TOTAAL'] || 0
+        output['Totaal al in productie order'] = row['Totaal al in productie order'] ?? 0
+        output['Totaal forecast'] = row['Totaal forecast'] ?? 0
+        output['Totaal nog in productie order te leggen'] = row['Totaal nog in productie order te leggen'] ?? 0
+        output._coverage = row._coverage
         return output
       })
-
-    // If nothing has net need, still return the file with headers (like old app)
 
     const wb = new ExcelJS.Workbook()
     const ws = wb.addWorksheet('Forecast')
 
-    const columns = ['GP CODE', 'kist', ...filteredDateCols, 'TOTAAL']
-    ws.addRow(columns)
+    const forecastColumns = ['GP CODE', 'kist', ...filteredDateCols, 'Totaal al in productie order', 'Totaal forecast', 'Totaal nog in productie order te leggen']
+    ws.addRow(forecastColumns)
     finalRows.forEach((row) => {
-      ws.addRow(columns.map((col) => row[col] ?? ''))
+      ws.addRow(forecastColumns.map((col) => (col.startsWith('Totaal') ? row[col] : row[col]) ?? ''))
     })
 
     const header = ws.getRow(1)
@@ -324,12 +348,24 @@ export async function POST(request: NextRequest) {
       right: { style: 'thin' as const },
     }
     ws.eachRow((row, rowNumber) => {
-      row.eachCell((cell) => {
+      row.eachCell((cell, colNumber) => {
         cell.border = border
+        if (rowNumber <= 1) return
+        const dataRow = finalRows[rowNumber - 2]
+        const colTitle = forecastColumns[colNumber - 1]
         const numericValue = typeof cell.value === 'number' ? cell.value : Number.NaN
-        const colIndex = typeof cell.col === 'number' ? cell.col : 0
-        if (rowNumber > 1 && Number.isFinite(numericValue) && numericValue > 0 && colIndex > 2) {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2CC' } }
+        if (colTitle && filteredDateCols.includes(colTitle) && Number.isFinite(numericValue) && numericValue > 0) {
+          const need = Number(dataRow[colTitle] ?? 0)
+          const covered = dataRow._coverage?.get(colTitle) ?? 0
+          if (need > 0) {
+            if (covered >= need) {
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'C6EFCE' } }
+            } else if (covered > 0) {
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEB9C' } }
+            } else {
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC7CE' } }
+            }
+          }
         }
       })
     })
@@ -345,6 +381,9 @@ export async function POST(request: NextRequest) {
       'productielocatie',
       'forecast_aantal',
       'op_pils',
+      'stock_genk',
+      'stock_wilrijk',
+      'stock_willebroek',
       'op_stock',
       'in_transfer',
       'in_productie',
@@ -376,15 +415,16 @@ export async function POST(request: NextRequest) {
       const [caseType, loc] = key.split('||')
       if (loc.toLowerCase() !== location.toLowerCase()) return
       const normalizedCase = normalizeCaseType(caseType)
-      // forecast_aantal = units nog in forecast (niet op PILS) + units al op PILS = totale verwachte vraag
       const forecastAantal = (forecastByCaseLoc.get(key) || 0) + (pilsByCaseLoc.get(key) || 0)
-      // op_pils = units die aangemeld zijn om verpakt te worden → hiervoor moeten kisten voorzien worden
       const opPils = pilsByCaseLoc.get(key) || 0
+      const stockMap = stockByCaseByLoc.get(normalizedCase)
+      const stockGenk = stockMap?.get('Genk') || 0
+      const stockWilrijk = stockMap?.get('Wilrijk') || 0
+      const stockWillebroek = stockMap?.get('Willebroek') || 0
       const opStock = stockByCase.get(normalizedCase) || 0
       const inTransfer = transferByCase.get(normalizedCase) || 0
       const inProductie = productieByCase.get(normalizedCase) || 0
       const inInkoop = inkoopByCase.get(normalizedCase) || 0
-      // netto_nodig = op_pils - (fysiek beschikbaar: stock + transfer + inkoop). "In productie" = order, niet beschikbaar.
       const nettoNodig = Math.max(0, opPils - (opStock + inTransfer + inInkoop))
       statusRows.push({
         'BC CODE': erpByCase.get(normalizedCase)?.erp_code || 'Special',
@@ -392,6 +432,9 @@ export async function POST(request: NextRequest) {
         productielocatie: loc,
         forecast_aantal: forecastAantal,
         op_pils: opPils,
+        stock_genk: stockGenk,
+        stock_wilrijk: stockWilrijk,
+        stock_willebroek: stockWillebroek,
         op_stock: opStock,
         in_transfer: inTransfer,
         in_productie: inProductie,
