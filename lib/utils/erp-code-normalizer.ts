@@ -27,6 +27,11 @@ export function normalizeErpCode(erpCode: string | null | undefined): string | n
   if (normalized.match(/^[A-Z]{2,}\d+/)) {
     return normalized
   }
+
+  // Excel kan GP-codes als getal opslaan (6064 i.p.v. GP006064) → probeer GP + 6 cijfers
+  if (normalized.match(/^\d{4,6}$/)) {
+    return 'GP' + normalized.padStart(6, '0')
+  }
   
   // Try to extract from parts if it contains spaces (shouldn't happen after replace, but just in case)
   const parts = normalized.split(/\s+/)
