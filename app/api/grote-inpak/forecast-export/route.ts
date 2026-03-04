@@ -3,7 +3,7 @@ import ExcelJS from 'exceljs'
 import { supabaseAdmin } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
-import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
+import { normalizeErpCode, normalizeKistnummer } from '@/lib/utils/erp-code-normalizer'
 
 type ForecastRow = {
   case_label: string
@@ -36,14 +36,7 @@ type CaseRow = {
   arrival_date?: string | null
 }
 
-function normalizeCaseType(value: string): string {
-  const normalized = String(value || '').trim().toUpperCase()
-  if (!normalized) return ''
-  if (normalized.startsWith('V')) {
-    return `K${normalized.slice(1)}`
-  }
-  return normalized
-}
+const normalizeCaseType = normalizeKistnummer
 
 function parseNumber(value: unknown): number {
   if (value === null || value === undefined) return 0

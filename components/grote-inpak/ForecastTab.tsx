@@ -176,6 +176,7 @@ export default function ForecastTab() {
           setLastUploadResult(saveResult.changes)
           setSelectedSnapshotId(saveResult.snapshot_id)
         }
+        window.dispatchEvent(new CustomEvent('grote-inpak-upload-log-refresh'))
       }
 
       await loadForecast()

@@ -10,6 +10,7 @@ import StockAnalysisTab from '@/components/grote-inpak/StockAnalysisTab'
 import BacklogTab from '@/components/grote-inpak/BacklogTab'
 import ErpLinkTab from '@/components/grote-inpak/ErpLinkTab'
 import KanbanTab from '@/components/grote-inpak/KanbanTab'
+import UploadLogTab from '@/components/grote-inpak/UploadLogTab'
 
 export default function GroteInpakPage() {
   const [activeTab, setActiveTab] = useState(0)
@@ -31,6 +32,7 @@ export default function GroteInpakPage() {
   const [dragActiveStock, setDragActiveStock] = useState(false)
   const [uploadSectionExpanded, setUploadSectionExpanded] = useState(false)
   const [stockUploadTrigger, setStockUploadTrigger] = useState(0)
+  const [uploadLogTrigger, setUploadLogTrigger] = useState(0)
   const pilsInputRef = useRef<HTMLInputElement>(null)
   const erpLinkInputRef = useRef<HTMLInputElement>(null)
   const stockInputRef = useRef<HTMLInputElement>(null)
@@ -45,6 +47,7 @@ export default function GroteInpakPage() {
     { id: 5, label: '📦 Kanban Rekken', icon: '📦' },
     { id: 6, label: '⏰ Backlog', icon: '⏰' },
     { id: 7, label: '🔗 ERP LINK', icon: '🔗' },
+    { id: 8, label: '📜 Upload historiek', icon: '📜' },
   ]
 
   const handleFileSelect = useCallback((type: 'pils' | 'erplink', file: File | null) => {
@@ -89,6 +92,12 @@ export default function GroteInpakPage() {
   }, [])
 
   useEffect(() => { loadTransferFiles() }, [loadTransferFiles])
+
+  useEffect(() => {
+    const handler = () => setUploadLogTrigger((k) => k + 1)
+    window.addEventListener('grote-inpak-upload-log-refresh', handler)
+    return () => window.removeEventListener('grote-inpak-upload-log-refresh', handler)
+  }, [])
 
   const handleTransferDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -342,6 +351,7 @@ export default function GroteInpakPage() {
             pilsData: pilsResult.data,
             erpData: erpData,
             stockData: stockData,
+            sourceFile: pilsFile?.name || null,
           }),
         })
 
@@ -381,6 +391,7 @@ export default function GroteInpakPage() {
           setSuccess(`✅ Bestanden succesvol verwerkt! ${successParts.join(' | ')}`)
           setTimeout(() => setSuccess(null), 5000)
         }
+        if (pilsUploaded) setUploadLogTrigger((k) => k + 1)
       } else if (stockFiles.length > 0) {
         // If only stock files are uploaded, just refresh the stock tab
         // The stock data is already saved to the database
@@ -766,7 +777,8 @@ export default function GroteInpakPage() {
           {activeTab === 5 && <KanbanTab stockUploadTrigger={stockUploadTrigger} />}
           {activeTab === 6 && dataLoaded && <BacklogTab overview={overviewData} />}
           {activeTab === 7 && <ErpLinkTab />}
-          {activeTab !== 4 && activeTab !== 5 && activeTab !== 7 && !dataLoaded && (
+          {activeTab === 8 && <UploadLogTab refreshTrigger={uploadLogTrigger} />}
+          {activeTab !== 4 && activeTab !== 5 && activeTab !== 7 && activeTab !== 8 && !dataLoaded && (
             <div className="text-center py-12 text-gray-500">
               Upload bestanden en klik op &apos;Verwerken&apos; om deze tab te gebruiken.
             </div>

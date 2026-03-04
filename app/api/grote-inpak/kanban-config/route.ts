@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { normalizeKistnummer } from '@/lib/utils/erp-code-normalizer'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabaseAdmin
       .from('grote_inpak_kanban_config')
       .upsert({
-        case_type: String(case_type).toUpperCase().trim(),
+        case_type: normalizeKistnummer(case_type),
         rek_sectie: rek_sectie || null,
         rek_niveau: rek_niveau || null,
         rek_kolom: rek_kolom || null,

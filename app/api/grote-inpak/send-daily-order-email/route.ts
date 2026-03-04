@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { buildDailyOrderWorkbook } from '@/lib/grote-inpak/daily-order-excel'
 import { supabaseAdmin } from '@/lib/supabase/server'
-import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
+import { normalizeErpCode, normalizeKistnummer } from '@/lib/utils/erp-code-normalizer'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,18 +21,18 @@ async function fetchStockForCKisten(caseTypes: string[]): Promise<Map<string, { 
     const erpToKist = new Map<string, string>()
     ;(erpLink || []).forEach((e: any) => {
       if (e.erp_code && e.kistnummer)
-        erpToKist.set(normalizeErpCode(e.erp_code) || String(e.erp_code).toUpperCase().trim(), String(e.kistnummer).toUpperCase().trim())
+        erpToKist.set(normalizeErpCode(e.erp_code) || String(e.erp_code).toUpperCase().trim(), normalizeKistnummer(e.kistnummer))
     })
     const erpToCaseType = new Map<string, string>()
     ;(casesLink || []).forEach((c: any) => {
-      const ct = c.case_type ? String(c.case_type).toUpperCase().trim() : null
+      const ct = c.case_type ? normalizeKistnummer(c.case_type) : null
       if (c.erp_code && ct) {
         const erpNorm = normalizeErpCode(c.erp_code)
         if (erpNorm) erpToCaseType.set(erpNorm, ct)
       }
     })
     ;(stockRaw || []).forEach((s: any) => {
-      let kist = s.kistnummer ? String(s.kistnummer).toUpperCase().trim() : null
+      let kist = s.kistnummer ? normalizeKistnummer(s.kistnummer) : null
       const erpRaw = s.erp_code ? String(s.erp_code).trim() : ''
       const erpNorm = erpRaw ? normalizeErpCode(erpRaw) : null
       const itemNo = s.item_number ? String(s.item_number).toUpperCase().trim() : ''
@@ -67,7 +67,7 @@ async function fetchProductieByLocatie(locatie: 'Genk' | 'Wilrijk'): Promise<Map
     ;(erpLink || []).forEach((e: any) => {
       if (e.erp_code && e.kistnummer) {
         const erpNorm = normalizeErpCode(e.erp_code)
-        if (erpNorm) erpToKist.set(erpNorm, String(e.kistnummer).toUpperCase().trim())
+        if (erpNorm) erpToKist.set(erpNorm, normalizeKistnummer(e.kistnummer))
       }
     })
     ;(stockData || []).forEach((s: any) => {
@@ -75,7 +75,7 @@ async function fetchProductieByLocatie(locatie: 'Genk' | 'Wilrijk'): Promise<Map
       if (prod === 0) return
       const loc = String(s.location || '').toLowerCase()
       if (!loc.includes(keyword)) return
-      let kist = s.kistnummer ? String(s.kistnummer).toUpperCase().trim() : null
+      let kist = s.kistnummer ? normalizeKistnummer(s.kistnummer) : null
       const erpNorm = s.erp_code ? normalizeErpCode(s.erp_code) : null
       if (!kist && erpNorm) kist = erpToKist.get(erpNorm) || null
       if (kist) {
@@ -133,15 +133,12 @@ async function fetchKKistenForExcel(
       }
     })
 
-    const norm = (x: string) => {
-      const t = String(x || '').trim().toUpperCase()
-      return t.startsWith('V') ? 'K' + t.substring(1) : t
-    }
+    const norm = (x: string) => normalizeKistnummer(x)
 
     const stockByKist = new Map<string, Map<string, number>>()
     const productieByKist = new Map<string, number>()
     ;(stockData || []).forEach((s: any) => {
-      let kist = s.kistnummer ? String(s.kistnummer).toUpperCase().trim() : null
+      let kist = s.kistnummer ? normalizeKistnummer(s.kistnummer) : null
       const erpNorm = s.erp_code ? normalizeErpCode(s.erp_code) : null
       const itemNo = s.item_number ? String(s.item_number).toUpperCase().trim() : ''
       if (!kist && erpNorm) kist = erpToKist.get(erpNorm) || null

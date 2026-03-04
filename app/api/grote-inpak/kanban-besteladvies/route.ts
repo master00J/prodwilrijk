@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
-import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
+import { normalizeErpCode, normalizeKistnummer } from '@/lib/utils/erp-code-normalizer'
 import JSZip from 'jszip'
 import { buildDailyOrderWorkbook } from '@/lib/grote-inpak/daily-order-excel'
 
@@ -58,7 +58,7 @@ export async function GET() {
     const erpToKist = new Map<string, string>()
     ;(erpLink || []).forEach((e: any) => {
       if (e.kistnummer && e.erp_code) {
-        const kist = String(e.kistnummer).toUpperCase().trim()
+        const kist = normalizeKistnummer(e.kistnummer)
         const erpNorm = normalizeErpCode(e.erp_code)
         if (erpNorm) {
           kistToErp.set(kist, erpNorm)
@@ -75,7 +75,7 @@ export async function GET() {
     const pilsByKist = new Map<string, number>()
     const oldestPilsDateByKist = new Map<string, string>()  // case_type → oudste arrival_date (YYYY-MM-DD)
     ;(casesLink || []).forEach((c: any) => {
-      const caseType = c.case_type ? String(c.case_type).toUpperCase().trim() : null
+      const caseType = c.case_type ? normalizeKistnummer(c.case_type) : null
       if (c.erp_code && caseType) {
         const erpNorm = normalizeErpCode(c.erp_code)
         if (erpNorm) erpToCaseType.set(erpNorm, caseType)
@@ -109,7 +109,7 @@ export async function GET() {
     }>()
 
     ;(stockRaw || []).forEach((s: any) => {
-      let kist = s.kistnummer ? String(s.kistnummer).toUpperCase().trim() : null
+      let kist = s.kistnummer ? normalizeKistnummer(s.kistnummer) : null
       const erpRaw = s.erp_code ? String(s.erp_code).trim() : ''
       const erpNorm = erpRaw ? normalizeErpCode(erpRaw) : null
       const itemNo = s.item_number ? String(s.item_number).toUpperCase().trim() : ''
@@ -146,7 +146,7 @@ export async function GET() {
 
     // 5. Combineer config met stock en bereken besteladvies
     const result = (config || []).map((row: any) => {
-      const kt = String(row.case_type).toUpperCase().trim()
+      const kt = normalizeKistnummer(row.case_type)
       const stapelsPerPos = row.stapels_per_pos || 2
       const maxVoorraad = row.posities * row.stapel * stapelsPerPos
       // Trigger = zodra 1 item verbruikt is → 1 stapel aanmaken (echte kanban logica)

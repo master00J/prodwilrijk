@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { pilsData, erpData, stockData } = body
+    const { pilsData, erpData, stockData, sourceFile } = body
 
     if (!pilsData) {
       return NextResponse.json(
@@ -14,6 +14,14 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    // Haal huidige case_labels op vóór verwerking (voor upload-log)
+    const { data: existingRows } = await supabaseAdmin
+      .from('grote_inpak_cases')
+      .select('case_label')
+    const existingLabels = new Set(
+      (existingRows || []).map((r: any) => String(r.case_label || '').trim()).filter(Boolean)
+    )
 
     // If no ERP data provided, try to load from database
     let finalErpData = erpData || []
@@ -48,6 +56,19 @@ export async function POST(request: NextRequest) {
 
     // Remove cases that are no longer present in the latest PILS upload
     await removeMissingCases(overview)
+
+    // PILS upload log: bijgekomen vs verwijderd
+    const newLabels = new Set(
+      overview.map((r: any) => String(r.case_label || '').trim()).filter(Boolean)
+    )
+    const cntAdded = [...newLabels].filter((l) => !existingLabels.has(l)).length
+    const cntRemoved = [...existingLabels].filter((l) => !newLabels.has(l)).length
+    await supabaseAdmin.from('grote_inpak_pils_upload_log').insert({
+      source_file: sourceFile || null,
+      cnt_added: cntAdded,
+      cnt_removed: cntRemoved,
+      total_records: overview.length,
+    })
 
     // Save stock data if provided
     if (stockData && stockData.length > 0) {

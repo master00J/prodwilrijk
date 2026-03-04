@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { normalizeKistnummer } from '@/lib/utils/erp-code-normalizer'
 
 export const dynamic = 'force-dynamic'
 
@@ -114,7 +115,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const updateData: any = {}
-    if (kistnummer !== undefined) updateData.kistnummer = String(kistnummer).trim().toUpperCase()
+    if (kistnummer !== undefined) updateData.kistnummer = normalizeKistnummer(kistnummer)
     if (erp_code !== undefined) updateData.erp_code = erp_code ? String(erp_code).trim() : null
     if (productielocatie !== undefined) updateData.productielocatie = normalizedProductielocatie || null
     if (description !== undefined) updateData.description = description ? String(description).trim() : null

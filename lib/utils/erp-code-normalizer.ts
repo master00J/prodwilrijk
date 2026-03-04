@@ -41,4 +41,15 @@ export function normalizeErpCode(erpCode: string | null | undefined): string | n
   return normalized || null
 }
 
+/**
+ * Normaliseert kistnummer/case_type consistent voor matching en lookups.
+ * Verwijdert spaties zodat "C 352" en "C352" hetzelfde worden.
+ */
+export function normalizeKistnummer(value: string | null | undefined): string {
+  const normalized = String(value || '').trim().replace(/\s+/g, '').toUpperCase()
+  if (!normalized) return ''
+  if (normalized.startsWith('V')) return `K${normalized.slice(1)}`
+  return normalized
+}
+
 
