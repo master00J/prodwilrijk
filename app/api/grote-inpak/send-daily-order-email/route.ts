@@ -2,10 +2,58 @@ import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { buildDailyOrderWorkbook } from '@/lib/grote-inpak/daily-order-excel'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
 
 export const dynamic = 'force-dynamic'
 
 const TO_EMAIL = 'prodwilrijk@foresco.eu'
+
+/** Haalt stock op voor C-kisten vanuit de database (zelfde logica als kanban-besteladvies) */
+async function fetchStockForCKisten(caseTypes: string[]): Promise<Map<string, { genk: number; willebroek: number; wilrijk: number }>> {
+  const stockByKist = new Map<string, { genk: number; willebroek: number; wilrijk: number }>()
+  if (caseTypes.length === 0) return stockByKist
+  try {
+    const { data: stockRaw } = await supabaseAdmin
+      .from('grote_inpak_stock')
+      .select('erp_code, kistnummer, location, quantity, item_number')
+    const { data: erpLink } = await supabaseAdmin.from('grote_inpak_erp_link').select('kistnummer, erp_code')
+    const { data: casesLink } = await supabaseAdmin.from('grote_inpak_cases').select('erp_code, case_type')
+    const erpToKist = new Map<string, string>()
+    ;(erpLink || []).forEach((e: any) => {
+      if (e.erp_code && e.kistnummer)
+        erpToKist.set(normalizeErpCode(e.erp_code) || String(e.erp_code).toUpperCase().trim(), String(e.kistnummer).toUpperCase().trim())
+    })
+    const erpToCaseType = new Map<string, string>()
+    ;(casesLink || []).forEach((c: any) => {
+      const ct = c.case_type ? String(c.case_type).toUpperCase().trim() : null
+      if (c.erp_code && ct) {
+        const erpNorm = normalizeErpCode(c.erp_code)
+        if (erpNorm) erpToCaseType.set(erpNorm, ct)
+      }
+    })
+    ;(stockRaw || []).forEach((s: any) => {
+      let kist = s.kistnummer ? String(s.kistnummer).toUpperCase().trim() : null
+      const erpRaw = s.erp_code ? String(s.erp_code).trim() : ''
+      const erpNorm = erpRaw ? normalizeErpCode(erpRaw) : null
+      const itemNo = s.item_number ? String(s.item_number).toUpperCase().trim() : ''
+      if (!kist && erpNorm) kist = erpToKist.get(erpNorm) || null
+      if (!kist && itemNo) kist = erpToKist.get(normalizeErpCode(itemNo) || itemNo) || null
+      if (!kist && erpNorm) kist = erpToCaseType.get(erpNorm) || null
+      if (!kist && itemNo) kist = erpToCaseType.get(normalizeErpCode(itemNo) || itemNo) || null
+      if (!kist && erpNorm && /^C\d+/.test(erpNorm)) kist = erpNorm
+      if (!kist && itemNo && /^C\d+/.test(itemNo)) kist = itemNo
+      if (!kist) return
+      const loc = String(s.location || '').toLowerCase()
+      const qty = Math.max(0, Number(s.quantity || 0))
+      if (!stockByKist.has(kist)) stockByKist.set(kist, { genk: 0, willebroek: 0, wilrijk: 0 })
+      const e = stockByKist.get(kist)!
+      if (loc.includes('genk')) e.genk += qty
+      else if (loc.includes('willebroek') || loc.includes('wlb') || loc.includes('pac3pl')) e.willebroek += qty
+      else if (loc.includes('wilrijk')) e.wilrijk += qty
+    })
+  } catch (_) {}
+  return stockByKist
+}
 
 async function fetchProductieByLocatie(locatie: 'Genk' | 'Wilrijk'): Promise<Map<string, number>> {
   const map = new Map<string, number>()
@@ -17,7 +65,10 @@ async function fetchProductieByLocatie(locatie: 'Genk' | 'Wilrijk'): Promise<Map
     const { data: erpLink } = await supabaseAdmin.from('grote_inpak_erp_link').select('kistnummer, erp_code')
     const erpToKist = new Map<string, string>()
     ;(erpLink || []).forEach((e: any) => {
-      if (e.erp_code && e.kistnummer) erpToKist.set(String(e.erp_code).toUpperCase().trim(), String(e.kistnummer).toUpperCase().trim())
+      if (e.erp_code && e.kistnummer) {
+        const erpNorm = normalizeErpCode(e.erp_code)
+        if (erpNorm) erpToKist.set(erpNorm, String(e.kistnummer).toUpperCase().trim())
+      }
     })
     ;(stockData || []).forEach((s: any) => {
       const prod = Math.max(0, Number(s.productie || 0))
@@ -25,7 +76,8 @@ async function fetchProductieByLocatie(locatie: 'Genk' | 'Wilrijk'): Promise<Map
       const loc = String(s.location || '').toLowerCase()
       if (!loc.includes(keyword)) return
       let kist = s.kistnummer ? String(s.kistnummer).toUpperCase().trim() : null
-      if (!kist && s.erp_code) kist = erpToKist.get(String(s.erp_code).toUpperCase().trim()) || null
+      const erpNorm = s.erp_code ? normalizeErpCode(s.erp_code) : null
+      if (!kist && erpNorm) kist = erpToKist.get(erpNorm) || null
       if (kist) {
         if (kist.startsWith('V')) kist = 'K' + kist.substring(1)
         map.set(kist, (map.get(kist) || 0) + prod)
@@ -50,11 +102,16 @@ async function fetchKKistenForExcel(
 
     const { data: stockData } = await supabaseAdmin
       .from('grote_inpak_stock')
-      .select('erp_code, location, quantity, kistnummer, productie')
+      .select('erp_code, location, quantity, kistnummer, productie, item_number')
 
     const { data: erpLink } = await supabaseAdmin
       .from('grote_inpak_erp_link')
       .select('kistnummer, erp_code')
+
+    const { data: casesLink } = await supabaseAdmin
+      .from('grote_inpak_cases')
+      .select('erp_code, case_type')
+      .or('case_type.ilike.K%,case_type.ilike.V%')
 
     const { data: transferRows } = await supabaseAdmin
       .from('grote_inpak_transfer')
@@ -63,7 +120,16 @@ async function fetchKKistenForExcel(
     const erpToKist = new Map<string, string>()
     ;(erpLink || []).forEach((e: any) => {
       if (e.erp_code && e.kistnummer) {
-        erpToKist.set(String(e.erp_code).toUpperCase().trim(), String(e.kistnummer).toUpperCase().trim())
+        const erpNorm = normalizeErpCode(e.erp_code)
+        if (erpNorm) erpToKist.set(erpNorm, String(e.kistnummer).toUpperCase().trim())
+      }
+    })
+    const erpToCaseType = new Map<string, string>()
+    ;(casesLink || []).forEach((c: any) => {
+      const ct = c.case_type ? String(c.case_type).toUpperCase().trim() : null
+      if (c.erp_code && ct) {
+        const erpNorm = normalizeErpCode(c.erp_code)
+        if (erpNorm) erpToCaseType.set(erpNorm, ct)
       }
     })
 
@@ -76,7 +142,14 @@ async function fetchKKistenForExcel(
     const productieByKist = new Map<string, number>()
     ;(stockData || []).forEach((s: any) => {
       let kist = s.kistnummer ? String(s.kistnummer).toUpperCase().trim() : null
-      if (!kist && s.erp_code) kist = erpToKist.get(String(s.erp_code).toUpperCase().trim()) || null
+      const erpNorm = s.erp_code ? normalizeErpCode(s.erp_code) : null
+      const itemNo = s.item_number ? String(s.item_number).toUpperCase().trim() : ''
+      if (!kist && erpNorm) kist = erpToKist.get(erpNorm) || null
+      if (!kist && itemNo) kist = erpToKist.get(normalizeErpCode(itemNo) || itemNo) || null
+      if (!kist && erpNorm) kist = erpToCaseType.get(erpNorm) || null
+      if (!kist && itemNo) kist = erpToCaseType.get(normalizeErpCode(itemNo) || itemNo) || null
+      if (!kist && erpNorm && /^[KV]\d+/.test(erpNorm)) kist = erpNorm
+      if (!kist && itemNo && /^[KV]\d+/.test(itemNo)) kist = itemNo
       if (!kist) return
       kist = norm(kist)
 
@@ -113,7 +186,7 @@ async function fetchKKistenForExcel(
       let stockGenk = 0, stockWB = 0, stockWilrijk = 0
       stockMap.forEach((qty, loc) => {
         if (loc.includes('genk')) stockGenk += qty
-        else if (loc.includes('willebroek') || loc === 'wlb') stockWB += qty
+        else if (loc.includes('willebroek') || loc === 'wlb' || loc.includes('pac3pl')) stockWB += qty
         else if (loc.includes('wilrijk')) stockWilrijk += qty
       })
       const inProductie = productieByKist.get(caseType) || 0
@@ -199,9 +272,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Geen ${location}-kisten gevonden` }, { status: 400 })
     }
 
-    const productieAndereLoc = await fetchProductieByLocatie(location === 'Genk' ? 'Wilrijk' : 'Genk')
+    // Stock server-side ophalen (zelfde logica als kanban-besteladvies) i.p.v. client-data
     const normCase = (x: string) => { const t = String(x || '').trim().toUpperCase(); return t.startsWith('V') ? 'K' + t.substring(1) : t }
-    const renumbered = locRows.map((r: any, i: number) => {
+    const caseTypes = [...new Set(locRows.map((r: any) => normCase(r.case_type || '')))]
+    const stockByKist = await fetchStockForCKisten(caseTypes)
+    const locRowsWithStock = locRows.map((r: any) => {
+      const kt = normCase(r.case_type || '')
+      const stock = stockByKist.get(kt) || { genk: 0, willebroek: 0, wilrijk: 0 }
+      return {
+        ...r,
+        stock_genk: stock.genk,
+        stock_wilrijk: stock.wilrijk,
+        stock_in_rek: stock.willebroek,
+      }
+    })
+
+    const productieAndereLoc = await fetchProductieByLocatie(location === 'Genk' ? 'Wilrijk' : 'Genk')
+    const renumbered = locRowsWithStock.map((r: any, i: number) => {
       const kt = normCase(r.case_type || '')
       const inProdOther = productieAndereLoc.get(kt) || 0
       const tekort = Math.max(0, (r.tekort ?? 0) - inProdOther)
