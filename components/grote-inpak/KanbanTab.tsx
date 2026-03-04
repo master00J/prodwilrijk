@@ -162,18 +162,18 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
     }
   }
 
-  const handleSendEmail = async () => {
+  const handleSendEmail = async (location: 'Genk' | 'Wilrijk') => {
     setIsSendingEmail(true)
     setEmailStatus(null)
     try {
       const res = await fetch('/api/grote-inpak/send-daily-order-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rows: filteredBestel, alleenBestellen }),
+        body: JSON.stringify({ rows: filteredBestel, alleenBestellen, location }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error)
-      setEmailStatus({ ok: true, msg: json.message || 'E-mail verstuurd naar prodwilrijk@foresco.eu' })
+      setEmailStatus({ ok: true, msg: json.message || `E-mail verstuurd naar prodwilrijk@foresco.eu (${location})` })
     } catch (e: any) {
       setEmailStatus({ ok: false, msg: `Versturen mislukt: ${e.message}` })
     } finally {
@@ -330,12 +330,20 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
               {isExporting ? 'Exporteren...' : 'Exporteer C kisten daily order (ZIP: Genk + Wilrijk)'}
             </button>
             <button
-              onClick={handleSendEmail}
+              onClick={() => handleSendEmail('Genk')}
               disabled={isSendingEmail || bestelData.length === 0}
               className="flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50"
             >
               <Mail className="w-4 h-4" />
               {isSendingEmail ? 'Versturen...' : 'Mail Genk order'}
+            </button>
+            <button
+              onClick={() => handleSendEmail('Wilrijk')}
+              disabled={isSendingEmail || bestelData.length === 0}
+              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              <Mail className="w-4 h-4" />
+              {isSendingEmail ? 'Versturen...' : 'Mail Wilrijk order'}
             </button>
           </div>
 

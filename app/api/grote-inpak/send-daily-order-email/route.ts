@@ -7,8 +7,9 @@ export const dynamic = 'force-dynamic'
 
 const TO_EMAIL = 'prodwilrijk@foresco.eu'
 
-async function fetchProductieWilrijkByKist(): Promise<Map<string, number>> {
+async function fetchProductieByLocatie(locatie: 'Genk' | 'Wilrijk'): Promise<Map<string, number>> {
   const map = new Map<string, number>()
+  const keyword = locatie.toLowerCase()
   try {
     const { data: stockData } = await supabaseAdmin
       .from('grote_inpak_stock')
@@ -22,7 +23,7 @@ async function fetchProductieWilrijkByKist(): Promise<Map<string, number>> {
       const prod = Math.max(0, Number(s.productie || 0))
       if (prod === 0) return
       const loc = String(s.location || '').toLowerCase()
-      if (!loc.includes('wilrijk')) return
+      if (!loc.includes(keyword)) return
       let kist = s.kistnummer ? String(s.kistnummer).toUpperCase().trim() : null
       if (!kist && s.erp_code) kist = erpToKist.get(String(s.erp_code).toUpperCase().trim()) || null
       if (kist) {
@@ -34,13 +35,16 @@ async function fetchProductieWilrijkByKist(): Promise<Map<string, number>> {
   return map
 }
 
-async function fetchKKistenForExcel(productieWilrijkByKist: Map<string, number>): Promise<any[]> {
+async function fetchKKistenForExcel(
+  location: 'Genk' | 'Wilrijk',
+  productieAndereLocByKist: Map<string, number>
+): Promise<any[]> {
   try {
     const { data: cases } = await supabaseAdmin
       .from('grote_inpak_cases')
       .select('case_label, case_type, arrival_date, erp_code, stapel, dagen_te_laat')
       .or('case_type.ilike.K%,case_type.ilike.V%')
-      .eq('productielocatie', 'Genk')
+      .eq('productielocatie', location)
 
     if (!cases || cases.length === 0) return []
 
@@ -113,12 +117,12 @@ async function fetchKKistenForExcel(productieWilrijkByKist: Map<string, number>)
         else if (loc.includes('wilrijk')) stockWilrijk += qty
       })
       const inProductie = productieByKist.get(caseType) || 0
-      const inProductieWilrijk = productieWilrijkByKist.get(caseType) || 0  // Genk hoeft niet te produceren wat Wilrijk doet
+      const inProductieAndereLoc = productieAndereLocByKist.get(caseType) || 0
       const inTransfer = transferByKist.get(caseType) || 0
       const beschikbaar = stockGenk + stockWB + stockWilrijk + inTransfer
       const tekortTotaal = Math.max(0, data.total_count - beschikbaar)
-      // Excel is Genk-gericht: productie in Wilrijk hoeft Genk niet te doen → effectief 0
-      const tekort = Math.max(0, tekortTotaal - inProductieWilrijk)
+      // Productie in andere locatie hoeft deze locatie niet te doen → effectief 0
+      const tekort = Math.max(0, tekortTotaal - inProductieAndereLoc)
       const statusRaw =
         tekortTotaal > 0 && beschikbaar === 0 ? 'Leeg'
         : tekortTotaal > 0 ? 'Productie aanmaken'
@@ -131,7 +135,7 @@ async function fetchKKistenForExcel(productieWilrijkByKist: Map<string, number>)
 
       kRows.push({
         case_type: caseType,
-        productielocatie: 'Genk',
+        productielocatie: location,
         max_voorraad: data.total_count,
         stock_in_rek: stockWB,
         stock_genk: stockGenk,
@@ -170,7 +174,8 @@ async function fetchKKistenForExcel(productieWilrijkByKist: Map<string, number>)
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { rows, alleenBestellen } = body
+    const { rows, alleenBestellen, location: locParam } = body
+    const location = (locParam === 'Wilrijk' ? 'Wilrijk' : 'Genk') as 'Genk' | 'Wilrijk'
 
     if (!rows || rows.length === 0) {
       return NextResponse.json({ error: 'Geen data om te versturen' }, { status: 400 })
@@ -182,35 +187,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'SMTP configuratie ontbreekt' }, { status: 500 })
     }
 
-    // Filter enkel Genk-rijen
+    const keyword = location.toLowerCase()
     const toExport = alleenBestellen
       ? rows.filter((r: any) => r.bestel_aantal > 0)
       : rows
-    const genkRows = toExport.filter((r: any) =>
-      String(r.productielocatie || '').toLowerCase().includes('genk')
+    const locRows = toExport.filter((r: any) =>
+      String(r.productielocatie || '').toLowerCase().includes(keyword)
     )
 
-    if (genkRows.length === 0) {
-      return NextResponse.json({ error: 'Geen Genk-kisten gevonden' }, { status: 400 })
+    if (locRows.length === 0) {
+      return NextResponse.json({ error: `Geen ${location}-kisten gevonden` }, { status: 400 })
     }
 
-    const productieWilrijkByKist = await fetchProductieWilrijkByKist()
+    const productieAndereLoc = await fetchProductieByLocatie(location === 'Genk' ? 'Wilrijk' : 'Genk')
     const normCase = (x: string) => { const t = String(x || '').trim().toUpperCase(); return t.startsWith('V') ? 'K' + t.substring(1) : t }
-    const renumbered = genkRows.map((r: any, i: number) => {
+    const renumbered = locRows.map((r: any, i: number) => {
       const kt = normCase(r.case_type || '')
-      const inProdW = productieWilrijkByKist.get(kt) || 0
-      const tekort = Math.max(0, (r.tekort ?? 0) - inProdW)
+      const inProdOther = productieAndereLoc.get(kt) || 0
+      const tekort = Math.max(0, (r.tekort ?? 0) - inProdOther)
       return { ...r, priority_rank: i + 1, tekort }
     })
 
     const today = new Date().toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric' })
     const dateStr = new Date().toISOString().split('T')[0]
 
-    const kKisten = await fetchKKistenForExcel(productieWilrijkByKist)
+    const kKisten = await fetchKKistenForExcel(location, productieAndereLoc)
 
-    const wb = buildDailyOrderWorkbook('Genk', renumbered, today, { kKisten })
+    const wb = buildDailyOrderWorkbook(location, renumbered, today, { kKisten })
     const buffer = await wb.xlsx.writeBuffer() as ArrayBuffer
-    const filename = `Daily_order_Genk_${dateStr}.xlsx`
+    const filename = `Daily_order_${location}_${dateStr}.xlsx`
 
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST || 'smtp.gmail.com',
@@ -222,10 +227,10 @@ export async function POST(request: NextRequest) {
     await transporter.sendMail({
       from: process.env.SMTP_FROM || smtpUser,
       to: TO_EMAIL,
-      subject: `Dagelijkse order C & K kisten Genk ${today}`,
+      subject: `Dagelijkse order C & K kisten ${location} ${today}`,
       html: `
         <p>Goedemorgen,</p>
-        <p>In bijlage status C en K kisten ${today}</p>
+        <p>In bijlage status C en K kisten ${location} ${today}</p>
         <p>Met vriendelijke groeten,<br/>Jason</p>
       `,
       attachments: [
@@ -237,7 +242,7 @@ export async function POST(request: NextRequest) {
       ],
     })
 
-    return NextResponse.json({ success: true, message: `E-mail verstuurd naar ${TO_EMAIL}` })
+    return NextResponse.json({ success: true, message: `E-mail verstuurd naar ${TO_EMAIL} (${location})` })
   } catch (error: any) {
     console.error('Fout bij versturen daily order e-mail:', error)
     return NextResponse.json({ error: error.message || 'Versturen mislukt' }, { status: 500 })
