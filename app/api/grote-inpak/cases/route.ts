@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
           const qty = Number(row.quantity) || 0
           const prod = Number(row.productie) || 0  // 'productie' = Qty. on Prod. Order (kolom K)
 
-          if (loc.includes('willebroek') || loc.includes('items (64)') || loc.includes('items(64)')) {
+          if (loc.includes('willebroek')) {
             stockWillebroekMap.set(kt, (stockWillebroekMap.get(kt) || 0) + qty)
           } else if (loc.includes('genk')) {
             stockGenkMap.set(kt, (stockGenkMap.get(kt) || 0) + qty)

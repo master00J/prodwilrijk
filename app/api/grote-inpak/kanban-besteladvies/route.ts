@@ -153,7 +153,7 @@ export async function GET() {
       if (loc.includes('genk')) {
         entry.genk += qty
         entry.prod_genk += productie
-      } else if (loc.includes('willebroek') || loc.includes('wlb') || loc.includes('pac3pl') || loc.includes('items (64)') || loc.includes('items(64)')) {
+      } else if (loc.includes('willebroek') || loc.includes('wlb') || loc.includes('pac3pl')) {
         entry.willebroek += qty
         entry.prod_willebroek += productie
       } else if (loc.includes('wilrijk')) {
@@ -307,13 +307,16 @@ export async function POST(request: NextRequest) {
       ? (rows || []).filter((r: any) => r.bestel_aantal > 0)
       : (rows || [])
 
+    const isCKist = (r: any) => String(r.case_type || '').trim().toUpperCase().startsWith('C')
+    const cRowsOnly = toExport.filter(isCKist)
+
     const today = new Date().toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric' })
     const dateStr = new Date().toISOString().split('T')[0]
 
     const locGenk = (loc: string) => String(loc || '').toLowerCase().includes('genk')
     const locWilrijk = (loc: string) => String(loc || '').toLowerCase().includes('wilrijk')
-    const genkRows = toExport.filter((r: any) => locGenk(r.productielocatie))
-    const wilrijkRows = toExport.filter((r: any) => locWilrijk(r.productielocatie))
+    const genkRows = cRowsOnly.filter((r: any) => locGenk(r.productielocatie))
+    const wilrijkRows = cRowsOnly.filter((r: any) => locWilrijk(r.productielocatie))
 
     // Hernummer per locatie zodat elke Excel begint bij 1, 2, 3...
     const renumber = (rows: any[]) => rows.map((r, i) => ({ ...r, priority_rank: i + 1 }))

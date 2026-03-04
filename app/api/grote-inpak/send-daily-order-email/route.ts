@@ -48,7 +48,7 @@ async function fetchStockForCKisten(caseTypes: string[]): Promise<Map<string, { 
       if (!stockByKist.has(kist)) stockByKist.set(kist, { genk: 0, willebroek: 0, wilrijk: 0 })
       const e = stockByKist.get(kist)!
       if (loc.includes('genk')) e.genk += qty
-      else if (loc.includes('willebroek') || loc.includes('wlb') || loc.includes('pac3pl') || loc.includes('items (64)') || loc.includes('items(64)')) e.willebroek += qty
+      else if (loc.includes('willebroek') || loc.includes('wlb') || loc.includes('pac3pl')) e.willebroek += qty
       else if (loc.includes('wilrijk')) e.wilrijk += qty
     })
   } catch (_) {}
@@ -191,7 +191,7 @@ async function fetchKKistenForExcel(
       let stockGenk = 0, stockWB = 0, stockWilrijk = 0
       stockMap.forEach((qty, loc) => {
         if (loc.includes('genk')) stockGenk += qty
-        else if (loc.includes('willebroek') || loc === 'wlb' || loc.includes('pac3pl') || loc.includes('items (64)') || loc.includes('items(64)')) stockWB += qty
+        else if (loc.includes('willebroek') || loc === 'wlb' || loc.includes('pac3pl')) stockWB += qty
         else if (loc.includes('wilrijk')) stockWilrijk += qty
       })
       const inProductie = productieByKist.get(caseType) || 0
@@ -270,12 +270,13 @@ export async function POST(request: NextRequest) {
     }
 
     const keyword = location.toLowerCase()
+    const isCKist = (r: any) => String(r.case_type || '').trim().toUpperCase().startsWith('C')
     const toExport = alleenBestellen
       ? rows.filter((r: any) => r.bestel_aantal > 0)
       : rows
-    const locRows = toExport.filter((r: any) =>
-      String(r.productielocatie || '').toLowerCase().includes(keyword)
-    )
+    const locRows = toExport
+      .filter(isCKist)
+      .filter((r: any) => String(r.productielocatie || '').toLowerCase().includes(keyword))
 
     if (locRows.length === 0) {
       return NextResponse.json({ error: `Geen ${location}-kisten gevonden` }, { status: 400 })
