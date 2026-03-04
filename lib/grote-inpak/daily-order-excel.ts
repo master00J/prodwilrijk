@@ -1,26 +1,31 @@
 import ExcelJS from 'exceljs'
 
-export function buildDailyOrderWorkbook(locatieLabel: string, data: any[], today: string) {
-  const wb = new ExcelJS.Workbook()
-  const thin = { style: 'thin' as const }
-  const border = { top: thin, left: thin, bottom: thin, right: thin }
-  const STATUS_COLORS: Record<string, string> = {
-    'Leeg':               'FFFF0000',
-    'Productie aanmaken': 'FFFF6600',
-    'Gedekt':             'FFD6E4F0',
-    'Laag':               'FFFFFF00',
-    'Vol':                'FF92D050',
-  }
-  const STATUS_FONT_WHITE = new Set(['Leeg'])
-  const headers = ['Prioriteit', 'Kisttype', 'Prod.locatie', 'Max voorraad', 'Stock in rek', 'Stock Genk', 'Stock Wilrijk', 'In productie', 'In transfer', 'Op PILS', 'Tekort', 'Effectief te produceren', 'Status']
-  const numCols = headers.length
+const thin = { style: 'thin' as const }
+const border = { top: thin, left: thin, bottom: thin, right: thin }
+const STATUS_COLORS: Record<string, string> = {
+  'Leeg':               'FFFF0000',
+  'Productie aanmaken': 'FFFF6600',
+  'Gedekt':             'FFD6E4F0',
+  'Laag':               'FFFFFF00',
+  'Vol':                'FF92D050',
+}
+const STATUS_FONT_WHITE = new Set(['Leeg'])
+const headers = ['Prioriteit', 'Kisttype', 'Prod.locatie', 'Max voorraad', 'Stock in rek', 'Stock Genk', 'Stock Wilrijk', 'In productie', 'In transfer', 'Op PILS', 'Tekort', 'Effectief te produceren', 'Status']
+const numCols = headers.length
 
-  const ws = wb.addWorksheet(`C kisten daily order ${locatieLabel}`)
+function addDailyOrderSheet(
+  wb: ExcelJS.Workbook,
+  sheetTitle: string,
+  titleLabel: string,
+  data: any[],
+  today: string
+) {
+  const ws = wb.addWorksheet(sheetTitle)
   ws.columns = [
     { width: 10 }, { width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 13 },
     { width: 12 }, { width: 12 }, { width: 10 }, { width: 12 }, { width: 22 }, { width: 16 },
   ]
-  const titleRow = ws.addRow([`C kisten daily order ${locatieLabel} — ${today}`])
+  const titleRow = ws.addRow([`${titleLabel} — ${today}`])
   ws.mergeCells(1, 1, 1, numCols)
   titleRow.getCell(1).font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } }
   titleRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } }
@@ -80,5 +85,30 @@ export function buildDailyOrderWorkbook(locatieLabel: string, data: any[], today
       }
     })
   })
+}
+
+export function buildDailyOrderWorkbook(
+  locatieLabel: string,
+  data: any[],
+  today: string,
+  options?: { kKisten?: any[] }
+) {
+  const wb = new ExcelJS.Workbook()
+  addDailyOrderSheet(
+    wb,
+    `C kisten daily order ${locatieLabel}`,
+    `C kisten daily order ${locatieLabel}`,
+    data,
+    today
+  )
+  if (options?.kKisten && options.kKisten.length > 0) {
+    addDailyOrderSheet(
+      wb,
+      `K kisten daily order ${locatieLabel}`,
+      `K kisten daily order ${locatieLabel}`,
+      options.kKisten,
+      today
+    )
+  }
   return wb
 }

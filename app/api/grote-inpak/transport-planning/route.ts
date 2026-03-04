@@ -158,6 +158,9 @@ async function generateTransportPlanningExcel(
   // Build stock maps by kistnummer (case_type)
   const wlbStockMap = new Map<string, number>()
   const genkStockMap = new Map<string, number>()
+  // Kisten in productie op locatie Wilrijk — normaal Genk-kisten die nu in Wilrijk gemaakt worden
+  // Deze hoeven niet van Genk getransport te worden
+  const wilrijkProductieMap = new Map<string, number>()
 
   const erpCodeToCaseType = new Map<string, string>()
   transportData.forEach((item: any) => {
@@ -188,6 +191,12 @@ async function generateTransportPlanningExcel(
         if (location.includes('genk')) {
           const current = genkStockMap.get(normalized) || 0
           genkStockMap.set(normalized, current + (item.quantity || item.stock || 0))
+        }
+        if (location.includes('wilrijk')) {
+          const productie = Math.max(0, Number(item.productie || 0))
+          if (productie > 0) {
+            wilrijkProductieMap.set(normalized, (wilrijkProductieMap.get(normalized) || 0) + productie)
+          }
         }
       }
     })
@@ -240,7 +249,12 @@ async function generateTransportPlanningExcel(
       if (destinationKeyword.toLowerCase() === 'willebroek') {
         const wlbStock = wlbStockMap.get(normalizedCaseType) || 0
         const inTransfer = transferMap.get(normalizedCaseType) || 0
-        count = Math.max(0, count - wlbStock - inTransfer)
+        const inProductieWilrijk = wilrijkProductieMap.get(normalizedCaseType) || 0
+        count = Math.max(0, count - wlbStock - inTransfer - inProductieWilrijk)
+      }
+      if (destinationKeyword.toLowerCase() === 'wilrijk') {
+        const inProductieWilrijk = wilrijkProductieMap.get(normalizedCaseType) || 0
+        count = Math.max(0, count - inProductieWilrijk)
       }
 
       const stapel = group.stapel || 1

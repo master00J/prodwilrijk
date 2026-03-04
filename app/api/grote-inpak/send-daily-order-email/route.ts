@@ -1,10 +1,70 @@
 import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { buildDailyOrderWorkbook } from '@/lib/grote-inpak/daily-order-excel'
+import { supabaseAdmin } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
 const TO_EMAIL = 'prodwilrijk@foresco.eu'
+
+async function fetchKKistenForExcel(): Promise<any[]> {
+  try {
+    const baseUrl = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : process.env.NEXTAUTH_URL || 'http://localhost:3000'
+    const res = await fetch(`${baseUrl}/api/grote-inpak/genk-urgency?only_not_in_wb=false`)
+    if (!res.ok) return []
+    const json = await res.json()
+    const kData = json.data || []
+
+    const { data: transferRows } = await supabaseAdmin
+      .from('grote_inpak_transfer')
+      .select('kistnummer, quantity')
+    const transferByKist = new Map<string, number>()
+    ;(transferRows || []).forEach((row: any) => {
+      const kt = row.kistnummer ? String(row.kistnummer).toUpperCase().trim() : ''
+      if (kt) transferByKist.set(kt, (transferByKist.get(kt) || 0) + Number(row.quantity || 0))
+    })
+
+    const kRows: any[] = kData.map((r: any) => {
+      const stockGenk = r.stock_genk ?? 0
+      const stockWillebroek = r.stock_willebroek ?? 0
+      const stockWilrijk = r.stock_wilrijk ?? 0
+      const inTransfer = transferByKist.get(r.case_type) || 0
+      const beschikbaar = stockGenk + stockWillebroek + stockWilrijk + inTransfer
+      const tekort = Math.max(0, (r.total_count || 0) - beschikbaar)
+      const status =
+        tekort > 0 && beschikbaar === 0 ? 'Leeg'
+        : tekort > 0 ? 'Productie aanmaken'
+        : beschikbaar < (r.total_count || 0) ? 'Gedekt'
+        : 'Vol'
+
+      return {
+        case_type: r.case_type,
+        productielocatie: 'Genk',
+        max_voorraad: r.total_count ?? 0,
+        stock_in_rek: stockWillebroek,
+        stock_genk: stockGenk,
+        stock_wilrijk: stockWilrijk,
+        in_productie: r.stock_in_productie ?? 0,
+        in_transfer: inTransfer,
+        op_pils: r.total_count ?? 0,
+        tekort,
+        status,
+      }
+    })
+
+    kRows.sort((a, b) => {
+      const stockA = (a.stock_in_rek ?? 0) + (a.stock_genk ?? 0) + (a.stock_wilrijk ?? 0)
+      const stockB = (b.stock_in_rek ?? 0) + (b.stock_genk ?? 0) + (b.stock_wilrijk ?? 0)
+      if (stockA !== stockB) return stockA - stockB
+      return String(a.case_type || '').localeCompare(String(b.case_type || ''))
+    })
+    return kRows.map((r, i) => ({ ...r, priority_rank: i + 1 }))
+  } catch {
+    return []
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -39,9 +99,11 @@ export async function POST(request: NextRequest) {
     const today = new Date().toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric' })
     const dateStr = new Date().toISOString().split('T')[0]
 
-    const wb = buildDailyOrderWorkbook('Genk', renumbered, today)
+    const kKisten = await fetchKKistenForExcel()
+
+    const wb = buildDailyOrderWorkbook('Genk', renumbered, today, { kKisten })
     const buffer = await wb.xlsx.writeBuffer() as ArrayBuffer
-    const filename = `C_kisten_daily_order_Genk_${dateStr}.xlsx`
+    const filename = `Daily_order_Genk_${dateStr}.xlsx`
 
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST || 'smtp.gmail.com',
@@ -53,10 +115,10 @@ export async function POST(request: NextRequest) {
     await transporter.sendMail({
       from: process.env.SMTP_FROM || smtpUser,
       to: TO_EMAIL,
-      subject: `Dagelijkse order C kisten Genk ${today}`,
+      subject: `Dagelijkse order C & K kisten Genk ${today}`,
       html: `
         <p>Goedemorgen,</p>
-        <p>In bijlage status C kisten ${today}</p>
+        <p>In bijlage status C en K kisten ${today}</p>
         <p>Met vriendelijke groeten,<br/>Jason</p>
       `,
       attachments: [
