@@ -38,7 +38,7 @@ async function fetchKKistenForExcel(productieWilrijkByKist: Map<string, number>)
   try {
     const { data: cases } = await supabaseAdmin
       .from('grote_inpak_cases')
-      .select('case_label, case_type, arrival_date, erp_code, stapel')
+      .select('case_label, case_type, arrival_date, erp_code, stapel, dagen_te_laat')
       .or('case_type.ilike.K%,case_type.ilike.V%')
       .eq('productielocatie', 'Genk')
 
@@ -90,11 +90,17 @@ async function fetchKKistenForExcel(productieWilrijkByKist: Map<string, number>)
       if (kt) { kt = norm(kt); transferByKist.set(kt, (transferByKist.get(kt) || 0) + Number(row.quantity || 0)) }
     })
 
-    const grouped = new Map<string, { case_type: string; total_count: number }>()
+    const grouped = new Map<string, { case_type: string; total_count: number; oldest_arrival: string | null; has_overdue: boolean }>()
     ;(cases || []).forEach((c: any) => {
       const kt = norm(c.case_type || '')
-      if (!grouped.has(kt)) grouped.set(kt, { case_type: kt, total_count: 0 })
-      grouped.get(kt)!.total_count++
+      if (!grouped.has(kt)) grouped.set(kt, { case_type: kt, total_count: 0, oldest_arrival: null, has_overdue: false })
+      const g = grouped.get(kt)!
+      g.total_count++
+      if (c.arrival_date) {
+        const d = String(c.arrival_date).split('T')[0]
+        if (!g.oldest_arrival || d < g.oldest_arrival) g.oldest_arrival = d
+      }
+      if ((c.dagen_te_laat ?? 0) > 0) g.has_overdue = true
     })
 
     const kRows: any[] = []
@@ -131,16 +137,26 @@ async function fetchKKistenForExcel(productieWilrijkByKist: Map<string, number>)
         op_pils: data.total_count,
         tekort,
         status,
+        _oldest_arrival: data.oldest_arrival,
+        _has_overdue: data.has_overdue,
       })
     })
 
+    // Prioriteit: stock laag eerst, dan overdue, dan langst op PILS (oudste arrival), dan case_type
     kRows.sort((a, b) => {
       const stockA = (a.stock_in_rek ?? 0) + (a.stock_genk ?? 0) + (a.stock_wilrijk ?? 0)
       const stockB = (b.stock_in_rek ?? 0) + (b.stock_genk ?? 0) + (b.stock_wilrijk ?? 0)
       if (stockA !== stockB) return stockA - stockB
+      if (a._has_overdue !== b._has_overdue) return a._has_overdue ? -1 : 1
+      const da = a._oldest_arrival || '9999-99-99'
+      const db = b._oldest_arrival || '9999-99-99'
+      if (da !== db) return da.localeCompare(db)
       return String(a.case_type || '').localeCompare(String(b.case_type || ''))
     })
-    return kRows.map((r, i) => ({ ...r, priority_rank: i + 1 }))
+    return kRows.map((r, i) => {
+      const { _oldest_arrival, _has_overdue, ...rest } = r
+      return { ...rest, priority_rank: i + 1 }
+    })
   } catch (err) {
     console.error('fetchKKistenForExcel:', err)
     return []
