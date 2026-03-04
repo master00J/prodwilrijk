@@ -7,7 +7,34 @@ export const dynamic = 'force-dynamic'
 
 const TO_EMAIL = 'prodwilrijk@foresco.eu'
 
-async function fetchKKistenForExcel(): Promise<any[]> {
+async function fetchProductieWilrijkByKist(): Promise<Map<string, number>> {
+  const map = new Map<string, number>()
+  try {
+    const { data: stockData } = await supabaseAdmin
+      .from('grote_inpak_stock')
+      .select('erp_code, location, kistnummer, productie')
+    const { data: erpLink } = await supabaseAdmin.from('grote_inpak_erp_link').select('kistnummer, erp_code')
+    const erpToKist = new Map<string, string>()
+    ;(erpLink || []).forEach((e: any) => {
+      if (e.erp_code && e.kistnummer) erpToKist.set(String(e.erp_code).toUpperCase().trim(), String(e.kistnummer).toUpperCase().trim())
+    })
+    ;(stockData || []).forEach((s: any) => {
+      const prod = Math.max(0, Number(s.productie || 0))
+      if (prod === 0) return
+      const loc = String(s.location || '').toLowerCase()
+      if (!loc.includes('wilrijk')) return
+      let kist = s.kistnummer ? String(s.kistnummer).toUpperCase().trim() : null
+      if (!kist && s.erp_code) kist = erpToKist.get(String(s.erp_code).toUpperCase().trim()) || null
+      if (kist) {
+        if (kist.startsWith('V')) kist = 'K' + kist.substring(1)
+        map.set(kist, (map.get(kist) || 0) + prod)
+      }
+    })
+  } catch (_) {}
+  return map
+}
+
+async function fetchKKistenForExcel(productieWilrijkByKist: Map<string, number>): Promise<any[]> {
   try {
     const { data: cases } = await supabaseAdmin
       .from('grote_inpak_cases')
@@ -36,12 +63,18 @@ async function fetchKKistenForExcel(): Promise<any[]> {
       }
     })
 
+    const norm = (x: string) => {
+      const t = String(x || '').trim().toUpperCase()
+      return t.startsWith('V') ? 'K' + t.substring(1) : t
+    }
+
     const stockByKist = new Map<string, Map<string, number>>()
     const productieByKist = new Map<string, number>()
     ;(stockData || []).forEach((s: any) => {
       let kist = s.kistnummer ? String(s.kistnummer).toUpperCase().trim() : null
       if (!kist && s.erp_code) kist = erpToKist.get(String(s.erp_code).toUpperCase().trim()) || null
       if (!kist) return
+      kist = norm(kist)
 
       const loc = String(s.location || '').toLowerCase()
       const qty = Number(s.quantity || 0)
@@ -53,13 +86,13 @@ async function fetchKKistenForExcel(): Promise<any[]> {
 
     const transferByKist = new Map<string, number>()
     ;(transferRows || []).forEach((row: any) => {
-      const kt = row.kistnummer ? String(row.kistnummer).toUpperCase().trim() : ''
-      if (kt) transferByKist.set(kt, (transferByKist.get(kt) || 0) + Number(row.quantity || 0))
+      let kt = row.kistnummer ? String(row.kistnummer).toUpperCase().trim() : ''
+      if (kt) { kt = norm(kt); transferByKist.set(kt, (transferByKist.get(kt) || 0) + Number(row.quantity || 0)) }
     })
 
     const grouped = new Map<string, { case_type: string; total_count: number }>()
     ;(cases || []).forEach((c: any) => {
-      const kt = String(c.case_type || '').toUpperCase().trim()
+      const kt = norm(c.case_type || '')
       if (!grouped.has(kt)) grouped.set(kt, { case_type: kt, total_count: 0 })
       grouped.get(kt)!.total_count++
     })
@@ -74,12 +107,15 @@ async function fetchKKistenForExcel(): Promise<any[]> {
         else if (loc.includes('wilrijk')) stockWilrijk += qty
       })
       const inProductie = productieByKist.get(caseType) || 0
+      const inProductieWilrijk = productieWilrijkByKist.get(caseType) || 0  // Genk hoeft niet te produceren wat Wilrijk doet
       const inTransfer = transferByKist.get(caseType) || 0
       const beschikbaar = stockGenk + stockWB + stockWilrijk + inTransfer
-      const tekort = Math.max(0, data.total_count - beschikbaar)
+      const tekortTotaal = Math.max(0, data.total_count - beschikbaar)
+      // Excel is Genk-gericht: productie in Wilrijk hoeft Genk niet te doen → effectief 0
+      const tekort = Math.max(0, tekortTotaal - inProductieWilrijk)
       const status =
-        tekort > 0 && beschikbaar === 0 ? 'Leeg'
-        : tekort > 0 ? 'Productie aanmaken'
+        tekortTotaal > 0 && beschikbaar === 0 ? 'Leeg'
+        : tekortTotaal > 0 ? 'Productie aanmaken'
         : beschikbaar < data.total_count ? 'Gedekt'
         : 'Vol'
 
@@ -138,13 +174,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Geen Genk-kisten gevonden' }, { status: 400 })
     }
 
-    // Hernummer voor Genk-specifieke lijst
-    const renumbered = genkRows.map((r: any, i: number) => ({ ...r, priority_rank: i + 1 }))
+    const productieWilrijkByKist = await fetchProductieWilrijkByKist()
+    const normCase = (x: string) => { const t = String(x || '').trim().toUpperCase(); return t.startsWith('V') ? 'K' + t.substring(1) : t }
+    const renumbered = genkRows.map((r: any, i: number) => {
+      const kt = normCase(r.case_type || '')
+      const inProdW = productieWilrijkByKist.get(kt) || 0
+      const tekort = Math.max(0, (r.tekort ?? 0) - inProdW)
+      return { ...r, priority_rank: i + 1, tekort }
+    })
 
     const today = new Date().toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric' })
     const dateStr = new Date().toISOString().split('T')[0]
 
-    const kKisten = await fetchKKistenForExcel()
+    const kKisten = await fetchKKistenForExcel(productieWilrijkByKist)
 
     const wb = buildDailyOrderWorkbook('Genk', renumbered, today, { kKisten })
     const buffer = await wb.xlsx.writeBuffer() as ArrayBuffer

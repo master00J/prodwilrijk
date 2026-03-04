@@ -149,8 +149,9 @@ async function generateTransportPlanningExcel(
       .from('grote_inpak_transfer')
       .select('kistnummer, quantity')
     ;(transferRows || []).forEach((row: any) => {
-      const kt = String(row.kistnummer || '').trim().toUpperCase()
+      let kt = String(row.kistnummer || '').trim().toUpperCase()
       if (!kt) return
+      if (kt.startsWith('V')) kt = 'K' + kt.substring(1)
       transferMap.set(kt, (transferMap.get(kt) || 0) + (Number(row.quantity) || 0))
     })
   } catch (_) { /* niet-kritiek, gewoon doorgaan zonder */ }
