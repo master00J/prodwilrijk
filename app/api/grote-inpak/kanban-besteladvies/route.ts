@@ -120,18 +120,19 @@ export async function GET() {
     const stockMetProductieNietGematched: { erp_code: string; location: string; productie: number }[] = []
     const stockMetProductieTotaal = (stockRaw || []).filter((s: any) => (Number(s.productie || 0) > 0)).length
     ;(stockRaw || []).forEach((s: any) => {
-      let kist = s.kistnummer ? normalizeKistnummer(s.kistnummer) : null
       const erpRaw = s.erp_code ? String(s.erp_code).trim() : ''
       const erpNorm = erpRaw ? normalizeErpCode(erpRaw) : null
       const itemNo = s.item_number ? String(s.item_number).toUpperCase().trim() : ''
-      // 1. Via ERP LINK tabel
-      if (!kist && erpNorm) kist = erpToKist.get(erpNorm) || null
+      // 1. ERP LINK is bron van waarheid: als erp_code gekoppeld is, gebruik die kist (niet s.kistnummer uit stock)
+      let kist = erpNorm ? erpToKist.get(erpNorm) || null : null
       if (!kist && erpRaw && /^\d{4,8}$/.test(erpRaw)) kist = erpToKist.get(erpRaw) || null
       if (!kist && itemNo) kist = erpToKist.get(normalizeErpCode(itemNo) || itemNo) || null
-      // 2. Fallback: via cases-tabel
+      // 2. Fallback: kistnummer uit stock-rij
+      if (!kist && s.kistnummer) kist = normalizeKistnummer(s.kistnummer)
+      // 3. Fallback: via cases-tabel
       if (!kist && erpNorm) kist = erpToCaseType.get(erpNorm) || null
       if (!kist && itemNo) kist = erpToCaseType.get(normalizeErpCode(itemNo) || itemNo) || null
-      // 3. Als de erp_code zelf al een C- of K-code is
+      // 4. Als de erp_code zelf al een C- of K-code is
       if (!kist && erpNorm && /^C\d+/.test(erpNorm)) kist = erpNorm
       if (!kist && erpNorm && /^[KV]\d+/.test(erpNorm)) kist = erpNorm.startsWith('V') ? 'K' + erpNorm.slice(1) : erpNorm
       if (!kist && itemNo && /^C\d+/.test(itemNo)) kist = itemNo
