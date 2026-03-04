@@ -397,6 +397,15 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
     'on prod. order',
     'on prod order',
     'prod order',
+    'outstd. prod.',
+    'outstanding prod.',
+    'in production',
+    'manufacturing',
+    'prod ord',
+    'production qty',
+    'qty. on prod order',
+    'in bewerking',
+    'productieorder',
   ])
 
   const noIdx = findColumnIndex(['no.', 'no'])

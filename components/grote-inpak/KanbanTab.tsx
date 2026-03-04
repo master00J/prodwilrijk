@@ -371,6 +371,26 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
               <strong>⚠️ Stock in rek = 0?</strong> {debugInfo.warning}
             </div>
           )}
+          {debugInfo && debugInfo.stock_rows_total > 0 && debugInfo.stock_rows_met_productie_in_db === 0 && debugInfo.kisten_met_productie?.length === 0 && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+              <strong>💡 Geen &quot;in productie&quot; in database:</strong> Er staan {debugInfo.stock_rows_total} stock-rijen in de database, maar geen enkele heeft productie &gt; 0.
+              Controleer of je Stock Excel de kolom &quot;Qty. on Prod. Order&quot; heeft en of de header herkend wordt (zie upload-log of probeer de kolomnaam aan te passen).
+            </div>
+          )}
+          {debugInfo?.stock_productie_niet_gematched?.length > 0 && (
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-sm text-orange-800">
+              <strong>🔍 Productie niet gekoppeld:</strong> In de stock staan {debugInfo.stock_rows_met_productie_in_db ?? 0} rijen met &quot;in productie&quot; &gt; 0.
+              De volgende ERP-codes konden <em>niet</em> aan een kist gekoppeld worden (controleer ERP LINK):
+              <ul className="mt-2 space-y-1 font-mono text-xs">
+                {debugInfo.stock_productie_niet_gematched.slice(0, 10).map((r: any, i: number) => (
+                  <li key={i}>{r.erp_code} (loc: {r.location}) → {r.productie} stuks</li>
+                ))}
+                {debugInfo.stock_productie_niet_gematched.length > 10 && (
+                  <li className="text-orange-600">+ nog {debugInfo.stock_productie_niet_gematched.length - 10} anderen</li>
+                )}
+              </ul>
+            </div>
+          )}
 
           {bestelLoading ? (
             <div className="py-12 text-center text-gray-400">Laden...</div>

@@ -111,6 +111,8 @@ export async function GET() {
       prod_willebroek: number
     }>()
 
+    const stockMetProductieNietGematched: { erp_code: string; location: string; productie: number }[] = []
+    const stockMetProductieTotaal = (stockRaw || []).filter((s: any) => (Number(s.productie || 0) > 0)).length
     ;(stockRaw || []).forEach((s: any) => {
       let kist = s.kistnummer ? normalizeKistnummer(s.kistnummer) : null
       const erpRaw = s.erp_code ? String(s.erp_code).trim() : ''
@@ -122,14 +124,19 @@ export async function GET() {
       // 2. Fallback: via cases-tabel
       if (!kist && erpNorm) kist = erpToCaseType.get(erpNorm) || null
       if (!kist && itemNo) kist = erpToCaseType.get(normalizeErpCode(itemNo) || itemNo) || null
-      // 3. Als de erp_code zelf al een C-code is (K-kisten zijn aparte types, niet converteren)
+      // 3. Als de erp_code zelf al een C- of K-code is
       if (!kist && erpNorm && /^C\d+/.test(erpNorm)) kist = erpNorm
+      if (!kist && erpNorm && /^[KV]\d+/.test(erpNorm)) kist = erpNorm.startsWith('V') ? 'K' + erpNorm.slice(1) : erpNorm
       if (!kist && itemNo && /^C\d+/.test(itemNo)) kist = itemNo
+      if (!kist && itemNo && /^[KV]\d+/.test(itemNo)) kist = itemNo.startsWith('V') ? 'K' + itemNo.slice(1) : itemNo
+      const productie = Math.max(0, Number(s.productie || 0))
+      if (!kist && productie > 0) {
+        stockMetProductieNietGematched.push({ erp_code: erpRaw || erpNorm || '?', location: s.location || '?', productie })
+      }
       if (!kist) return
 
       const loc = String(s.location || '').toLowerCase()
       const qty = Math.max(0, Number(s.quantity || 0))
-      const productie = Math.max(0, Number(s.productie || 0))
 
       if (!stockByKist.has(kist)) {
         stockByKist.set(kist, { genk: 0, willebroek: 0, wilrijk: 0, totaal: 0, in_productie: 0, prod_genk: 0, prod_wilrijk: 0, prod_willebroek: 0 })
@@ -157,7 +164,7 @@ export async function GET() {
       // Trigger = zodra 1 item verbruikt is → 1 stapel aanmaken (echte kanban logica)
       const bestelpunt = maxVoorraad
 
-      const stock = stockByKist.get(kt) || { genk: 0, willebroek: 0, wilrijk: 0, totaal: 0, in_productie: 0 }
+      const stock = stockByKist.get(kt) || { genk: 0, willebroek: 0, wilrijk: 0, totaal: 0, in_productie: 0, prod_genk: 0, prod_wilrijk: 0, prod_willebroek: 0 }
       const stockInRek = stock.willebroek
       const stockElders = (stock.genk ?? 0) + (stock.wilrijk ?? 0) // beschikbaar maar nog niet in rek
       const inProductie = stock.in_productie ?? 0
@@ -267,6 +274,8 @@ export async function GET() {
       _debug: {
         erp_link_entries: erpLinkCount,
         stock_rows_total: totalStockRows,
+        stock_rows_met_productie_in_db: stockMetProductieTotaal,
+        stock_productie_niet_gematched: stockMetProductieNietGematched.slice(0, 20),
         stock_kisten_matched: stockByKist.size,
         stock_locaties_in_db: uniqueLocations,
         kisten_met_willebroek_stock: kistenMetWillebroekStock.length,
