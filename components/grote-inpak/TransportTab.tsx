@@ -119,6 +119,27 @@ export default function TransportTab({ transport, overview }: TransportTabProps)
     }
   }
   const [isGenerating, setIsGenerating] = useState(false)
+  const [transferByKist, setTransferByKist] = useState<Map<string, number>>(new Map())
+
+  useEffect(() => {
+    fetch('/api/grote-inpak/transfer')
+      .then(r => r.ok ? r.json() : { data: [] })
+      .then((res: any) => {
+        const map = new Map<string, number>()
+        ;(res.data || []).forEach((row: any) => {
+          const kt = String(row.kistnummer || '').trim().toUpperCase()
+          if (!kt) return
+          map.set(kt, (map.get(kt) || 0) + (Number(row.quantity) || 0))
+        })
+        setTransferByKist(map)
+      })
+      .catch(() => {})
+  }, [transport])
+
+  const getTransfer = useCallback((caseType: string) => {
+    const kt = String(caseType || '').trim().toUpperCase()
+    return (transferByKist.get(kt) || 0) + (kt.startsWith('V') ? (transferByKist.get('K' + kt.substring(1)) || 0) : 0)
+  }, [transferByKist])
 
   // Transport = PILS cases, al volledige data — alleen Genk-cases zijn relevant
   const transportWithDetails = useMemo(() => {
@@ -156,7 +177,7 @@ export default function TransportTab({ transport, overview }: TransportTabProps)
     return filtered
   }, [transportWithDetails, filterStatus, dateFrom, dateTo, searchQuery])
 
-  // Groepsoverzicht per case_type voor de planningsweergave
+  // Groepsoverzicht per case_type voor de planningsweergave (transferorders afgetrokken)
   const planningGroups = useMemo(() => {
     const map = new Map<string, {
       case_type: string
@@ -165,6 +186,7 @@ export default function TransportTab({ transport, overview }: TransportTabProps)
       total: number
       inWillebroek: number
       needTransport: number
+      inTransfer: number
       nextArrival: string | null
       overdue: number
       thisWeek: number
@@ -189,6 +211,7 @@ export default function TransportTab({ transport, overview }: TransportTabProps)
           total: 1,
           inWillebroek: 0,
           needTransport: 1,
+          inTransfer: 0,
           nextArrival: item.arrival_date || null,
           overdue: isOverdue ? 1 : 0,
           thisWeek: isThisWeek ? 1 : 0,
@@ -223,6 +246,7 @@ export default function TransportTab({ transport, overview }: TransportTabProps)
           total: 1,
           inWillebroek: 1,
           needTransport: 0,
+          inTransfer: 0,
           nextArrival: null,
           overdue: 0,
           thisWeek: 0,
@@ -231,13 +255,18 @@ export default function TransportTab({ transport, overview }: TransportTabProps)
       }
     })
 
+    // Trek transferorders af van needTransport
+    map.forEach((group) => {
+      group.inTransfer = getTransfer(group.case_type)
+      group.needTransport = Math.max(0, group.needTransport - group.inTransfer)
+    })
+
     return Array.from(map.values()).sort((a, b) => {
-      // Sorteer: eerst overdue, dan thisWeek, dan rest
       if (b.overdue !== a.overdue) return b.overdue - a.overdue
       if (b.thisWeek !== a.thisWeek) return b.thisWeek - a.thisWeek
       return b.needTransport - a.needTransport
     })
-  }, [transportWithDetails])
+  }, [transportWithDetails, getTransfer])
 
   // Weekoverzicht: volgende 14 dagen, hoeveel komen er aan per dag
   const weekTimeline = useMemo(() => {
@@ -256,10 +285,10 @@ export default function TransportTab({ transport, overview }: TransportTabProps)
     return days.filter(d => d.count > 0)
   }, [transportWithDetails])
 
-  // KPIs
+  // KPIs (needTransport = effectief na aftrek transferorders)
   const totalGenk = transportWithDetails.length
   const inWillebroek = transportWithDetails.filter(i => i.in_willebroek).length
-  const needTransport = totalGenk - inWillebroek
+  const needTransport = planningGroups.reduce((sum, g) => sum + g.needTransport, 0)
   const overdueCount = transportWithDetails.filter(i => {
     if (i.in_willebroek) return false
     if (!i.arrival_date) return false
@@ -451,6 +480,7 @@ export default function TransportTab({ transport, overview }: TransportTabProps)
                     <th className="px-4 py-3 text-center">Stapel</th>
                     <th className="px-4 py-3 text-center">Totaal</th>
                     <th className="px-4 py-3 text-center">In WB</th>
+                    <th className="px-4 py-3 text-center" title="Onderweg via transferorder">In transfer</th>
                     <th className="px-4 py-3 text-center">Te sturen</th>
                     <th className="px-4 py-3 text-center">Te laat</th>
                     <th className="px-4 py-3 text-center">Deze week</th>
@@ -460,7 +490,7 @@ export default function TransportTab({ transport, overview }: TransportTabProps)
                 <tbody className="divide-y divide-gray-100">
                   {planningGroups.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="px-5 py-10 text-center text-gray-400">
+                      <td colSpan={10} className="px-5 py-10 text-center text-gray-400">
                         Geen transport data. Upload een PILS bestand om te beginnen.
                       </td>
                     </tr>
@@ -475,6 +505,11 @@ export default function TransportTab({ transport, overview }: TransportTabProps)
                         <td className="px-4 py-3 text-center font-semibold text-gray-800">{group.total}</td>
                         <td className="px-4 py-3 text-center">
                           <span className="text-green-700 font-medium">{group.inWillebroek}</span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {group.inTransfer > 0
+                            ? <span className="bg-cyan-100 text-cyan-700 font-semibold px-2 py-0.5 rounded-full text-xs">{group.inTransfer}</span>
+                            : <span className="text-gray-300">—</span>}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span className={`font-bold ${group.needTransport > 0 ? 'text-blue-700' : 'text-gray-400'}`}>
