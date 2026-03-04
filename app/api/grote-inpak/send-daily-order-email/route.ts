@@ -274,7 +274,7 @@ export async function POST(request: NextRequest) {
 
     // Stock server-side ophalen (zelfde logica als kanban-besteladvies) i.p.v. client-data
     const normCase = (x: string) => { const t = String(x || '').trim().toUpperCase(); return t.startsWith('V') ? 'K' + t.substring(1) : t }
-    const caseTypes = [...new Set(locRows.map((r: any) => normCase(r.case_type || '')))]
+    const caseTypes = [...new Set(locRows.map((r: any) => normCase(r.case_type || '')))] as string[]
     const stockByKist = await fetchStockForCKisten(caseTypes)
     const locRowsWithStock = locRows.map((r: any) => {
       const kt = normCase(r.case_type || '')
