@@ -186,11 +186,11 @@ export async function POST(request: NextRequest) {
       ...Array.from(transferByCase.keys()),
       ...Array.from(pilsNeedByCase.keys()),
     ])
+    // "In productie" = order aangemaakt, NIET fysiek beschikbaar → telt niet mee
     allCases.forEach((caseType) => {
       const available =
         (stockByCase.get(caseType) || 0) +
         (inkoopByCase.get(caseType) || 0) +
-        (productieByCase.get(caseType) || 0) +
         (transferByCase.get(caseType) || 0)
       availableByCase.set(caseType, available)
       const used = pilsNeedByCase.get(caseType) || 0
@@ -384,9 +384,8 @@ export async function POST(request: NextRequest) {
       const inTransfer = transferByCase.get(normalizedCase) || 0
       const inProductie = productieByCase.get(normalizedCase) || 0
       const inInkoop = inkoopByCase.get(normalizedCase) || 0
-      // netto_nodig = hoeveel kisten er nog gemaakt/besteld moeten worden voor de huidige PILS-vraag
-      // = op_pils - (kisten al beschikbaar: stock + transfer + productie + inkoop)
-      const nettoNodig = Math.max(0, opPils - (opStock + inTransfer + inProductie + inInkoop))
+      // netto_nodig = op_pils - (fysiek beschikbaar: stock + transfer + inkoop). "In productie" = order, niet beschikbaar.
+      const nettoNodig = Math.max(0, opPils - (opStock + inTransfer + inInkoop))
       statusRows.push({
         'BC CODE': erpByCase.get(normalizedCase)?.erp_code || 'Special',
         case_type: normalizedCase,
@@ -465,7 +464,8 @@ export async function POST(request: NextRequest) {
       const inTransfer = transferByCase.get(normalizedCase) || 0
       const inProductie = productieByCase.get(normalizedCase) || 0
       const inInkoop = inkoopByCase.get(normalizedCase) || 0
-      const total = opStock + inProductie + inInkoop + inTransfer
+      // Fysiek beschikbaar: stock + transfer + inkoop. "In productie" = order, niet beschikbaar.
+      const total = opStock + inInkoop + inTransfer
       if (data.count <= total) return
       const kategoriematch = String(normalizedCase).trim().toUpperCase().match(/^([KC])/)
       const kistCategorie = kategoriematch ? kategoriematch[1] : 'Overig'
@@ -485,17 +485,22 @@ export async function POST(request: NextRequest) {
       })
     })
 
+    // Sorteer: eerst stock laag → hoog (bijna leeg = urgenter), dan arrival_date, dan case_type
     priorityRows.sort((a, b) => {
+      const stockA = Number(a.op_stock ?? 0)
+      const stockB = Number(b.op_stock ?? 0)
+      if (stockA !== stockB) return stockA - stockB
       const da = new Date(String(a.arrival_date || ''))
       const db = new Date(String(b.arrival_date || ''))
-      return da.getTime() - db.getTime()
+      if (da.getTime() !== db.getTime()) return da.getTime() - db.getTime()
+      return String(a.case_type || '').localeCompare(String(b.case_type || ''))
     })
     priorityRows.forEach((row, index) => {
       row.priority_rank = index + 1
     })
 
     prioritySheet.mergeCells(1, 1, 1, priorityColumns.length)
-    prioritySheet.getCell(1, 1).value = `Productie Prioriteit ${location} (oudste PILS eerst)`
+    prioritySheet.getCell(1, 1).value = `Productie Prioriteit ${location} (lage stock eerst)`
     prioritySheet.getCell(1, 1).font = { bold: true }
     prioritySheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF00' } }
     prioritySheet.addRow(priorityColumns)
