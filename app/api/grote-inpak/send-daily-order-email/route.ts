@@ -206,10 +206,17 @@ async function fetchKKistenForExcel(
         : tekortTotaal > 0 ? 'Productie aanmaken'
         : beschikbaar < data.total_count ? 'Gedekt'
         : 'Vol'
-      const status = statusRaw === 'Vol' ? 'Ok'
-        : statusRaw === 'Leeg' || statusRaw === 'Productie aanmaken'
-          ? (inProductie > 0 ? 'In productie leggen' : 'Productie aanmaken en inleggen')
-        : statusRaw
+      let status = statusRaw
+      if (statusRaw === 'Vol') status = 'Ok'
+      else if (statusRaw === 'Leeg' || statusRaw === 'Productie aanmaken') {
+        if (tekort === 0 && inProductieAndereLoc > 0) {
+          status = location === 'Genk' ? 'In productie Wilrijk' : 'In productie Genk'
+        } else if (inProductie > 0) {
+          status = 'In productie leggen'
+        } else {
+          status = 'Productie aanmaken en inleggen'
+        }
+      }
 
       kRows.push({
         case_type: caseType,
@@ -232,15 +239,27 @@ async function fetchKKistenForExcel(
       })
     })
 
-    // Prioriteit: stock laag eerst, dan overdue, dan langst op PILS (oudste arrival), dan case_type
+    // Sortering: belangrijkste bovenaan
+    // 1. Bovenaan: tekort > 0 (moet nog geproduceerd) — gesorteerd op tekort aflopend, dan overdue, dan oudste PILS
+    // 2. Onderaan: "In productie Wilrijk/Genk" (andere locatie heeft het al)
+    // 3. Heel onderaan: "Ok" (op stock, geen actie)
+    const tier = (r: any) => {
+      if (r.tekort > 0) return 0
+      if (r.status === 'In productie Wilrijk' || r.status === 'In productie Genk') return 2
+      if (r.status === 'Ok') return 3
+      return 1
+    }
     kRows.sort((a, b) => {
-      const stockA = (a.stock_in_rek ?? 0) + (a.stock_genk ?? 0) + (a.stock_wilrijk ?? 0)
-      const stockB = (b.stock_in_rek ?? 0) + (b.stock_genk ?? 0) + (b.stock_wilrijk ?? 0)
-      if (stockA !== stockB) return stockA - stockB
-      if (a._has_overdue !== b._has_overdue) return a._has_overdue ? -1 : 1
-      const da = a._oldest_arrival || '9999-99-99'
-      const db = b._oldest_arrival || '9999-99-99'
-      if (da !== db) return da.localeCompare(db)
+      const ta = tier(a)
+      const tb = tier(b)
+      if (ta !== tb) return ta - tb
+      if (ta === 0) {
+        if (a.tekort !== b.tekort) return b.tekort - a.tekort
+        if (a._has_overdue !== b._has_overdue) return a._has_overdue ? -1 : 1
+        const da = a._oldest_arrival || '9999-99-99'
+        const db = b._oldest_arrival || '9999-99-99'
+        return da.localeCompare(db)
+      }
       return String(a.case_type || '').localeCompare(String(b.case_type || ''))
     })
     return kRows.map((r, i) => {

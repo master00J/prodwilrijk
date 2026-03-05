@@ -5,6 +5,8 @@ const border = { top: thin, left: thin, bottom: thin, right: thin }
 const STATUS_COLORS: Record<string, string> = {
   'Productie aanmaken en inleggen': 'FFFF0000',
   'In productie leggen':             'FFFF6600',
+  'In productie Wilrijk':            'FFB4D6E8',
+  'In productie Genk':               'FFB4D6E8',
   'Gedekt':                          'FFD6E4F0',
   'Laag':                             'FFFFFF00',
   'Ok':                               'FF92D050',
