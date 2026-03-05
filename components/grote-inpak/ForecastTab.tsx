@@ -202,7 +202,7 @@ export default function ForecastTab() {
     if (e.dataTransfer.files?.length) handleFileSelect(e.dataTransfer.files)
   }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
-  const downloadForecastMatrix = async (location: 'Genk' | 'Wilrijk') => {
+  const downloadForecastMatrix = async (location: 'Genk' | 'Wilrijk' | 'Alle') => {
     try {
       const res = await fetch('/api/grote-inpak/forecast-export', {
         method: 'POST',
@@ -213,7 +213,8 @@ export default function ForecastTab() {
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
-      a.href = url; a.download = `Forecast_${location}.xlsx`; a.click()
+      const fileName = location === 'Alle' ? 'Forecast_Alle_locaties.xlsx' : `Forecast_${location}.xlsx`
+      a.href = url; a.download = fileName; a.click()
       URL.revokeObjectURL(url)
     } catch (err: any) {
       alert(`Forecast export mislukt: ${err.message}`)
@@ -315,6 +316,13 @@ export default function ForecastTab() {
             className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm disabled:opacity-50"
           >
             <Download className="w-4 h-4" /> Matrix Wilrijk
+          </button>
+          <button
+            onClick={() => downloadForecastMatrix('Alle')}
+            disabled={forecastData.length === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 text-sm disabled:opacity-50 font-medium"
+          >
+            <Download className="w-4 h-4" /> Matrix Alle locaties
           </button>
         </div>
       </div>

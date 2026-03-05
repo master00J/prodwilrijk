@@ -80,6 +80,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const location = String(body.location || 'Wilrijk')
+    const isAlle = location.toLowerCase() === 'alle'
     const dateFrom = body.dateFrom ? new Date(body.dateFrom) : null
     const dateTo = body.dateTo ? new Date(body.dateTo) : null
 
@@ -238,7 +239,7 @@ export async function POST(request: NextRequest) {
         const loc = erpRow?.productielocatie ? String(erpRow.productielocatie) : 'Wilrijk'
         return { ...row, productielocatie: loc }
       })
-      .filter((row) => String(row.productielocatie || '').toLowerCase() === location.toLowerCase())
+      .filter((row) => isAlle || String(row.productielocatie || '').toLowerCase() === location.toLowerCase())
 
     if (filtered.length === 0) {
       const wb = new ExcelJS.Workbook()
@@ -303,6 +304,7 @@ export async function POST(request: NextRequest) {
       const normalizedCaseType = normalizeCaseType(caseType)
       row['GP CODE'] = erpByCase.get(normalizedCaseType)?.erp_code || 'Special'
       row['kist'] = normalizedCaseType
+      row['productielocatie'] = erpByCase.get(normalizedCaseType)?.productielocatie || 'Wilrijk'
       dateCols.forEach((date) => {
         row[date] = map.get(date) || 0
       })
@@ -364,6 +366,7 @@ export async function POST(request: NextRequest) {
         const output: Record<string, string | number> & { _coverage?: Map<string, number> } = {}
         output['GP CODE'] = row['GP CODE']
         output['kist'] = row['kist']
+        output['productielocatie'] = row['productielocatie'] ?? ''
         filteredDateCols.forEach((date) => {
           output[date] = row[date]
         })
@@ -421,10 +424,27 @@ export async function POST(request: NextRequest) {
 
     const ws = wb.addWorksheet('Forecast')
 
-    const forecastColumns = ['GP CODE', 'kist', ...filteredDateCols, 'Totaal al in productie order', 'Totaal forecast', 'Totaal nog in productie order te leggen', 'op stock', 'stock genk', 'stock wilrijk', 'stock willebroek', 'in transfer', 'in inkooporder', 'productie genk', 'productie wilrijk', 'productie willebroek']
+    const forecastColumns = [
+      'GP CODE',
+      'kist',
+      ...(isAlle ? ['productielocatie'] : []),
+      ...filteredDateCols,
+      'Totaal al in productie order',
+      'Totaal forecast',
+      'Totaal nog in productie order te leggen',
+      'op stock',
+      'stock genk',
+      'stock wilrijk',
+      'stock willebroek',
+      'in transfer',
+      'in inkooporder',
+      'productie genk',
+      'productie wilrijk',
+      'productie willebroek',
+    ]
     ws.addRow(forecastColumns)
     finalRows.forEach((row) => {
-      ws.addRow(forecastColumns.map((col) => (col.startsWith('Totaal') ? row[col] : row[col]) ?? ''))
+      ws.addRow(forecastColumns.map((col) => row[col] ?? ''))
     })
 
     const header = ws.getRow(1)
@@ -459,7 +479,8 @@ export async function POST(request: NextRequest) {
         }
       })
     })
-    ws.views = [{ state: 'frozen', xSplit: 2, ySplit: 1 }]
+    ws.views = [{ state: 'frozen', xSplit: isAlle ? 3 : 2, ySplit: 1 }]
+    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: forecastColumns.length } }
     ws.columns.forEach((col) => {
       col.width = 14
     })
@@ -506,7 +527,7 @@ export async function POST(request: NextRequest) {
     ])
     caseLocKeys.forEach((key) => {
       const [caseType, loc] = key.split('||')
-      if (loc.toLowerCase() !== location.toLowerCase()) return
+      if (!isAlle && loc.toLowerCase() !== location.toLowerCase()) return
       const normalizedCase = normalizeCaseType(caseType)
       const forecastAantal = (forecastByCaseLoc.get(key) || 0) + (pilsByCaseLoc.get(key) || 0)
       const opPils = pilsByCaseLoc.get(key) || 0
@@ -546,7 +567,7 @@ export async function POST(request: NextRequest) {
     statusRows.sort((a, b) => String(a['case type']).localeCompare(String(b['case type'])))
 
     statusSheet.mergeCells(1, 1, 1, statusColumns.length)
-    statusSheet.getCell(1, 1).value = `Status ${location}`
+    statusSheet.getCell(1, 1).value = isAlle ? 'Status Alle locaties' : `Status ${location}`
     statusSheet.getCell(1, 1).font = { bold: true }
     statusSheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF00' } }
     statusSheet.addRow(statusColumns)
@@ -562,6 +583,7 @@ export async function POST(request: NextRequest) {
         if (rowNumber === 1) return
       })
     })
+    statusSheet.autoFilter = { from: { row: 2, column: 1 }, to: { row: 2, column: statusColumns.length } }
     statusSheet.views = [{ state: 'frozen', ySplit: 2 }]
 
     const prioritySheet = wb.addWorksheet('Prioriteit')
@@ -607,7 +629,7 @@ export async function POST(request: NextRequest) {
 
     const priorityRows: Array<Record<string, string | number>> = []
     pilsGrouped.forEach((data, caseType) => {
-      if (String(data.loc).toLowerCase() !== location.toLowerCase()) return
+      if (!isAlle && String(data.loc).toLowerCase() !== location.toLowerCase()) return
       const normalizedCase = normalizeCaseType(caseType)
       const stockMap = stockByCaseByLoc.get(normalizedCase)
       const prodMap = productieByCaseByLoc.get(normalizedCase)
@@ -662,7 +684,7 @@ export async function POST(request: NextRequest) {
     })
 
     prioritySheet.mergeCells(1, 1, 1, priorityColumns.length)
-    prioritySheet.getCell(1, 1).value = `Productie Prioriteit ${location} (lage stock eerst)`
+    prioritySheet.getCell(1, 1).value = isAlle ? 'Productie Prioriteit Alle locaties (lage stock eerst)' : `Productie Prioriteit ${location} (lage stock eerst)`
     prioritySheet.getCell(1, 1).font = { bold: true }
     prioritySheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF00' } }
     prioritySheet.addRow(priorityColumns)
@@ -677,6 +699,7 @@ export async function POST(request: NextRequest) {
         if (rowNumber === 1) return
       })
     })
+    prioritySheet.autoFilter = { from: { row: 2, column: 1 }, to: { row: 2, column: priorityColumns.length } }
     prioritySheet.views = [{ state: 'frozen', ySplit: 2 }]
 
     const caseLabelsSheet = wb.addWorksheet('Case labels')
@@ -711,7 +734,7 @@ export async function POST(request: NextRequest) {
     })
 
     const buffer = await wb.xlsx.writeBuffer()
-    const fileName = `Forecast_${location}.xlsx`
+    const fileName = isAlle ? 'Forecast_Alle_locaties.xlsx' : `Forecast_${location}.xlsx`
     return new Response(buffer as BodyInit, {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
