@@ -78,6 +78,7 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
   const [inlineEditValues, setInlineEditValues] = useState<{ stapel: number; posities: number; stapels_per_pos: number }>({ stapel: 1, posities: 1, stapels_per_pos: 2 })
   const [inlineSaving, setInlineSaving] = useState(false)
   const [zoekterm, setZoekterm] = useState('')
+  const [filterLocatie, setFilterLocatie] = useState<'Alle' | 'Genk' | 'Wilrijk'>('Alle')
   const [diagnostiekOpen, setDiagnostiekOpen] = useState(false)
   const [diagnostiekKist, setDiagnostiekKist] = useState('C830')
   const [diagnostiekResult, setDiagnostiekResult] = useState<any>(null)
@@ -125,23 +126,31 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
 
   const filteredBestel = useMemo(() => {
     let rows = bestelData
+    if (filterLocatie !== 'Alle') {
+      rows = rows.filter(r => String(r.productielocatie || '').toLowerCase().includes(filterLocatie.toLowerCase()))
+    }
     if (alleenBestellen) rows = rows.filter(r => r.bestel_aantal > 0)
     if (zoekterm) {
       const q = zoekterm.toLowerCase()
       rows = rows.filter(r => r.case_type.toLowerCase().includes(q) || (r.productielocatie || '').toLowerCase().includes(q))
     }
     return rows
-  }, [bestelData, alleenBestellen, zoekterm])
+  }, [bestelData, filterLocatie, alleenBestellen, zoekterm])
 
-  // KPI's
+  const filteredConfig = useMemo(() => {
+    if (filterLocatie === 'Alle') return config
+    return config.filter(r => String(r.productielocatie || '').toLowerCase().includes(filterLocatie.toLowerCase()))
+  }, [config, filterLocatie])
+
+  // KPI's (op basis van gefilterde data)
   const kpis = useMemo(() => ({
-    totaal: bestelData.length,
-    leeg: bestelData.filter(r => r.status === 'Leeg').length,
-    bestellen: bestelData.filter(r => r.status === 'Productie aanmaken').length,
-    gedekt: bestelData.filter(r => r.status === 'Gedekt').length,
-    vol: bestelData.filter(r => r.status === 'Vol').length,
-    totalBestelAantal: bestelData.reduce((s, r) => s + r.bestel_aantal, 0),
-  }), [bestelData])
+    totaal: filteredBestel.length,
+    leeg: filteredBestel.filter(r => r.status === 'Leeg').length,
+    bestellen: filteredBestel.filter(r => r.status === 'Productie aanmaken').length,
+    gedekt: filteredBestel.filter(r => r.status === 'Gedekt').length,
+    vol: filteredBestel.filter(r => r.status === 'Vol').length,
+    totalBestelAantal: filteredBestel.reduce((s, r) => s + r.bestel_aantal, 0),
+  }), [filteredBestel])
 
   const handleExport = async () => {
     setIsExporting(true)
@@ -327,6 +336,15 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
                 </span>
               )}
             </label>
+            <select
+              value={filterLocatie}
+              onChange={e => setFilterLocatie(e.target.value as 'Alle' | 'Genk' | 'Wilrijk')}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white"
+            >
+              <option value="Alle">Alle locaties</option>
+              <option value="Genk">Genk</option>
+              <option value="Wilrijk">Wilrijk</option>
+            </select>
             <input
               type="text"
               value={zoekterm}
@@ -612,8 +630,19 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
       {/* ── REKINDELING BEHEREN ── */}
       {activeView === 'rekindeling' && (
         <div className="space-y-5">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500">Beheer de vaste rekindeling van C-kisten in Willebroek. Stapel × posities × 2 = max voorraad per kist.</p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-gray-500">Beheer de vaste rekindeling van C-kisten in Willebroek. Stapel × posities × 2 = max voorraad per kist.</p>
+              <select
+                value={filterLocatie}
+                onChange={e => setFilterLocatie(e.target.value as 'Alle' | 'Genk' | 'Wilrijk')}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white"
+              >
+                <option value="Alle">Alle locaties</option>
+                <option value="Genk">Genk</option>
+                <option value="Wilrijk">Wilrijk</option>
+              </select>
+            </div>
             <button
               onClick={() => { setEditingId(null); setForm(EMPTY_FORM); setShowForm(true) }}
               className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
@@ -719,7 +748,7 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
           ) : (
             <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-                <span className="font-semibold text-gray-800">{config.length} kisten geconfigureerd</span>
+                <span className="font-semibold text-gray-800">{filteredConfig.length} kisten geconfigureerd</span>
                 <button onClick={loadConfig} className="text-gray-400 hover:text-gray-700">
                   <RefreshCw className={`w-4 h-4 ${configLoading ? 'animate-spin' : ''}`} />
                 </button>
@@ -741,10 +770,10 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {config.length === 0 && (
+                    {filteredConfig.length === 0 && (
                       <tr><td colSpan={10} className="py-10 text-center text-gray-400">Geen kisten geconfigureerd.</td></tr>
                     )}
-                    {config.map((row, i) => {
+                    {filteredConfig.map((row, i) => {
                       const maxV = row.posities * row.stapel * row.stapels_per_pos
                       const prio = row.prioriteit ? PRIORITEIT_COLORS[row.prioriteit] : null
                       return (
