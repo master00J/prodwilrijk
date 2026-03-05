@@ -8,14 +8,19 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    // 1. Haal rekindeling op
-    const { data: config, error: configError } = await supabaseAdmin
+    // 1. Haal rekindeling op (alleen C kisten — Kanban Rekken is voor C kisten)
+    const { data: configRaw, error: configError } = await supabaseAdmin
       .from('grote_inpak_kanban_config')
       .select('*')
       .eq('actief', true)
       .order('verbruik_per_dag', { ascending: false })
 
     if (configError) throw configError
+
+    const config = (configRaw || []).filter((row: any) => {
+      const ct = String(row.case_type || '').trim().toUpperCase()
+      return ct.startsWith('C')
+    })
 
     // 1b. Verbruik/dag uit packed-data (laatste 30 dagen): gemiddeld aantal gepakte kisten per dag per case_type
     const packedFrom = new Date()

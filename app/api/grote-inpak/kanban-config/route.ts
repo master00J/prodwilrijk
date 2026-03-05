@@ -15,7 +15,11 @@ export async function GET() {
       .order('rek_kolom', { ascending: true })
 
     if (error) throw error
-    return NextResponse.json({ data: data || [] })
+    // Kanban Rekken is alleen voor C kisten
+    const filtered = (data || []).filter((row: any) =>
+      String(row.case_type || '').trim().toUpperCase().startsWith('C')
+    )
+    return NextResponse.json({ data: filtered })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
