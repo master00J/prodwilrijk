@@ -65,11 +65,12 @@ function addDailyOrderSheet(
 
   const rowValuesC = (row: any, i: number) => {
     const status = mapStatusForDisplay(row.status || '', row.in_productie ?? 0)
+    const effectief = row.bestel_aantal ?? row.tekort
     return [
       row.priority_rank ?? i + 1, row.case_type, row.productielocatie || '—',
       row.max_voorraad, row.stock_in_rek, row.stock_genk ?? 0, row.stock_wilrijk ?? 0,
       row.in_productie_genk ?? 0, row.in_productie_wilrijk ?? 0, row.in_productie_willebroek ?? 0,
-      row.in_transfer ?? 0, row.op_pils ?? 0, row.tekort, row.tekort, status,
+      row.in_transfer ?? 0, row.op_pils ?? 0, row.tekort, effectief, status,
     ]
   }
   const rowValuesK = (row: any, i: number) => {
@@ -118,8 +119,9 @@ function addDailyOrderSheet(
           cell.font = { bold: true, color: { argb: STATUS_FONT_WHITE.has(displayStatus) ? 'FFFFFFFF' : 'FF000000' } }
         }
       }
-      if (col === colEffectief && row.tekort > 0) {
-        cell.font = { bold: true, color: { argb: 'FFCC0000' } }
+      if (col === colEffectief) {
+        const effectief = variant === 'c' ? (row.bestel_aantal ?? row.tekort) : row.tekort
+        if (effectief > 0) cell.font = { bold: true, color: { argb: 'FFCC0000' } }
       }
     })
   })
