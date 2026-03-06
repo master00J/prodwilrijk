@@ -34,6 +34,7 @@ export default function BestellingenAlgemeenPage() {
   const [openOrders, setOpenOrders] = useState<OpenOrder[]>([])
   const [openLoading, setOpenLoading] = useState(false)
   const [selectedOpen, setSelectedOpen] = useState<Set<number>>(new Set())
+  const [mailingOpen, setMailingOpen] = useState(false)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 300)
@@ -157,6 +158,28 @@ export default function BestellingenAlgemeenPage() {
     }
   }
 
+  const handleMailSelected = async () => {
+    if (selectedOpen.size === 0) {
+      setMessage({ type: 'error', text: 'Selecteer minstens 1 bestelling om te mailen' })
+      return
+    }
+    setMailingOpen(true)
+    try {
+      const response = await fetch('/api/bestellingen-algemeen/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedOpen) }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'E-mail versturen mislukt')
+      setMessage({ type: 'success', text: 'E-mail succesvol verstuurd' })
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.message || 'Fout bij het versturen van de e-mail' })
+    } finally {
+      setMailingOpen(false)
+    }
+  }
+
   const handleMarkReceived = async () => {
     if (selectedOpen.size === 0) {
       setMessage({ type: 'error', text: 'Selecteer minstens 1 bestelling' })
@@ -263,8 +286,16 @@ export default function BestellingenAlgemeenPage() {
         </div>
         <div className="flex justify-end mt-4 gap-2">
           <button
+            onClick={handleMailSelected}
+            disabled={mailingOpen || selectedOpen.size === 0}
+            className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {mailingOpen ? 'Versturen...' : '📧 Mail geselecteerde'}
+          </button>
+          <button
             onClick={handleMarkReceived}
-            className="px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            disabled={selectedOpen.size === 0}
+            className="px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Markeer ontvangen
           </button>
