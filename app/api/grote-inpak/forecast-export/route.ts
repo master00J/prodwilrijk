@@ -263,11 +263,11 @@ export async function POST(request: NextRequest) {
       })
       legendaWs.columns = [{ width: 14 }, { width: 70 }]
       const ws = wb.addWorksheet('Forecast')
-      ws.addRow(['GP CODE', 'kist', 'Totaal al in productie order', 'Totaal forecast', 'Totaal nog in productie order te leggen', 'op stock', 'stock genk', 'stock wilrijk', 'stock willebroek', 'in transfer', 'in inkooporder', 'productie genk', 'productie wilrijk', 'productie willebroek'])
+      ws.addRow(['GP CODE', 'kist', 'productielocatie', 'Totaal al in productie order', 'Totaal nog in productie order te leggen', 'Totaal forecast', 'op stock', 'stock genk', 'stock wilrijk', 'stock willebroek', 'in transfer', 'in inkooporder', 'productie genk', 'productie wilrijk', 'productie willebroek'])
       const header = ws.getRow(1)
       header.font = { bold: true }
       header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'D9D9D9' } }
-      ws.views = [{ state: 'frozen', xSplit: 2, ySplit: 1 }]
+      ws.views = [{ state: 'frozen', xSplit: 3, ySplit: 1 }]
       ws.columns.forEach((col) => {
         col.width = 14
       })
@@ -298,9 +298,9 @@ export async function POST(request: NextRequest) {
       return da.getTime() - db.getTime()
     })
 
-    const rows: Array<Record<string, string | number> & { _coverage?: Map<string, number> }> = []
+    const rows: Array<Record<string, string | number> & { _stockCoverage?: Map<string, number>; _prodCoverage?: Map<string, number> }> = []
     counts.forEach((map, caseType) => {
-      const row: Record<string, string | number> & { _coverage?: Map<string, number> } = {}
+      const row: Record<string, string | number> & { _stockCoverage?: Map<string, number>; _prodCoverage?: Map<string, number> } = {}
       const normalizedCaseType = normalizeCaseType(caseType)
       row['GP CODE'] = erpByCase.get(normalizedCaseType)?.erp_code || 'Special'
       row['kist'] = normalizedCaseType
@@ -311,29 +311,28 @@ export async function POST(request: NextRequest) {
       rows.push(row)
     })
 
-    // Voor elke rij: volledige forecast tonen + per-datum coverage voor kleur (gedekt/niet gedekt)
-    const fullAvailableByCase = new Map<string, number>()
-    allCases.forEach((caseType) => {
-      fullAvailableByCase.set(
-        caseType,
-        (stockByCase.get(caseType) || 0) +
-        (inkoopByCase.get(caseType) || 0) +
-        (transferByCase.get(caseType) || 0) +
-        (productieByCase.get(caseType) || 0)
-      )
-    })
+    // Per-datum coverage: eerst stock/inkoop/transfer, daarna productie, dan rood
     rows.forEach((row) => {
       const kist = String(row['kist'])
-      let available = Math.max(0, (fullAvailableByCase.get(kist) || 0) - (pilsNeedByCase.get(kist) || 0))
-      const coverage = new Map<string, number>()
+      let stockLeft = Math.max(
+        0,
+        (stockByCase.get(kist) || 0) + (inkoopByCase.get(kist) || 0) + (transferByCase.get(kist) || 0) - (pilsNeedByCase.get(kist) || 0)
+      )
+      let prodLeft = productieByCase.get(kist) || 0
+      const stockCoverage = new Map<string, number>()
+      const prodCoverage = new Map<string, number>()
       for (const date of dateCols) {
         const need = Number(row[date] || 0)
         if (need <= 0) continue
-        const take = Math.min(need, available)
-        coverage.set(date, take)
-        available -= take
+        const stockUsed = Math.min(need, stockLeft)
+        stockLeft -= stockUsed
+        const prodUsed = Math.min(need - stockUsed, prodLeft)
+        prodLeft -= prodUsed
+        stockCoverage.set(date, stockUsed)
+        prodCoverage.set(date, prodUsed)
       }
-      row._coverage = coverage
+      row._stockCoverage = stockCoverage
+      row._prodCoverage = prodCoverage
     })
 
     const filteredDateCols = dateCols.filter((date) => rows.some((row) => Number(row[date] || 0) > 0))
@@ -363,16 +362,16 @@ export async function POST(request: NextRequest) {
         return totalForecast >= 0
       })
       .map((row) => {
-        const output: Record<string, string | number> & { _coverage?: Map<string, number> } = {}
+        const output: Record<string, string | number> & { _stockCoverage?: Map<string, number>; _prodCoverage?: Map<string, number> } = {}
         output['GP CODE'] = row['GP CODE']
         output['kist'] = row['kist']
         output['productielocatie'] = row['productielocatie'] ?? ''
+        output['Totaal al in productie order'] = row['Totaal al in productie order'] ?? 0
+        output['Totaal nog in productie order te leggen'] = row['Totaal nog in productie order te leggen'] ?? 0
         filteredDateCols.forEach((date) => {
           output[date] = row[date]
         })
-        output['Totaal al in productie order'] = row['Totaal al in productie order'] ?? 0
         output['Totaal forecast'] = row['Totaal forecast'] ?? 0
-        output['Totaal nog in productie order te leggen'] = row['Totaal nog in productie order te leggen'] ?? 0
         output['op stock'] = row['op stock'] ?? 0
         output['stock genk'] = row['stock genk'] ?? 0
         output['stock wilrijk'] = row['stock wilrijk'] ?? 0
@@ -382,7 +381,8 @@ export async function POST(request: NextRequest) {
         output['productie genk'] = row['productie genk'] ?? 0
         output['productie wilrijk'] = row['productie wilrijk'] ?? 0
         output['productie willebroek'] = row['productie willebroek'] ?? 0
-        output._coverage = row._coverage
+        output._stockCoverage = row._stockCoverage
+        output._prodCoverage = row._prodCoverage
         return output
       })
 
@@ -398,9 +398,9 @@ export async function POST(request: NextRequest) {
     legendaSheet.addRow([])
     const legendaData = [
       ['Kleur', 'Betekenis'],
-      ['Groen', 'Volledig gedekt — vraag is gedekt door stock, transfer, inkoop of productie'],
-      ['Geel', 'Gedeeltelijk gedekt — een deel van de vraag is gedekt'],
-      ['Rood', 'Niet gedekt — nog productie order nodig'],
+      ['Groen', 'Reeds op stock — vraag is volledig gedekt door stock, transfer of inkooporder'],
+      ['Geel', 'Al in productie — vraag is gedekt door een lopende productie order'],
+      ['Rood', 'Nog te starten — nog geen productie order aangemaakt'],
     ]
     legendaData.forEach(([label, uitleg], i) => {
       const r = legendaSheet.addRow([label, uitleg])
@@ -427,11 +427,11 @@ export async function POST(request: NextRequest) {
     const forecastColumns = [
       'GP CODE',
       'kist',
-      ...(isAlle ? ['productielocatie'] : []),
-      ...filteredDateCols,
+      'productielocatie',
       'Totaal al in productie order',
-      'Totaal forecast',
       'Totaal nog in productie order te leggen',
+      ...filteredDateCols,
+      'Totaal forecast',
       'op stock',
       'stock genk',
       'stock wilrijk',
@@ -466,20 +466,24 @@ export async function POST(request: NextRequest) {
         const numericValue = typeof cell.value === 'number' ? cell.value : Number.NaN
         if (colTitle && filteredDateCols.includes(colTitle) && Number.isFinite(numericValue) && numericValue > 0) {
           const need = Number(dataRow[colTitle] ?? 0)
-          const covered = dataRow._coverage?.get(colTitle) ?? 0
+          const stockCovered = dataRow._stockCoverage?.get(colTitle) ?? 0
+          const prodCovered = dataRow._prodCoverage?.get(colTitle) ?? 0
           if (need > 0) {
-            if (covered >= need) {
+            if (stockCovered >= need) {
+              // Volledig gedekt door stock/inkoop/transfer → groen
               cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'C6EFCE' } }
-            } else if (covered > 0) {
+            } else if (stockCovered + prodCovered >= need) {
+              // Gedekt door lopende productie order → geel
               cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEB9C' } }
             } else {
+              // Nog geen productie order → rood
               cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC7CE' } }
             }
           }
         }
       })
     })
-    ws.views = [{ state: 'frozen', xSplit: isAlle ? 3 : 2, ySplit: 1 }]
+    ws.views = [{ state: 'frozen', xSplit: 3, ySplit: 1 }]
     ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: forecastColumns.length } }
     ws.columns.forEach((col) => {
       col.width = 14
