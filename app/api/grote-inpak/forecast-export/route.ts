@@ -263,7 +263,7 @@ export async function POST(request: NextRequest) {
       })
       legendaWs.columns = [{ width: 14 }, { width: 70 }]
       const ws = wb.addWorksheet('Forecast')
-      ws.addRow(['GP CODE', 'kist', 'productielocatie', 'Totaal al in productie order', 'Totaal nog in productie order te leggen', 'Totaal forecast', 'op stock', 'stock genk', 'stock wilrijk', 'stock willebroek', 'in transfer', 'in inkooporder', 'productie genk', 'productie wilrijk', 'productie willebroek'])
+      ws.addRow(['GP CODE', 'kist', 'productielocatie', 'Totaal al in productie order', 'Totaal nog in productie order te leggen', 'productie genk', 'productie wilrijk', 'productie willebroek', 'Totaal forecast', 'op stock', 'stock genk', 'stock wilrijk', 'stock willebroek', 'in transfer', 'in inkooporder'])
       const header = ws.getRow(1)
       header.font = { bold: true }
       header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'D9D9D9' } }
@@ -430,6 +430,9 @@ export async function POST(request: NextRequest) {
       'productielocatie',
       'Totaal al in productie order',
       'Totaal nog in productie order te leggen',
+      'productie genk',
+      'productie wilrijk',
+      'productie willebroek',
       ...filteredDateCols,
       'Totaal forecast',
       'op stock',
@@ -438,9 +441,6 @@ export async function POST(request: NextRequest) {
       'stock willebroek',
       'in transfer',
       'in inkooporder',
-      'productie genk',
-      'productie wilrijk',
-      'productie willebroek',
     ]
     ws.addRow(forecastColumns)
     finalRows.forEach((row) => {
