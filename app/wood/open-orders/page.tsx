@@ -394,7 +394,7 @@ export default function OpenOrdersPage() {
 
     setSendingPdf(true)
     try {
-      const filteredData = orders.filter(item => selectedOrders.has(item.id))
+      const filteredData = orders.filter(item => selectedOrders.has(item.id) && item.open_pakken > 0)
 
       const itemsForBcCode = filteredData.map(item => ({
         breedte: item.breedte,
