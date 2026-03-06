@@ -92,7 +92,6 @@ export default function Navbar() {
   const isWoodPage = 
     pathname.startsWith('/wood/order') ||
     pathname.startsWith('/wood/open-orders') ||
-    pathname.startsWith('/openstaande-bestellingen') ||
     pathname.startsWith('/wood/receive') ||
     pathname.startsWith('/wood/picking') ||
     pathname.startsWith('/wood/consumption')
@@ -413,15 +412,6 @@ export default function Navbar() {
                       }`}
                     >
                       Open Orders
-                    </Link>
-                    <Link
-                      href="/openstaande-bestellingen"
-                      onClick={() => setIsWoodOpen(false)}
-                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
-                        isActive('/openstaande-bestellingen') ? 'bg-amber-50 text-amber-600 font-medium border-l-4 border-amber-500' : 'text-gray-700'
-                      }`}
-                    >
-                      Openstaande Bestellingen
                     </Link>
                     <Link
                       href="/wood/receive"
@@ -836,7 +826,6 @@ export default function Navbar() {
                   <div className="pl-4 mt-1 space-y-1 border-l-2 border-gray-200 ml-4">
                     <Link href="/wood/order" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Order Wood</Link>
                     <Link href="/wood/open-orders" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Open Orders</Link>
-                    <Link href="/openstaande-bestellingen" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Openstaande Bestellingen</Link>
                     <Link href="/wood/receive" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Receive Wood</Link>
                     <Link href="/wood/picking" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Wood Picking</Link>
                     <Link href="/wood/consumption" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Wood Consumption</Link>

@@ -129,14 +129,16 @@ async function generateOrderPDF(orderList: any[], columnOrder: string[], columnH
   
   // Column widths matching pdfmake percentages
   const columnWidths: Record<string, number> = {
-    'dikte': tableWidth * 0.08,      // 8%
-    'breedte': tableWidth * 0.08,     // 8%
-    'min_lengte': tableWidth * 0.11,  // 11%
-    'aantal_pakken': tableWidth * 0.11, // 11%
-    'bc_code': tableWidth * 0.11,     // 11%
-    'besteld_op': tableWidth * 0.11,  // 11%
-    'houtsoort': tableWidth * 0.15,   // 15%
-    'opmerkingen': tableWidth * 0.25, // 25%
+    'dikte': tableWidth * 0.07,
+    'breedte': tableWidth * 0.07,
+    'min_lengte': tableWidth * 0.09,
+    'houtsoort': tableWidth * 0.13,
+    'aantal_pakken': tableWidth * 0.08,
+    'ontvangen_pakken': tableWidth * 0.08,
+    'open_pakken': tableWidth * 0.07,
+    'bc_code': tableWidth * 0.09,
+    'opmerkingen': tableWidth * 0.23,
+    'besteld_op': tableWidth * 0.09,
   }
 
   const calculatedWidths = columnOrder.map(col => columnWidths[col] || tableWidth * 0.1)

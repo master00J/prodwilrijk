@@ -443,6 +443,8 @@ export default function OpenOrdersPage() {
         'min_lengte',
         'houtsoort',
         'aantal_pakken',
+        'ontvangen_pakken',
+        'open_pakken',
         'bc_code',
         'opmerkingen',
         'besteld_op'
@@ -454,7 +456,9 @@ export default function OpenOrdersPage() {
         'breedte': 'Breedte',
         'min_lengte': 'Lengte',
         'houtsoort': 'Houtsoort',
-        'aantal_pakken': 'Aantal',
+        'aantal_pakken': 'Besteld',
+        'ontvangen_pakken': 'Ontvangen',
+        'open_pakken': 'Open',
         'bc_code': 'BC Code',
         'opmerkingen': 'Opmerkingen',
         'besteld_op': 'Besteld Op'
@@ -614,14 +618,14 @@ export default function OpenOrdersPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {orders.length === 0 ? (
+              {orders.filter(o => o.open_pakken > 0).length === 0 ? (
                 <tr>
                   <td colSpan={15} className="px-6 py-4 text-center text-gray-500">
                     No open orders found
                   </td>
                 </tr>
               ) : (
-                orders.map((order) => {
+                orders.filter(o => o.open_pakken > 0).map((order) => {
                   const progress = order.aantal_pakken > 0 
                     ? (order.ontvangen_pakken / order.aantal_pakken) * 100 
                     : 0
