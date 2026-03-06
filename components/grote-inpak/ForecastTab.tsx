@@ -213,8 +213,10 @@ export default function ForecastTab() {
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
-      const fileName = location === 'Alle' ? 'Forecast_Alle_locaties.xlsx' : `Forecast_${location}.xlsx`
-      a.href = url; a.download = fileName; a.click()
+      const today = new Date()
+      const todayStr = `${String(today.getDate()).padStart(2, '0')}-${String(today.getMonth() + 1).padStart(2, '0')}-${today.getFullYear()}`
+      const locLabel = location === 'Alle' ? 'Alle locaties' : location
+      a.href = url; a.download = `Forecast ${locLabel} ${todayStr}.xlsx`; a.click()
       URL.revokeObjectURL(url)
     } catch (err: any) {
       alert(`Forecast export mislukt: ${err.message}`)

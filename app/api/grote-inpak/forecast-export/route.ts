@@ -272,7 +272,10 @@ export async function POST(request: NextRequest) {
         col.width = 14
       })
       const buffer = await wb.xlsx.writeBuffer()
-      const fileName = `Forecast_${location}.xlsx`
+      const today = new Date()
+      const todayStr = `${String(today.getDate()).padStart(2, '0')}-${String(today.getMonth() + 1).padStart(2, '0')}-${today.getFullYear()}`
+      const locLabel = isAlle ? 'Alle locaties' : location
+      const fileName = `Forecast ${locLabel} ${todayStr}.xlsx`
       return new Response(buffer as BodyInit, {
         headers: {
           'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -738,7 +741,10 @@ export async function POST(request: NextRequest) {
     })
 
     const buffer = await wb.xlsx.writeBuffer()
-    const fileName = isAlle ? 'Forecast_Alle_locaties.xlsx' : `Forecast_${location}.xlsx`
+    const today = new Date()
+    const todayStr = `${String(today.getDate()).padStart(2, '0')}-${String(today.getMonth() + 1).padStart(2, '0')}-${today.getFullYear()}`
+    const locLabel = isAlle ? 'Alle locaties' : location
+    const fileName = `Forecast ${locLabel} ${todayStr}.xlsx`
     return new Response(buffer as BodyInit, {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
