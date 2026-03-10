@@ -8,17 +8,17 @@ export async function GET() {
     const [pilsRes, forecastRes, packedRes] = await Promise.all([
       supabaseAdmin
         .from('grote_inpak_pils_upload_log')
-        .select('id, uploaded_at, source_file, cnt_added, cnt_removed, total_records')
+        .select('id, uploaded_at, source_file, cnt_added, cnt_removed, total_records, labels_added, labels_removed')
         .order('uploaded_at', { ascending: false })
         .limit(100),
       supabaseAdmin
         .from('grote_inpak_forecast_snapshots')
-        .select('id, snapshot_at, source_files, total_records, cnt_added, cnt_removed, cnt_date_change')
+        .select('id, snapshot_at, source_files, total_records, cnt_added, cnt_removed, cnt_date_change, labels_added, labels_removed')
         .order('snapshot_at', { ascending: false })
         .limit(100),
       supabaseAdmin
         .from('grote_inpak_packed_upload_log')
-        .select('id, uploaded_at, source_files, files_count, cnt_added, cnt_updated, total_records, case_types_new')
+        .select('id, uploaded_at, source_files, files_count, cnt_added, cnt_updated, total_records, case_types_new, labels_added, labels_removed')
         .order('uploaded_at', { ascending: false })
         .limit(100),
     ])
@@ -39,6 +39,8 @@ export async function GET() {
       total_records: row.total_records ?? 0,
       cnt_date_change: null,
       case_types_new:  null,
+      labels_added:   row.labels_added   ?? null,
+      labels_removed: row.labels_removed ?? null,
     }))
 
     const forecast = (forecastRes.data || []).map((row: any) => ({
@@ -54,6 +56,8 @@ export async function GET() {
       total_records: row.total_records ?? 0,
       cnt_date_change: row.cnt_date_change ?? 0,
       case_types_new:  null,
+      labels_added:   row.labels_added   ?? null,
+      labels_removed: row.labels_removed ?? null,
     }))
 
     const packed = packedData.map((row: any) => ({
@@ -67,8 +71,9 @@ export async function GET() {
       total_records: row.total_records ?? 0,
       cnt_date_change: null,
       case_types_new: Array.isArray(row.case_types_new) && row.case_types_new.length
-        ? row.case_types_new
-        : null,
+        ? row.case_types_new : null,
+      labels_added:   row.labels_added   ?? null,
+      labels_removed: row.labels_removed ?? null,
     }))
 
     const merged = [...pils, ...forecast, ...packed]

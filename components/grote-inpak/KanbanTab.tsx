@@ -1028,6 +1028,8 @@ function VerbruiksanalyseView({
     cnt_added?: number
     cnt_updated?: number
     case_types_new?: string[]
+    labels_added?: string[]
+    labels_removed?: string[]
     top_kisten?: { case_type: string; quantity: number }[]
     error?: string
   } | null>(null)
@@ -1045,9 +1047,14 @@ function VerbruiksanalyseView({
     }
 
     let totalProcessed = 0
-    let totalFailed    = 0
-    let totalUpserted  = 0
-    const allTopKisten = new Map<string, number>()
+    let totalFailed          = 0
+    let totalUpserted        = 0
+    let totalCntAdded        = 0
+    let totalCntUpdated      = 0
+    const allTopKisten       = new Map<string, number>()
+    const allCaseTypesNew    = new Set<string>()
+    const allLabelsAdded     = new Set<string>()
+    const allLabelsRemoved   = new Set<string>()
     let lastError: string | undefined
 
     try {
@@ -1058,10 +1065,15 @@ function VerbruiksanalyseView({
         const res  = await fetch('/api/grote-inpak/packed-consumption/upload', { method: 'POST', body: form })
         const json = await res.json()
         if (json.success) {
-          totalProcessed += json.files_processed ?? 0
-          totalFailed    += json.files_failed    ?? 0
-          totalUpserted  += json.records_upserted ?? 0
-          ;(json.top_kisten ?? []).forEach((k: { case_type: string; quantity: number }) => {
+          totalProcessed  += json.files_processed  ?? 0
+          totalFailed     += json.files_failed      ?? 0
+          totalUpserted   += json.records_upserted  ?? 0
+          totalCntAdded   += json.cnt_added         ?? 0
+          totalCntUpdated += json.cnt_updated       ?? 0
+          ;(json.case_types_new  ?? []).forEach((ct: string)  => allCaseTypesNew.add(ct))
+          ;(json.labels_added    ?? []).forEach((l: string)   => allLabelsAdded.add(l))
+          ;(json.labels_removed  ?? []).forEach((l: string)   => allLabelsRemoved.add(l))
+          ;(json.top_kisten      ?? []).forEach((k: { case_type: string; quantity: number }) => {
             allTopKisten.set(k.case_type, (allTopKisten.get(k.case_type) ?? 0) + k.quantity)
           })
         } else {
@@ -1076,12 +1088,17 @@ function VerbruiksanalyseView({
         .map(([case_type, quantity]) => ({ case_type, quantity }))
 
       setUploadResult({
-        success: totalProcessed > 0,
-        files_processed: totalProcessed,
-        files_failed: totalFailed,
+        success:          totalProcessed > 0,
+        files_processed:  totalProcessed,
+        files_failed:     totalFailed,
         records_upserted: totalUpserted,
-        top_kisten: topKisten,
-        error: totalProcessed === 0 ? (lastError ?? 'Alle bestanden mislukt') : undefined,
+        cnt_added:        totalCntAdded,
+        cnt_updated:      totalCntUpdated,
+        case_types_new:   [...allCaseTypesNew],
+        labels_added:     [...allLabelsAdded],
+        labels_removed:   [...allLabelsRemoved],
+        top_kisten:       topKisten,
+        error:            totalProcessed === 0 ? (lastError ?? 'Alle bestanden mislukt') : undefined,
       })
       if (totalProcessed > 0) onReload()
     } catch (err: any) {
@@ -1208,6 +1225,44 @@ function VerbruiksanalyseView({
                         <span className="text-gray-500">totaal verwerkt</span>
                       </div>
                     </div>
+                    {/* Bijgekomen / Afgegane caselabels */}
+                    {((uploadResult.labels_added?.length ?? 0) > 0 || (uploadResult.labels_removed?.length ?? 0) > 0) && (
+                      <div className="border border-gray-200 rounded-lg p-3 space-y-3 bg-white">
+                        <p className="text-gray-700 text-xs font-semibold">Caselabels (PCCANO):</p>
+                        {(uploadResult.labels_added?.length ?? 0) > 0 && (
+                          <div>
+                            <p className="text-green-700 text-xs font-medium mb-1 flex items-center gap-1">
+                              <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
+                              Bijgekomen ({uploadResult.labels_added!.length})
+                            </p>
+                            <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                              {uploadResult.labels_added!.slice(0, 50).map(l => (
+                                <span key={l} className="bg-green-100 text-green-800 text-xs px-1.5 py-0.5 rounded font-mono">{l}</span>
+                              ))}
+                              {uploadResult.labels_added!.length > 50 && (
+                                <span className="text-green-600 text-xs self-center">+{uploadResult.labels_added!.length - 50} meer</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {(uploadResult.labels_removed?.length ?? 0) > 0 && (
+                          <div>
+                            <p className="text-red-700 text-xs font-medium mb-1 flex items-center gap-1">
+                              <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
+                              Afgegaan ({uploadResult.labels_removed!.length})
+                            </p>
+                            <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                              {uploadResult.labels_removed!.slice(0, 50).map(l => (
+                                <span key={l} className="bg-red-100 text-red-800 text-xs px-1.5 py-0.5 rounded font-mono">{l}</span>
+                              ))}
+                              {uploadResult.labels_removed!.length > 50 && (
+                                <span className="text-red-600 text-xs self-center">+{uploadResult.labels_removed!.length - 50} meer</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {/* Nieuwe kisttypes */}
                     {uploadResult.case_types_new && uploadResult.case_types_new.length > 0 && (
                       <div>

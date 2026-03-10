@@ -170,18 +170,26 @@ export async function POST(request: NextRequest) {
         }
       })
 
-      const cntAdded      = changes.filter(c => c.change_type === 'added').length
-      const cntRemoved    = changes.filter(c => c.change_type === 'removed').length
+      const addedChanges   = changes.filter(c => c.change_type === 'added')
+      const removedChanges = changes.filter(c => c.change_type === 'removed')
+      const cntAdded      = addedChanges.length
+      const cntRemoved    = removedChanges.length
       const cntDateChange = changes.filter(c => c.change_type === 'date_change').length
+
+      // Exacte labellijsten (beperkt tot 500 om rij niet te zwaar te maken)
+      const labelsAdded   = addedChanges.map(c => c.case_label).sort().slice(0, 500)
+      const labelsRemoved = removedChanges.map(c => c.case_label).sort().slice(0, 500)
 
       // Sla snapshot op (altijd, ook als er geen wijzigingen zijn)
       await supabaseAdmin.from('grote_inpak_forecast_snapshots').insert({
         id: snapshotId,
-        source_files: [...new Set(deduped.map((r: any) => r.source_file).filter(Boolean))],
-        total_records: deduped.length,
-        cnt_added: cntAdded,
-        cnt_removed: cntRemoved,
+        source_files:   [...new Set(deduped.map((r: any) => r.source_file).filter(Boolean))],
+        total_records:  deduped.length,
+        cnt_added:      cntAdded,
+        cnt_removed:    cntRemoved,
         cnt_date_change: cntDateChange,
+        labels_added:   labelsAdded.length   > 0 ? labelsAdded   : null,
+        labels_removed: labelsRemoved.length > 0 ? labelsRemoved : null,
       })
 
       if (changes.length > 0) {

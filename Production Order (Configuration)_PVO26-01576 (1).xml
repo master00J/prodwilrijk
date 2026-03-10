@@ -1,0 +1,784 @@
+﻿<?xml version="1.0" standalone="yes"?>
+<ReportDataSet name="ACAPC Production Order" id="5098000" language="en-US" formatRegion="en-US">
+  <BCReportInformation>
+    <ReportMetadata>
+      <ExtensionId>401b8388-4255-4d65-9e6d-df2486824723</ExtensionId>
+      <ExtensionName>acadon_product.configurator van acadon AG</ExtensionName>
+      <ExtensionPublisher>acadon AG</ExtensionPublisher>
+      <ExtensionVersion>2026.1.3.819695</ExtensionVersion>
+      <ReportId>5098000</ReportId>
+      <ReportName>ACAPC Production Order</ReportName>
+      <AboutThisReportTitle></AboutThisReportTitle>
+      <AboutThisReportText></AboutThisReportText>
+      <ReportHelpLink>http://docs.acadon.de/acadon_packaging/1.0.0.0/{0}/</ReportHelpLink>
+    </ReportMetadata>
+    <ReportRequest>
+      <TenantEntraId>common</TenantEntraId>
+      <EnvironmentName></EnvironmentName>
+      <EnvironmentType>Production</EnvironmentType>
+      <CompanyName>36 Foresco Packaging NV</CompanyName>
+      <CompanyDisplayName>Foresco BE nv Packaging</CompanyDisplayName>
+      <CompanyId>660f03bf-23d2-ee11-a714-6045bd89a655</CompanyId>
+      <UserName>Jason Ploegaerts</UserName>
+      <DateAndTime>Wednesday, February 11, 2026 11:54:52 AM</DateAndTime>
+      <Language>en-US</Language>
+      <FormatRegion>en-US</FormatRegion>
+      <DateTimeValues>
+        <Year>2026</Year>
+        <MonthNumber>2</MonthNumber>
+        <DayNumber>11</DayNumber>
+        <Hour>11</Hour>
+        <Minute>54</Minute>
+      </DateTimeValues>
+    </ReportRequest>
+  </BCReportInformation>
+  <Labels>
+    <Label name="VariantNoLbl">Variant No.</Label>
+    <Label name="GroupCodeLbl">Group Code:</Label>
+  </Labels>
+  <DataItems>
+    <DataItem language="en-US" formatRegion="en-US" name="ProductionOrder">
+      <Columns>
+        <Column name="No_">PVO26-01576</Column>
+        <Column name="Barcode">*PVO26-01576*</Column>
+        <Column name="Headline">Prod. Order PVO26-01576</Column>
+        <Column name="Creation_Date">2/10/2026</Column>
+        <Column name="Due_Date">2/20/2026</Column>
+        <Column name="Starting_Date">2/19/2026</Column>
+        <Column name="Unit_of_Measure_Code"></Column>
+        <Column name="CustAddr_1">Elaut</Column>
+        <Column name="CustAddr_2">Passtraat 223</Column>
+        <Column name="CustAddr_3">9100 SINT-NIKLAAS</Column>
+        <Column name="CustAddr_4">België</Column>
+        <Column name="CustAddr_5"></Column>
+        <Column name="CustAddr_6"></Column>
+        <Column name="CustAddr_7"></Column>
+        <Column name="CustAddr_8"></Column>
+        <Column name="ShipToAddr_1">Elaut</Column>
+        <Column name="ShipToAddr_2">Passtraat 223</Column>
+        <Column name="ShipToAddr_3">9100 SINT-NIKLAAS</Column>
+        <Column name="ShipToAddr_4">België</Column>
+        <Column name="ShipToAddr_5"></Column>
+        <Column name="ShipToAddr_6"></Column>
+        <Column name="ShipToAddr_7"></Column>
+        <Column name="ShipToAddr_8"></Column>
+        <Column name="ShowShipmentAddress">False</Column>
+        <Column name="SalesHeaderFound">True</Column>
+        <Column name="SalesHeader_No">VO636-1125</Column>
+        <Column name="SalesHeader_YourReference">EBEPO-26000592</Column>
+        <Column name="SalesHeader_ReqDeliveryDate">Promised Delivery Date 02/13/26</Column>
+        <Column name="SalesHeader_SalesPerson">J.PLOEGAERTS</Column>
+        <Column name="ShipMeth_Description">Delivery At Place</Column>
+        <Column name="OrderLbl">Order</Column>
+        <Column name="DateLbl">Date</Column>
+        <Column name="PageLbl">Page</Column>
+        <Column name="CustRefLbl">Customer Reference:</Column>
+        <Column name="DeliveryDateLbl">Delivery Date:</Column>
+        <Column name="DueDateLbl">Due Date:</Column>
+        <Column name="ShipMethLbl">Shipment Method:</Column>
+        <Column name="DescriptionLbl">Description</Column>
+        <Column name="UoMLbl">UoM</Column>
+        <Column name="ItemNoLbl">Item No.</Column>
+        <Column name="QuantityLbl">Quantity</Column>
+        <Column name="LengthLbl">Length</Column>
+        <Column name="WidthLbl">Width</Column>
+        <Column name="ThicknessLbl">Thickness</Column>
+        <Column name="PropertyLbl">Properties</Column>
+        <Column name="ProductionTextLbl">Production Text</Column>
+        <Column name="UnitTotalLbl">Unit Total</Column>
+        <Column name="UnitLbl">Unit</Column>
+        <Column name="FromLbl">from</Column>
+        <Column name="ToLbl">to</Column>
+        <Column name="PersonLbl">Pers. No.</Column>
+        <Column name="ActivityLbl">Activity</Column>
+        <Column name="MinLbl">Min</Column>
+        <Column name="StepsLbl">Steps</Column>
+        <Column name="OperationNoLbl">No.</Column>
+        <Column name="NoLbl">No.</Column>
+        <Column name="RunTimeLbl">Run Time</Column>
+        <Column name="NeededRunTimeLbl">Run Time needed</Column>
+        <Column name="StartDateLbl">Start Date:</Column>
+        <Column name="StandardTaskLbl">Task</Column>
+        <Column name="SalesPersonLbl">Salesperson:</Column>
+        <Column name="SalesLineCommentsLbl">Sales Line Comments:</Column>
+        <Column name="FSGProductionTextLbl">Production Text</Column>
+        <Column name="FSGCompGroupLbl">Group</Column>
+        <Column name="FSGTotalVolumeLbl">Total m³</Column>
+        <Column name="FSGLengthLbl">L</Column>
+        <Column name="FSGWidthLbl">W</Column>
+        <Column name="FSGThicknessLbl">T</Column>
+        <Column name="FSGIndentationLbl">Indentation</Column>
+        <Column name="FSGMarginLbl">Margin</Column>
+        <Column name="FSGCommentsLbl">Comments</Column>
+        <Column name="FSGRoutingCommentsLbl">Routing Line Comments</Column>
+        <Column name="FSGBOMCommentsLbl">BOM Line Comments</Column>
+        <Column name="FSGNoOfEmployeesLbl">No. Of Employees</Column>
+        <Column name="FSGPcsHourLbl">pcs/hour</Column>
+        <Column name="FSGSalesOrder_Lbl">Sales Order</Column>
+        <Column name="FSGWorkDescription"></Column>
+      </Columns>
+      <DataItems>
+        <DataItem name="CopyLoop">
+          <Columns>
+            <Column name="CopyNo">1</Column>
+            <Column name="CopyText"></Column>
+            <Column name="ReportData">CustAddr1¶Elaut±CustAddr2¶Passtraat 223±CustAddr3¶9100 SINT-NIKLAAS±CustAddr4¶België±CustAddr5¶±CustAddr6¶±CustAddr7¶±CustAddr8¶±DocumentLbl¶Prod. Order PVO26-01576±OrderLbl¶Order±DateLbl¶Date±PageLbl¶Page±OrderNo¶VO636-1125±CreationDate¶02/10/26±BarcodeFont¶3 of 9 Barcode±BarcodeFontSize¶28pt±Barcode¶*PVO26-01576*±CustNameFSG¶Elaut±RequestedDeliveryDateTextFSG¶FRIDAY / WEEK 8±DMSBarcodeFont¶3 of 9 Barcode±DMSBarcodeFontSize¶28pt±DMSBarcodeTag¶±DMSBarcodeText¶±</Column>
+          </Columns>
+          <DataItems>
+            <DataItem name="ComponentGroupLoop">
+              <Columns>
+                <Column name="ComponentGroupNo">2</Column>
+              </Columns>
+              <DataItems>
+                <DataItem name="ProdOrderLine">
+                  <Columns>
+                    <Column name="Line_Line_No_">10000</Column>
+                    <Column name="Line_Item_No_">GP009982</Column>
+                    <Column name="Line_Variant_Code"></Column>
+                    <Column name="Line_Description">ELAU00040 KIST 1373X731X792 ISPM15    KI9221ED00 </Column>
+                    <Column name="Line_Description_2"></Column>
+                    <Column name="Line_Quantity" decimalformatter="#,##0.#####">7</Column>
+                    <Column name="DimensionsInsideLbl">Dimensions Inside (mm)</Column>
+                    <Column name="DimensionsOutsideLbl">Dimensions Outside (mm)</Column>
+                    <Column name="Line_InsideMass">1,373 x 731 x 792</Column>
+                    <Column name="Line_OutsideMass">1,453 x 811 x 1,027</Column>
+                    <Column name="NetWeightLbl">Net Weight:</Column>
+                    <Column name="NetWeight" decimalformatter="#,##0.00">0</Column>
+                    <Column name="GrossWeightLbl">Gross Weight:</Column>
+                    <Column name="GrossWeight" decimalformatter="#,##0.00">122.54496750</Column>
+                    <Column name="TaraWeightLbl">Tara Weight</Column>
+                    <Column name="TaraWeight" decimalformatter="#,##0.00">122.54496750</Column>
+                    <Column name="VariantWeightLbl">Variant Weight</Column>
+                    <Column name="GroundSquareMetersLbl">Ground Square Meter</Column>
+                    <Column name="GroundSquareMeters" decimalformatter="#,##0.00">1.18</Column>
+                    <Column name="OutsideSquareMeterLbl">Outside Square Meter</Column>
+                    <Column name="OutsideSquareMeter" decimalformatter="#,##0.00">7.01</Column>
+                    <Column name="SalesLineFound">True</Column>
+                    <Column name="SalesLine_ReqDeliveryDate">2/20/2026</Column>
+                    <Column name="ACAPPrintMarkings">False</Column>
+                    <Column name="FSGIs3Dim">0</Column>
+                    <Column name="FSGLineDueDate">2/20/2026</Column>
+                    <Column name="FSGGroupKey">GP009982🤡🤡ELAU00040 KIST 1373X731X792 ISPM15    KI9221ED00 🤡STUKS/BLD🤡1,453🤡811🤡1,027🤡</Column>
+                    <Column name="FSGGroupCode">1</Column>
+                  </Columns>
+                  <DataItems>
+                    <DataItem name="LineProductionText">
+                      <Columns>
+                        <Column name="Production_Text">ISPM15: HT STEMPELEN TWEE TEGENOVERGESTELDE ZIJDE&lt;/p&gt;&lt;p&gt; &lt;/p&gt;&lt;p&gt;&lt;br&gt;</Column>
+                      </Columns>
+                    </DataItem>
+                    <DataItem name="Component">
+                      <Columns>
+                        <Column name="Component_Line_No_">10000</Column>
+                        <Column name="Component_Item_No_">101083</Column>
+                        <Column name="Component_Description">SXT022X100 - HT ISPM15</Column>
+                        <Column name="Component_Description_2">SEXTA</Column>
+                        <Column name="Component_Length" decimalformatter="#,##0.">731</Column>
+                        <Column name="Component_LengthUOMDescription">mm</Column>
+                        <Column name="Component_Width" decimalformatter="#,##0.">100</Column>
+                        <Column name="Component_WidthUOMDescription">mm</Column>
+                        <Column name="Component_Thickness" decimalformatter="#,##0.">22</Column>
+                        <Column name="Component_ThicknessUOMDescription">mm</Column>
+                        <Column name="Component_Unit" decimalformatter="#,##0.00">15</Column>
+                        <Column name="Component_Group">BODEM</Column>
+                        <Column name="Component_Group_SortValue">2147483257</Column>
+                        <Column name="Component_Indentation"></Column>
+                        <Column name="Component_Margin"></Column>
+                        <Column name="FSGComponentGroupCode">1HOUT</Column>
+                        <Column name="FSGComponentGroupDescription">Hout</Column>
+                        <Column name="FSGCompoment_Indentation" decimalformatter="#,##0.00">0</Column>
+                        <Column name="FSGCompoment_Margin" decimalformatter="#,##0.00">0</Column>
+                      </Columns>
+                      <DataItems>
+                        <DataItem name="ComponentProductionText">
+                          <Columns>
+                            <Column name="Component_ProductionText">PANEELBREEDTE 1409</Column>
+                          </Columns>
+                        </DataItem>
+                        <DataItem name="ComponentFieldsForGroupingFSG">
+                          <Columns>
+                            <Column name="FSGComponent_Unit" decimalformatter="#,##0.00">15</Column>
+                            <Column name="FSGComponent_UnitExpected" decimalformatter="#,##0.00">105</Column>
+                            <Column name="FSGCompoment_TotalVolume" decimalformatter="#,##0.00">0.1688610</Column>
+                          </Columns>
+                        </DataItem>
+                      </DataItems>
+                    </DataItem>
+                    <DataItem name="Component">
+                      <Columns>
+                        <Column name="Component_Line_No_">20000</Column>
+                        <Column name="Component_Item_No_">101122</Column>
+                        <Column name="Component_Description">SXT050X100 - HT ISPM15</Column>
+                        <Column name="Component_Description_2">SEXTA</Column>
+                        <Column name="Component_Length" decimalformatter="#,##0.">1409</Column>
+                        <Column name="Component_LengthUOMDescription">mm</Column>
+                        <Column name="Component_Width" decimalformatter="#,##0.">100</Column>
+                        <Column name="Component_WidthUOMDescription">mm</Column>
+                        <Column name="Component_Thickness" decimalformatter="#,##0.">50</Column>
+                        <Column name="Component_ThicknessUOMDescription">mm</Column>
+                        <Column name="Component_Unit" decimalformatter="#,##0.00">3</Column>
+                        <Column name="Component_Group">BODEM</Column>
+                        <Column name="Component_Group_SortValue">2147483257</Column>
+                        <Column name="Component_Indentation"></Column>
+                        <Column name="Component_Margin"></Column>
+                        <Column name="FSGComponentGroupCode">1HOUT</Column>
+                        <Column name="FSGComponentGroupDescription">Hout</Column>
+                        <Column name="FSGCompoment_Indentation" decimalformatter="#,##0.00">0</Column>
+                        <Column name="FSGCompoment_Margin" decimalformatter="#,##0.00">0</Column>
+                      </Columns>
+                      <DataItems>
+                        <DataItem name="ComponentFieldsForGroupingFSG">
+                          <Columns>
+                            <Column name="FSGComponent_Unit" decimalformatter="#,##0.00">3</Column>
+                            <Column name="FSGComponent_UnitExpected" decimalformatter="#,##0.00">21</Column>
+                            <Column name="FSGCompoment_TotalVolume" decimalformatter="#,##0.00">0.147945</Column>
+                          </Columns>
+                        </DataItem>
+                      </DataItems>
+                    </DataItem>
+                    <DataItem name="Component">
+                      <Columns>
+                        <Column name="Component_Line_No_">30000</Column>
+                        <Column name="Component_Item_No_">101122</Column>
+                        <Column name="Component_Description">SXT050X100 - HT ISPM15</Column>
+                        <Column name="Component_Description_2">SEXTA</Column>
+                        <Column name="Component_Length" decimalformatter="#,##0.">215</Column>
+                        <Column name="Component_LengthUOMDescription">mm</Column>
+                        <Column name="Component_Width" decimalformatter="#,##0.">100</Column>
+                        <Column name="Component_WidthUOMDescription">mm</Column>
+                        <Column name="Component_Thickness" decimalformatter="#,##0.">50</Column>
+                        <Column name="Component_ThicknessUOMDescription">mm</Column>
+                        <Column name="Component_Unit" decimalformatter="#,##0.00">6</Column>
+                        <Column name="Component_Group">BODEM</Column>
+                        <Column name="Component_Group_SortValue">2147483257</Column>
+                        <Column name="Component_Indentation"></Column>
+                        <Column name="Component_Margin"></Column>
+                        <Column name="FSGComponentGroupCode">1HOUT</Column>
+                        <Column name="FSGComponentGroupDescription">Hout</Column>
+                        <Column name="FSGCompoment_Indentation" decimalformatter="#,##0.00">0</Column>
+                        <Column name="FSGCompoment_Margin" decimalformatter="#,##0.00">0</Column>
+                      </Columns>
+                      <DataItems>
+                        <DataItem name="ComponentFieldsForGroupingFSG">
+                          <Columns>
+                            <Column name="FSGComponent_Unit" decimalformatter="#,##0.00">6</Column>
+                            <Column name="FSGComponent_UnitExpected" decimalformatter="#,##0.00">42</Column>
+                            <Column name="FSGCompoment_TotalVolume" decimalformatter="#,##0.00">0.045150</Column>
+                          </Columns>
+                        </DataItem>
+                      </DataItems>
+                    </DataItem>
+                    <DataItem name="Component">
+                      <Columns>
+                        <Column name="Component_Line_No_">40000</Column>
+                        <Column name="Component_Item_No_">100597</Column>
+                        <Column name="Component_Description">NHV095X095</Column>
+                        <Column name="Component_Description_2">NAALDHOUT VERS - GELAT</Column>
+                        <Column name="Component_Length" decimalformatter="#,##0.">200</Column>
+                        <Column name="Component_LengthUOMDescription">mm</Column>
+                        <Column name="Component_Width" decimalformatter="#,##0.">95</Column>
+                        <Column name="Component_WidthUOMDescription">mm</Column>
+                        <Column name="Component_Thickness" decimalformatter="#,##0.">95</Column>
+                        <Column name="Component_ThicknessUOMDescription">mm</Column>
+                        <Column name="Component_Unit" decimalformatter="#,##0.00">9</Column>
+                        <Column name="Component_Group">BODEM</Column>
+                        <Column name="Component_Group_SortValue">2147483257</Column>
+                        <Column name="Component_Indentation"></Column>
+                        <Column name="Component_Margin"></Column>
+                        <Column name="FSGComponentGroupCode">1HOUT</Column>
+                        <Column name="FSGComponentGroupDescription">Hout</Column>
+                        <Column name="FSGCompoment_Indentation" decimalformatter="#,##0.00">0</Column>
+                        <Column name="FSGCompoment_Margin" decimalformatter="#,##0.00">0</Column>
+                      </Columns>
+                      <DataItems>
+                        <DataItem name="ComponentProductionText">
+                          <Columns>
+                            <Column name="Component_ProductionText">SLEEPVOETJES&lt;/p&gt;&lt;p&gt;AFSCHUINEN</Column>
+                          </Columns>
+                        </DataItem>
+                        <DataItem name="ComponentFieldsForGroupingFSG">
+                          <Columns>
+                            <Column name="FSGComponent_Unit" decimalformatter="#,##0.00">9</Column>
+                            <Column name="FSGComponent_UnitExpected" decimalformatter="#,##0.00">63</Column>
+                            <Column name="FSGCompoment_TotalVolume" decimalformatter="#,##0.00">0.1137150</Column>
+                          </Columns>
+                        </DataItem>
+                      </DataItems>
+                    </DataItem>
+                    <DataItem name="Component">
+                      <Columns>
+                        <Column name="Component_Line_No_">50000</Column>
+                        <Column name="Component_Item_No_">102762</Column>
+                        <Column name="Component_Description">CI-MEP018</Column>
+                        <Column name="Component_Description_2">CONSUMPTION MPX 018 ELL.PINE</Column>
+                        <Column name="Component_Length" decimalformatter="#,##0.">1453</Column>
+                        <Column name="Component_LengthUOMDescription">mm</Column>
+                        <Column name="Component_Width" decimalformatter="#,##0.">892</Column>
+                        <Column name="Component_WidthUOMDescription">mm</Column>
+                        <Column name="Component_Thickness" decimalformatter="#,##0.">18</Column>
+                        <Column name="Component_ThicknessUOMDescription">mm</Column>
+                        <Column name="Component_Unit" decimalformatter="#,##0.00">2</Column>
+                        <Column name="Component_Group">ZIJPANELEN</Column>
+                        <Column name="Component_Group_SortValue">2147483377</Column>
+                        <Column name="Component_Indentation"></Column>
+                        <Column name="Component_Margin"></Column>
+                        <Column name="FSGComponentGroupCode">EMPTYGROUP</Column>
+                        <Column name="FSGComponentGroupDescription"></Column>
+                        <Column name="FSGCompoment_Indentation" decimalformatter="#,##0.00">0</Column>
+                        <Column name="FSGCompoment_Margin" decimalformatter="#,##0.00">0</Column>
+                      </Columns>
+                      <DataItems>
+                        <DataItem name="ComponentFieldsForGroupingFSG">
+                          <Columns>
+                            <Column name="FSGComponent_Unit" decimalformatter="#,##0.00">2</Column>
+                            <Column name="FSGComponent_UnitExpected" decimalformatter="#,##0.00">14</Column>
+                            <Column name="FSGCompoment_TotalVolume" decimalformatter="#,##0.00">0.326611152</Column>
+                          </Columns>
+                        </DataItem>
+                      </DataItems>
+                    </DataItem>
+                    <DataItem name="Component">
+                      <Columns>
+                        <Column name="Component_Line_No_">60000</Column>
+                        <Column name="Component_Item_No_">101083</Column>
+                        <Column name="Component_Description">SXT022X100 - HT ISPM15</Column>
+                        <Column name="Component_Description_2">SEXTA</Column>
+                        <Column name="Component_Length" decimalformatter="#,##0.">1453</Column>
+                        <Column name="Component_LengthUOMDescription">mm</Column>
+                        <Column name="Component_Width" decimalformatter="#,##0.">100</Column>
+                        <Column name="Component_WidthUOMDescription">mm</Column>
+                        <Column name="Component_Thickness" decimalformatter="#,##0.">22</Column>
+                        <Column name="Component_ThicknessUOMDescription">mm</Column>
+                        <Column name="Component_Unit" decimalformatter="#,##0.00">4</Column>
+                        <Column name="Component_Group">ZIJPANELEN</Column>
+                        <Column name="Component_Group_SortValue">2147483377</Column>
+                        <Column name="Component_Indentation"></Column>
+                        <Column name="Component_Margin"></Column>
+                        <Column name="FSGComponentGroupCode">1HOUT</Column>
+                        <Column name="FSGComponentGroupDescription">Hout</Column>
+                        <Column name="FSGCompoment_Indentation" decimalformatter="#,##0.00">0</Column>
+                        <Column name="FSGCompoment_Margin" decimalformatter="#,##0.00">0</Column>
+                      </Columns>
+                      <DataItems>
+                        <DataItem name="ComponentFieldsForGroupingFSG">
+                          <Columns>
+                            <Column name="FSGComponent_Unit" decimalformatter="#,##0.00">4</Column>
+                            <Column name="FSGComponent_UnitExpected" decimalformatter="#,##0.00">28</Column>
+                            <Column name="FSGCompoment_TotalVolume" decimalformatter="#,##0.00">0.0895048</Column>
+                          </Columns>
+                        </DataItem>
+                      </DataItems>
+                    </DataItem>
+                    <DataItem name="Component">
+                      <Columns>
+                        <Column name="Component_Line_No_">70000</Column>
+                        <Column name="Component_Item_No_">101083</Column>
+                        <Column name="Component_Description">SXT022X100 - HT ISPM15</Column>
+                        <Column name="Component_Description_2">SEXTA</Column>
+                        <Column name="Component_Length" decimalformatter="#,##0.">692</Column>
+                        <Column name="Component_LengthUOMDescription">mm</Column>
+                        <Column name="Component_Width" decimalformatter="#,##0.">100</Column>
+                        <Column name="Component_WidthUOMDescription">mm</Column>
+                        <Column name="Component_Thickness" decimalformatter="#,##0.">22</Column>
+                        <Column name="Component_ThicknessUOMDescription">mm</Column>
+                        <Column name="Component_Unit" decimalformatter="#,##0.00">4</Column>
+                        <Column name="Component_Group">ZIJPANELEN</Column>
+                        <Column name="Component_Group_SortValue">2147483377</Column>
+                        <Column name="Component_Indentation"></Column>
+                        <Column name="Component_Margin"></Column>
+                        <Column name="FSGComponentGroupCode">1HOUT</Column>
+                        <Column name="FSGComponentGroupDescription">Hout</Column>
+                        <Column name="FSGCompoment_Indentation" decimalformatter="#,##0.00">0</Column>
+                        <Column name="FSGCompoment_Margin" decimalformatter="#,##0.00">0</Column>
+                      </Columns>
+                      <DataItems>
+                        <DataItem name="ComponentFieldsForGroupingFSG">
+                          <Columns>
+                            <Column name="FSGComponent_Unit" decimalformatter="#,##0.00">4</Column>
+                            <Column name="FSGComponent_UnitExpected" decimalformatter="#,##0.00">28</Column>
+                            <Column name="FSGCompoment_TotalVolume" decimalformatter="#,##0.00">0.0426272</Column>
+                          </Columns>
+                        </DataItem>
+                      </DataItems>
+                    </DataItem>
+                    <DataItem name="Component">
+                      <Columns>
+                        <Column name="Component_Line_No_">80000</Column>
+                        <Column name="Component_Item_No_">102762</Column>
+                        <Column name="Component_Description">CI-MEP018</Column>
+                        <Column name="Component_Description_2">CONSUMPTION MPX 018 ELL.PINE</Column>
+                        <Column name="Component_Length" decimalformatter="#,##0.">820</Column>
+                        <Column name="Component_LengthUOMDescription">mm</Column>
+                        <Column name="Component_Width" decimalformatter="#,##0.">731</Column>
+                        <Column name="Component_WidthUOMDescription">mm</Column>
+                        <Column name="Component_Thickness" decimalformatter="#,##0.">18</Column>
+                        <Column name="Component_ThicknessUOMDescription">mm</Column>
+                        <Column name="Component_Unit" decimalformatter="#,##0.00">2</Column>
+                        <Column name="Component_Group">KOPPANELEN</Column>
+                        <Column name="Component_Group_SortValue">2147483447</Column>
+                        <Column name="Component_Indentation"></Column>
+                        <Column name="Component_Margin"></Column>
+                        <Column name="FSGComponentGroupCode">EMPTYGROUP</Column>
+                        <Column name="FSGComponentGroupDescription"></Column>
+                        <Column name="FSGCompoment_Indentation" decimalformatter="#,##0.00">0</Column>
+                        <Column name="FSGCompoment_Margin" decimalformatter="#,##0.00">0</Column>
+                      </Columns>
+                      <DataItems>
+                        <DataItem name="ComponentFieldsForGroupingFSG">
+                          <Columns>
+                            <Column name="FSGComponent_Unit" decimalformatter="#,##0.00">2</Column>
+                            <Column name="FSGComponent_UnitExpected" decimalformatter="#,##0.00">14</Column>
+                            <Column name="FSGCompoment_TotalVolume" decimalformatter="#,##0.00">0.15105384</Column>
+                          </Columns>
+                        </DataItem>
+                      </DataItems>
+                    </DataItem>
+                    <DataItem name="Component">
+                      <Columns>
+                        <Column name="Component_Line_No_">90000</Column>
+                        <Column name="Component_Item_No_">101083</Column>
+                        <Column name="Component_Description">SXT022X100 - HT ISPM15</Column>
+                        <Column name="Component_Description_2">SEXTA</Column>
+                        <Column name="Component_Length" decimalformatter="#,##0.">731</Column>
+                        <Column name="Component_LengthUOMDescription">mm</Column>
+                        <Column name="Component_Width" decimalformatter="#,##0.">100</Column>
+                        <Column name="Component_WidthUOMDescription">mm</Column>
+                        <Column name="Component_Thickness" decimalformatter="#,##0.">22</Column>
+                        <Column name="Component_ThicknessUOMDescription">mm</Column>
+                        <Column name="Component_Unit" decimalformatter="#,##0.00">2</Column>
+                        <Column name="Component_Group">KOPPANELEN</Column>
+                        <Column name="Component_Group_SortValue">2147483447</Column>
+                        <Column name="Component_Indentation"></Column>
+                        <Column name="Component_Margin"></Column>
+                        <Column name="FSGComponentGroupCode">1HOUT</Column>
+                        <Column name="FSGComponentGroupDescription">Hout</Column>
+                        <Column name="FSGCompoment_Indentation" decimalformatter="#,##0.00">0</Column>
+                        <Column name="FSGCompoment_Margin" decimalformatter="#,##0.00">0</Column>
+                      </Columns>
+                      <DataItems>
+                        <DataItem name="ComponentFieldsForGroupingFSG">
+                          <Columns>
+                            <Column name="FSGComponent_Unit" decimalformatter="#,##0.00">2</Column>
+                            <Column name="FSGComponent_UnitExpected" decimalformatter="#,##0.00">14</Column>
+                            <Column name="FSGCompoment_TotalVolume" decimalformatter="#,##0.00">0.0225148</Column>
+                          </Columns>
+                        </DataItem>
+                      </DataItems>
+                    </DataItem>
+                    <DataItem name="Component">
+                      <Columns>
+                        <Column name="Component_Line_No_">100000</Column>
+                        <Column name="Component_Item_No_">101083</Column>
+                        <Column name="Component_Description">SXT022X100 - HT ISPM15</Column>
+                        <Column name="Component_Description_2">SEXTA</Column>
+                        <Column name="Component_Length" decimalformatter="#,##0.">792</Column>
+                        <Column name="Component_LengthUOMDescription">mm</Column>
+                        <Column name="Component_Width" decimalformatter="#,##0.">100</Column>
+                        <Column name="Component_WidthUOMDescription">mm</Column>
+                        <Column name="Component_Thickness" decimalformatter="#,##0.">22</Column>
+                        <Column name="Component_ThicknessUOMDescription">mm</Column>
+                        <Column name="Component_Unit" decimalformatter="#,##0.00">4</Column>
+                        <Column name="Component_Group">KOPPANELEN</Column>
+                        <Column name="Component_Group_SortValue">2147483447</Column>
+                        <Column name="Component_Indentation"></Column>
+                        <Column name="Component_Margin"></Column>
+                        <Column name="FSGComponentGroupCode">1HOUT</Column>
+                        <Column name="FSGComponentGroupDescription">Hout</Column>
+                        <Column name="FSGCompoment_Indentation" decimalformatter="#,##0.00">0</Column>
+                        <Column name="FSGCompoment_Margin" decimalformatter="#,##0.00">0</Column>
+                      </Columns>
+                      <DataItems>
+                        <DataItem name="ComponentFieldsForGroupingFSG">
+                          <Columns>
+                            <Column name="FSGComponent_Unit" decimalformatter="#,##0.00">4</Column>
+                            <Column name="FSGComponent_UnitExpected" decimalformatter="#,##0.00">28</Column>
+                            <Column name="FSGCompoment_TotalVolume" decimalformatter="#,##0.00">0.0487872</Column>
+                          </Columns>
+                        </DataItem>
+                      </DataItems>
+                    </DataItem>
+                    <DataItem name="Component">
+                      <Columns>
+                        <Column name="Component_Line_No_">110000</Column>
+                        <Column name="Component_Item_No_">101083</Column>
+                        <Column name="Component_Description">SXT022X100 - HT ISPM15</Column>
+                        <Column name="Component_Description_2">SEXTA</Column>
+                        <Column name="Component_Length" decimalformatter="#,##0.">531</Column>
+                        <Column name="Component_LengthUOMDescription">mm</Column>
+                        <Column name="Component_Width" decimalformatter="#,##0.">100</Column>
+                        <Column name="Component_WidthUOMDescription">mm</Column>
+                        <Column name="Component_Thickness" decimalformatter="#,##0.">22</Column>
+                        <Column name="Component_ThicknessUOMDescription">mm</Column>
+                        <Column name="Component_Unit" decimalformatter="#,##0.00">2</Column>
+                        <Column name="Component_Group">KOPPANELEN</Column>
+                        <Column name="Component_Group_SortValue">2147483447</Column>
+                        <Column name="Component_Indentation"></Column>
+                        <Column name="Component_Margin"></Column>
+                        <Column name="FSGComponentGroupCode">1HOUT</Column>
+                        <Column name="FSGComponentGroupDescription">Hout</Column>
+                        <Column name="FSGCompoment_Indentation" decimalformatter="#,##0.00">0</Column>
+                        <Column name="FSGCompoment_Margin" decimalformatter="#,##0.00">0</Column>
+                      </Columns>
+                      <DataItems>
+                        <DataItem name="ComponentFieldsForGroupingFSG">
+                          <Columns>
+                            <Column name="FSGComponent_Unit" decimalformatter="#,##0.00">2</Column>
+                            <Column name="FSGComponent_UnitExpected" decimalformatter="#,##0.00">14</Column>
+                            <Column name="FSGCompoment_TotalVolume" decimalformatter="#,##0.00">0.0163548</Column>
+                          </Columns>
+                        </DataItem>
+                      </DataItems>
+                    </DataItem>
+                    <DataItem name="Component">
+                      <Columns>
+                        <Column name="Component_Line_No_">120000</Column>
+                        <Column name="Component_Item_No_">102762</Column>
+                        <Column name="Component_Description">CI-MEP018</Column>
+                        <Column name="Component_Description_2">CONSUMPTION MPX 018 ELL.PINE</Column>
+                        <Column name="Component_Length" decimalformatter="#,##0.">1453</Column>
+                        <Column name="Component_LengthUOMDescription">mm</Column>
+                        <Column name="Component_Width" decimalformatter="#,##0.">811</Column>
+                        <Column name="Component_WidthUOMDescription">mm</Column>
+                        <Column name="Component_Thickness" decimalformatter="#,##0.">18</Column>
+                        <Column name="Component_ThicknessUOMDescription">mm</Column>
+                        <Column name="Component_Unit" decimalformatter="#,##0.00">1</Column>
+                        <Column name="Component_Group">DEKSEL</Column>
+                        <Column name="Component_Group_SortValue">2147483307</Column>
+                        <Column name="Component_Indentation"></Column>
+                        <Column name="Component_Margin"></Column>
+                        <Column name="FSGComponentGroupCode">EMPTYGROUP</Column>
+                        <Column name="FSGComponentGroupDescription"></Column>
+                        <Column name="FSGCompoment_Indentation" decimalformatter="#,##0.00">0</Column>
+                        <Column name="FSGCompoment_Margin" decimalformatter="#,##0.00">0</Column>
+                      </Columns>
+                      <DataItems>
+                        <DataItem name="ComponentFieldsForGroupingFSG">
+                          <Columns>
+                            <Column name="FSGComponent_Unit" decimalformatter="#,##0.00">1</Column>
+                            <Column name="FSGComponent_UnitExpected" decimalformatter="#,##0.00">7</Column>
+                            <Column name="FSGCompoment_TotalVolume" decimalformatter="#,##0.00">0.148476258</Column>
+                          </Columns>
+                        </DataItem>
+                      </DataItems>
+                    </DataItem>
+                    <DataItem name="Component">
+                      <Columns>
+                        <Column name="Component_Line_No_">130000</Column>
+                        <Column name="Component_Item_No_">101083</Column>
+                        <Column name="Component_Description">SXT022X100 - HT ISPM15</Column>
+                        <Column name="Component_Description_2">SEXTA</Column>
+                        <Column name="Component_Length" decimalformatter="#,##0.">811</Column>
+                        <Column name="Component_LengthUOMDescription">mm</Column>
+                        <Column name="Component_Width" decimalformatter="#,##0.">100</Column>
+                        <Column name="Component_WidthUOMDescription">mm</Column>
+                        <Column name="Component_Thickness" decimalformatter="#,##0.">22</Column>
+                        <Column name="Component_ThicknessUOMDescription">mm</Column>
+                        <Column name="Component_Unit" decimalformatter="#,##0.00">2</Column>
+                        <Column name="Component_Group">DEKSEL</Column>
+                        <Column name="Component_Group_SortValue">2147483307</Column>
+                        <Column name="Component_Indentation"></Column>
+                        <Column name="Component_Margin"></Column>
+                        <Column name="FSGComponentGroupCode">1HOUT</Column>
+                        <Column name="FSGComponentGroupDescription">Hout</Column>
+                        <Column name="FSGCompoment_Indentation" decimalformatter="#,##0.00">0</Column>
+                        <Column name="FSGCompoment_Margin" decimalformatter="#,##0.00">0</Column>
+                      </Columns>
+                      <DataItems>
+                        <DataItem name="ComponentFieldsForGroupingFSG">
+                          <Columns>
+                            <Column name="FSGComponent_Unit" decimalformatter="#,##0.00">2</Column>
+                            <Column name="FSGComponent_UnitExpected" decimalformatter="#,##0.00">14</Column>
+                            <Column name="FSGCompoment_TotalVolume" decimalformatter="#,##0.00">0.0249788</Column>
+                          </Columns>
+                        </DataItem>
+                      </DataItems>
+                    </DataItem>
+                    <DataItem name="Component">
+                      <Columns>
+                        <Column name="Component_Line_No_">140000</Column>
+                        <Column name="Component_Item_No_">101083</Column>
+                        <Column name="Component_Description">SXT022X100 - HT ISPM15</Column>
+                        <Column name="Component_Description_2">SEXTA</Column>
+                        <Column name="Component_Length" decimalformatter="#,##0.">1253</Column>
+                        <Column name="Component_LengthUOMDescription">mm</Column>
+                        <Column name="Component_Width" decimalformatter="#,##0.">100</Column>
+                        <Column name="Component_WidthUOMDescription">mm</Column>
+                        <Column name="Component_Thickness" decimalformatter="#,##0.">22</Column>
+                        <Column name="Component_ThicknessUOMDescription">mm</Column>
+                        <Column name="Component_Unit" decimalformatter="#,##0.00">3</Column>
+                        <Column name="Component_Group">DEKSEL</Column>
+                        <Column name="Component_Group_SortValue">2147483307</Column>
+                        <Column name="Component_Indentation"></Column>
+                        <Column name="Component_Margin"></Column>
+                        <Column name="FSGComponentGroupCode">1HOUT</Column>
+                        <Column name="FSGComponentGroupDescription">Hout</Column>
+                        <Column name="FSGCompoment_Indentation" decimalformatter="#,##0.00">0</Column>
+                        <Column name="FSGCompoment_Margin" decimalformatter="#,##0.00">0</Column>
+                      </Columns>
+                      <DataItems>
+                        <DataItem name="ComponentFieldsForGroupingFSG">
+                          <Columns>
+                            <Column name="FSGComponent_Unit" decimalformatter="#,##0.00">3</Column>
+                            <Column name="FSGComponent_UnitExpected" decimalformatter="#,##0.00">21</Column>
+                            <Column name="FSGCompoment_TotalVolume" decimalformatter="#,##0.00">0.0578886</Column>
+                          </Columns>
+                        </DataItem>
+                      </DataItems>
+                    </DataItem>
+                    <DataItem name="Component">
+                      <Columns>
+                        <Column name="Component_Line_No_">150000</Column>
+                        <Column name="Component_Item_No_">102789</Column>
+                        <Column name="Component_Description">CI-NAG LANG</Column>
+                        <Column name="Component_Description_2">CONSUMPTION NAGEL LANG &gt;65</Column>
+                        <Column name="Component_Length" decimalformatter="#,##0.00">0</Column>
+                        <Column name="Component_LengthUOMDescription"></Column>
+                        <Column name="Component_Width" decimalformatter="#,##0.00">0</Column>
+                        <Column name="Component_WidthUOMDescription"></Column>
+                        <Column name="Component_Thickness" decimalformatter="#,##0.00">0</Column>
+                        <Column name="Component_ThicknessUOMDescription"></Column>
+                        <Column name="Component_Unit" decimalformatter="#,##0.00">731</Column>
+                        <Column name="Component_Group">OVERIGE</Column>
+                        <Column name="Component_Group_SortValue">2147483127</Column>
+                        <Column name="Component_Indentation"></Column>
+                        <Column name="Component_Margin"></Column>
+                        <Column name="FSGComponentGroupCode">EMPTYGROUP</Column>
+                        <Column name="FSGComponentGroupDescription"></Column>
+                        <Column name="FSGCompoment_Indentation" decimalformatter="#,##0.00">0</Column>
+                        <Column name="FSGCompoment_Margin" decimalformatter="#,##0.00">0</Column>
+                      </Columns>
+                      <DataItems>
+                        <DataItem name="ComponentFieldsForGroupingFSG">
+                          <Columns>
+                            <Column name="FSGComponent_Unit" decimalformatter="#,##0.00">731</Column>
+                            <Column name="FSGComponent_UnitExpected" decimalformatter="#,##0.00">5117</Column>
+                            <Column name="FSGCompoment_TotalVolume" decimalformatter="#,##0.00">0</Column>
+                          </Columns>
+                        </DataItem>
+                      </DataItems>
+                    </DataItem>
+                    <DataItem name="Routing">
+                      <Columns>
+                        <Column name="Routing_Routing_Reference_No_">10000</Column>
+                        <Column name="Routing_Operation_No_">10</Column>
+                        <Column name="Routing_No_">WILR-001</Column>
+                        <Column name="Routing_Description">WILR-001 KORTEN PLANKEN (250st/u - 1p)</Column>
+                        <Column name="Routing_Run_Time" decimalformatter="#,##0.#####">518.4</Column>
+                        <Column name="PrintTargetTimes">False</Column>
+                        <Column name="Routing_StandardTask">WILR-001 KORTEN PLANKEN (250st/u - 1p)</Column>
+                        <Column name="PrintRouting">False</Column>
+                        <Column name="FSGNoOfEmployees_Routing">0</Column>
+                      </Columns>
+                      <DataItems>
+                        <DataItem name="RoutingFieldsForGroupingFSG">
+                          <Columns>
+                            <Column name="FSGUnitsPerHour" decimalformatter="#,##0.##">6.94</Column>
+                            <Column name="FSGTotalHour" decimalformatter="#,##0.##">1.008</Column>
+                            <Column name="FSGRoutingDescription">KORTEN</Column>
+                          </Columns>
+                        </DataItem>
+                      </DataItems>
+                    </DataItem>
+                    <DataItem name="Routing">
+                      <Columns>
+                        <Column name="Routing_Routing_Reference_No_">10000</Column>
+                        <Column name="Routing_Operation_No_">20</Column>
+                        <Column name="Routing_No_">WILR-001</Column>
+                        <Column name="Routing_Description">WILR-001 KORTEN BALKEN (153,84st/u - 1p)</Column>
+                        <Column name="Routing_Run_Time" decimalformatter="#,##0.#####">421.2</Column>
+                        <Column name="PrintTargetTimes">False</Column>
+                        <Column name="Routing_StandardTask">WILR-001 KORTEN BALKEN (153,84st/u - 1p)</Column>
+                        <Column name="PrintRouting">False</Column>
+                        <Column name="FSGNoOfEmployees_Routing">0</Column>
+                      </Columns>
+                      <DataItems>
+                        <DataItem name="RoutingFieldsForGroupingFSG">
+                          <Columns>
+                            <Column name="FSGUnitsPerHour" decimalformatter="#,##0.##">8.55</Column>
+                            <Column name="FSGTotalHour" decimalformatter="#,##0.##">0.819</Column>
+                            <Column name="FSGRoutingDescription">KORTEN</Column>
+                          </Columns>
+                        </DataItem>
+                      </DataItems>
+                    </DataItem>
+                    <DataItem name="Routing">
+                      <Columns>
+                        <Column name="Routing_Routing_Reference_No_">10000</Column>
+                        <Column name="Routing_Operation_No_">30</Column>
+                        <Column name="Routing_No_">WILR-004</Column>
+                        <Column name="Routing_Description">WILR-004 LANGSZAGEN (181,82m/u - 1p)</Column>
+                        <Column name="Routing_Run_Time" decimalformatter="#,##0.#####">0</Column>
+                        <Column name="PrintTargetTimes">False</Column>
+                        <Column name="Routing_StandardTask">WILR-004 LANGSZAGEN (181,82m/u - 1p)</Column>
+                        <Column name="PrintRouting">False</Column>
+                        <Column name="FSGNoOfEmployees_Routing">0</Column>
+                      </Columns>
+                      <DataItems>
+                        <DataItem name="RoutingFieldsForGroupingFSG">
+                          <Columns>
+                            <Column name="FSGUnitsPerHour" decimalformatter="#,##0.##">0</Column>
+                            <Column name="FSGTotalHour" decimalformatter="#,##0.##">0</Column>
+                            <Column name="FSGRoutingDescription">LANGSZAGEN</Column>
+                          </Columns>
+                        </DataItem>
+                      </DataItems>
+                    </DataItem>
+                    <DataItem name="Routing">
+                      <Columns>
+                        <Column name="Routing_Routing_Reference_No_">10000</Column>
+                        <Column name="Routing_Operation_No_">40</Column>
+                        <Column name="Routing_No_">WILR-002</Column>
+                        <Column name="Routing_Description">WILR-002 PLAATZAGEN (166,66m/u - 1p)</Column>
+                        <Column name="Routing_Run_Time" decimalformatter="#,##0.#####">129.583583343333839</Column>
+                        <Column name="PrintTargetTimes">False</Column>
+                        <Column name="Routing_StandardTask">WILR-002 PLAATZAGEN (166,66m/u - 1p)</Column>
+                        <Column name="PrintRouting">False</Column>
+                        <Column name="FSGNoOfEmployees_Routing">0</Column>
+                      </Columns>
+                      <DataItems>
+                        <DataItem name="RoutingFieldsForGroupingFSG">
+                          <Columns>
+                            <Column name="FSGUnitsPerHour" decimalformatter="#,##0.##">27.78</Column>
+                            <Column name="FSGTotalHour" decimalformatter="#,##0.##">0.251968078723149132</Column>
+                            <Column name="FSGRoutingDescription">PLAATZAGEN</Column>
+                          </Columns>
+                        </DataItem>
+                      </DataItems>
+                    </DataItem>
+                    <DataItem name="Routing">
+                      <Columns>
+                        <Column name="Routing_Routing_Reference_No_">10000</Column>
+                        <Column name="Routing_Operation_No_">50</Column>
+                        <Column name="Routing_No_">WILR-005</Column>
+                        <Column name="Routing_Description">WILR-005 MANUELE MONTAGE (7sec / pc)</Column>
+                        <Column name="Routing_Run_Time" decimalformatter="#,##0.#####">5117</Column>
+                        <Column name="PrintTargetTimes">False</Column>
+                        <Column name="Routing_StandardTask">WILR-005 MANUELE MONTAGE (7sec / pc)</Column>
+                        <Column name="PrintRouting">False</Column>
+                        <Column name="FSGNoOfEmployees_Routing">0</Column>
+                      </Columns>
+                      <DataItems>
+                        <DataItem name="RoutingFieldsForGroupingFSG">
+                          <Columns>
+                            <Column name="FSGUnitsPerHour" decimalformatter="#,##0.##">0.70</Column>
+                            <Column name="FSGTotalHour" decimalformatter="#,##0.##">9.94972222222222223</Column>
+                            <Column name="FSGRoutingDescription">MANUELE MONTAGE</Column>
+                          </Columns>
+                        </DataItem>
+                      </DataItems>
+                    </DataItem>
+                    <DataItem name="LineFieldsForGroupingFSG">
+                      <Columns>
+                        <Column name="FSGLine_Quantity" decimalformatter="#,##0.00">7</Column>
+                      </Columns>
+                    </DataItem>
+                  </DataItems>
+                </DataItem>
+              </DataItems>
+            </DataItem>
+          </DataItems>
+        </DataItem>
+      </DataItems>
+    </DataItem>
+  </DataItems>
+</ReportDataSet>

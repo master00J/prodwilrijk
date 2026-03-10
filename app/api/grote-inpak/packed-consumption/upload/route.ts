@@ -24,42 +24,54 @@ function getSourceType(filename: string): 'Y' | 'N' {
   return filename.toUpperCase().includes('PACKED_N') ? 'N' : 'Y'
 }
 
+interface ParsedRecord {
+  case_label: string   // PCCANO (kolom C) — individueel caselabel
+  case_type:  string   // PCCATP (kolom D) — kisttype
+  scan_date:  string
+  source_type: string
+}
+
 // ── Parse één XLS buffer ─────────────────────────────────────────────────────
-function parseXlsBuffer(
-  buffer: Buffer,
-  filename: string
-): { case_type: string; scan_date: string; quantity: number; source_type: string }[] {
+function parseXlsBuffer(buffer: Buffer, filename: string): ParsedRecord[] {
   const wb = XLSX.read(buffer, { type: 'buffer' })
   const ws = wb.Sheets[wb.SheetNames[0]]
   const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' }) as unknown[][]
   if (rows.length < 2) return []
 
   const header = (rows[0] as unknown[]).map(h => String(h ?? '').trim().toUpperCase())
-  let caseTypeIdx = header.indexOf('PCCATP')
-  let dateIdx     = header.indexOf('PCSCDT')
-  if (caseTypeIdx < 0) caseTypeIdx = 3
-  if (dateIdx < 0)     dateIdx     = 8
+
+  // Kolomindexen bepalen op basis van header-namen
+  let caseLabelIdx = header.indexOf('PCCANO')   // kolom C — caselabel
+  let caseTypeIdx  = header.indexOf('PCCATP')   // kolom D — kisttype
+  let dateIdx      = header.indexOf('PCSCDT')   // kolom I — scandatum
+
+  // Fallback naar vaste kolomposities
+  if (caseLabelIdx < 0) caseLabelIdx = 2
+  if (caseTypeIdx  < 0) caseTypeIdx  = 3
+  if (dateIdx      < 0) dateIdx      = 8
+
+  // Als er meerdere PCSCDT zijn: neem de tweede (scandate, niet packdate)
   const allPcscdt = header.reduce<number[]>((acc, h, i) => (h === 'PCSCDT' ? [...acc, i] : acc), [])
   if (allPcscdt.length >= 2) dateIdx = allPcscdt[1]
 
   const sourceType = getSourceType(filename)
-  const counts = new Map<string, number>()
+  const records: ParsedRecord[] = []
 
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r] as unknown[]
     if (!row || row.every(c => c === '' || c === null || c === undefined)) continue
-    const caseType = String(row[caseTypeIdx] ?? '').trim().toUpperCase()
+
+    const caseType  = String(row[caseTypeIdx]  ?? '').trim().toUpperCase()
     if (!caseType || !caseType.startsWith('C')) continue
-    const scanDate = parseIbmDate(row[dateIdx])
+
+    const caseLabel = String(row[caseLabelIdx] ?? '').trim().toUpperCase()
+    const scanDate  = parseIbmDate(row[dateIdx])
     if (!scanDate) continue
-    const key = `${caseType}|${scanDate}`
-    counts.set(key, (counts.get(key) || 0) + 1)
+
+    records.push({ case_label: caseLabel, case_type: caseType, scan_date: scanDate, source_type: sourceType })
   }
 
-  return Array.from(counts.entries()).map(([key, qty]) => {
-    const [caseType, scanDate] = key.split('|')
-    return { case_type: caseType, scan_date: scanDate, quantity: qty, source_type: sourceType }
-  })
+  return records
 }
 
 // ── POST: Upload één of meerdere XLS-bestanden ───────────────────────────────
@@ -71,47 +83,96 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Geen bestanden ontvangen' }, { status: 400 })
     }
 
-    const allRecords: { case_type: string; scan_date: string; quantity: number; source_type: string }[] = []
+    const allParsed: ParsedRecord[] = []
     const fileResults: { name: string; records: number; error?: string }[] = []
 
     for (const file of files) {
       try {
-        const buffer = Buffer.from(await file.arrayBuffer())
+        const buffer  = Buffer.from(await file.arrayBuffer())
         const records = parseXlsBuffer(buffer, file.name)
-        allRecords.push(...records)
+        allParsed.push(...records)
         fileResults.push({ name: file.name, records: records.length })
       } catch (err: any) {
         fileResults.push({ name: file.name, records: 0, error: err.message })
       }
     }
 
-    if (allRecords.length === 0) {
+    if (allParsed.length === 0) {
       return NextResponse.json({
-        error: 'Geen geldige data gevonden. Controleer of kolom D (PCCATP) en kolom I (PCSCDT) aanwezig zijn.',
+        error: 'Geen geldige data gevonden. Controleer of kolom C (PCCANO), D (PCCATP) en I (PCSCDT) aanwezig zijn.',
         files: fileResults,
       }, { status: 422 })
     }
 
-    // ── Bepaal wat nieuw is vs wat bijgewerkt wordt ──────────────────────────
-    // Ophalen welke (case_type, scan_date, source_type) combinaties al bestaan
-    const uniqueCaseTypes = [...new Set(allRecords.map(r => r.case_type))]
+    // ── Aggregeer voor consumption tabel (case_type + scan_date + source_type → quantity) ──
+    const countMap = new Map<string, number>()
+    allParsed.forEach(r => {
+      const key = `${r.case_type}|${r.scan_date}|${r.source_type}`
+      countMap.set(key, (countMap.get(key) || 0) + 1)
+    })
+    const allRecords = Array.from(countMap.entries()).map(([key, qty]) => {
+      const [case_type, scan_date, source_type] = key.split('|')
+      return { case_type, scan_date, quantity: qty, source_type }
+    })
 
-    const { data: existing } = await supabaseAdmin
+    const uniqueCaseTypes = [...new Set(allParsed.map(r => r.case_type))]
+
+    // ── Vergelijk met bestaande data (voor bijgekomen/afgegaan tellingen) ────
+    const { data: existingConsumption } = await supabaseAdmin
       .from('grote_inpak_packed_consumption')
       .select('case_type, scan_date, source_type')
       .in('case_type', uniqueCaseTypes)
 
-    const existingKeys     = new Set((existing || []).map((r: any) => `${r.case_type}|${r.scan_date}|${r.source_type}`))
-    const existingCaseTypes = new Set((existing || []).map((r: any) => r.case_type))
+    const existingKeys      = new Set((existingConsumption || []).map((r: any) => `${r.case_type}|${r.scan_date}|${r.source_type}`))
+    const existingCaseTypes = new Set((existingConsumption || []).map((r: any) => r.case_type))
 
     const uploadKeys = [...new Set(allRecords.map(r => `${r.case_type}|${r.scan_date}|${r.source_type}`))]
     const cntAdded   = uploadKeys.filter(k => !existingKeys.has(k)).length
     const cntUpdated = uploadKeys.filter(k =>  existingKeys.has(k)).length
 
-    // Kisttypes die voor het eerst opduiken
+    // Nieuwe kisttypes (voor het eerst gezien)
     const caseTypesNew = uniqueCaseTypes.filter(ct => !existingCaseTypes.has(ct))
 
-    // ── Upsert in batches ────────────────────────────────────────────────────
+    // ── Caselabels: bijgekomen (PCCANO nieuw in DB) ──────────────────────────
+    // Haal alle bestaande PCCANO labels op voor de case_types in deze upload
+    const { data: existingLabels } = await supabaseAdmin
+      .from('grote_inpak_packed_labels')
+      .select('case_label')
+      .in('case_type', uniqueCaseTypes)
+      .limit(50000)
+      .maybeSingle()
+      .then(() => supabaseAdmin
+        .from('grote_inpak_packed_labels')
+        .select('case_label')
+        .in('case_type', uniqueCaseTypes))
+
+    const existingLabelSet = new Set((existingLabels || []).map((r: any) => String(r.case_label || '').trim()))
+
+    // Unieke PCCANO labels in deze upload
+    const uploadLabelSet = new Set(allParsed.map(r => r.case_label).filter(Boolean))
+    const labelsAdded    = [...uploadLabelSet].filter(l => !existingLabelSet.has(l)).sort()
+    // "Afgegaan" = labels die eerder wel voorkwamen maar niet in deze batch zitten
+    // (alleen relevant voor labels die in hetzelfde datumbereik verwacht worden)
+    const labelsRemoved  = [...existingLabelSet].filter(l => !uploadLabelSet.has(l)).sort()
+
+    // ── Sla caselabels op voor toekomstige vergelijkingen ───────────────────
+    // Upsert alle PCCANO → case_type relaties
+    if (allParsed.length > 0) {
+      const labelRecords = [...new Map(
+        allParsed
+          .filter(r => r.case_label)
+          .map(r => [r.case_label, { case_label: r.case_label, case_type: r.case_type, last_seen: r.scan_date }])
+      ).values()]
+      const LABEL_BATCH = 500
+      for (let i = 0; i < labelRecords.length; i += LABEL_BATCH) {
+        await supabaseAdmin
+          .from('grote_inpak_packed_labels')
+          .upsert(labelRecords.slice(i, i + LABEL_BATCH), { onConflict: 'case_label', ignoreDuplicates: false })
+          .then(() => {}) // negeer fouten als tabel nog niet bestaat
+      }
+    }
+
+    // ── Upsert consumption data ──────────────────────────────────────────────
     const BATCH = 200
     let upserted = 0
     for (let i = 0; i < allRecords.length; i += BATCH) {
@@ -134,26 +195,32 @@ export async function POST(request: NextRequest) {
         cnt_updated:    cntUpdated,
         total_records:  upserted,
         case_types_new: caseTypesNew.length > 0 ? caseTypesNew : null,
+        // Labels beperkt tot 500 om DB-rij niet te zwaar te maken
+        labels_added:   labelsAdded.length   > 0 ? labelsAdded.slice(0, 500)   : null,
+        labels_removed: labelsRemoved.length > 0 ? labelsRemoved.slice(0, 500) : null,
       })
 
     // ── Top kisten samenvatting ──────────────────────────────────────────────
     const summary = new Map<string, number>()
-    allRecords.forEach(r => summary.set(r.case_type, (summary.get(r.case_type) || 0) + r.quantity))
+    allParsed.forEach(r => summary.set(r.case_type, (summary.get(r.case_type) || 0) + 1))
     const topKisten = Array.from(summary.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
+      .sort((a, b) => b[1] - a[1]).slice(0, 10)
       .map(([case_type, quantity]) => ({ case_type, quantity }))
 
     return NextResponse.json({
       success: true,
-      files_processed: fileResults.filter(f => !f.error).length,
-      files_failed:    fileResults.filter(f => f.error).length,
+      files_processed:  fileResults.filter(f => !f.error).length,
+      files_failed:     fileResults.filter(f => f.error).length,
       records_upserted: upserted,
       cnt_added:        cntAdded,
       cnt_updated:      cntUpdated,
       case_types_new:   caseTypesNew,
-      files:            fileResults,
-      top_kisten:       topKisten,
+      labels_added:     labelsAdded.slice(0, 50),   // preview in UI
+      labels_removed:   labelsRemoved.slice(0, 50),
+      labels_added_total:   labelsAdded.length,
+      labels_removed_total: labelsRemoved.length,
+      files:      fileResults,
+      top_kisten: topKisten,
     })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })

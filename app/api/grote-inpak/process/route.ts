@@ -57,17 +57,19 @@ export async function POST(request: NextRequest) {
     // Remove cases that are no longer present in the latest PILS upload
     await removeMissingCases(overview)
 
-    // PILS upload log: bijgekomen vs verwijderd
+    // PILS upload log: bijgekomen vs verwijderd — inclusief exacte labellijsten
     const newLabels = new Set(
       overview.map((r: any) => String(r.case_label || '').trim()).filter(Boolean)
     )
-    const cntAdded = [...newLabels].filter((l) => !existingLabels.has(l)).length
-    const cntRemoved = [...existingLabels].filter((l) => !newLabels.has(l)).length
+    const labelsAdded   = [...newLabels].filter((l) => !existingLabels.has(l)).sort()
+    const labelsRemoved = [...existingLabels].filter((l) => !newLabels.has(l)).sort()
     await supabaseAdmin.from('grote_inpak_pils_upload_log').insert({
-      source_file: sourceFile || null,
-      cnt_added: cntAdded,
-      cnt_removed: cntRemoved,
-      total_records: overview.length,
+      source_file:    sourceFile || null,
+      cnt_added:      labelsAdded.length,
+      cnt_removed:    labelsRemoved.length,
+      total_records:  overview.length,
+      labels_added:   labelsAdded.length   > 0 ? labelsAdded   : null,
+      labels_removed: labelsRemoved.length > 0 ? labelsRemoved : null,
     })
 
     // Save stock data if provided
