@@ -6,22 +6,27 @@ import { RefreshCw, History, FileUp } from 'lucide-react'
 interface UploadLogEntry {
   id: string
   uploaded_at: string
-  upload_type: 'pils' | 'forecast'
+  upload_type: 'pils' | 'forecast' | 'packed'
   source: string
   cnt_added: number
   cnt_removed: number
+  cnt_updated: number | null
   total_records: number
   cnt_date_change: number | null
+  case_types_new: string[] | null
 }
 
 function fmtTs(d: string) {
   return new Date(d).toLocaleString('nl-NL', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
   })
+}
+
+const TYPE_STYLE: Record<string, { bg: string; text: string; label: string }> = {
+  pils:     { bg: 'bg-blue-100',    text: 'text-blue-800',    label: 'PILS'     },
+  forecast: { bg: 'bg-emerald-100', text: 'text-emerald-800', label: 'Forecast' },
+  packed:   { bg: 'bg-purple-100',  text: 'text-purple-800',  label: 'Packed'   },
 }
 
 interface UploadLogTabProps {
@@ -29,9 +34,9 @@ interface UploadLogTabProps {
 }
 
 export default function UploadLogTab({ refreshTrigger = 0 }: UploadLogTabProps) {
-  const [data, setData] = useState<UploadLogEntry[]>([])
+  const [data, setData]     = useState<UploadLogEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | 'pils' | 'forecast'>('all')
+  const [filter, setFilter] = useState<'all' | 'pils' | 'forecast' | 'packed'>('all')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -48,14 +53,9 @@ export default function UploadLogTab({ refreshTrigger = 0 }: UploadLogTabProps) 
     }
   }, [])
 
-  useEffect(() => {
-    load()
-  }, [load, refreshTrigger])
+  useEffect(() => { load() }, [load, refreshTrigger])
 
-  const filtered = data.filter((row) => {
-    if (filter === 'all') return true
-    return row.upload_type === filter
-  })
+  const filtered = data.filter(row => filter === 'all' || row.upload_type === filter)
 
   return (
     <div className="space-y-4">
@@ -67,12 +67,13 @@ export default function UploadLogTab({ refreshTrigger = 0 }: UploadLogTabProps) 
         <div className="flex items-center gap-2">
           <select
             value={filter}
-            onChange={(e) => setFilter(e.target.value as 'all' | 'pils' | 'forecast')}
+            onChange={e => setFilter(e.target.value as typeof filter)}
             className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
           >
             <option value="all">Alle uploads</option>
             <option value="pils">Alleen PILS</option>
             <option value="forecast">Alleen Forecast</option>
+            <option value="packed">Alleen Packed</option>
           </select>
           <button
             onClick={load}
@@ -85,7 +86,7 @@ export default function UploadLogTab({ refreshTrigger = 0 }: UploadLogTabProps) 
       </div>
 
       <p className="text-gray-600 text-sm">
-        Overzicht van alle PILS- en forecast-uploads met het aantal bijgekomen en verwijderde cases.
+        Overzicht van alle uploads met het aantal bijgekomen, bijgewerkte en verwijderde records.
       </p>
 
       {loading ? (
@@ -105,54 +106,74 @@ export default function UploadLogTab({ refreshTrigger = 0 }: UploadLogTabProps) 
                 <th className="text-left px-4 py-3 font-medium">Datum</th>
                 <th className="text-left px-4 py-3 font-medium">Type</th>
                 <th className="text-left px-4 py-3 font-medium">Bestand(en)</th>
-                <th className="text-right px-4 py-3 font-medium">Bijgekomen</th>
-                <th className="text-right px-4 py-3 font-medium">Verwijderd</th>
-                <th className="text-right px-4 py-3 font-medium">Datum wijziging</th>
+                <th className="text-right px-4 py-3 font-medium text-green-700">Bijgekomen</th>
+                <th className="text-right px-4 py-3 font-medium text-blue-700">Bijgewerkt</th>
+                <th className="text-right px-4 py-3 font-medium text-red-700">Verwijderd</th>
+                <th className="text-right px-4 py-3 font-medium text-amber-700">Datum wijziging</th>
                 <th className="text-right px-4 py-3 font-medium">Totaal</th>
+                <th className="text-left px-4 py-3 font-medium">Nieuwe kisttypes</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((row) => (
-                <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/50">
-                  <td className="px-4 py-3 whitespace-nowrap">{fmtTs(row.uploaded_at)}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
-                        row.upload_type === 'pils'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-emerald-100 text-emerald-800'
-                      }`}
-                    >
-                      {row.upload_type === 'pils' ? 'PILS' : 'Forecast'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 max-w-xs truncate" title={row.source}>
-                    {row.source}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {row.cnt_added > 0 ? (
-                      <span className="text-green-700 font-medium">+{row.cnt_added}</span>
-                    ) : (
-                      <span className="text-gray-400">0</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {row.cnt_removed > 0 ? (
-                      <span className="text-red-700 font-medium">−{row.cnt_removed}</span>
-                    ) : (
-                      <span className="text-gray-400">0</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {row.cnt_date_change != null && row.cnt_date_change > 0 ? (
-                      <span className="text-amber-700 font-medium">{row.cnt_date_change}</span>
-                    ) : (
-                      <span className="text-gray-400">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right font-medium">{row.total_records}</td>
-                </tr>
-              ))}
+              {filtered.map(row => {
+                const style = TYPE_STYLE[row.upload_type] ?? TYPE_STYLE.pils
+                return (
+                  <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/50">
+                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">
+                      {fmtTs(row.uploaded_at)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${style.bg} ${style.text}`}>
+                        {style.label}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 max-w-xs truncate text-gray-600" title={row.source}>
+                      {row.source}
+                    </td>
+                    {/* Bijgekomen */}
+                    <td className="px-4 py-3 text-right">
+                      {row.cnt_added > 0
+                        ? <span className="text-green-700 font-medium">+{row.cnt_added}</span>
+                        : <span className="text-gray-300">0</span>}
+                    </td>
+                    {/* Bijgewerkt (alleen packed) */}
+                    <td className="px-4 py-3 text-right">
+                      {row.cnt_updated != null && row.cnt_updated > 0
+                        ? <span className="text-blue-700 font-medium">{row.cnt_updated}</span>
+                        : <span className="text-gray-300">—</span>}
+                    </td>
+                    {/* Verwijderd */}
+                    <td className="px-4 py-3 text-right">
+                      {row.cnt_removed > 0
+                        ? <span className="text-red-700 font-medium">−{row.cnt_removed}</span>
+                        : <span className="text-gray-300">0</span>}
+                    </td>
+                    {/* Datum wijziging (alleen forecast) */}
+                    <td className="px-4 py-3 text-right">
+                      {row.cnt_date_change != null && row.cnt_date_change > 0
+                        ? <span className="text-amber-700 font-medium">{row.cnt_date_change}</span>
+                        : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-right font-medium text-gray-800">
+                      {row.total_records}
+                    </td>
+                    {/* Nieuwe kisttypes (alleen packed) */}
+                    <td className="px-4 py-3">
+                      {row.case_types_new && row.case_types_new.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {row.case_types_new.map(ct => (
+                            <span key={ct} className="bg-purple-100 text-purple-800 text-xs px-1.5 py-0.5 rounded font-mono">
+                              {ct}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-gray-300">—</span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

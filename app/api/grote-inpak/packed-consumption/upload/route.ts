@@ -3,8 +3,6 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
-
-// Verhoog de body-size limiet voor meerdere XLS-bestanden
 export const maxDuration = 60
 
 // ── Datum parser: IBM AS/400 YYMMDD numeriek → 'YYYY-MM-DD' ─────────────────
@@ -22,7 +20,6 @@ function parseIbmDate(raw: unknown): string | null {
   return `${year}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`
 }
 
-// ── Source type uit bestandsnaam ─────────────────────────────────────────────
 function getSourceType(filename: string): 'Y' | 'N' {
   return filename.toUpperCase().includes('PACKED_N') ? 'N' : 'Y'
 }
@@ -35,18 +32,13 @@ function parseXlsBuffer(
   const wb = XLSX.read(buffer, { type: 'buffer' })
   const ws = wb.Sheets[wb.SheetNames[0]]
   const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' }) as unknown[][]
-
   if (rows.length < 2) return []
 
   const header = (rows[0] as unknown[]).map(h => String(h ?? '').trim().toUpperCase())
-
-  // Kolom D = PCCATP, Kolom I = PCSCDT (tweede voorkomen)
   let caseTypeIdx = header.indexOf('PCCATP')
   let dateIdx     = header.indexOf('PCSCDT')
   if (caseTypeIdx < 0) caseTypeIdx = 3
   if (dateIdx < 0)     dateIdx     = 8
-
-  // Als er meerdere PCSCDT kolommen zijn: neem de tweede (scandate)
   const allPcscdt = header.reduce<number[]>((acc, h, i) => (h === 'PCSCDT' ? [...acc, i] : acc), [])
   if (allPcscdt.length >= 2) dateIdx = allPcscdt[1]
 
@@ -55,14 +47,11 @@ function parseXlsBuffer(
 
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r] as unknown[]
-    if (!row || (row as unknown[]).every(c => c === '' || c === null || c === undefined)) continue
-
+    if (!row || row.every(c => c === '' || c === null || c === undefined)) continue
     const caseType = String(row[caseTypeIdx] ?? '').trim().toUpperCase()
     if (!caseType || !caseType.startsWith('C')) continue
-
     const scanDate = parseIbmDate(row[dateIdx])
     if (!scanDate) continue
-
     const key = `${caseType}|${scanDate}`
     counts.set(key, (counts.get(key) || 0) + 1)
   }
@@ -78,7 +67,6 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
     const files = formData.getAll('files') as File[]
-
     if (!files || files.length === 0) {
       return NextResponse.json({ error: 'Geen bestanden ontvangen' }, { status: 400 })
     }
@@ -88,8 +76,7 @@ export async function POST(request: NextRequest) {
 
     for (const file of files) {
       try {
-        const arrayBuffer = await file.arrayBuffer()
-        const buffer = Buffer.from(arrayBuffer)
+        const buffer = Buffer.from(await file.arrayBuffer())
         const records = parseXlsBuffer(buffer, file.name)
         allRecords.push(...records)
         fileResults.push({ name: file.name, records: records.length })
@@ -100,12 +87,31 @@ export async function POST(request: NextRequest) {
 
     if (allRecords.length === 0) {
       return NextResponse.json({
-        error: 'Geen geldige data gevonden in de bestanden. Controleer of kolom D (PCCATP) en kolom I (PCSCDT) aanwezig zijn.',
+        error: 'Geen geldige data gevonden. Controleer of kolom D (PCCATP) en kolom I (PCSCDT) aanwezig zijn.',
         files: fileResults,
       }, { status: 422 })
     }
 
-    // Upsert in batches van 200
+    // ── Bepaal wat nieuw is vs wat bijgewerkt wordt ──────────────────────────
+    // Ophalen welke (case_type, scan_date, source_type) combinaties al bestaan
+    const uniqueCaseTypes = [...new Set(allRecords.map(r => r.case_type))]
+
+    const { data: existing } = await supabaseAdmin
+      .from('grote_inpak_packed_consumption')
+      .select('case_type, scan_date, source_type')
+      .in('case_type', uniqueCaseTypes)
+
+    const existingKeys     = new Set((existing || []).map((r: any) => `${r.case_type}|${r.scan_date}|${r.source_type}`))
+    const existingCaseTypes = new Set((existing || []).map((r: any) => r.case_type))
+
+    const uploadKeys = [...new Set(allRecords.map(r => `${r.case_type}|${r.scan_date}|${r.source_type}`))]
+    const cntAdded   = uploadKeys.filter(k => !existingKeys.has(k)).length
+    const cntUpdated = uploadKeys.filter(k =>  existingKeys.has(k)).length
+
+    // Kisttypes die voor het eerst opduiken
+    const caseTypesNew = uniqueCaseTypes.filter(ct => !existingCaseTypes.has(ct))
+
+    // ── Upsert in batches ────────────────────────────────────────────────────
     const BATCH = 200
     let upserted = 0
     for (let i = 0; i < allRecords.length; i += BATCH) {
@@ -117,21 +123,37 @@ export async function POST(request: NextRequest) {
       upserted += slice.length
     }
 
-    // Samenvatting per kisttype
+    // ── Log naar upload history ──────────────────────────────────────────────
+    const sourceFiles = fileResults.filter(f => !f.error).map(f => f.name).join(', ')
+    await supabaseAdmin
+      .from('grote_inpak_packed_upload_log')
+      .insert({
+        source_files:   sourceFiles,
+        files_count:    fileResults.filter(f => !f.error).length,
+        cnt_added:      cntAdded,
+        cnt_updated:    cntUpdated,
+        total_records:  upserted,
+        case_types_new: caseTypesNew.length > 0 ? caseTypesNew : null,
+      })
+
+    // ── Top kisten samenvatting ──────────────────────────────────────────────
     const summary = new Map<string, number>()
     allRecords.forEach(r => summary.set(r.case_type, (summary.get(r.case_type) || 0) + r.quantity))
     const topKisten = Array.from(summary.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
-      .map(([kt, qty]) => ({ case_type: kt, quantity: qty }))
+      .map(([case_type, quantity]) => ({ case_type, quantity }))
 
     return NextResponse.json({
       success: true,
       files_processed: fileResults.filter(f => !f.error).length,
-      files_failed: fileResults.filter(f => f.error).length,
+      files_failed:    fileResults.filter(f => f.error).length,
       records_upserted: upserted,
-      files: fileResults,
-      top_kisten: topKisten,
+      cnt_added:        cntAdded,
+      cnt_updated:      cntUpdated,
+      case_types_new:   caseTypesNew,
+      files:            fileResults,
+      top_kisten:       topKisten,
     })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })

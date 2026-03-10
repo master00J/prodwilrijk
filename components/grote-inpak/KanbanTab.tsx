@@ -1025,6 +1025,9 @@ function VerbruiksanalyseView({
     files_processed?: number
     files_failed?: number
     records_upserted?: number
+    cnt_added?: number
+    cnt_updated?: number
+    case_types_new?: string[]
     top_kisten?: { case_type: string; quantity: number }[]
     error?: string
   } | null>(null)
@@ -1182,14 +1185,45 @@ function VerbruiksanalyseView({
                   </p>
                 )}
                 {uploadResult.success && (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     <p className="text-green-800 font-semibold flex items-center gap-2">
                       <CheckCircle className="w-4 h-4" />
-                      {uploadResult.files_processed} bestand{uploadResult.files_processed !== 1 ? 'en' : ''} verwerkt · {uploadResult.records_upserted?.toLocaleString('nl-NL')} dagrecords opgeslagen
+                      {uploadResult.files_processed} bestand{uploadResult.files_processed !== 1 ? 'en' : ''} verwerkt
                       {(uploadResult.files_failed ?? 0) > 0 && (
                         <span className="text-orange-600 font-normal">· {uploadResult.files_failed} mislukt</span>
                       )}
                     </p>
+                    {/* Bijgekomen / Bijgewerkt */}
+                    <div className="flex flex-wrap gap-3">
+                      <div className="flex items-center gap-1.5 bg-green-100 text-green-800 text-sm px-3 py-1.5 rounded-lg font-medium">
+                        <span>+{uploadResult.cnt_added ?? 0}</span>
+                        <span className="font-normal text-green-600">nieuwe dagrecords</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 bg-blue-100 text-blue-800 text-sm px-3 py-1.5 rounded-lg font-medium">
+                        <span>{uploadResult.cnt_updated ?? 0}</span>
+                        <span className="font-normal text-blue-600">dagrecords bijgewerkt</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 bg-gray-100 text-gray-700 text-sm px-3 py-1.5 rounded-lg">
+                        <span className="font-medium">{uploadResult.records_upserted?.toLocaleString('nl-NL')}</span>
+                        <span className="text-gray-500">totaal verwerkt</span>
+                      </div>
+                    </div>
+                    {/* Nieuwe kisttypes */}
+                    {uploadResult.case_types_new && uploadResult.case_types_new.length > 0 && (
+                      <div>
+                        <p className="text-purple-700 text-xs font-semibold mb-1">
+                          ✨ {uploadResult.case_types_new.length} nieuw kisttype{uploadResult.case_types_new.length !== 1 ? 's' : ''} (voor het eerst gezien):
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {uploadResult.case_types_new.map(ct => (
+                            <span key={ct} className="bg-purple-100 text-purple-800 text-xs px-2 py-0.5 rounded-full font-mono">
+                              {ct}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {/* Top kisten */}
                     {uploadResult.top_kisten && uploadResult.top_kisten.length > 0 && (
                       <div>
                         <p className="text-green-700 text-xs font-medium mb-1">Top kisten in geüploade data:</p>
