@@ -73,10 +73,14 @@ export async function GET(request: NextRequest) {
         const stapel = config?.stapel || 1
         const stapelsPerPos = config?.stapels_per_pos || 2
 
-        // Suggesties
+        // Afronden naar boven op een veelvoud van stapel
+        const roundUpToStapel = (n: number) =>
+          stapel > 1 ? Math.ceil(n / stapel) * stapel : Math.ceil(n)
+
+        // Suggesties — min en max altijd een veelvoud van de stapelhoogte
         const suggestedVerbruikPerDag = avgPerDay
-        const suggestedMin = Math.ceil(avgPerDay * leadTime)
-        const suggestedMax = Math.ceil(avgPerDay * (leadTime + safetyDays))
+        const suggestedMin = roundUpToStapel(avgPerDay * leadTime)
+        const suggestedMax = roundUpToStapel(avgPerDay * (leadTime + safetyDays))
         const suggestedPosities = stapelsPerPos > 0 && stapel > 0
           ? Math.max(1, Math.ceil(suggestedMax / (stapel * stapelsPerPos)))
           : null
