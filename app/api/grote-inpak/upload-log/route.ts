@@ -5,27 +5,65 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    const [pilsRes, forecastRes, packedRes] = await Promise.all([
-      supabaseAdmin
+    // Probeer met labels-kolommen; als die nog niet bestaan (migratie nog niet gerund),
+    // val terug op query zonder die kolommen.
+    const fetchPils = async () => {
+      const r = await supabaseAdmin
         .from('grote_inpak_pils_upload_log')
         .select('id, uploaded_at, source_file, cnt_added, cnt_removed, total_records, labels_added, labels_removed')
         .order('uploaded_at', { ascending: false })
-        .limit(100),
-      supabaseAdmin
+        .limit(100)
+      if (r.error) {
+        return supabaseAdmin
+          .from('grote_inpak_pils_upload_log')
+          .select('id, uploaded_at, source_file, cnt_added, cnt_removed, total_records')
+          .order('uploaded_at', { ascending: false })
+          .limit(100)
+      }
+      return r
+    }
+
+    const fetchForecast = async () => {
+      const r = await supabaseAdmin
         .from('grote_inpak_forecast_snapshots')
         .select('id, snapshot_at, source_files, total_records, cnt_added, cnt_removed, cnt_date_change, labels_added, labels_removed')
         .order('snapshot_at', { ascending: false })
-        .limit(100),
-      supabaseAdmin
+        .limit(100)
+      if (r.error) {
+        return supabaseAdmin
+          .from('grote_inpak_forecast_snapshots')
+          .select('id, snapshot_at, source_files, total_records, cnt_added, cnt_removed, cnt_date_change')
+          .order('snapshot_at', { ascending: false })
+          .limit(100)
+      }
+      return r
+    }
+
+    const fetchPacked = async () => {
+      const r = await supabaseAdmin
         .from('grote_inpak_packed_upload_log')
         .select('id, uploaded_at, source_files, files_count, cnt_added, cnt_updated, total_records, case_types_new, labels_added, labels_removed')
         .order('uploaded_at', { ascending: false })
-        .limit(100),
+        .limit(100)
+      if (r.error) {
+        return supabaseAdmin
+          .from('grote_inpak_packed_upload_log')
+          .select('id, uploaded_at, source_files, files_count, cnt_added, cnt_updated, total_records, case_types_new')
+          .order('uploaded_at', { ascending: false })
+          .limit(100)
+      }
+      return r
+    }
+
+    const [pilsRes, forecastRes, packedRes] = await Promise.all([
+      fetchPils(),
+      fetchForecast(),
+      fetchPacked(),
     ])
 
     if (pilsRes.error)    throw pilsRes.error
     if (forecastRes.error) throw forecastRes.error
-    // packed tabel mag nog niet bestaan (voor migratie) — dan gewoon leeg
+    // packed tabel mag nog niet bestaan — dan gewoon leeg
     const packedData = packedRes.error ? [] : (packedRes.data || [])
 
     const pils = (pilsRes.data || []).map((row: any) => ({
