@@ -377,11 +377,20 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
     }
   }
 
+  const [consumptionZoekterm, setConsumptionZoekterm] = useState('')
+
   const filteredConsumption = useMemo(() => {
     let rows = consumptionData
     if (onlyInConfig) rows = rows.filter(r => r.in_config)
+    if (filterLocatie !== 'Alle') {
+      rows = rows.filter(r => String(r.productielocatie || '').toLowerCase().includes(filterLocatie.toLowerCase()))
+    }
+    if (consumptionZoekterm) {
+      const q = consumptionZoekterm.toLowerCase()
+      rows = rows.filter(r => r.case_type.toLowerCase().includes(q))
+    }
     return rows
-  }, [consumptionData, onlyInConfig])
+  }, [consumptionData, onlyInConfig, filterLocatie, consumptionZoekterm])
 
   return (
     <div>
@@ -755,6 +764,8 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
           leadTime={leadTime}
           safetyDays={safetyDays}
           onlyInConfig={onlyInConfig}
+          filterLocatie={filterLocatie}
+          zoekterm={consumptionZoekterm}
           selectedKist={selectedKist}
           applyingAll={applyingAll}
           applyStatus={applyStatus}
@@ -763,6 +774,8 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
           onLeadTimeChange={(v) => { setLeadTime(v); loadConsumption(v, safetyDays) }}
           onSafetyDaysChange={(v) => { setSafetyDays(v); loadConsumption(leadTime, v) }}
           onOnlyInConfigChange={setOnlyInConfig}
+          onFilterLocatieChange={(v) => setFilterLocatie(v as 'Alle' | 'Genk' | 'Wilrijk')}
+          onZoektermChange={setConsumptionZoekterm}
           onSelectKist={setSelectedKist}
           onApplySingle={handleApplySingle}
           onApplyAll={handleApplyAll}
@@ -976,6 +989,8 @@ interface VerbruiksanalyseProps {
   leadTime: number
   safetyDays: number
   onlyInConfig: boolean
+  filterLocatie: string
+  zoekterm: string
   selectedKist: string | null
   applyingAll: boolean
   applyStatus: { ok: boolean; msg: string } | null
@@ -984,6 +999,8 @@ interface VerbruiksanalyseProps {
   onLeadTimeChange: (v: number) => void
   onSafetyDaysChange: (v: number) => void
   onOnlyInConfigChange: (v: boolean) => void
+  onFilterLocatieChange: (v: string) => void
+  onZoektermChange: (v: string) => void
   onSelectKist: (v: string | null) => void
   onApplySingle: (stat: ConsumptionStat) => void
   onApplyAll: () => void
@@ -991,10 +1008,10 @@ interface VerbruiksanalyseProps {
 
 function VerbruiksanalyseView({
   data, filteredData, meta, loading, error,
-  leadTime, safetyDays, onlyInConfig, selectedKist,
+  leadTime, safetyDays, onlyInConfig, filterLocatie, zoekterm, selectedKist,
   applyingAll, applyStatus, updatingId,
   onReload, onLeadTimeChange, onSafetyDaysChange,
-  onOnlyInConfigChange, onSelectKist,
+  onOnlyInConfigChange, onFilterLocatieChange, onZoektermChange, onSelectKist,
   onApplySingle, onApplyAll,
 }: VerbruiksanalyseProps) {
 
@@ -1221,6 +1238,27 @@ function VerbruiksanalyseView({
 
       {/* Instellingen + actiebalk */}
       <div className="flex flex-wrap items-center gap-3 bg-white border border-gray-200 rounded-xl px-4 py-3">
+        {/* Filters */}
+        <select
+          value={filterLocatie}
+          onChange={e => onFilterLocatieChange(e.target.value)}
+          className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white"
+        >
+          <option value="Alle">Alle locaties</option>
+          <option value="Genk">Genk</option>
+          <option value="Wilrijk">Wilrijk</option>
+        </select>
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+          <input
+            type="text"
+            value={zoekterm}
+            onChange={e => onZoektermChange(e.target.value)}
+            placeholder="Zoek kisttype..."
+            className="pl-8 pr-3 py-1.5 border border-gray-300 rounded-lg text-sm w-36"
+          />
+        </div>
+        <div className="w-px h-6 bg-gray-300 hidden md:block" />
         <div className="flex items-center gap-2 text-sm">
           <label className="text-gray-600 font-medium whitespace-nowrap">Lead time (dagen):</label>
           <input
@@ -1230,7 +1268,7 @@ function VerbruiksanalyseView({
           />
         </div>
         <div className="flex items-center gap-2 text-sm">
-          <label className="text-gray-600 font-medium whitespace-nowrap">Veiligheidsbuffer (dagen):</label>
+          <label className="text-gray-600 font-medium whitespace-nowrap">Buffer (dagen):</label>
           <input
             type="number" min={0} max={30} value={safetyDays}
             onChange={e => onSafetyDaysChange(Math.max(0, Math.min(30, Number(e.target.value))))}
@@ -1411,7 +1449,11 @@ function VerbruiksanalyseView({
       {!loading && filteredData.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-            <span className="font-semibold text-gray-800">{filteredData.length} kisttypen</span>
+            <span className="font-semibold text-gray-800">
+              {filteredData.length} kisttype{filteredData.length !== 1 ? 'n' : ''}
+              {filterLocatie !== 'Alle' && <span className="ml-1 text-xs font-normal text-gray-400">· {filterLocatie}</span>}
+              {zoekterm && <span className="ml-1 text-xs font-normal text-gray-400">· &quot;{zoekterm}&quot;</span>}
+            </span>
             <p className="text-xs text-gray-400">
               Suggestie formule: avg/dag × lead_time ({leadTime}d) = min · avg/dag × (lead+buffer) ({leadTime + safetyDays}d) = max
             </p>
