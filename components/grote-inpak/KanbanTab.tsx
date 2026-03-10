@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Download, RefreshCw, Plus, Pencil, Trash2, AlertTriangle, CheckCircle, Package, ShoppingCart, LayoutGrid, Mail, Search, ChevronDown, ChevronUp } from 'lucide-react'
+import { Download, RefreshCw, Plus, Pencil, Trash2, AlertTriangle, CheckCircle, Package, ShoppingCart, LayoutGrid, Mail, Search, ChevronDown, ChevronUp, TrendingUp, Zap, Upload, FileSpreadsheet } from 'lucide-react'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
 // ── Types ─────────────────────────────────────────────────────────────────
 interface KanbanConfig {
@@ -58,12 +59,42 @@ const EMPTY_FORM: Partial<KanbanConfig> = {
   verbruik_per_dag: null, prioriteit: 'low', notitie: '',
 }
 
+// ── Verbruiksanalyse types ─────────────────────────────────────────────────
+interface ConsumptionStat {
+  case_type: string
+  total: number
+  active_days: number
+  avg_per_day: number
+  monthly: { month: string; count: number }[]
+  in_config: boolean
+  config_id: number | null
+  productielocatie: string | null
+  current_verbruik_per_dag: number | null
+  current_max: number | null
+  suggested_verbruik_per_dag: number
+  suggested_min: number
+  suggested_max: number
+  suggested_posities: number | null
+}
+
+interface ConsumptionMeta {
+  since: string
+  days: number
+  lead_time: number
+  safety_days: number
+  total_kisten_verbruikt: number
+  unieke_typen: number
+  in_kanban_config: number
+  niet_in_config: number
+  meest_gebruikt: string | null
+}
+
 interface KanbanTabProps {
   stockUploadTrigger?: number
 }
 
 export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
-  const [activeView, setActiveView] = useState<'besteladvies' | 'rekindeling'>('besteladvies')
+  const [activeView, setActiveView] = useState<'besteladvies' | 'rekindeling' | 'verbruiksanalyse'>('besteladvies')
 
   // Besteladvies state
   const [bestelData, setBestelData] = useState<BestelRij[]>([])
@@ -83,6 +114,19 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
   const [diagnostiekKist, setDiagnostiekKist] = useState('C830')
   const [diagnostiekResult, setDiagnostiekResult] = useState<any>(null)
   const [diagnostiekLoading, setDiagnostiekLoading] = useState(false)
+
+  // Verbruiksanalyse state
+  const [consumptionData, setConsumptionData]   = useState<ConsumptionStat[]>([])
+  const [consumptionMeta, setConsumptionMeta]   = useState<ConsumptionMeta | null>(null)
+  const [consumptionLoading, setConsumptionLoading] = useState(false)
+  const [consumptionError, setConsumptionError] = useState<string | null>(null)
+  const [leadTime, setLeadTime]     = useState(5)
+  const [safetyDays, setSafetyDays] = useState(3)
+  const [onlyInConfig, setOnlyInConfig] = useState(false)
+  const [selectedKist, setSelectedKist] = useState<string | null>(null)
+  const [applyingAll, setApplyingAll]   = useState(false)
+  const [applyStatus, setApplyStatus]   = useState<{ ok: boolean; msg: string } | null>(null)
+  const [updatingId, setUpdatingId]     = useState<number | null>(null)
 
   // Rekindeling (config) state
   const [config, setConfig] = useState<KanbanConfig[]>([])
@@ -120,9 +164,69 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
     }
   }, [])
 
+  const loadConsumption = useCallback(async (lt = leadTime, sd = safetyDays) => {
+    setConsumptionLoading(true)
+    setConsumptionError(null)
+    try {
+      const res = await fetch(`/api/grote-inpak/packed-consumption?days=365&lead_time=${lt}&safety_days=${sd}`)
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error) }
+      const json = await res.json()
+      setConsumptionData(json.data || [])
+      setConsumptionMeta(json.meta || null)
+    } catch (e: any) {
+      setConsumptionError(e.message)
+    } finally {
+      setConsumptionLoading(false)
+    }
+  }, [leadTime, safetyDays])
+
+  const handleApplySingle = async (stat: ConsumptionStat) => {
+    if (!stat.config_id) return
+    setUpdatingId(stat.config_id)
+    try {
+      const res = await fetch('/api/grote-inpak/packed-consumption', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ updates: [{ id: stat.config_id, verbruik_per_dag: stat.suggested_verbruik_per_dag }] }),
+      })
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error) }
+      await loadConsumption()
+      await loadBesteladvies()
+    } catch (e: any) {
+      alert(`Bijwerken mislukt: ${e.message}`)
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
+  const handleApplyAll = async () => {
+    const toUpdate = consumptionData.filter(r => r.in_config && r.config_id && r.avg_per_day > 0)
+    if (toUpdate.length === 0) return
+    if (!confirm(`Verbruik/dag bijwerken voor ${toUpdate.length} kisten op basis van historische data?`)) return
+    setApplyingAll(true)
+    setApplyStatus(null)
+    try {
+      const res = await fetch('/api/grote-inpak/packed-consumption', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ updates: toUpdate.map(r => ({ id: r.config_id!, verbruik_per_dag: r.suggested_verbruik_per_dag })) }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      setApplyStatus({ ok: true, msg: `${json.updated} kisten bijgewerkt met historisch verbruik` })
+      await loadConsumption()
+      await loadBesteladvies()
+    } catch (e: any) {
+      setApplyStatus({ ok: false, msg: `Fout: ${e.message}` })
+    } finally {
+      setApplyingAll(false)
+    }
+  }
+
   useEffect(() => { loadBesteladvies() }, [loadBesteladvies])
   useEffect(() => { loadBesteladvies() }, [loadBesteladvies, stockUploadTrigger])
   useEffect(() => { if (activeView === 'rekindeling') loadConfig() }, [activeView, loadConfig])
+  useEffect(() => { if (activeView === 'verbruiksanalyse') loadConsumption() }, [activeView, loadConsumption])
 
   const filteredBestel = useMemo(() => {
     let rows = bestelData
@@ -273,6 +377,12 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
     }
   }
 
+  const filteredConsumption = useMemo(() => {
+    let rows = consumptionData
+    if (onlyInConfig) rows = rows.filter(r => r.in_config)
+    return rows
+  }, [consumptionData, onlyInConfig])
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -289,6 +399,12 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeView === 'rekindeling' ? 'bg-white shadow text-blue-700' : 'text-gray-600 hover:text-gray-800'}`}
           >
             <LayoutGrid className="w-4 h-4" /> Rekindeling beheren
+          </button>
+          <button
+            onClick={() => setActiveView('verbruiksanalyse')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeView === 'verbruiksanalyse' ? 'bg-white shadow text-purple-700' : 'text-gray-600 hover:text-gray-800'}`}
+          >
+            <TrendingUp className="w-4 h-4" /> Verbruiksanalyse
           </button>
         </div>
       </div>
@@ -629,6 +745,31 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
         </div>
       )}
 
+      {/* ── VERBRUIKSANALYSE ── */}
+      {activeView === 'verbruiksanalyse' && (
+        <VerbruiksanalyseView
+          data={consumptionData}
+          meta={consumptionMeta}
+          loading={consumptionLoading}
+          error={consumptionError}
+          leadTime={leadTime}
+          safetyDays={safetyDays}
+          onlyInConfig={onlyInConfig}
+          selectedKist={selectedKist}
+          applyingAll={applyingAll}
+          applyStatus={applyStatus}
+          updatingId={updatingId}
+          onReload={() => loadConsumption(leadTime, safetyDays)}
+          onLeadTimeChange={(v) => { setLeadTime(v); loadConsumption(v, safetyDays) }}
+          onSafetyDaysChange={(v) => { setSafetyDays(v); loadConsumption(leadTime, v) }}
+          onOnlyInConfigChange={setOnlyInConfig}
+          onSelectKist={setSelectedKist}
+          onApplySingle={handleApplySingle}
+          onApplyAll={handleApplyAll}
+          filteredData={filteredConsumption}
+        />
+      )}
+
       {/* ── REKINDELING BEHEREN ── */}
       {activeView === 'rekindeling' && (
         <div className="space-y-5">
@@ -820,6 +961,511 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
             </div>
           )}
         </div>
+      )}
+    </div>
+  )
+}
+
+// ── VerbruiksanalyseView ───────────────────────────────────────────────────
+interface VerbruiksanalyseProps {
+  data: ConsumptionStat[]
+  filteredData: ConsumptionStat[]
+  meta: ConsumptionMeta | null
+  loading: boolean
+  error: string | null
+  leadTime: number
+  safetyDays: number
+  onlyInConfig: boolean
+  selectedKist: string | null
+  applyingAll: boolean
+  applyStatus: { ok: boolean; msg: string } | null
+  updatingId: number | null
+  onReload: () => void
+  onLeadTimeChange: (v: number) => void
+  onSafetyDaysChange: (v: number) => void
+  onOnlyInConfigChange: (v: boolean) => void
+  onSelectKist: (v: string | null) => void
+  onApplySingle: (stat: ConsumptionStat) => void
+  onApplyAll: () => void
+}
+
+function VerbruiksanalyseView({
+  data, filteredData, meta, loading, error,
+  leadTime, safetyDays, onlyInConfig, selectedKist,
+  applyingAll, applyStatus, updatingId,
+  onReload, onLeadTimeChange, onSafetyDaysChange,
+  onOnlyInConfigChange, onSelectKist,
+  onApplySingle, onApplyAll,
+}: VerbruiksanalyseProps) {
+
+  const [uploadOpen, setUploadOpen] = useState(false)
+  const [uploading, setUploading]   = useState(false)
+  const [uploadResult, setUploadResult] = useState<{
+    success?: boolean
+    files_processed?: number
+    files_failed?: number
+    records_upserted?: number
+    files?: { name: string; records: number; error?: string }[]
+    top_kisten?: { case_type: string; quantity: number }[]
+    error?: string
+  } | null>(null)
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    setUploading(true)
+    setUploadResult(null)
+    try {
+      const form = new FormData()
+      Array.from(files).forEach(f => form.append('files', f))
+      const res = await fetch('/api/grote-inpak/packed-consumption/upload', { method: 'POST', body: form })
+      const json = await res.json()
+      setUploadResult(json)
+      if (json.success) onReload()
+    } catch (err: any) {
+      setUploadResult({ error: err.message })
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
+  }
+
+  const selectedStat = selectedKist ? data.find(r => r.case_type === selectedKist) : null
+
+  // Top 20 voor de barChart
+  const chartData = filteredData.slice(0, 20).map(r => ({
+    name: r.case_type,
+    total: r.total,
+    avg: r.avg_per_day,
+  }))
+
+  const CHART_COLORS = ['#6366f1', '#8b5cf6', '#a855f7', '#c084fc', '#d8b4fe']
+
+  const noData = !loading && data.length === 0
+
+  return (
+    <div className="space-y-5">
+
+      {/* ── Upload sectie ── */}
+      <div className="border border-gray-200 rounded-xl overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setUploadOpen(!uploadOpen)}
+          className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 text-sm font-medium text-gray-700"
+        >
+          <span className="flex items-center gap-2">
+            <Upload className="w-4 h-4 text-purple-600" />
+            PACKED_Y / PACKED_N bestanden uploaden
+          </span>
+          <span className="text-xs text-gray-400">{uploadOpen ? '▲ Inklappen' : '▼ Uitklappen'}</span>
+        </button>
+
+        {uploadOpen && (
+          <div className="p-4 bg-white border-t border-gray-100 space-y-4">
+            <p className="text-sm text-gray-600">
+              Upload één of meerdere <strong>PACKED_Y.XLS</strong> of <strong>PACKED_N.XLS</strong> bestanden.
+              Je kan alle 224 bestanden tegelijk selecteren — ze worden automatisch verwerkt en opgeslagen.
+            </p>
+
+            <label className={`flex flex-col items-center justify-center gap-3 border-2 border-dashed rounded-xl p-8 cursor-pointer transition-colors ${uploading ? 'border-gray-200 bg-gray-50 cursor-not-allowed' : 'border-purple-300 hover:border-purple-500 hover:bg-purple-50/30'}`}>
+              {uploading ? (
+                <>
+                  <RefreshCw className="w-8 h-8 text-purple-400 animate-spin" />
+                  <span className="text-sm text-gray-500">Bestanden verwerken...</span>
+                </>
+              ) : (
+                <>
+                  <FileSpreadsheet className="w-8 h-8 text-purple-400" />
+                  <div className="text-center">
+                    <span className="text-sm font-semibold text-purple-700">Klik om bestanden te selecteren</span>
+                    <p className="text-xs text-gray-400 mt-1">PACKED_Y*.XLS en PACKED_N*.XLS (meerdere tegelijk mogelijk)</p>
+                  </div>
+                </>
+              )}
+              <input
+                type="file"
+                multiple
+                accept=".xls,.xlsx"
+                onChange={handleUpload}
+                disabled={uploading}
+                className="hidden"
+              />
+            </label>
+
+            {uploadResult && (
+              <div className={`rounded-lg p-4 text-sm space-y-3 ${uploadResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                {uploadResult.error && (
+                  <p className="text-red-700 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0" /> {uploadResult.error}
+                  </p>
+                )}
+                {uploadResult.success && (
+                  <div className="space-y-2">
+                    <p className="text-green-800 font-semibold flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4" />
+                      {uploadResult.files_processed} bestand{uploadResult.files_processed !== 1 ? 'en' : ''} verwerkt · {uploadResult.records_upserted?.toLocaleString('nl-NL')} dagrecords opgeslagen
+                      {(uploadResult.files_failed ?? 0) > 0 && (
+                        <span className="text-orange-600 font-normal">({uploadResult.files_failed} mislukt)</span>
+                      )}
+                    </p>
+                    {uploadResult.top_kisten && uploadResult.top_kisten.length > 0 && (
+                      <div>
+                        <p className="text-green-700 text-xs font-medium mb-1">Top kisten in geüploade data:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {uploadResult.top_kisten.map(k => (
+                            <span key={k.case_type} className="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full font-mono">
+                              {k.case_type}: {k.quantity}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {uploadResult.files && uploadResult.files.filter(f => f.error).length > 0 && (
+                      <div>
+                        <p className="text-orange-700 text-xs font-medium mb-1">Mislukte bestanden:</p>
+                        {uploadResult.files.filter(f => f.error).map(f => (
+                          <p key={f.name} className="text-orange-600 text-xs font-mono">{f.name}: {f.error}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* KPI cards */}
+      {meta && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <p className="text-xs text-gray-500 uppercase font-medium mb-1">Totaal verbruikt</p>
+            <p className="text-3xl font-bold text-gray-900">{meta.total_kisten_verbruikt.toLocaleString('nl-NL')}</p>
+            <p className="text-xs text-gray-400 mt-1">kisten afgelopen {meta.days} dagen</p>
+          </div>
+          <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+            <p className="text-xs text-purple-700 uppercase font-medium mb-1">Unieke types</p>
+            <p className="text-3xl font-bold text-purple-800">{meta.unieke_typen}</p>
+            <p className="text-xs text-purple-400 mt-1">{meta.in_kanban_config} in kanban · {meta.niet_in_config} niet</p>
+          </div>
+          <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+            <p className="text-xs text-indigo-700 uppercase font-medium mb-1">Meest gebruikt</p>
+            <p className="text-2xl font-bold text-indigo-800">{meta.meest_gebruikt ?? '—'}</p>
+            <p className="text-xs text-indigo-400 mt-1">{data[0]?.total ?? 0} stuks · {data[0]?.avg_per_day ?? 0}/dag</p>
+          </div>
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+            <p className="text-xs text-green-700 uppercase font-medium mb-1">Lead time instelling</p>
+            <p className="text-3xl font-bold text-green-800">{leadTime} <span className="text-lg font-medium">+ {safetyDays}</span></p>
+            <p className="text-xs text-green-400 mt-1">werkdagen + veiligheidsbuffer</p>
+          </div>
+        </div>
+      )}
+
+      {/* Instellingen + actiebalk */}
+      <div className="flex flex-wrap items-center gap-3 bg-white border border-gray-200 rounded-xl px-4 py-3">
+        <div className="flex items-center gap-2 text-sm">
+          <label className="text-gray-600 font-medium whitespace-nowrap">Lead time (dagen):</label>
+          <input
+            type="number" min={1} max={30} value={leadTime}
+            onChange={e => onLeadTimeChange(Math.max(1, Math.min(30, Number(e.target.value))))}
+            className="w-16 px-2 py-1 border border-gray-300 rounded-lg text-sm text-center"
+          />
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <label className="text-gray-600 font-medium whitespace-nowrap">Veiligheidsbuffer (dagen):</label>
+          <input
+            type="number" min={0} max={30} value={safetyDays}
+            onChange={e => onSafetyDaysChange(Math.max(0, Math.min(30, Number(e.target.value))))}
+            className="w-16 px-2 py-1 border border-gray-300 rounded-lg text-sm text-center"
+          />
+        </div>
+        <div className="w-px h-6 bg-gray-300 hidden md:block" />
+        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+          <input type="checkbox" checked={onlyInConfig} onChange={e => onOnlyInConfigChange(e.target.checked)} className="w-4 h-4" />
+          Alleen kisten in kanban rekken
+        </label>
+        <div className="flex-1" />
+        <button
+          onClick={onReload}
+          disabled={loading}
+          className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Vernieuwen
+        </button>
+        <button
+          onClick={onApplyAll}
+          disabled={applyingAll || loading || filteredData.filter(r => r.in_config && r.avg_per_day > 0).length === 0}
+          className="flex items-center gap-1.5 px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50"
+        >
+          <Zap className="w-4 h-4" />
+          {applyingAll ? 'Bijwerken...' : `Pas verbruik/dag toe (${filteredData.filter(r => r.in_config && r.avg_per_day > 0).length} kisten)`}
+        </button>
+      </div>
+
+      {applyStatus && (
+        <div className={`rounded-lg p-3 text-sm flex items-center gap-2 ${applyStatus.ok ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-700'}`}>
+          {applyStatus.ok ? <CheckCircle className="w-4 h-4 flex-shrink-0" /> : <AlertTriangle className="w-4 h-4 flex-shrink-0" />}
+          {applyStatus.msg}
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+          {error.includes('does not exist') || error.includes('relation') ? (
+            <span>Tabel nog niet aangemaakt. Voer eerst de SQL-migratie uit in Supabase en importeer de data via het script.</span>
+          ) : error}
+        </div>
+      )}
+
+      {noData && !error && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
+          <Package className="w-10 h-10 text-amber-400 mx-auto mb-3" />
+          <p className="text-amber-800 font-semibold mb-1">Nog geen verbruiksdata</p>
+          <p className="text-amber-600 text-sm">Voer het importscript uit om de PACKED_Y/N bestanden te laden:</p>
+          <code className="mt-3 block bg-amber-100 text-amber-900 text-xs px-4 py-2 rounded-lg font-mono">
+            powershell -ExecutionPolicy Bypass -File scripts\run-packed-import.ps1
+          </code>
+        </div>
+      )}
+
+      {/* Grafiek + details naast elkaar */}
+      {!loading && filteredData.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Barsgrafiek top 20 */}
+          <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl p-4">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">
+              Top {Math.min(20, filteredData.length)} kisttypen — totaal verbruikt (afgelopen {meta?.days ?? 365} dagen)
+            </h3>
+            <ResponsiveContainer width="100%" height={320}>
+              <BarChart data={chartData} layout="vertical" margin={{ left: 8, right: 30, top: 4, bottom: 4 }}>
+                <XAxis type="number" tick={{ fontSize: 11 }} />
+                <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fontWeight: 600 }} width={52} />
+                <Tooltip
+                  formatter={(val: number, name: string) => [
+                    name === 'total' ? `${val} stuks` : `${val}/dag`,
+                    name === 'total' ? 'Totaal' : 'Gem/dag',
+                  ]}
+                />
+                <Bar dataKey="total" radius={[0, 4, 4, 0]} onClick={(d) => onSelectKist(d.name === selectedKist ? null : d.name)}>
+                  {chartData.map((entry, i) => (
+                    <Cell
+                      key={entry.name}
+                      fill={entry.name === selectedKist ? '#7c3aed' : CHART_COLORS[i % CHART_COLORS.length]}
+                      opacity={selectedKist && entry.name !== selectedKist ? 0.4 : 1}
+                      cursor="pointer"
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Detail van geselecteerde kist */}
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            {selectedStat ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-lg text-gray-900">{selectedStat.case_type}</h3>
+                  <button onClick={() => onSelectKist(null)} className="text-gray-400 hover:text-gray-600 text-xs">✕ Sluit</button>
+                </div>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between py-1 border-b border-gray-100">
+                    <span className="text-gray-500">Totaal verbruikt</span>
+                    <span className="font-semibold">{selectedStat.total} stuks</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-gray-100">
+                    <span className="text-gray-500">Actieve dagen</span>
+                    <span className="font-semibold">{selectedStat.active_days}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-gray-100">
+                    <span className="text-gray-500">Gem. per dag</span>
+                    <span className="font-semibold text-purple-700">{selectedStat.avg_per_day.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-gray-100">
+                    <span className="text-gray-500">Huidig verbruik/dag</span>
+                    <span className={`font-semibold ${selectedStat.current_verbruik_per_dag ? '' : 'text-gray-400'}`}>
+                      {selectedStat.current_verbruik_per_dag?.toFixed(2) ?? '—'}
+                    </span>
+                  </div>
+                </div>
+                <div className="bg-purple-50 rounded-lg p-3 text-sm space-y-1">
+                  <p className="font-semibold text-purple-800 mb-2">Suggesties (lead {leadTime}d + {safetyDays}d buffer)</p>
+                  <div className="flex justify-between">
+                    <span className="text-purple-600">Min (bestelpunt)</span>
+                    <span className="font-bold text-purple-800">{selectedStat.suggested_min}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-purple-600">Max (doel)</span>
+                    <span className="font-bold text-purple-800">{selectedStat.suggested_max}</span>
+                  </div>
+                  {selectedStat.current_max !== null && (
+                    <div className="flex justify-between">
+                      <span className="text-purple-600">Huidig max</span>
+                      <span className={`font-bold ${selectedStat.current_max < selectedStat.suggested_max ? 'text-red-600' : 'text-green-700'}`}>
+                        {selectedStat.current_max} {selectedStat.current_max < selectedStat.suggested_max ? '⚠️ te laag' : '✓'}
+                      </span>
+                    </div>
+                  )}
+                  {selectedStat.suggested_posities && (
+                    <div className="flex justify-between">
+                      <span className="text-purple-600">Aanbevolen posities</span>
+                      <span className="font-bold text-purple-800">{selectedStat.suggested_posities}</span>
+                    </div>
+                  )}
+                </div>
+                {/* Maandgrafiek */}
+                {selectedStat.monthly.length > 0 && (
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium mb-2">Maandelijks verbruik</p>
+                    <ResponsiveContainer width="100%" height={100}>
+                      <BarChart data={selectedStat.monthly} margin={{ left: -20, right: 4, top: 4, bottom: 0 }}>
+                        <XAxis dataKey="month" tick={{ fontSize: 9 }} tickFormatter={(v: string) => v.slice(5)} />
+                        <YAxis tick={{ fontSize: 9 }} />
+                        <Tooltip formatter={(v: number) => [`${v} stuks`, 'Verbruik']} labelFormatter={(l: string) => l} />
+                        <Bar dataKey="count" fill="#8b5cf6" radius={[2, 2, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+                {selectedStat.in_config && selectedStat.config_id && selectedStat.avg_per_day > 0 && (
+                  <button
+                    onClick={() => onApplySingle(selectedStat)}
+                    disabled={updatingId === selectedStat.config_id}
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                  >
+                    <Zap className="w-4 h-4" />
+                    {updatingId === selectedStat.config_id ? 'Bijwerken...' : `Pas toe: ${selectedStat.suggested_verbruik_per_dag.toFixed(2)}/dag`}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-center py-10 text-gray-400">
+                <TrendingUp className="w-10 h-10 mb-3 opacity-30" />
+                <p className="text-sm">Klik op een balk in de grafiek<br />om details te zien</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Hoofdtabel */}
+      {!loading && filteredData.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+            <span className="font-semibold text-gray-800">{filteredData.length} kisttypen</span>
+            <p className="text-xs text-gray-400">
+              Suggestie formule: avg/dag × lead_time ({leadTime}d) = min · avg/dag × (lead+buffer) ({leadTime + safetyDays}d) = max
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-100 text-sm">
+              <thead className="bg-gray-50 text-xs uppercase text-gray-500 font-medium">
+                <tr>
+                  <th className="px-4 py-3 text-left">Kisttype</th>
+                  <th className="px-4 py-3 text-left">Locatie</th>
+                  <th className="px-4 py-3 text-center">Totaal verbruikt</th>
+                  <th className="px-4 py-3 text-center">Actieve dagen</th>
+                  <th className="px-4 py-3 text-center">Gem/dag (data)</th>
+                  <th className="px-4 py-3 text-center">Huidig config/dag</th>
+                  <th className="px-4 py-3 text-center bg-purple-50 text-purple-700">Suggestie min</th>
+                  <th className="px-4 py-3 text-center bg-purple-50 text-purple-700">Suggestie max</th>
+                  <th className="px-4 py-3 text-center">Huidig max</th>
+                  <th className="px-4 py-3 text-center">Status</th>
+                  <th className="px-4 py-3 text-center">Actie</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredData.map(row => {
+                  const diffPct = row.current_verbruik_per_dag && row.avg_per_day
+                    ? Math.round(((row.avg_per_day - row.current_verbruik_per_dag) / row.current_verbruik_per_dag) * 100)
+                    : null
+                  const maxTooLow = row.current_max !== null && row.current_max < row.suggested_max && row.avg_per_day > 0
+                  return (
+                    <tr
+                      key={row.case_type}
+                      onClick={() => onSelectKist(row.case_type === selectedKist ? null : row.case_type)}
+                      className={`hover:bg-gray-50 cursor-pointer transition-colors ${row.case_type === selectedKist ? 'bg-purple-50/60' : ''}`}
+                    >
+                      <td className="px-4 py-2.5">
+                        <span className="font-bold text-gray-900">{row.case_type}</span>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {row.productielocatie ? (
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${row.productielocatie === 'Genk' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`}>
+                            {row.productielocatie}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">niet in config</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-center font-semibold text-gray-900">
+                        {row.total > 0 ? row.total.toLocaleString('nl-NL') : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-4 py-2.5 text-center text-gray-600">{row.active_days || '—'}</td>
+                      <td className="px-4 py-2.5 text-center">
+                        {row.avg_per_day > 0 ? (
+                          <span className="font-semibold text-purple-700">{row.avg_per_day.toFixed(2)}</span>
+                        ) : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-4 py-2.5 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <span className="text-gray-600">{row.current_verbruik_per_dag?.toFixed(2) ?? '—'}</span>
+                          {diffPct !== null && Math.abs(diffPct) >= 10 && (
+                            <span className={`text-xs px-1 rounded ${diffPct > 0 ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
+                              {diffPct > 0 ? `+${diffPct}%` : `${diffPct}%`}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-2.5 text-center bg-purple-50/30">
+                        <span className="font-semibold text-purple-700">{row.suggested_min > 0 ? row.suggested_min : '—'}</span>
+                      </td>
+                      <td className="px-4 py-2.5 text-center bg-purple-50/30">
+                        <span className="font-semibold text-purple-700">{row.suggested_max > 0 ? row.suggested_max : '—'}</span>
+                      </td>
+                      <td className="px-4 py-2.5 text-center">
+                        {row.current_max !== null ? (
+                          <span className={maxTooLow ? 'text-red-600 font-semibold' : 'text-gray-700'}>
+                            {row.current_max} {maxTooLow ? '⚠️' : ''}
+                          </span>
+                        ) : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-4 py-2.5 text-center">
+                        {!row.in_config ? (
+                          <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Niet in rekken</span>
+                        ) : row.total === 0 ? (
+                          <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Geen data</span>
+                        ) : maxTooLow ? (
+                          <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Max te laag</span>
+                        ) : (
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">OK</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-center" onClick={e => e.stopPropagation()}>
+                        {row.in_config && row.config_id && row.avg_per_day > 0 && (
+                          <button
+                            onClick={() => onApplySingle(row)}
+                            disabled={updatingId === row.config_id}
+                            className="flex items-center gap-1 px-2 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 disabled:opacity-50 whitespace-nowrap"
+                          >
+                            <Zap className="w-3 h-3" />
+                            {updatingId === row.config_id ? '...' : `Pas toe`}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {loading && (
+        <div className="py-12 text-center text-gray-400">Verbruiksdata laden...</div>
       )}
     </div>
   )
