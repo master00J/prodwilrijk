@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
           config_id: config?.id ?? null,
           productielocatie: config?.productielocatie ?? null,
           current_verbruik_per_dag: config?.verbruik_per_dag ?? null,
-          current_max,
+          current_max: currentMax,
           // suggesties
           suggested_verbruik_per_dag: suggestedVerbruikPerDag,
           suggested_min: suggestedMin,
