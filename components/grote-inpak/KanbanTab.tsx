@@ -998,34 +998,77 @@ function VerbruiksanalyseView({
   onApplySingle, onApplyAll,
 }: VerbruiksanalyseProps) {
 
-  const [uploadOpen, setUploadOpen] = useState(false)
-  const [uploading, setUploading]   = useState(false)
+  const BATCH_SIZE = 80 // ~80 bestanden per batch ≈ 1.5–2 MB, ruim onder Vercel's 4.5 MB limiet
+
+  const [uploadOpen, setUploadOpen]     = useState(false)
+  const [uploading, setUploading]       = useState(false)
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null)
   const [uploadResult, setUploadResult] = useState<{
     success?: boolean
     files_processed?: number
     files_failed?: number
     records_upserted?: number
-    files?: { name: string; records: number; error?: string }[]
     top_kisten?: { case_type: string; quantity: number }[]
     error?: string
   } | null>(null)
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files || files.length === 0) return
+    const files = Array.from(e.target.files ?? [])
+    if (files.length === 0) return
     setUploading(true)
     setUploadResult(null)
+
+    // Splits in batches van BATCH_SIZE zodat we altijd onder de 4.5 MB Vercel-limiet blijven
+    const batches: File[][] = []
+    for (let i = 0; i < files.length; i += BATCH_SIZE) {
+      batches.push(files.slice(i, i + BATCH_SIZE))
+    }
+
+    let totalProcessed = 0
+    let totalFailed    = 0
+    let totalUpserted  = 0
+    const allTopKisten = new Map<string, number>()
+    let lastError: string | undefined
+
     try {
-      const form = new FormData()
-      Array.from(files).forEach(f => form.append('files', f))
-      const res = await fetch('/api/grote-inpak/packed-consumption/upload', { method: 'POST', body: form })
-      const json = await res.json()
-      setUploadResult(json)
-      if (json.success) onReload()
+      for (let b = 0; b < batches.length; b++) {
+        setBatchProgress({ current: b + 1, total: batches.length })
+        const form = new FormData()
+        batches[b].forEach(f => form.append('files', f))
+        const res  = await fetch('/api/grote-inpak/packed-consumption/upload', { method: 'POST', body: form })
+        const json = await res.json()
+        if (json.success) {
+          totalProcessed += json.files_processed ?? 0
+          totalFailed    += json.files_failed    ?? 0
+          totalUpserted  += json.records_upserted ?? 0
+          ;(json.top_kisten ?? []).forEach((k: { case_type: string; quantity: number }) => {
+            allTopKisten.set(k.case_type, (allTopKisten.get(k.case_type) ?? 0) + k.quantity)
+          })
+        } else {
+          lastError = json.error
+          totalFailed += batches[b].length
+        }
+      }
+
+      const topKisten = Array.from(allTopKisten.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([case_type, quantity]) => ({ case_type, quantity }))
+
+      setUploadResult({
+        success: totalProcessed > 0,
+        files_processed: totalProcessed,
+        files_failed: totalFailed,
+        records_upserted: totalUpserted,
+        top_kisten: topKisten,
+        error: totalProcessed === 0 ? (lastError ?? 'Alle bestanden mislukt') : undefined,
+      })
+      if (totalProcessed > 0) onReload()
     } catch (err: any) {
       setUploadResult({ error: err.message })
     } finally {
       setUploading(false)
+      setBatchProgress(null)
       e.target.value = ''
     }
   }
@@ -1071,14 +1114,36 @@ function VerbruiksanalyseView({
               {uploading ? (
                 <>
                   <RefreshCw className="w-8 h-8 text-purple-400 animate-spin" />
-                  <span className="text-sm text-gray-500">Bestanden verwerken...</span>
+                  {batchProgress && batchProgress.total > 1 ? (
+                    <div className="w-full max-w-xs space-y-1 text-center">
+                      <span className="text-sm text-gray-600 font-medium">
+                        Batch {batchProgress.current} / {batchProgress.total} uploaden...
+                      </span>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className="bg-purple-500 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${Math.round((batchProgress.current / batchProgress.total) * 100)}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-gray-400">
+                        {Math.round((batchProgress.current / batchProgress.total) * 100)}% — even geduld
+                      </p>
+                    </div>
+                  ) : (
+                    <span className="text-sm text-gray-500">Bestanden verwerken...</span>
+                  )}
                 </>
               ) : (
                 <>
                   <FileSpreadsheet className="w-8 h-8 text-purple-400" />
                   <div className="text-center">
                     <span className="text-sm font-semibold text-purple-700">Klik om bestanden te selecteren</span>
-                    <p className="text-xs text-gray-400 mt-1">PACKED_Y*.XLS en PACKED_N*.XLS (meerdere tegelijk mogelijk)</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      PACKED_Y*.XLS en PACKED_N*.XLS — alle bestanden tegelijk selecteren is OK
+                    </p>
+                    <p className="text-xs text-gray-300 mt-0.5">
+                      Worden automatisch opgesplitst in batches van {BATCH_SIZE} bestanden
+                    </p>
                   </div>
                 </>
               )}
@@ -1105,7 +1170,7 @@ function VerbruiksanalyseView({
                       <CheckCircle className="w-4 h-4" />
                       {uploadResult.files_processed} bestand{uploadResult.files_processed !== 1 ? 'en' : ''} verwerkt · {uploadResult.records_upserted?.toLocaleString('nl-NL')} dagrecords opgeslagen
                       {(uploadResult.files_failed ?? 0) > 0 && (
-                        <span className="text-orange-600 font-normal">({uploadResult.files_failed} mislukt)</span>
+                        <span className="text-orange-600 font-normal">· {uploadResult.files_failed} mislukt</span>
                       )}
                     </p>
                     {uploadResult.top_kisten && uploadResult.top_kisten.length > 0 && (
@@ -1118,14 +1183,6 @@ function VerbruiksanalyseView({
                             </span>
                           ))}
                         </div>
-                      </div>
-                    )}
-                    {uploadResult.files && uploadResult.files.filter(f => f.error).length > 0 && (
-                      <div>
-                        <p className="text-orange-700 text-xs font-medium mb-1">Mislukte bestanden:</p>
-                        {uploadResult.files.filter(f => f.error).map(f => (
-                          <p key={f.name} className="text-orange-600 text-xs font-mono">{f.name}: {f.error}</p>
-                        ))}
                       </div>
                     )}
                   </div>
