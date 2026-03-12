@@ -539,7 +539,7 @@ export default function ZaagplanPage() {
 
               {pieces.length === 0 && (
                 <p className="text-center text-gray-600 text-sm py-6">
-                  Geen stukken — klik op "Toevoegen"
+                  Geen stukken — klik op &ldquo;Toevoegen&rdquo;
                 </p>
               )}
             </div>
@@ -567,7 +567,7 @@ export default function ZaagplanPage() {
               <div className="flex flex-col items-center justify-center h-80 bg-gray-800 border border-gray-700 rounded-xl text-gray-500">
                 <Calculator className="w-14 h-14 mb-4 opacity-30" />
                 <p className="font-medium">Vul je stukken in en klik op</p>
-                <p className="font-semibold text-gray-400 mt-1">"Bereken zaagplan"</p>
+                <p className="font-semibold text-gray-400 mt-1">&ldquo;Bereken zaagplan&rdquo;</p>
               </div>
             ) : results.length > 0 ? (
               <>
