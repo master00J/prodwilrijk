@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useCallback } from 'react'
-import { Plus, Trash2, Calculator, ChevronDown, ChevronUp, Copy, RotateCcw } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { Plus, Trash2, Calculator, ChevronDown, ChevronUp, Copy, RotateCcw, Upload, FileCode2, X, CheckCircle2 } from 'lucide-react'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -11,6 +11,200 @@ interface PieceRow {
   w: number    // breedte mm
   l: number    // lengte mm
   qty: number
+}
+
+// XML import types
+interface XmlMaterialGroup {
+  materialCode: string        // bijv. "HBO3.2X2440X1220" of "MEP022"
+  materialType: string        // bijv. "HARDBOARD" of "MULTIPLEX ELLIOTTI"
+  thickness: number           // mm
+  sheetW: number              // standaard plaatbreedte (mm)
+  sheetL: number              // standaard plaatlengte (mm)
+  pieces: {
+    description: string
+    group: string
+    w: number
+    l: number
+    qty: number
+  }[]
+}
+
+// ── XML Parser ────────────────────────────────────────────────────────────────
+
+function parseSheetDimsFromCode(code: string): { l: number; w: number } | null {
+  // bijv. "HBO3.2X2440X1220" → L=2440, W=1220
+  const m = code.match(/X(\d{3,4})X(\d{3,4})$/i)
+  if (m) {
+    const a = parseInt(m[1]), b = parseInt(m[2])
+    return { l: Math.max(a, b), w: Math.min(a, b) }
+  }
+  return null
+}
+
+function parseXmlProductionOrder(xmlText: string): XmlMaterialGroup[] {
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(xmlText, 'text/xml')
+
+  // Helper: haal kolomwaarde op binnen een <DataItem> element
+  const col = (el: Element, name: string): string => {
+    const found = el.querySelector(`Column[name="${name}"]`)
+    return found?.textContent?.trim() ?? ''
+  }
+
+  // Verzamel alle Component DataItems
+  const components = Array.from(doc.querySelectorAll('DataItem[name="Component"]'))
+
+  // Aggregeer per (materialCode + width + length)
+  const aggregated = new Map<string, {
+    materialCode: string
+    materialType: string
+    thickness: number
+    w: number
+    l: number
+    group: string
+    qty: number
+  }>()
+
+  for (const comp of components) {
+    const groupCode = col(comp, 'FSGComponentGroupCode')
+    if (!groupCode.toUpperCase().includes('PLAT')) continue  // alleen plaatmateriaal
+
+    const materialCode = col(comp, 'Component_Description')
+    const materialType = col(comp, 'Component_Description_2')
+    const thickness    = parseInt(col(comp, 'Component_Thickness')) || 0
+    const w            = parseInt(col(comp, 'Component_Width'))  || 0
+    const l            = parseInt(col(comp, 'Component_Length')) || 0
+    const group        = col(comp, 'Component_Group')
+
+    // FSGComponent_UnitExpected zit in een genest ComponentFieldsForGroupingFSG DataItem
+    const fsgItem = comp.querySelector('DataItem[name="ComponentFieldsForGroupingFSG"]')
+    const qtyRaw  = fsgItem ? col(fsgItem, 'FSGComponent_UnitExpected') : col(comp, 'Component_Unit')
+    const qty     = Math.round(parseFloat(qtyRaw.replace(',', '.')) || 0)
+
+    if (!w || !l || !qty) continue
+
+    const key = `${materialCode}||${w}||${l}`
+    if (aggregated.has(key)) {
+      aggregated.get(key)!.qty += qty
+    } else {
+      aggregated.set(key, { materialCode, materialType, thickness, w, l, group, qty })
+    }
+  }
+
+  // Groepeer per materiaalcode
+  const groups = new Map<string, XmlMaterialGroup>()
+  for (const item of aggregated.values()) {
+    if (!groups.has(item.materialCode)) {
+      const dims = parseSheetDimsFromCode(item.materialCode)
+      groups.set(item.materialCode, {
+        materialCode: item.materialCode,
+        materialType: item.materialType,
+        thickness:    item.thickness,
+        sheetW: dims?.w ?? 1220,
+        sheetL: dims?.l ?? 2440,
+        pieces: [],
+      })
+    }
+    groups.get(item.materialCode)!.pieces.push({
+      description: `${item.group} ${item.w}×${item.l}`,
+      group:       item.group,
+      w:           item.w,
+      l:           item.l,
+      qty:         item.qty,
+    })
+  }
+
+  // Sorteer stukken per groep op w desc, dan l desc
+  for (const g of groups.values()) {
+    g.pieces.sort((a, b) => b.w !== a.w ? b.w - a.w : b.l - a.l)
+  }
+
+  return Array.from(groups.values())
+}
+
+// ── XML Import Panel ──────────────────────────────────────────────────────────
+
+function XmlImportPanel({
+  groups,
+  onImport,
+  onClose,
+}: {
+  groups: XmlMaterialGroup[]
+  onImport: (group: XmlMaterialGroup) => void
+  onClose: () => void
+}) {
+  const [editDims, setEditDims] = useState<Record<string, { w: number; l: number }>>(
+    Object.fromEntries(groups.map(g => [g.materialCode, { w: g.sheetW, l: g.sheetL }]))
+  )
+
+  return (
+    <div className="bg-gray-800 border border-blue-600 rounded-xl p-4 space-y-4">
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <FileCode2 className="w-5 h-5 text-blue-400" />
+          <span className="font-semibold text-white">Geïmporteerde productie-order</span>
+        </div>
+        <button onClick={onClose} className="text-gray-400 hover:text-white">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      <p className="text-xs text-gray-400">
+        Selecteer welk plaatmateriaal je wilt laden. De plaatmaten worden automatisch ingesteld.
+      </p>
+
+      <div className="space-y-3">
+        {groups.map(g => {
+          const dims = editDims[g.materialCode]
+          const totalQty = g.pieces.reduce((s, p) => s + p.qty, 0)
+          return (
+            <div key={g.materialCode} className="bg-gray-900 rounded-lg p-3 space-y-3">
+              <div className="flex justify-between items-start gap-2">
+                <div>
+                  <p className="font-medium text-white text-sm">{g.materialCode}</p>
+                  <p className="text-xs text-gray-400">{g.materialType} · {g.thickness}mm dikte · {g.pieces.length} stuktypen · {totalQty} stuks totaal</p>
+                </div>
+                <button
+                  onClick={() => onImport({ ...g, sheetW: dims.w, sheetL: dims.l })}
+                  className="flex-shrink-0 flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded-lg transition font-medium"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Laden
+                </button>
+              </div>
+
+              {/* Plaatmaten instellen */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400 flex-shrink-0">Plaatmaat:</span>
+                <input
+                  type="number" value={dims.w}
+                  onChange={e => setEditDims(d => ({ ...d, [g.materialCode]: { ...d[g.materialCode], w: Number(e.target.value) } }))}
+                  className="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-blue-500 text-center"
+                  title="Breedte plaat (mm)"
+                />
+                <span className="text-gray-500 text-xs">×</span>
+                <input
+                  type="number" value={dims.l}
+                  onChange={e => setEditDims(d => ({ ...d, [g.materialCode]: { ...d[g.materialCode], l: Number(e.target.value) } }))}
+                  className="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-blue-500 text-center"
+                  title="Lengte plaat (mm)"
+                />
+                <span className="text-xs text-gray-400">mm</span>
+              </div>
+
+              {/* Stukken preview */}
+              <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                {g.pieces.map((p, i) => (
+                  <span key={i} className="text-xs bg-gray-700 text-gray-300 px-2 py-0.5 rounded font-mono whitespace-nowrap">
+                    {p.w}×{p.l} ×{p.qty}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 interface SheetDims {
@@ -329,6 +523,51 @@ export default function ZaagplanPage() {
   const [nextId, setNextId]           = useState(100)
   const [calculated, setCalculated]   = useState(false)
 
+  // XML import state
+  const [xmlGroups, setXmlGroups]     = useState<XmlMaterialGroup[] | null>(null)
+  const [xmlError, setXmlError]       = useState<string | null>(null)
+  const xmlInputRef                   = useRef<HTMLInputElement>(null)
+
+  const handleXmlUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setXmlError(null)
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      try {
+        const text = ev.target?.result as string
+        const groups = parseXmlProductionOrder(text)
+        if (groups.length === 0) {
+          setXmlError('Geen plaatmateriaal (FSGComponentGroupCode = "2PLATEN") gevonden in dit XML-bestand.')
+        } else {
+          setXmlGroups(groups)
+        }
+      } catch {
+        setXmlError('Kon het XML-bestand niet lezen. Controleer of het een geldig productie-order XML is.')
+      }
+    }
+    reader.readAsText(file)
+    e.target.value = ''
+  }
+
+  const importXmlGroup = (group: XmlMaterialGroup) => {
+    // Vervang stukkenlijst + stel plaatmaten in
+    let idCounter = nextId
+    const newPieces: PieceRow[] = group.pieces.map(p => ({
+      id:   String(idCounter++),
+      name: p.description,
+      w:    p.w,
+      l:    p.l,
+      qty:  p.qty,
+    }))
+    setPieces(newPieces)
+    setDims(d => ({ ...d, w: group.sheetW, l: group.sheetL }))
+    setNextId(idCounter)
+    setResults(null)
+    setCalculated(false)
+    setXmlGroups(null)
+  }
+
   const addPiece = () => {
     setPieces(prev => [...prev, { id: String(nextId), name: '', w: 100, l: 200, qty: 1 }])
     setNextId(n => n + 1)
@@ -409,6 +648,36 @@ export default function ZaagplanPage() {
 
           {/* ══ LINKS: configuratie ══ */}
           <div className="space-y-5">
+
+            {/* XML Import */}
+            <div>
+              <input
+                ref={xmlInputRef}
+                type="file"
+                accept=".xml"
+                className="hidden"
+                onChange={handleXmlUpload}
+              />
+              <button
+                onClick={() => xmlInputRef.current?.click()}
+                className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-blue-600/50 hover:border-blue-500 hover:bg-blue-950/30 text-blue-400 hover:text-blue-300 py-3 rounded-xl transition text-sm font-medium"
+              >
+                <Upload className="w-4 h-4" />
+                Importeer productie-order (XML)
+              </button>
+              {xmlError && (
+                <p className="mt-2 text-xs text-red-400">{xmlError}</p>
+              )}
+            </div>
+
+            {/* XML import panel */}
+            {xmlGroups && (
+              <XmlImportPanel
+                groups={xmlGroups}
+                onImport={importXmlGroup}
+                onClose={() => setXmlGroups(null)}
+              />
+            )}
 
             {/* Plaatmaten */}
             <div className="bg-gray-800 border border-gray-700 rounded-xl p-4">
