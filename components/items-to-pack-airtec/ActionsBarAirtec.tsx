@@ -10,6 +10,12 @@ interface ActionsBarAirtecProps {
   activeTimerCount?: number
 }
 
+function printList() {
+  document.body.classList.add('print-airtec-list')
+  window.print()
+  document.body.classList.remove('print-airtec-list')
+}
+
 export default function ActionsBarAirtec({
   selectedCount,
   totalCount,
@@ -63,6 +69,13 @@ export default function ActionsBarAirtec({
           className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium text-lg"
         >
           🗑️ Delete Selected
+        </button>
+        <button
+          onClick={printList}
+          className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-medium text-lg"
+          title="Druk de lijst af"
+        >
+          🖨️ Print lijst
         </button>
       </div>
     </div>

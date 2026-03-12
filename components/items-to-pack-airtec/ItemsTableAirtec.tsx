@@ -29,12 +29,12 @@ export default function ItemsTableAirtec({
   const someSelected = items.some(item => selectedItems.has(item.id))
 
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
+    <div id="airtec-print-area" className="bg-white rounded-lg shadow overflow-hidden">
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-4 text-left">
+              <th className="print-col-hide px-4 py-4 text-left">
                 <input
                   type="checkbox"
                   checked={allSelected}
@@ -96,7 +96,7 @@ export default function ItemsTableAirtec({
               <th className="px-4 py-4 text-left text-sm font-medium text-gray-700">
                 Priority
               </th>
-              <th className="px-4 py-4 text-left text-sm font-medium text-gray-700">Actions</th>
+              <th className="print-col-hide px-4 py-4 text-left text-sm font-medium text-gray-700">Actions</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -108,8 +108,8 @@ export default function ItemsTableAirtec({
               </tr>
             ) : (
               items.map((item) => (
-                <tr key={item.id} className={item.priority ? 'bg-yellow-50' : ''}>
-                  <td className="px-4 py-4">
+                <tr key={item.id} className={item.priority ? 'bg-yellow-50 priority-row' : ''}>
+                  <td className="print-col-hide px-4 py-4">
                     <input
                       type="checkbox"
                       checked={selectedItems.has(item.id)}
@@ -136,7 +136,7 @@ export default function ItemsTableAirtec({
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-4">
+                  <td className="print-col-hide px-4 py-4">
                     <button
                       onClick={() => onDelete(item.id)}
                       className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm font-medium"

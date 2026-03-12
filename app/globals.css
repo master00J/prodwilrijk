@@ -158,3 +158,44 @@ body {
   }
 }
 
+/* Airtec lijst afdrukken — verberg alles behalve de printzone */
+@media print {
+  body.print-airtec-list * {
+    visibility: hidden;
+  }
+  body.print-airtec-list #airtec-print-area,
+  body.print-airtec-list #airtec-print-area * {
+    visibility: visible;
+  }
+  body.print-airtec-list #airtec-print-area {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 12px;
+  }
+  body.print-airtec-list .print-col-hide {
+    display: none !important;
+  }
+  body.print-airtec-list table {
+    font-size: 9pt;
+    border-collapse: collapse;
+    width: 100%;
+  }
+  body.print-airtec-list th,
+  body.print-airtec-list td {
+    padding: 3px 6px !important;
+    border: 1px solid #ccc;
+  }
+  body.print-airtec-list thead th {
+    background: #f0f0f0 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  body.print-airtec-list tr.priority-row td {
+    background: #fefce8 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
