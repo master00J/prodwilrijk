@@ -31,14 +31,28 @@ interface XmlMaterialGroup {
 
 // ── XML Parser ────────────────────────────────────────────────────────────────
 
+// Standaard plaatmaten per materiaalprefix (als niet in de code staat)
+const KNOWN_SHEET_DIMS: Record<string, { l: number; w: number }> = {
+  'HBO':  { l: 2440, w: 1220 },   // Hardboard
+  'MEP':  { l: 2440, w: 1220 },   // Multiplex Elliotti
+  'MPX':  { l: 2440, w: 1220 },   // Multiplex (algemeen)
+  'MUL':  { l: 2440, w: 1220 },   // Multiplex
+  'OSB':  { l: 2500, w: 1250 },   // OSB (meest gangbare maat)
+  'MDF':  { l: 2440, w: 1220 },   // MDF
+  'HDF':  { l: 2440, w: 1220 },   // HDF
+  'SPX':  { l: 2440, w: 1220 },   // Spaan/spaanplaat
+}
+
 function parseSheetDimsFromCode(code: string): { l: number; w: number } | null {
-  // bijv. "HBO3.2X2440X1220" → L=2440, W=1220
+  // 1. Expliciete maten in de code: bijv. "HBO3.2X2440X1220" → L=2440, W=1220
   const m = code.match(/X(\d{3,4})X(\d{3,4})$/i)
   if (m) {
     const a = parseInt(m[1]), b = parseInt(m[2])
     return { l: Math.max(a, b), w: Math.min(a, b) }
   }
-  return null
+  // 2. Bekende prefix-lookup
+  const prefix = code.replace(/[\d.]/g, '').toUpperCase().slice(0, 3)
+  return KNOWN_SHEET_DIMS[prefix] ?? null
 }
 
 function parseXmlProductionOrder(xmlText: string): XmlMaterialGroup[] {
@@ -91,14 +105,22 @@ function parseXmlProductionOrder(xmlText: string): XmlMaterialGroup[] {
     }
   }
 
+  // Fallback namen voor veelgebruikte materiaalcodes
+  const MATERIAL_NAMES: Record<string, string> = {
+    'HBO': 'Hardboard', 'MEP': 'Multiplex Elliotti', 'MPX': 'Multiplex',
+    'MUL': 'Multiplex', 'OSB': 'OSB', 'MDF': 'MDF', 'HDF': 'HDF', 'SPX': 'Spaanplaat',
+  }
+
   // Groepeer per materiaalcode
   const groups = new Map<string, XmlMaterialGroup>()
   for (const item of aggregated.values()) {
     if (!groups.has(item.materialCode)) {
       const dims = parseSheetDimsFromCode(item.materialCode)
+      const prefix = item.materialCode.replace(/[\d.]/g, '').toUpperCase().slice(0, 3)
+      const resolvedType = item.materialType || MATERIAL_NAMES[prefix] || item.materialCode
       groups.set(item.materialCode, {
         materialCode: item.materialCode,
-        materialType: item.materialType,
+        materialType: resolvedType,
         thickness:    item.thickness,
         sheetW: dims?.w ?? 1220,
         sheetL: dims?.l ?? 2440,
