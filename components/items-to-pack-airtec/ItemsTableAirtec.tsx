@@ -46,54 +46,54 @@ export default function ItemsTableAirtec({
                 />
               </th>
               <th
-                className="px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
+                className="print-col-id px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
                 onClick={() => onSort('id')}
               >
                 ID {sortColumn === 'id' && (sortDirection === 'asc' ? '↑' : '↓')}
               </th>
               <th
-                className="px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
+                className="print-col-desc px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
                 onClick={() => onSort('beschrijving')}
               >
                 Description {sortColumn === 'beschrijving' && (sortDirection === 'asc' ? '↑' : '↓')}
               </th>
               <th
-                className="px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
+                className="print-col-item px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
                 onClick={() => onSort('item_number')}
               >
                 Item Number {sortColumn === 'item_number' && (sortDirection === 'asc' ? '↑' : '↓')}
               </th>
               <th
-                className="px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
+                className="print-col-lot px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
                 onClick={() => onSort('lot_number')}
               >
                 Lot Number {sortColumn === 'lot_number' && (sortDirection === 'asc' ? '↑' : '↓')}
               </th>
               <th
-                className="px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
+                className="print-col-date px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
                 onClick={() => onSort('datum_opgestuurd')}
               >
                 Date Sent {sortColumn === 'datum_opgestuurd' && (sortDirection === 'asc' ? '↑' : '↓')}
               </th>
               <th
-                className="px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
+                className="print-col-box px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
                 onClick={() => onSort('kistnummer')}
               >
                 Box Number {sortColumn === 'kistnummer' && (sortDirection === 'asc' ? '↑' : '↓')}
               </th>
               <th
-                className="px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
+                className="print-col-div px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
                 onClick={() => onSort('divisie')}
               >
                 Division {sortColumn === 'divisie' && (sortDirection === 'asc' ? '↑' : '↓')}
               </th>
               <th
-                className="px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
+                className="print-col-qty px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
                 onClick={() => onSort('quantity')}
               >
-                Quantity {sortColumn === 'quantity' && (sortDirection === 'asc' ? '↑' : '↓')}
+                Qty {sortColumn === 'quantity' && (sortDirection === 'asc' ? '↑' : '↓')}
               </th>
-              <th className="px-4 py-4 text-left text-sm font-medium text-gray-700">
+              <th className="print-col-prio px-4 py-4 text-left text-sm font-medium text-gray-700">
                 Priority
               </th>
               <th className="print-col-hide px-4 py-4 text-left text-sm font-medium text-gray-700">Actions</th>
@@ -117,19 +117,19 @@ export default function ItemsTableAirtec({
                       className="w-5 h-5 cursor-pointer"
                     />
                   </td>
-                  <td className="px-4 py-4 text-sm text-gray-900">{item.id}</td>
-                  <td className="px-4 py-4 text-sm text-gray-900">{item.beschrijving || '-'}</td>
-                  <td className="px-4 py-4 text-sm font-medium text-gray-900">
+                  <td className="print-col-id px-4 py-4 text-sm text-gray-900">{item.id}</td>
+                  <td className="print-col-desc px-4 py-4 text-sm text-gray-900">{item.beschrijving || '-'}</td>
+                  <td className="print-col-item px-4 py-4 text-sm font-medium text-gray-900">
                     {item.item_number || '-'}
                   </td>
-                  <td className="px-4 py-4 text-sm text-gray-900">{item.lot_number || '-'}</td>
-                  <td className="px-4 py-4 text-sm text-gray-900">
+                  <td className="print-col-lot px-4 py-4 text-sm text-gray-900">{item.lot_number || '-'}</td>
+                  <td className="print-col-date px-4 py-4 text-sm text-gray-900">
                     {item.datum_opgestuurd ? new Date(item.datum_opgestuurd).toLocaleDateString() : '-'}
                   </td>
-                  <td className="px-4 py-4 text-sm text-gray-900">{item.kistnummer || '-'}</td>
-                  <td className="px-4 py-4 text-sm text-gray-900">{item.divisie || '-'}</td>
-                  <td className="px-4 py-4 text-sm text-gray-900">{item.quantity}</td>
-                  <td className="px-4 py-4">
+                  <td className="print-col-box px-4 py-4 text-sm text-gray-900">{item.kistnummer || '-'}</td>
+                  <td className="print-col-div px-4 py-4 text-sm text-gray-900">{item.divisie || '-'}</td>
+                  <td className="print-col-qty px-4 py-4 text-sm text-gray-900">{item.quantity}</td>
+                  <td className="print-col-prio px-4 py-4">
                     {item.priority && (
                       <span className="px-2 py-1 bg-yellow-500 text-white rounded text-xs font-medium">
                         ⭐ Priority
