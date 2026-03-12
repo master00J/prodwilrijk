@@ -11,9 +11,92 @@ interface ActionsBarAirtecProps {
 }
 
 function printList() {
-  document.body.classList.add('print-airtec-list')
-  window.print()
-  document.body.classList.remove('print-airtec-list')
+  const printArea = document.getElementById('airtec-print-area')
+  if (!printArea) return
+
+  // Kloon de tabel en verwijder verborgen kolommen
+  const table = printArea.querySelector('table')
+  if (!table) return
+  const clone = table.cloneNode(true) as HTMLTableElement
+  clone.querySelectorAll('.print-col-hide').forEach(el => el.remove())
+
+  const totalRows = clone.querySelectorAll('tbody tr').length
+  const today = new Date().toLocaleDateString('nl-NL', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+  })
+
+  const win = window.open('', '_blank', 'width=1100,height=750')
+  if (!win) return
+
+  win.document.write(`<!DOCTYPE html><html><head>
+<meta charset="UTF-8">
+<title>Items to Pack — Airtec</title>
+<style>
+  @page { size: A4 landscape; margin: 10mm 8mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 8pt; color: #111; }
+  .print-header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 10pt; font-weight: bold;
+    border-bottom: 1.5pt solid #333;
+    padding-bottom: 4px; margin-bottom: 8px;
+  }
+  .print-header span { font-size: 8pt; font-weight: normal; color: #555; }
+  table {
+    width: 100%; border-collapse: collapse;
+    table-layout: fixed;
+  }
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+  th {
+    background: #e0e0e0 !important;
+    font-size: 7.5pt; font-weight: bold;
+    padding: 3px 5px;
+    border: 0.5pt solid #999;
+    text-align: left;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  td {
+    padding: 2px 5px;
+    border: 0.5pt solid #ccc;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  tr:nth-child(even) td { background: #f9f9f9; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  tr.priority-row td { background: #fef9c3 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .print-col-id   { width: 4%;  }
+  .print-col-desc { width: 27%; }
+  .print-col-item { width: 13%; }
+  .print-col-lot  { width: 15%; }
+  .print-col-date { width: 9%;  }
+  .print-col-box  { width: 11%; }
+  .print-col-div  { width: 8%;  }
+  .print-col-qty  { width: 5%;  }
+  .print-col-prio { width: 8%;  }
+  .prio-badge {
+    background: #f59e0b; color: #fff;
+    padding: 1px 4px; border-radius: 2px;
+    font-size: 6.5pt; font-weight: bold;
+  }
+</style>
+</head><body>
+<div class="print-header">
+  Items to Pack — Airtec
+  <span>${totalRows} items &nbsp;·&nbsp; Afgedrukt op ${today}</span>
+</div>
+${clone.outerHTML}
+</body></html>`)
+
+  win.document.close()
+  win.focus()
+  // Klein vertraging zodat browser de stijlen laadt
+  setTimeout(() => {
+    win.print()
+    win.close()
+  }, 400)
 }
 
 export default function ActionsBarAirtec({
