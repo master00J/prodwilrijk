@@ -6,6 +6,22 @@ interface ScanCheckAirtecProps {
   onMatch: (lotNumber: string) => Promise<void>
 }
 
+// Log scan resultaat in de achtergrond (fire-and-forget)
+function logScan(payload: {
+  lot_number?: string
+  scan_a_raw: string
+  scan_b_raw: string
+  result: 'match' | 'mismatch' | 'error'
+  item_id?: number | null
+  error_message?: string
+}) {
+  fetch('/api/airtec-scan-log', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(payload),
+  }).catch(() => {}) // stil falen — logging mag de UI nooit blokkeren
+}
+
 type ScanStatus = 'idle' | 'match' | 'mismatch' | 'error'
 
 const normalizeLot = (value: string) => {
@@ -95,10 +111,13 @@ export default function ScanCheckAirtec({ onMatch }: ScanCheckAirtecProps) {
       setMessage(`Match: ${a}`)
       try {
         await onMatch(a)
+        logScan({ lot_number: a, scan_a_raw: scanA, scan_b_raw: scanB, result: 'match' })
         setTimeout(() => reset(true), MATCH_DISPLAY_MS)
       } catch (error: any) {
+        const msg = error?.message || 'Kon lotnummer niet verplaatsen'
         setStatus('error')
-        setMessage(error?.message || 'Kon lotnummer niet verplaatsen')
+        setMessage(msg)
+        logScan({ lot_number: a, scan_a_raw: scanA, scan_b_raw: scanB, result: 'error', error_message: msg })
         setTimeout(() => reset(true), ERROR_DISPLAY_MS)
       }
       return
@@ -106,6 +125,7 @@ export default function ScanCheckAirtec({ onMatch }: ScanCheckAirtecProps) {
 
     setStatus('mismatch')
     setMessage(`Mismatch: "${a}" ≠ "${b}"`)
+    logScan({ scan_a_raw: scanA, scan_b_raw: scanB, result: 'mismatch' })
     setTimeout(() => {
       setScanB('')
       setScanBComplete(false)
