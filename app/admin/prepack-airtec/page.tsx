@@ -212,7 +212,9 @@ export default function PrepackAirtecOverviewPage() {
     () =>
       prepackDaily.map((row) => ({
         date: formatDate(row.date),
+        rawDate: row.date,
         itemsPacked: row.itemsPacked,
+        manHours: row.manHours,
         revenue: row.revenue,
         materialCost: row.materialCost,
       })),
@@ -223,12 +225,43 @@ export default function PrepackAirtecOverviewPage() {
     () =>
       airtecDaily.map((row) => ({
         date: formatDate(row.date),
+        rawDate: row.date,
         itemsPacked: row.itemsPacked,
+        manHours: row.manHours,
         revenue: row.revenue,
         materialCost: row.materialCost,
       })),
     [airtecDaily]
   )
+
+  // Gecombineerde grafiek: merge prepack + airtec per datum
+  const combinedChartData = useMemo(() => {
+    const map = new Map<string, {
+      date: string
+      prepackItems: number; airtecItems: number
+      prepackManHours: number; airtecManHours: number
+      prepackRevenue: number; airtecRevenue: number
+    }>()
+
+    for (const row of prepackDaily) {
+      const d = formatDate(row.date)
+      const existing = map.get(d) ?? { date: d, prepackItems: 0, airtecItems: 0, prepackManHours: 0, airtecManHours: 0, prepackRevenue: 0, airtecRevenue: 0 }
+      existing.prepackItems    += row.itemsPacked
+      existing.prepackManHours += row.manHours
+      existing.prepackRevenue  += row.revenue
+      map.set(d, existing)
+    }
+    for (const row of airtecDaily) {
+      const d = formatDate(row.date)
+      const existing = map.get(d) ?? { date: d, prepackItems: 0, airtecItems: 0, prepackManHours: 0, airtecManHours: 0, prepackRevenue: 0, airtecRevenue: 0 }
+      existing.airtecItems    += row.itemsPacked
+      existing.airtecManHours += row.manHours
+      existing.airtecRevenue  += row.revenue
+      map.set(d, existing)
+    }
+
+    return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date))
+  }, [prepackDaily, airtecDaily])
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -352,20 +385,22 @@ export default function PrepackAirtecOverviewPage() {
           </div>
 
           <h3 className="text-sm font-semibold mb-2">KPI grafiek</h3>
-          <div className="h-64">
+          <div className="h-72">
             {prepackChartData.length === 0 ? (
               <p className="text-sm text-gray-500">Geen data voor grafiek.</p>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={prepackChartData}>
+                <ComposedChart data={prepackChartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip />
+                  <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                  <YAxis yAxisId="items" orientation="left"  tick={{ fontSize: 11 }} label={{ value: 'Items / u', angle: -90, position: 'insideLeft', offset: 10, style: { fontSize: 10 } }} />
+                  <YAxis yAxisId="money" orientation="right" tick={{ fontSize: 11 }} tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`} label={{ value: '€', angle: 90, position: 'insideRight', offset: 10, style: { fontSize: 10 } }} />
+                  <Tooltip formatter={(value, name) => name === 'Omzet' || name === 'Materiaalkost' ? [`€${Number(value).toLocaleString('nl-NL', { minimumFractionDigits: 2 })}`, name] : [value, name]} />
                   <Legend />
-                  <Bar dataKey="itemsPacked" name="Items" fill="#2563eb" />
-                  <Line dataKey="revenue" name="Omzet" stroke="#16a34a" strokeWidth={2} />
-                  <Line dataKey="materialCost" name="Materiaalkost" stroke="#f97316" strokeWidth={2} />
+                  <Bar  yAxisId="items" dataKey="itemsPacked" name="Items"         fill="#2563eb" opacity={0.85} />
+                  <Line yAxisId="items" dataKey="manHours"    name="Manuren"        stroke="#06b6d4" strokeWidth={2} dot={{ r: 3 }} />
+                  <Line yAxisId="money" dataKey="revenue"     name="Omzet"          stroke="#16a34a" strokeWidth={2} dot={{ r: 3 }} />
+                  <Line yAxisId="money" dataKey="materialCost" name="Materiaalkost" stroke="#f97316" strokeWidth={2} dot={{ r: 3 }} />
                 </ComposedChart>
               </ResponsiveContainer>
             )}
@@ -420,26 +455,56 @@ export default function PrepackAirtecOverviewPage() {
           </div>
 
           <h3 className="text-sm font-semibold mb-2">KPI grafiek</h3>
-          <div className="h-64">
+          <div className="h-72">
             {airtecChartData.length === 0 ? (
               <p className="text-sm text-gray-500">Geen data voor grafiek.</p>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={airtecChartData}>
+                <ComposedChart data={airtecChartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip />
+                  <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                  <YAxis yAxisId="items" orientation="left"  tick={{ fontSize: 11 }} label={{ value: 'Items / u', angle: -90, position: 'insideLeft', offset: 10, style: { fontSize: 10 } }} />
+                  <YAxis yAxisId="money" orientation="right" tick={{ fontSize: 11 }} tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`} label={{ value: '€', angle: 90, position: 'insideRight', offset: 10, style: { fontSize: 10 } }} />
+                  <Tooltip formatter={(value, name) => name === 'Omzet' || name === 'Materiaalkost' ? [`€${Number(value).toLocaleString('nl-NL', { minimumFractionDigits: 2 })}`, name] : [value, name]} />
                   <Legend />
-                  <Bar dataKey="itemsPacked" name="Items" fill="#7c3aed" />
-                  <Line dataKey="revenue" name="Omzet" stroke="#16a34a" strokeWidth={2} />
-                  <Line dataKey="materialCost" name="Materiaalkost" stroke="#f97316" strokeWidth={2} />
+                  <Bar  yAxisId="items" dataKey="itemsPacked" name="Items"         fill="#7c3aed" opacity={0.85} />
+                  <Line yAxisId="items" dataKey="manHours"    name="Manuren"        stroke="#06b6d4" strokeWidth={2} dot={{ r: 3 }} />
+                  <Line yAxisId="money" dataKey="revenue"     name="Omzet"          stroke="#16a34a" strokeWidth={2} dot={{ r: 3 }} />
+                  <Line yAxisId="money" dataKey="materialCost" name="Materiaalkost" stroke="#f97316" strokeWidth={2} dot={{ r: 3 }} />
                 </ComposedChart>
               </ResponsiveContainer>
             )}
           </div>
         </div>
       </div>
+
+      {/* Gecombineerde grafiek: Prepack + Airtec samen */}
+      {combinedChartData.length > 0 && (
+        <div className="bg-white rounded-lg shadow p-6 mt-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Gecombineerde grafiek — Prepack &amp; Airtec</h2>
+            <span className="text-xs text-gray-500">Items + Manuren per flow</span>
+          </div>
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={combinedChartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                <YAxis yAxisId="items" orientation="left"  tick={{ fontSize: 11 }} label={{ value: 'Items / u', angle: -90, position: 'insideLeft', offset: 10, style: { fontSize: 10 } }} />
+                <YAxis yAxisId="money" orientation="right" tick={{ fontSize: 11 }} tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`} label={{ value: '€', angle: 90, position: 'insideRight', offset: 10, style: { fontSize: 10 } }} />
+                <Tooltip formatter={(value, name) => name === 'Omzet Prepack' || name === 'Omzet Airtec' ? [`€${Number(value).toLocaleString('nl-NL', { minimumFractionDigits: 2 })}`, name] : [value, name]} />
+                <Legend />
+                <Bar  yAxisId="items" dataKey="prepackItems"    name="Items Prepack"    fill="#2563eb" opacity={0.8} />
+                <Bar  yAxisId="items" dataKey="airtecItems"     name="Items Airtec"     fill="#7c3aed" opacity={0.8} />
+                <Line yAxisId="items" dataKey="prepackManHours" name="Manuren Prepack"  stroke="#0ea5e9" strokeWidth={2} strokeDasharray="4 2" dot={{ r: 3 }} />
+                <Line yAxisId="items" dataKey="airtecManHours"  name="Manuren Airtec"   stroke="#a855f7" strokeWidth={2} strokeDasharray="4 2" dot={{ r: 3 }} />
+                <Line yAxisId="money" dataKey="prepackRevenue"  name="Omzet Prepack"    stroke="#16a34a" strokeWidth={2} dot={{ r: 3 }} />
+                <Line yAxisId="money" dataKey="airtecRevenue"   name="Omzet Airtec"     stroke="#84cc16" strokeWidth={2} dot={{ r: 3 }} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
