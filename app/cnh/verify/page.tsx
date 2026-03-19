@@ -1,0 +1,588 @@
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+
+interface CNHMotor {
+  id: number
+  motor_nr: string
+  location?: string
+  shipping_note?: string
+  state: 'to_check' | 'received' | 'packaged' | 'loaded'
+  received_at?: string
+}
+
+interface ShippingNote {
+  shipping_note: string
+  motor_count: number
+  to_check_count: number
+  received_at: string | null
+}
+
+export default function CNHVerifyPage() {
+  const [shippingNotes, setShippingNotes] = useState<ShippingNote[]>([])
+  const [selectedShippingNote, setSelectedShippingNote] = useState<string | null>(null)
+  const [editingShippingNote, setEditingShippingNote] = useState<string>('')
+  const [motors, setMotors] = useState<CNHMotor[]>([])
+  const [editingMotors, setEditingMotors] = useState<Record<number, { motor_nr: string; location: string }>>({})
+  const [loading, setLoading] = useState(false)
+  const [loadingNotes, setLoadingNotes] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [verified, setVerified] = useState(false)
+  const [showAddMotor, setShowAddMotor] = useState(false)
+  const [newMotor, setNewMotor] = useState({ motor_nr: '', location: '' })
+  const [addingMotor, setAddingMotor] = useState(false)
+
+  // Load all shipping notes on mount
+  useEffect(() => {
+    const fetchShippingNotes = async () => {
+      setLoadingNotes(true)
+      try {
+        const resp = await fetch('/api/cnh/shipping-notes')
+        const data = await resp.json()
+
+        if (!resp.ok) {
+          throw new Error(data.error || 'Fout bij ophalen verzendnota&apos;s')
+        }
+
+        setShippingNotes(data || [])
+      } catch (e: any) {
+        console.error(e)
+        setError('Fout bij ophalen verzendnota&apos;s: ' + e.message)
+      } finally {
+        setLoadingNotes(false)
+      }
+    }
+
+    fetchShippingNotes()
+  }, [])
+
+  const loadMotorsForShippingNote = useCallback(async (note: string) => {
+    setSelectedShippingNote(note)
+    setEditingShippingNote(note)
+    setLoading(true)
+    setError(null)
+    setSuccess(null)
+    setVerified(false)
+    setEditingMotors({})
+
+    try {
+      // Get all motors for this shipping note (including to_check and received)
+      const resp = await fetch(`/api/cnh/motors?shippingNote=${encodeURIComponent(note)}`)
+      const data = await resp.json()
+
+      if (!resp.ok) {
+        throw new Error(data.error || 'Fout bij ophalen motoren')
+      }
+
+      // Filter to only show 'to_check' motors (those that need verification)
+      const toCheckMotors = (data || []).filter((motor: CNHMotor) => motor.state === 'to_check')
+      setMotors(toCheckMotors)
+      
+      // Initialize editing state with current values
+      const editingState: Record<number, { motor_nr: string; location: string }> = {}
+      toCheckMotors.forEach((motor: CNHMotor) => {
+        editingState[motor.id] = {
+          motor_nr: motor.motor_nr,
+          location: motor.location || '',
+        }
+      })
+      setEditingMotors(editingState)
+
+      if (toCheckMotors.length === 0) {
+        if (data.length > 0) {
+          setError('Alle motoren voor deze verzendnota zijn al geverifieerd')
+        } else {
+          setError('Geen motoren gevonden voor deze verzendnota')
+        }
+      }
+    } catch (e: any) {
+      console.error(e)
+      setError('Fout bij ophalen motoren: ' + e.message)
+      setMotors([])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const handleVerify = useCallback(async () => {
+    if (motors.length === 0) {
+      setError('Geen motoren om te verifiëren')
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      // Update all motors to 'received' status
+      const updatePromises = motors.map((motor) =>
+        fetch(`/api/cnh/motors/${motor.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            state: 'received',
+          }),
+        })
+      )
+
+      await Promise.all(updatePromises)
+
+      setVerified(true)
+      setSuccess('Motoren succesvol geverifieerd en gemarkeerd als ontvangen!')
+      
+      // Reload shipping notes list to remove fully verified ones
+      const notesResp = await fetch('/api/cnh/shipping-notes')
+      const notesData = await notesResp.json()
+      if (notesResp.ok) {
+        setShippingNotes(notesData || [])
+      }
+
+      // If this shipping note is now fully verified, go back to list
+      setTimeout(() => {
+        handleReset()
+      }, 2000)
+    } catch (e: any) {
+      console.error(e)
+      setError('Fout bij verifiëren: ' + e.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [motors])
+
+  const handleReset = useCallback(async () => {
+    setSelectedShippingNote(null)
+    setEditingShippingNote('')
+    setMotors([])
+    setEditingMotors({})
+    setVerified(false)
+    setError(null)
+    setSuccess(null)
+    
+    // Reload shipping notes to refresh the list (remove fully verified ones)
+    try {
+      const resp = await fetch('/api/cnh/shipping-notes')
+      const data = await resp.json()
+      if (resp.ok) {
+        setShippingNotes(data || [])
+      }
+    } catch (e) {
+      console.error('Error refreshing shipping notes:', e)
+    }
+  }, [])
+
+  const updateMotorField = useCallback((motorId: number, field: 'motor_nr' | 'location', value: string) => {
+    setEditingMotors((prev) => ({
+      ...prev,
+      [motorId]: {
+        ...prev[motorId],
+        [field]: value,
+      },
+    }))
+  }, [])
+
+  const saveChanges = useCallback(async () => {
+    if (!selectedShippingNote) return
+
+    setSaving(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      // Update shipping note if changed
+      if (editingShippingNote !== selectedShippingNote) {
+        // Update all motors with the new shipping note
+        const updatePromises = motors.map((motor) =>
+          fetch(`/api/cnh/motors/${motor.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              shipping_note: editingShippingNote.trim(),
+            }),
+          })
+        )
+        await Promise.all(updatePromises)
+      }
+
+      // Update all motors with their edited values
+      const updatePromises = motors.map((motor) => {
+        const edited = editingMotors[motor.id]
+        if (!edited) return Promise.resolve()
+
+        const updates: any = {}
+        if (edited.motor_nr !== motor.motor_nr) {
+          updates.motor_nr = edited.motor_nr.trim()
+        }
+        if (edited.location !== (motor.location || '')) {
+          updates.location = edited.location.trim() || null
+        }
+
+        if (Object.keys(updates).length === 0) {
+          return Promise.resolve()
+        }
+
+        return fetch(`/api/cnh/motors/${motor.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        })
+      })
+
+      await Promise.all(updatePromises)
+
+      // Reload motors to get updated data
+      await loadMotorsForShippingNote(editingShippingNote.trim() || selectedShippingNote)
+      
+      setSuccess('Wijzigingen succesvol opgeslagen!')
+      setTimeout(() => setSuccess(null), 3000)
+    } catch (e: any) {
+      console.error(e)
+      setError('Fout bij opslaan wijzigingen: ' + e.message)
+    } finally {
+      setSaving(false)
+    }
+  }, [selectedShippingNote, editingShippingNote, motors, editingMotors, loadMotorsForShippingNote])
+
+  const formatDate = useCallback((dateString: string | null) => {
+    if (!dateString) return 'Onbekend'
+    const date = new Date(dateString)
+    return date.toLocaleDateString('nl-NL', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }, [])
+
+  const handleAddMotor = useCallback(async () => {
+    if (!selectedShippingNote || !newMotor.motor_nr.trim() || !newMotor.location) {
+      setError('Vul alstublieft motornummer en locatie in')
+      return
+    }
+
+    setAddingMotor(true)
+    setError(null)
+
+    try {
+      const resp = await fetch('/api/cnh/motors/receive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shippingNote: editingShippingNote.trim() || selectedShippingNote,
+          motors: [
+            {
+              motorNr: newMotor.motor_nr.trim(),
+              location: newMotor.location,
+            },
+          ],
+        }),
+      })
+
+      const data = await resp.json()
+
+      if (!resp.ok) {
+        throw new Error(data.error || 'Fout bij toevoegen motor')
+      }
+
+      // Reset form
+      setNewMotor({ motor_nr: '', location: '' })
+      setShowAddMotor(false)
+      setSuccess('Motor succesvol toegevoegd!')
+
+      // Reload motors list
+      await loadMotorsForShippingNote(editingShippingNote.trim() || selectedShippingNote)
+
+      setTimeout(() => setSuccess(null), 3000)
+    } catch (e: any) {
+      console.error(e)
+      setError('Fout bij toevoegen motor: ' + e.message)
+    } finally {
+      setAddingMotor(false)
+    }
+  }, [selectedShippingNote, editingShippingNote, newMotor, loadMotorsForShippingNote])
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100 py-4 sm:py-6 md:py-8 px-2 sm:px-4">
+      <div className="max-w-5xl mx-auto">
+        <div className="text-center mb-4 sm:mb-6 md:mb-8">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-2 text-gray-800">
+            CNH Verificatie
+          </h1>
+          <p className="text-lg sm:text-xl text-gray-600">
+            Controleer motoren bij lossen camion
+          </p>
+        </div>
+
+        {/* Shipping Notes List */}
+        {!selectedShippingNote && (
+          <div className="bg-white rounded-xl shadow-xl p-4 sm:p-6 md:p-8 mb-4 sm:mb-6 border-2 border-blue-200">
+            <h2 className="text-2xl sm:text-3xl font-semibold mb-4 sm:mb-6 text-gray-700 text-center">
+              Beschikbare Verzendnota&apos;s
+            </h2>
+            
+            {loadingNotes ? (
+              <div className="text-center py-8">
+                <p className="text-lg sm:text-xl text-gray-600">Laden...</p>
+              </div>
+            ) : shippingNotes.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-lg sm:text-xl text-gray-600">Geen verzendnota&apos;s gevonden</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                {shippingNotes.map((note) => (
+                  <button
+                    key={note.shipping_note}
+                    onClick={() => loadMotorsForShippingNote(note.shipping_note)}
+                    className="p-4 sm:p-6 bg-blue-50 border-2 border-blue-300 rounded-xl hover:bg-blue-100 hover:border-blue-400 hover:shadow-lg transition-all text-left min-h-[120px] touch-manipulation"
+                  >
+                    <div className="flex justify-between items-start mb-2 flex-wrap gap-2">
+                      <p className="text-2xl sm:text-3xl font-bold text-blue-800 break-all">
+                        {note.shipping_note}
+                      </p>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="text-base sm:text-lg font-semibold text-blue-600 whitespace-nowrap">
+                          {note.motor_count} {note.motor_count === 1 ? 'motor' : 'motoren'}
+                        </span>
+                        {note.to_check_count > 0 && (
+                          <span className="text-xs sm:text-sm font-medium text-orange-600 bg-orange-100 px-2 py-1 rounded whitespace-nowrap">
+                            {note.to_check_count} te verifiëren
+                          </span>
+                        )}
+                        {note.to_check_count === 0 && (
+                          <span className="text-xs sm:text-sm font-medium text-green-600 bg-green-100 px-2 py-1 rounded whitespace-nowrap">
+                            ✅ Geverifieerd
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-xs sm:text-sm text-gray-600 mt-2">
+                      Ontvangen: {formatDate(note.received_at)}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-3 sm:p-4 mb-4 sm:mb-6 rounded">
+            <p className="font-semibold text-sm sm:text-base">{error}</p>
+          </div>
+        )}
+
+        {/* Success Message */}
+        {success && (
+          <div className="bg-green-100 border-l-4 border-green-500 text-green-700 p-3 sm:p-4 mb-4 sm:mb-6 rounded">
+            <p className="font-semibold text-base sm:text-lg md:text-xl">✅ {success}</p>
+          </div>
+        )}
+
+        {/* Success/Verified Message */}
+        {verified && (
+          <div className="bg-green-100 border-l-4 border-green-500 text-green-700 p-3 sm:p-4 mb-4 sm:mb-6 rounded">
+            <p className="font-semibold text-base sm:text-lg md:text-xl">✅ Alle motoren geverifieerd!</p>
+          </div>
+        )}
+
+        {/* Motors List */}
+        {selectedShippingNote && (
+          <div className="bg-white rounded-xl shadow-xl p-4 sm:p-6 md:p-8 mb-4 sm:mb-6 border-2 border-gray-200">
+            <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center mb-4 sm:mb-6 gap-3 sm:gap-4">
+              <div className="flex-1 min-w-0">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Verzendnota
+                </label>
+                <input
+                  type="text"
+                  value={editingShippingNote}
+                  onChange={(e) => setEditingShippingNote(e.target.value)}
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 text-lg sm:text-xl md:text-2xl font-semibold border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 touch-manipulation"
+                  placeholder="Verzendnota nummer"
+                />
+                <p className="text-base sm:text-lg text-gray-600 mt-2">
+                  {loading ? 'Laden...' : `${motors.length} ${motors.length === 1 ? 'motor' : 'motoren'}`}
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full md:w-auto">
+                <button
+                  onClick={saveChanges}
+                  disabled={saving}
+                  className="w-full md:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-blue-600 text-white text-base sm:text-lg md:text-xl font-bold rounded-xl hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed shadow-lg transform hover:scale-105 transition-transform touch-manipulation min-h-[48px]"
+                >
+                  {saving ? 'Opslaan...' : '💾 Opslaan'}
+                </button>
+                {!verified && motors.length > 0 && (
+                  <button
+                    onClick={handleVerify}
+                    className="w-full md:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-green-600 text-white text-base sm:text-lg md:text-xl font-bold rounded-xl hover:bg-green-700 shadow-lg transform hover:scale-105 transition-transform touch-manipulation min-h-[48px]"
+                  >
+                    ✅ Verifiëren
+                  </button>
+                )}
+                <button
+                  onClick={handleReset}
+                  className="w-full md:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-gray-600 text-white text-base sm:text-lg md:text-xl font-bold rounded-xl hover:bg-gray-700 shadow-lg transform hover:scale-105 transition-transform touch-manipulation min-h-[48px]"
+                >
+                  ← Terug
+                </button>
+              </div>
+            </div>
+
+            {/* Add Motor Button and Form */}
+            {!loading && (
+              <div className="mb-4 sm:mb-6">
+                {!showAddMotor ? (
+                  <button
+                    onClick={() => setShowAddMotor(true)}
+                    className="w-full md:w-auto px-6 py-3 bg-green-600 text-white text-base sm:text-lg font-bold rounded-xl hover:bg-green-700 shadow-lg transform hover:scale-105 transition-transform touch-manipulation min-h-[48px]"
+                  >
+                    ➕ Nieuwe motor toevoegen
+                  </button>
+                ) : (
+                  <div className="bg-green-50 border-2 border-green-300 rounded-xl p-4 sm:p-6">
+                    <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-3 sm:mb-4">Nieuwe motor toevoegen</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-3 sm:mb-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Motornummer *
+                        </label>
+                        <input
+                          type="text"
+                          value={newMotor.motor_nr}
+                          onChange={(e) => setNewMotor({ ...newMotor, motor_nr: e.target.value })}
+                          className="w-full px-3 sm:px-4 py-2 sm:py-3 text-base sm:text-lg font-semibold border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 touch-manipulation min-h-[48px]"
+                          placeholder="Bijv. 123456"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Locatie *
+                        </label>
+                        <select
+                          value={newMotor.location}
+                          onChange={(e) => setNewMotor({ ...newMotor, location: e.target.value })}
+                          className="w-full px-3 sm:px-4 py-2 sm:py-3 text-base sm:text-lg font-medium border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 touch-manipulation min-h-[48px]"
+                        >
+                          <option value="">Selecteer locatie...</option>
+                          <option value="China">China</option>
+                          <option value="Amerika">Amerika</option>
+                          <option value="UZB">UZB</option>
+                          <option value="Other">Anders</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <button
+                        onClick={handleAddMotor}
+                        disabled={addingMotor || !newMotor.motor_nr.trim() || !newMotor.location}
+                        className="flex-1 px-6 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed touch-manipulation min-h-[48px]"
+                      >
+                        {addingMotor ? 'Toevoegen...' : '✅ Toevoegen'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowAddMotor(false)
+                          setNewMotor({ motor_nr: '', location: '' })
+                        }}
+                        className="flex-1 sm:flex-none px-6 py-3 bg-gray-400 text-white font-bold rounded-lg hover:bg-gray-500 touch-manipulation min-h-[48px]"
+                      >
+                        Annuleren
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {loading ? (
+              <div className="text-center py-8">
+                <p className="text-lg sm:text-xl text-gray-600">Motoren laden...</p>
+              </div>
+            ) : motors.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-lg sm:text-xl text-gray-600">Geen motoren gevonden</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                {motors.map((motor, index) => {
+                  const edited = editingMotors[motor.id] || { motor_nr: motor.motor_nr, location: motor.location || '' }
+                  const hasChanges = edited.motor_nr !== motor.motor_nr || edited.location !== (motor.location || '')
+                  
+                  return (
+                    <div
+                      key={motor.id}
+                      className={`p-4 sm:p-6 rounded-xl border-3 transition-all ${
+                        verified
+                          ? 'bg-green-100 border-green-400 shadow-lg'
+                          : hasChanges
+                          ? 'bg-yellow-50 border-yellow-400 shadow-md'
+                          : 'bg-gray-50 border-gray-400 hover:shadow-md'
+                      }`}
+                    >
+                      <div className="space-y-2 sm:space-y-3">
+                        <p className="text-xs sm:text-sm text-gray-600">Motor #{index + 1}</p>
+                        
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Motornummer
+                          </label>
+                          <input
+                            type="text"
+                            value={edited.motor_nr}
+                            onChange={(e) => updateMotorField(motor.id, 'motor_nr', e.target.value)}
+                            className={`w-full px-3 py-2 sm:py-3 text-xl sm:text-2xl font-bold border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 touch-manipulation min-h-[48px] ${
+                              hasChanges && edited.motor_nr !== motor.motor_nr
+                                ? 'border-yellow-500 bg-yellow-50'
+                                : 'border-gray-300'
+                            }`}
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Locatie
+                          </label>
+                          <select
+                            value={edited.location}
+                            onChange={(e) => updateMotorField(motor.id, 'location', e.target.value)}
+                            className={`w-full px-3 py-2 sm:py-3 text-base sm:text-lg font-medium border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 touch-manipulation min-h-[48px] ${
+                              hasChanges && edited.location !== (motor.location || '')
+                                ? 'border-yellow-500 bg-yellow-50'
+                                : 'border-gray-300'
+                            }`}
+                          >
+                            <option value="">Selecteer locatie...</option>
+                            <option value="China">China</option>
+                            <option value="Amerika">Amerika</option>
+                            <option value="UZB">UZB</option>
+                            <option value="Other">Anders</option>
+                          </select>
+                        </div>
+                        
+                        {hasChanges && (
+                          <p className="text-xs text-yellow-700 font-medium">
+                            ⚠️ Gewijzigd
+                          </p>
+                        )}
+                        
+                        {verified && (
+                          <div className="text-center text-3xl">✅</div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+

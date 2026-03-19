@@ -1,0 +1,137 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { supabaseAdmin } from '@/lib/supabase/server'
+
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
+export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const projectId = Number(params.id)
+    if (!Number.isFinite(projectId)) {
+      return NextResponse.json({ error: 'Invalid project id' }, { status: 400 })
+    }
+
+    const { data: project, error: projectError } = await supabaseAdmin
+      .from('wms_projects')
+      .select('*')
+      .eq('id', projectId)
+      .single()
+
+    if (projectError || !project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+    }
+
+    const { data: lines, error: linesError } = await supabaseAdmin
+      .from('wms_project_lines')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('sort_order', { ascending: true, nullsFirst: false })
+      .order('id', { ascending: true })
+
+    if (linesError) {
+      console.error('Error fetching WMS lines:', linesError)
+      return NextResponse.json({ error: 'Failed to fetch project lines' }, { status: 500 })
+    }
+
+    const lineIds = (lines || []).map((line: any) => line.id)
+    let lineImagesById = new Map<number, string[]>()
+    let projectImages: string[] = []
+
+    if (lineIds.length > 0) {
+      const { data: lineImages } = await supabaseAdmin
+        .from('item_images')
+        .select('item_id, image_url')
+        .eq('item_type', 'wms_project_line')
+        .in('item_id', lineIds)
+
+      lineImages?.forEach((img: any) => {
+        if (!lineImagesById.has(img.item_id)) {
+          lineImagesById.set(img.item_id, [])
+        }
+        lineImagesById.get(img.item_id)!.push(img.image_url)
+      })
+    }
+
+    const { data: projectImagesData } = await supabaseAdmin
+      .from('item_images')
+      .select('image_url')
+      .eq('item_type', 'wms_project')
+      .eq('item_id', projectId)
+
+    projectImages = (projectImagesData || []).map((img: any) => img.image_url)
+
+    const { data: packages, error: packagesError } = await supabaseAdmin
+      .from('wms_packages')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: true })
+
+    if (packagesError) {
+      console.error('Error fetching WMS packages:', packagesError)
+      return NextResponse.json(
+        { error: 'Failed to fetch packages', details: packagesError.message },
+        { status: 500 }
+      )
+    }
+
+    const { data: packageLines, error: packageLinesError } = await supabaseAdmin
+      .from('wms_package_lines')
+      .select('line_id, package_id')
+      .in('line_id', lineIds)
+
+    if (packageLinesError) {
+      console.error('Error fetching WMS package lines:', packageLinesError)
+      return NextResponse.json(
+        { error: 'Failed to fetch package lines', details: packageLinesError.message },
+        { status: 500 }
+      )
+    }
+
+    const packageByLineId = new Map<number, number>()
+    packageLines?.forEach((pl: any) => {
+      if (pl.line_id && pl.package_id) {
+        packageByLineId.set(pl.line_id, pl.package_id)
+      }
+    })
+
+    const packageIds = (packages || []).map((pkg: any) => pkg.id)
+    const packageImagesById = new Map<number, string[]>()
+    if (packageIds.length > 0) {
+      const { data: packageImages } = await supabaseAdmin
+        .from('item_images')
+        .select('item_id, image_url')
+        .eq('item_type', 'wms_package')
+        .in('item_id', packageIds)
+
+      packageImages?.forEach((img: any) => {
+        if (!packageImagesById.has(img.item_id)) {
+          packageImagesById.set(img.item_id, [])
+        }
+        packageImagesById.get(img.item_id)!.push(img.image_url)
+      })
+    }
+
+    const linesWithImages = (lines || []).map((line: any) => ({
+      ...line,
+      images: lineImagesById.get(line.id) || [],
+      package_id: packageByLineId.get(line.id) || null,
+    }))
+
+    const packagesWithImages = (packages || []).map((pkg: any) => ({
+      ...pkg,
+      images: packageImagesById.get(pkg.id) || [],
+    }))
+
+    const response = NextResponse.json({
+      project,
+      lines: linesWithImages,
+      projectImages,
+      packages: packagesWithImages,
+    })
+    response.headers.set('Cache-Control', 'no-store, must-revalidate')
+    return response
+  } catch (error) {
+    console.error('Unexpected error fetching project:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
