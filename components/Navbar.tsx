@@ -214,8 +214,8 @@ export default function Navbar() {
             {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
 
-          {/* Desktop/Tablet Navigation - vanaf md, compact op tablet */}
-          <div className="hidden md:flex flex-nowrap items-center gap-0.5 lg:gap-1 xl:gap-2 overflow-x-auto max-w-[calc(100vw-8rem)] md:max-w-[calc(100vw-6rem)] lg:max-w-[calc(100vw-12rem)] scrollbar-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {/* Desktop/Tablet Navigation - vanaf md, compact op tablet. Geen overflow op container zodat dropdowns niet worden afgekapt. */}
+          <div className="hidden md:flex flex-nowrap items-center gap-0.5 lg:gap-1 xl:gap-2 min-w-0 max-w-[calc(100vw-8rem)] md:max-w-[calc(100vw-6rem)] lg:max-w-[calc(100vw-12rem)]">
             {user && (
               <>
                 <Link
