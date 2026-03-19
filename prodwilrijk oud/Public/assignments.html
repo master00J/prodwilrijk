@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com;">
+    <title>Toewijzingen Beheren</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <style>
+        .loading { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 9999; }
+        .workstation-card { transition: all 0.3s; margin-bottom: 20px; }
+        .workstation-card:hover { box-shadow: 0 0 10px rgba(0,0,0,0.2); }
+        .employee-badge { margin: 2px; padding: 5px 10px; background-color: #f8f9fa; border-radius: 15px; display: inline-block; cursor: pointer; }
+        .employee-badge:hover { background-color: #e2e6ea; }
+        .select2-container { width: 100% !important; }
+        .card-header { background-color: #007bff; color: white; }
+        .btn-group-toggle .btn { margin-right: 5px; }
+    </style>
+</head>
+<body>
+    <div id="loading" class="loading d-none">
+        <div class="spinner-border text-light" role="status">
+            <span class="sr-only">Loading...</span>
+        </div>
+    </div>
+
+    <div id="header-placeholder"></div>
+
+    <div class="container my-4">
+        <h1 class="mb-4">Toewijzingen Beheren</h1>
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="assignment-date">Datum:</label>
+                    <input type="date" id="assignment-date" class="form-control" required>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="search-input">Zoeken:</label>
+                    <input type="text" id="search-input" class="form-control" placeholder="Zoek medewerker of werkpost...">
+                </div>
+            </div>
+        </div>
+        <div class="btn-group-toggle mb-4" data-toggle="buttons">
+            <label class="btn btn-outline-primary active">
+                <input type="radio" name="options" id="option1" checked> Alle Werkposten
+            </label>
+            <label class="btn btn-outline-primary">
+                <input type="radio" name="options" id="option2"> Alleen Bezette Werkposten
+            </label>
+        </div>
+        <div id="assignments-container" class="row">
+            <!-- Dynamisch gegenereerde toewijzingsvelden -->
+        </div>
+        <button id="save-assignments-btn" class="btn btn-primary mt-4">Opslaan</button>
+        <button id="end-day-btn" class="btn btn-danger mt-4 ml-2">Beëindig Werkdag Voor Iedereen</button>
+    </div>
+
+    <div class="modal fade" id="notificationModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Melding</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p id="modalMessage"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Sluiten</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.1/umd/popper.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script>
+    $(document).ready(function () {
+        $('#header-placeholder').load('header.html');
+
+        let employees = [];
+        let workstations = [];
+        let assignedEmployees = {};
+        let allAssignments = [];
+
+        function showLoading() {
+            $('#loading').removeClass('d-none');
+        }
+
+        function hideLoading() {
+            $('#loading').addClass('d-none');
+        }
+
+        function showNotification(message) {
+            $('#modalMessage').text(message);
+            $('#notificationModal').modal('show');
+        }
+
+        // Load employees, workstations, and assignments in parallel
+        Promise.all([
+            $.get('/api/employees'),
+            $.get('/api/workstations'),
+            $.get('/api/assignments')
+        ]).then(([employeesData, workstationsData, assignmentsData]) => {
+            employees = employeesData;
+            workstations = workstationsData;
+            allAssignments = assignmentsData;
+            initializeUI();
+        }).catch(error => {
+            console.error('Error loading data:', error);
+            showNotification('Er is een fout opgetreden bij het laden van de gegevens.');
+        });
+
+        function initializeUI() {
+            generateAssignmentFields();
+            populateAssignedEmployees();  // Populate fields with server data
+            try {
+                initializeSelect2();
+            } catch (error) {
+                console.error('Error initializing Select2:', error);
+            }
+            setupSearchFunctionality();
+            setupFilterFunctionality();
+        }
+
+        function generateAssignmentFields() {
+            const container = $('#assignments-container');
+            container.empty();
+
+            workstations.forEach(ws => {
+                const employeeDropdown = createEmployeeDropdown(ws.id);
+                const assignedForWorkstation = allAssignments.filter(a => a.workstation_id === ws.id);
+
+                assignedEmployees[ws.id] = assignedForWorkstation.map(a => a.employee_id);
+
+                const assignedEmployeesHtml = assignedForWorkstation
+                    .map(a => `<span class="employee-badge" data-employee-id="${a.employee_id}">${employees.find(emp => emp.id === a.employee_id).name}</span>`)
+                    .join('');
+
+                container.append(`
+                    <div class="col-md-4 mb-3 workstation-column" data-workstation-id="${ws.id}">
+                        <div class="card workstation-card">
+                            <div class="card-header">${ws.name}</div>
+                            <div class="card-body">
+                                <div id="assigned-employees-${ws.id}" class="mb-2">${assignedEmployeesHtml}</div>
+                                <div class="input-group">
+                                    ${employeeDropdown}
+                                    <div class="input-group-append">
+                                        <button class="btn btn-success add-employee-btn" data-workstation-id="${ws.id}">
+                                            <i class="fas fa-plus"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `);
+            });
+            updateDropdowns();
+        }
+
+        function createEmployeeDropdown(workstationId) {
+            const assignedEmployeeIds = Object.values(assignedEmployees).flat();
+            const availableEmployees = employees.filter(emp => !assignedEmployeeIds.includes(emp.id));
+            const options = availableEmployees.map(emp => `<option value="${emp.id}">${emp.name}</option>`).join('');
+            return `<select class="form-control employee-select" data-workstation-id="${workstationId}">
+                        <option value="">Kies een medewerker</option>${options}
+                    </select>`;
+        }
+
+        function updateDropdowns() {
+            const assignedEmployeeIds = Object.values(assignedEmployees).flat();
+            const availableEmployees = employees.filter(emp => !assignedEmployeeIds.includes(emp.id));
+
+            $('.employee-select').each(function() {
+                const workstationId = $(this).data('workstation-id');
+                const options = availableEmployees.map(emp => `<option value="${emp.id}">${emp.name}</option>`).join('');
+                $(this).html(`<option value="">Kies een medewerker</option>${options}`);
+            });
+        }
+
+        function initializeSelect2() {
+            if (typeof $.fn.select2 === 'function') {
+                $('.employee-select').select2({
+                    placeholder: "Kies een medewerker",
+                    allowClear: true
+                });
+            } else {
+                console.error('Select2 is not loaded. Some functionality may be limited.');
+            }
+        }
+
+        function setupSearchFunctionality() {
+            $('#search-input').on('input', function() {
+                const searchTerm = $(this).val().toLowerCase();
+                $('.workstation-column').each(function() {
+                    const workstationName = $(this).find('.card-header').text().toLowerCase();
+                    const employeeNames = $(this).find('.employee-badge').text().toLowerCase();
+                    if (workstationName.includes(searchTerm) || employeeNames.includes(searchTerm)) {
+                        $(this).show();
+                    } else {
+                        $(this).hide();
+                    }
+                });
+            });
+        }
+
+        function setupFilterFunctionality() {
+            $('.btn-group-toggle').on('change', 'input', function() {
+                const showAllWorkstations = $(this).attr('id') === 'option1';
+                $('.workstation-column').each(function() {
+                    const workstationId = $(this).data('workstation-id');
+                    const hasAssignedEmployees = assignedEmployees[workstationId] && assignedEmployees[workstationId].length > 0;
+                    $(this).toggle(showAllWorkstations || hasAssignedEmployees);
+                });
+            });
+        }
+
+        function populateAssignedEmployees() {
+            allAssignments.forEach(assignment => {
+                const employee = employees.find(emp => emp.id === assignment.employee_id);
+                if (employee) {
+                    const workstationId = assignment.workstation_id;
+                    if (!assignedEmployees[workstationId]) {
+                        assignedEmployees[workstationId] = [];
+                    }
+                    assignedEmployees[workstationId].push(employee.id);
+                    $(`#assigned-employees-${workstationId}`).append(
+                        `<span class="employee-badge" data-employee-id="${employee.id}">${employee.name}</span>`
+                    );
+                }
+            });
+        }
+
+        $(document).on('click', '.add-employee-btn', function () {
+            const workstationId = $(this).data('workstation-id');
+            const selectedEmployeeId = parseInt($(`select[data-workstation-id="${workstationId}"]`).val());
+
+            if (selectedEmployeeId) {
+                const employee = employees.find(emp => emp.id === selectedEmployeeId);
+
+                if (!assignedEmployees[workstationId].includes(selectedEmployeeId)) {
+                    assignedEmployees[workstationId].push(selectedEmployeeId);
+                    $(`#assigned-employees-${workstationId}`).append(`<span class="employee-badge" data-employee-id="${selectedEmployeeId}">${employee.name}</span>`);
+                    updateDropdowns();
+                    saveAssignment(selectedEmployeeId, workstationId);  // Save the new assignment to the server
+                } else {
+                    showNotification(`${employee.name} is al toegewezen aan deze werkpost.`);
+                }
+            } else {
+                showNotification('Selecteer een medewerker.');
+            }
+        });
+
+        function moveEmployee(employeeId, fromWorkstationId, toWorkstationId) {
+            // Stop workday on the previous workstation
+            endDayForEmployee(employeeId, fromWorkstationId);
+
+            // Remove employee from the previous workstation in UI
+            assignedEmployees[fromWorkstationId] = assignedEmployees[fromWorkstationId].filter(id => id !== employeeId);
+            $(`#assigned-employees-${fromWorkstationId} .employee-badge[data-employee-id="${employeeId}"]`).remove();
+
+            // Add employee to the new workstation
+            if (!assignedEmployees[toWorkstationId]) {
+                assignedEmployees[toWorkstationId] = [];
+            }
+            assignedEmployees[toWorkstationId].push(employeeId);
+            const employee = employees.find(emp => emp.id === employeeId);
+            $(`#assigned-employees-${toWorkstationId}`).append(`<span class="employee-badge" data-employee-id="${employeeId}">${employee.name}</span>`);
+
+            updateDropdowns();
+            saveAssignment(employeeId, toWorkstationId);  // Save the new assignment to the server
+        }
+
+        function saveAssignment(employeeId, workstationId) {
+            $.ajax({
+                url: '/api/assignments',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    employee_id: employeeId,
+                    workstation_id: workstationId,
+                    date: formatDate(new Date())
+                }),
+                success: function(response) {
+                    if (response.status !== 'success') {
+                        showNotification('Er is een fout opgetreden bij het opslaan van de toewijzing.');
+                    }
+                },
+                error: function(jqXHR, textStatus, errorThrown) {
+                    console.error('Error saving assignment:', textStatus, errorThrown);
+                    showNotification('Er is een fout opgetreden bij het opslaan van de toewijzing.');
+                }
+            });
+        }
+
+        $(document).on('click', '.employee-badge', function() {
+            const employeeId = $(this).data('employee-id');
+            const currentWorkstationId = $(this).closest('.workstation-card').find('.employee-select').data('workstation-id');
+
+            // Create a new dropdown for workstation selection
+            const workstationsOptions = workstations.map(ws => 
+                `<option value="${ws.id}" ${ws.id === currentWorkstationId ? 'selected' : ''}>${ws.name}</option>`
+            ).join('');
+
+            const selectWorkstationDropdown = `
+                <select id="workstation-select-${employeeId}" class="form-control">
+                    ${workstationsOptions}
+                </select>
+            `;
+
+            // Append the dropdown to the card
+            $(this).after(selectWorkstationDropdown);
+
+            // Handle workstation selection
+            $(`#workstation-select-${employeeId}`).change(function() {
+                const newWorkstationId = $(this).val();
+                if (newWorkstationId && newWorkstationId !== currentWorkstationId) {
+                    moveEmployee(employeeId, currentWorkstationId, parseInt(newWorkstationId));
+                }
+                $(this).remove(); // Remove the dropdown after selection
+            });
+        });
+
+        function endDayForEmployee(employeeId, workstationId) {
+            showLoading();
+            $.ajax({
+                url: '/api/assignments/end_day',
+                method: 'PUT',
+                data: JSON.stringify({ employee_id: employeeId, workstation_id: workstationId }),
+                contentType: 'application/json',
+                success: function(response) {
+                    hideLoading();
+                    if (response.status === 'success') {
+                        showNotification(response.message);
+                        // Verwijder de werknemer uit de UI
+                        assignedEmployees[workstationId] = assignedEmployees[workstationId].filter(id => id !== employeeId);
+                        $(`#assigned-employees-${workstationId} .employee-badge[data-employee-id="${employeeId}"]`).remove();
+                        updateDropdowns();
+                    } else {
+                        showNotification('Er is een fout opgetreden: ' + response.message);
+                    }
+                },
+                error: function(jqXHR, textStatus, errorThrown) {
+                    hideLoading();
+                    console.error('Error ending day for employee:', textStatus, errorThrown);
+                    showNotification('Er is een fout opgetreden bij het beëindigen van de werkdag voor deze medewerker.');
+                }
+            });
+        }
+
+        $(document).on('contextmenu', '.employee-badge', function(e) {
+            e.preventDefault();
+            const employeeId = $(this).data('employee-id');
+            const workstationId = $(this).closest('.workstation-card').find('.employee-select').data('workstation-id');
+
+            if (confirm('Weet je zeker dat je de werkdag voor deze medewerker wilt beëindigen?')) {
+                endDayForEmployee(employeeId, workstationId);
+            }
+        });
+
+        $('#save-assignments-btn').click(function (e) {
+            e.preventDefault();
+            const dateStr = $('#assignment-date').val();
+
+            if (!dateStr) {
+                showNotification('Selecteer een geldige datum.');
+                return;
+            }
+
+            const date = formatDate(dateStr);
+            const newAssignments = [];
+
+            if (isNaN(Date.parse(dateStr))) {
+                showNotification('Ongeldige datum opgegeven.');
+                return;
+            }
+
+            Object.entries(assignedEmployees).forEach(([workstationId, employeeIds]) => {
+                employeeIds.forEach(employeeId => {
+                    if (!allAssignments.some(a => 
+                        a.employee_id === employeeId && 
+                        a.workstation_id === parseInt(workstationId) && 
+                        a.date === date
+                    )) {
+                        newAssignments.push({
+                            employee_id: employeeId,
+                            workstation_id: parseInt(workstationId),
+                            date: date
+                        });
+                    }
+                });
+            });
+
+            if (newAssignments.length > 0) {
+                showLoading();
+                $.ajax({
+                    url: '/api/assignments',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(newAssignments),
+                    success: function (response) {
+                        hideLoading();
+                        showNotification('Toewijzingen opgeslagen.');
+                        allAssignments = allAssignments.concat(newAssignments);
+                    },
+                    error: function (jqXHR, textStatus, errorThrown) {
+                        hideLoading();
+                        console.error('Error saving assignments:', textStatus, errorThrown);
+                        showNotification('Er is een fout opgetreden bij het opslaan van de toewijzingen. Details: ' + jqXHR.responseText);
+                    }
+                });
+            } else {
+                showNotification('Geen nieuwe toewijzingen om op te slaan.');
+            }
+        });
+
+        $('#end-day-btn').click(function () {
+            if (confirm('Weet je zeker dat je de werkdag voor iedereen wilt beëindigen?')) {
+                showLoading();
+                $.ajax({
+                    url: '/api/assignments/end_day_all',
+                    method: 'PUT',
+                    success: function (response) {
+                        hideLoading();
+                        if (response.status === 'success') {
+                            showNotification(response.message);
+                            assignedEmployees = {};
+                            generateAssignmentFields();
+                        } else {
+                            showNotification('Er is een fout opgetreden: ' + response.message);
+                        }
+                    },
+                    error: function (jqXHR, textStatus, errorThrown) {
+                        hideLoading();
+                        showNotification('Er is een fout opgetreden bij het beëindigen van de werkdag. Status: ' + jqXHR.status + '. Details: ' + jqXHR.responseText);
+                    }
+                });
+            }
+        });
+
+        function formatDate(date) {
+            let d = new Date(date),
+                month = '' + (d.getMonth() + 1),
+                day = '' + d.getDate(),
+                year = d.getFullYear();
+
+            if (month.length < 2) 
+                month = '0' + month;
+            if (day.length < 2) 
+                day = '0' + day;
+
+            return [year, month, day].join('-');
+        }
+
+        $('#assignment-date').change(function() {
+            const dateStr = $(this).val();
+            if (!dateStr) {
+                showNotification('Ongeldige datum.');
+            }
+        });
+    });
+    </script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Items to Pack CNH</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="scripts_items_to_pack_cnh.js" defer></script>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .search-sort-container {
+            margin-bottom: 20px;
+        }
+        .search-sort-container input,
+        .search-sort-container button {
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="header-placeholder"></div>
+    <div class="container">
+        <h1>Items to Pack CNH</h1>
+        <div class="search-sort-container">
+            <input type="text" id="search-motornummer" placeholder="Search Motor Number">
+            <input type="text" id="search-type" placeholder="Search Type">
+            <button id="search-button">Search</button>
+            <button id="sort-button">Sort Motor and Type</button>
+        </div>
+        <p>Openstaande Items: <span id="total-items">0</span></p>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Motornummer</th>
+                    <th>Type</th>
+                    <th>Verzendnota</th>
+                    <th>Datum Binnen</th>
+                    <th>Datum Ontvangen</th>
+                    <th>Received</th>
+                </tr>
+            </thead>
+            <tbody id="items-to-pack-table-body">
+                <!-- Data will be inserted here by JavaScript -->
+            </tbody>
+        </table>
+        <button id="confirm-packed-button">Packed</button>
+    </div>
+</body>
+</html>

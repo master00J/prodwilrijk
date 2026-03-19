@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plaat Optimalisatie</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 1000px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #333;
+        }
+        form {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin: 10px 0 5px;
+        }
+        input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #result {
+            background-color: #e9e9e9;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+        }
+        #pieces-list {
+            margin-bottom: 20px;
+        }
+        .piece-item {
+            background-color: #f0f0f0;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .remove-piece {
+            background-color: #ff4444;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .sheet {
+            border: 2px solid #333;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .cut {
+            position: absolute;
+            border: 1px solid #666;
+            background-color: rgba(100, 100, 100, 0.1);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 12px;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Plaat Optimalisatie</h1>
+        <form id="optimalisatie-form">
+            <h2>Plaat Afmetingen</h2>
+            <label for="sheetWidth">Breedte van de plaat (mm):</label>
+            <input type="number" id="sheetWidth" name="sheetWidth" required>
+            
+            <label for="sheetHeight">Hoogte van de plaat (mm):</label>
+            <input type="number" id="sheetHeight" name="sheetHeight" required>
+            
+            <h2>Stukken</h2>
+            <div id="pieces-list"></div>
+            
+            <button type="button" id="add-piece">Voeg Stuk Toe</button>
+            <button type="submit">Optimaliseer</button>
+        </form>
+        <div id="result"></div>
+        <div id="visual-result"></div>
+    </div>
+
+    <script>
+    let pieceCount = 0;
+
+    function addPiece() {
+        const pieceslist = document.getElementById('pieces-list');
+        const newPiece = document.createElement('div');
+        newPiece.className = 'piece-item';
+        newPiece.innerHTML = `
+            <label>Breedte (mm): <input type="number" name="piece-width-${pieceCount}" required></label>
+            <label>Hoogte (mm): <input type="number" name="piece-height-${pieceCount}" required></label>
+            <label>Aantal: <input type="number" name="piece-quantity-${pieceCount}" required></label>
+            <button type="button" class="remove-piece">Verwijder</button>
+        `;
+        pieceslist.appendChild(newPiece);
+        pieceCount++;
+
+        newPiece.querySelector('.remove-piece').addEventListener('click', function() {
+            pieceslist.removeChild(newPiece);
+        });
+    }
+
+    document.getElementById('add-piece').addEventListener('click', addPiece);
+
+    document.getElementById('optimalisatie-form').addEventListener('submit', function (event) {
+        event.preventDefault();
+        const formData = new FormData(event.target);
+        let data = {
+            sheetWidth: parseInt(formData.get('sheetWidth')),
+            sheetHeight: parseInt(formData.get('sheetHeight')),
+            pieces: []
+        };
+
+        for (let i = 0; i < pieceCount; i++) {
+            const width = formData.get(`piece-width-${i}`);
+            const height = formData.get(`piece-height-${i}`);
+            const quantity = formData.get(`piece-quantity-${i}`);
+            if (width && height && quantity) {
+                data.pieces.push({
+                    width: parseInt(width),
+                    height: parseInt(height),
+                    quantity: parseInt(quantity)
+                });
+            }
+        }
+
+        fetch('/api/optimalisatie', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(errorData => {
+                    throw new Error(JSON.stringify(errorData));
+                });
+            }
+            return response.json();
+        })
+        .then(result => {
+            displayResult(result, data.sheetWidth, data.sheetHeight);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('result').textContent = `Error: ${error.message}`;
+            if (error.stack) {
+                console.error('Error stack:', error.stack);
+            }
+        });
+    });
+
+    function displayResult(result, sheetWidth, sheetHeight) {
+        const resultDiv = document.getElementById('result');
+        const visualResultDiv = document.getElementById('visual-result');
+        
+        // Tekstueel resultaat
+        let resultText = `Resultaat:\n\nAantal gebruikte platen: ${result.sheetsUsed}\n\nSnijlijst:\n`;
+        result.cuts.forEach((cut, index) => {
+            resultText += `Stuk ${index + 1}: ${cut.width} mm x ${cut.height} mm\n`;
+        });
+        resultDiv.textContent = resultText;
+
+        // Visueel resultaat
+        visualResultDiv.innerHTML = '';
+        const scaleFactor = 500 / Math.max(sheetWidth, sheetHeight); // Schaal de weergave naar 500px
+
+        for (let i = 0; i < result.sheetsUsed; i++) {
+            const sheetDiv = document.createElement('div');
+            sheetDiv.className = 'sheet';
+            sheetDiv.style.width = `${sheetWidth * scaleFactor}px`;
+            sheetDiv.style.height = `${sheetHeight * scaleFactor}px`;
+            sheetDiv.style.position = 'relative';
+            
+            visualResultDiv.appendChild(sheetDiv);
+        }
+
+        const sheets = visualResultDiv.getElementsByClassName('sheet');
+        let currentSheet = 0;
+
+        result.cuts.forEach((cut, index) => {
+            const cutDiv = document.createElement('div');
+            cutDiv.className = 'cut';
+            cutDiv.style.width = `${cut.width * scaleFactor}px`;
+            cutDiv.style.height = `${cut.height * scaleFactor}px`;
+            cutDiv.style.left = `${cut.x * scaleFactor}px`;
+            cutDiv.style.top = `${cut.y * scaleFactor}px`;
+            cutDiv.title = `Stuk ${index + 1}: ${cut.width} mm x ${cut.height} mm`;
+            cutDiv.textContent = `${cut.width} x ${cut.height} mm`;
+
+            sheets[currentSheet].appendChild(cutDiv);
+
+            // Check if we need to move to the next sheet
+            if (index + 1 < result.cuts.length && (cut.x + cut.width + 4) >= sheetWidth) { // 4 mm voor zaagsnede
+                currentSheet++;
+            }
+        });
+    }
+
+    // Voeg initieel een stuk toe
+    addPiece();
+    </script>
+</body>
+</html>

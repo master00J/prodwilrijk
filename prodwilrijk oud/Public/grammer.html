@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grammer Klantforecast</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <style>
+    body {
+      padding-top: 20px;
+      background-color: #f8f9fa;
+    }
+    .card {
+      margin-bottom: 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .card-header {
+      background-color: #f8f9fa;
+      border-bottom: 1px solid #e9ecef;
+      padding: 15px 20px;
+    }
+    .btn-primary {
+      background-color: #007bff;
+      border-color: #007bff;
+    }
+    .btn-primary:hover {
+      background-color: #0069d9;
+      border-color: #0062cc;
+    }
+    .btn-success {
+      background-color: #28a745;
+      border-color: #28a745;
+    }
+    .btn-success:hover {
+      background-color: #218838;
+      border-color: #1e7e34;
+    }
+    .table th {
+      background-color: #f8f9fa;
+      font-weight: 600;
+    }
+    .table-hover tbody tr:hover {
+      background-color: #f1f1f1;
+    }
+    .pending {
+      background-color: #fff3cd;
+    }
+    .completed {
+      background-color: #d4edda;
+    }
+    .badges-container {
+      display: flex;
+      gap: 5px;
+    }
+    .status-badge {
+      padding: 5px 10px;
+      border-radius: 15px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .badge-pending {
+      background-color: #ffc107;
+      color: #212529;
+    }
+    .badge-completed {
+      background-color: #28a745;
+      color: white;
+    }
+    .search-container {
+      position: relative;
+      margin-bottom: 15px;
+    }
+    .search-container .form-control {
+      padding-right: 30px;
+    }
+    .search-container .search-icon {
+      position: absolute;
+      right: 10px;
+      top: 10px;
+      color: #6c757d;
+    }
+    .search-results {
+      position: absolute;
+      width: 100%;
+      max-height: 300px;
+      overflow-y: auto;
+      z-index: 1000;
+      background: white;
+      border: 1px solid #ced4da;
+      border-radius: 0 0 5px 5px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      display: none;
+    }
+    .search-item {
+      padding: 10px;
+      border-bottom: 1px solid #f0f0f0;
+      cursor: pointer;
+    }
+    .search-item:hover {
+      background-color: #f8f9fa;
+    }
+    .nav-tabs .nav-link.active {
+      font-weight: bold;
+      border-bottom: 3px solid #007bff;
+    }
+    .tab-content {
+      padding-top: 20px;
+    }
+    .summary-card {
+      border-left: 4px solid #007bff;
+      margin-bottom: 15px;
+    }
+    .total-badge {
+      font-size: 16px;
+      padding: 8px 12px;
+      border-radius: 20px;
+      background-color: #007bff;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header met dynamisch geladen content -->
+    <div id="header-container"></div>
+
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h2>Grammer Klantforecast</h2>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addForecastModal">
+          <i class="bi bi-plus-circle"></i> Nieuwe Forecast Item
+        </button>
+      </div>
+      <div class="card-body">
+        <!-- Tabbladen navigatie -->
+        <ul class="nav nav-tabs" id="forecastTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button" role="tab" aria-controls="pending" aria-selected="true">
+              Te Leveren
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="completed-tab" data-bs-toggle="tab" data-bs-target="#completed" type="button" role="tab" aria-controls="completed" aria-selected="false">
+              Volledig Geleverd
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="summary-tab" data-bs-toggle="tab" data-bs-target="#summary" type="button" role="tab" aria-controls="summary" aria-selected="false">
+              Totaal Per Artikel
+            </button>
+          </li>
+        </ul>
+
+        <!-- Filter sectie -->
+        <div class="card mt-3">
+          <div class="card-header">
+            <i class="bi bi-funnel"></i> Filter
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-3">
+                <div class="search-container">
+                  <label for="search-artikelnummer">Artikelnummer</label>
+                  <input type="text" id="search-artikelnummer" class="form-control" placeholder="Zoek op artikelnummer">
+                  <i class="bi bi-search search-icon"></i>
+                  <div id="search-results-artikelnummer" class="search-results"></div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="search-container">
+                  <label for="search-omschrijving">Omschrijving</label>
+                  <input type="text" id="search-omschrijving" class="form-control" placeholder="Zoek op omschrijving">
+                  <i class="bi bi-search search-icon"></i>
+                  <div id="search-results-omschrijving" class="search-results"></div>
+                </div>
+              </div>
+              <div class="col-md-2">
+                <label for="datum-vanaf">Datum vanaf</label>
+                <input type="date" id="datum-vanaf" class="form-control datepicker">
+              </div>
+              <div class="col-md-2">
+                <label for="datum-tot">Datum tot</label>
+                <input type="date" id="datum-tot" class="form-control datepicker">
+              </div>
+              <div class="col-md-1">
+                <label>&nbsp;</label>
+                <button id="toepassen-filter" class="btn btn-primary d-block w-100">
+                  <i class="bi bi-funnel-fill"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabblad inhoud -->
+        <div class="tab-content" id="forecastTabsContent">
+          <!-- Tab 1: Te Leveren Items -->
+          <div class="tab-pane fade show active" id="pending" role="tabpanel" aria-labelledby="pending-tab">
+            <div class="table-responsive">
+              <table class="table table-hover" id="pending-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Artikelnr.</th>
+                    <th>Klant Artikelnr.</th>
+                    <th>Omschrijving</th>
+                    <th>Hoeveelheid</th>
+                    <th>Geleverd</th>
+                    <th>Status</th>
+                    <th>Leverdatum</th>
+                    <th>Acties</th>
+                  </tr>
+                </thead>
+                <tbody id="forecast-items-pending">
+                  <!-- Items worden hier geladen -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tab 2: Volledig Geleverde Items -->
+          <div class="tab-pane fade" id="completed" role="tabpanel" aria-labelledby="completed-tab">
+            <div class="table-responsive">
+              <table class="table table-hover" id="completed-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Artikelnr.</th>
+                    <th>Klant Artikelnr.</th>
+                    <th>Omschrijving</th>
+                    <th>Hoeveelheid</th>
+                    <th>Geleverd</th>
+                    <th>Status</th>
+                    <th>Leverdatum</th>
+                    <th>Acties</th>
+                  </tr>
+                </thead>
+                <tbody id="forecast-items-completed">
+                  <!-- Geleverde items worden hier geladen -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tab 3: Totaal Per Artikel -->
+          <div class="tab-pane fade" id="summary" role="tabpanel" aria-labelledby="summary-tab">
+            <div class="row" id="article-summaries">
+              <!-- Artikel samenvattingen worden hier geladen -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal voor het toevoegen van een nieuw forecast item -->
+  <div class="modal fade" id="addForecastModal" tabindex="-1" aria-labelledby="addForecastModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="addForecastModalLabel">Nieuw Forecast Item</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <form id="addForecastForm">
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="omschrijving" class="form-label">Omschrijving *</label>
+                <input type="text" class="form-control" id="omschrijving" required>
+              </div>
+              <div class="col-md-6">
+                <label for="artikelnummer" class="form-label">Artikelnummer *</label>
+                <input type="text" class="form-control" id="artikelnummer" required>
+              </div>
+            </div>
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="klant_artikelnummer" class="form-label">Klant Artikelnummer</label>
+                <input type="text" class="form-control" id="klant_artikelnummer">
+              </div>
+              <div class="col-md-6">
+                <label for="hoeveelheid" class="form-label">Hoeveelheid *</label>
+                <input type="number" class="form-control" id="hoeveelheid" min="1" required>
+              </div>
+            </div>
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="leverdatum" class="form-label">Leverdatum *</label>
+                <input type="date" class="form-control datepicker" id="leverdatum" required>
+              </div>
+            </div>
+            <input type="hidden" id="item_id">
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+          <button type="button" class="btn btn-primary" id="saveForecastButton">Opslaan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal voor het markeren van een item als (gedeeltelijk) geleverd -->
+  <div class="modal fade" id="markDeliveredModal" tabindex="-1" aria-labelledby="markDeliveredModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="markDeliveredModalLabel">Item Markeren als Geleverd</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <form id="markDeliveredForm">
+            <div class="mb-3">
+              <label for="item_details" class="form-label">Item</label>
+              <p id="item_details" class="form-control-static">Artikel: <span id="modal_artikel"></span></p>
+              <p class="form-control-static">Totaal te leveren: <span id="modal_totaal"></span></p>
+              <p class="form-control-static">Reeds geleverd: <span id="modal_reeds_geleverd"></span></p>
+              <p class="form-control-static">Nog te leveren: <span id="modal_nog_te_leveren"></span></p>
+            </div>
+            <div class="mb-3">
+              <label for="geleverd_aantal" class="form-label">Aantal nu geleverd *</label>
+              <input type="number" class="form-control" id="geleverd_aantal" min="1" required>
+            </div>
+            <div class="mb-3">
+              <label for="opmerkingen" class="form-label">Opmerkingen</label>
+              <textarea class="form-control" id="opmerkingen" rows="3"></textarea>
+            </div>
+            <input type="hidden" id="delivery_item_id">
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+          <button type="button" class="btn btn-success" id="confirmDeliveryButton">Bevestigen</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript libraries -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/nl.js"></script>
+  <script>
+    $(document).ready(function() {
+      // Laad de header
+      $("#header-container").load("header.html", function() {
+        // Activeer de huidige pagina in de navigatie
+        $("#nav-grammer").addClass("active");
+      });
+
+      // Initialiseer datepickers
+      flatpickr(".datepicker", {
+        locale: "nl",
+        dateFormat: "Y-m-d",
+        allowInput: true
+      });
+
+      // Forecast items ophalen en weergeven
+      loadForecastItems();
+
+      // Event listeners voor knoppen in modals - EENMALIG REGISTREREN
+      $("#saveForecastButton").off('click').on("click", function() {
+        saveForecastItem();
+      });
+
+      $("#confirmDeliveryButton").off('click').on("click", function() {
+        confirmDelivery();
+      });
+
+      // Event listeners voor dynamisch zoeken
+      $("#search-artikelnummer").off('input').on("input", function() {
+        const searchTerm = $(this).val().trim();
+        if (searchTerm.length > 0) {
+          performDynamicSearch("artikelnummer", searchTerm);
+        } else {
+          $("#search-results-artikelnummer").hide();
+        }
+      });
+
+      $("#search-omschrijving").off('input').on("input", function() {
+        const searchTerm = $(this).val().trim();
+        if (searchTerm.length > 0) {
+          performDynamicSearch("omschrijving", searchTerm);
+        } else {
+          $("#search-results-omschrijving").hide();
+        }
+      });
+
+      // Event listener voor het toepassen van filters
+      $("#toepassen-filter").off('click').on("click", function() {
+        loadForecastItems();
+      });
+
+      // Delegeer event handlers voor knoppen in tabelrijen (niet steeds opnieuw binden)
+      $(document).off('click', '.edit-button').on('click', '.edit-button', function() {
+        const itemId = $(this).data('id');
+        editItem(itemId);
+      });
+      
+      $(document).off('click', '.deliver-button').on('click', '.deliver-button', function() {
+        const itemId = $(this).data('id');
+        showDeliveryModal(itemId);
+      });
+      
+      $(document).off('click', '.delete-button').on('click', '.delete-button', function() {
+        const itemId = $(this).data('id');
+        deleteItem(itemId);
+      });
+
+      // Close search results when clicking outside
+      $(document).on("click", function(e) {
+        if (!$(e.target).closest(".search-container").length) {
+          $(".search-results").hide();
+        }
+      });
+      
+      // Zorg ervoor dat modals correct worden verwijderd bij sluiten
+      $('.modal').on('hidden.bs.modal', function() {
+        // Reset/leeg formulieren bij sluiten
+        if ($(this).attr('id') === 'addForecastModal') {
+          $("#addForecastForm")[0].reset();
+          $("#item_id").val('');
+          $("#addForecastModalLabel").text("Nieuw Forecast Item");
+        } else if ($(this).attr('id') === 'markDeliveredModal') {
+          $("#markDeliveredForm")[0].reset();
+        }
+      });
+    });
+
+    // Functie voor dynamisch zoeken
+    function performDynamicSearch(field, searchTerm) {
+      const allItems = window.allForecastItems || [];
+      const resultsContainer = $(`#search-results-${field}`);
+      resultsContainer.empty();
+
+      if (!allItems.length || searchTerm.length === 0) {
+        resultsContainer.hide();
+        return;
+      }
+
+      // Filter items op basis van zoekopdracht
+      const filteredItems = allItems.filter(item => {
+        if (field === "artikelnummer") {
+          return item.artikelnummer.toLowerCase().includes(searchTerm.toLowerCase());
+        } else if (field === "omschrijving") {
+          return item.omschrijving.toLowerCase().includes(searchTerm.toLowerCase());
+        }
+        return false;
+      });
+
+      // Toon maximaal 10 resultaten
+      const limitedResults = filteredItems.slice(0, 10);
+
+      if (limitedResults.length > 0) {
+        limitedResults.forEach(item => {
+          const displayValue = field === "artikelnummer" ? item.artikelnummer : item.omschrijving;
+          const resultItem = $(`<div class="search-item">${displayValue}</div>`);
+          resultItem.on("click", function() {
+            $(`#search-${field}`).val(displayValue);
+            resultsContainer.hide();
+            loadForecastItems();
+          });
+          resultsContainer.append(resultItem);
+        });
+        resultsContainer.show();
+      } else {
+        resultsContainer.hide();
+      }
+    }
+
+    // Functie om alle forecast items op te halen
+    function loadForecastItems() {
+      // Filters ophalen
+      const artikelnummer = $("#search-artikelnummer").val();
+      const omschrijving = $("#search-omschrijving").val();
+      const datumVanaf = $("#datum-vanaf").val();
+      const datumTot = $("#datum-tot").val();
+
+      // API call om items op te halen
+      $.ajax({
+        url: '/api/klantforecast',
+        method: 'GET',
+        success: function(items) {
+          // Sla alle items op voor dynamisch zoeken
+          window.allForecastItems = items;
+          
+          // Filter items op basis van zoekwaarden
+          const filteredItems = items.filter(item => {
+            let matchesArtikelnummer = true;
+            let matchesOmschrijving = true;
+            let matchesDatumVanaf = true;
+            let matchesDatumTot = true;
+            
+            if (artikelnummer && artikelnummer.trim() !== "") {
+              matchesArtikelnummer = item.artikelnummer.toLowerCase().includes(artikelnummer.toLowerCase());
+            }
+            
+            if (omschrijving && omschrijving.trim() !== "") {
+              matchesOmschrijving = item.omschrijving.toLowerCase().includes(omschrijving.toLowerCase());
+            }
+            
+            if (datumVanaf && datumVanaf.trim() !== "") {
+              matchesDatumVanaf = item.leverdatum >= datumVanaf;
+            }
+            
+            if (datumTot && datumTot.trim() !== "") {
+              matchesDatumTot = item.leverdatum <= datumTot;
+            }
+            
+            return matchesArtikelnummer && matchesOmschrijving && matchesDatumVanaf && matchesDatumTot;
+          });
+          
+          // Verdeel items over de tabbladen
+          displayForecastItems(filteredItems);
+          
+          // Bereken en toon de artikel samenvattingen
+          displayArticleSummaries(filteredItems);
+        },
+        error: function(error) {
+          console.error('Error loading forecast items:', error);
+          alert('Er is een fout opgetreden bij het laden van de forecast items. Probeer het later opnieuw.');
+        }
+      });
+    }
+
+    // Functie om de gefilterde items weer te geven op de juiste tabbladen
+    function displayForecastItems(items) {
+      // Verdeel de items in twee groepen: nog te leveren en volledig geleverd
+      const pendingItems = [];
+      const completedItems = [];
+      
+      // Sorteer de items op leverdatum (oplopend)
+      const sortedItems = [...items].sort((a, b) => new Date(a.leverdatum) - new Date(b.leverdatum));
+      
+      // Verdeel items op basis van leveringsstatus
+      sortedItems.forEach(item => {
+        const geleverdAantal = item.geleverd_aantal || 0;
+        if (geleverdAantal >= item.hoeveelheid) {
+          completedItems.push(item);
+        } else {
+          pendingItems.push(item);
+        }
+      });
+      
+      // Geef de items weer in de juiste tabellen
+      displayItemsInTable(pendingItems, 'forecast-items-pending');
+      displayItemsInTable(completedItems, 'forecast-items-completed');
+    }
+
+    // Functie om items in een tabel weer te geven
+    function displayItemsInTable(items, tableId) {
+      const tableBody = $(`#${tableId}`);
+      tableBody.empty();
+      
+      if (items.length === 0) {
+        const emptyRow = `
+          <tr>
+            <td colspan="9" class="text-center">Geen items gevonden</td>
+          </tr>
+        `;
+        tableBody.append(emptyRow);
+        return;
+      }
+      
+      items.forEach(item => {
+        const geleverdAantal = item.geleverd_aantal || 0;
+        const isVolledigGeleverd = geleverdAantal >= item.hoeveelheid;
+        const status = isVolledigGeleverd ? 'Volledig geleverd' : 'In behandeling';
+        const statusClass = isVolledigGeleverd ? 'badge-completed' : 'badge-pending';
+        
+        // Converteer de datum naar een leesbaar formaat
+        const leverdatum = new Date(item.leverdatum).toLocaleDateString('nl-NL');
+        
+        const row = `
+          <tr data-id="${item.id}" class="${isVolledigGeleverd ? 'completed' : 'pending'}">
+            <td>${item.id}</td>
+            <td>${item.artikelnummer}</td>
+            <td>${item.klant_artikelnummer || '-'}</td>
+            <td>${item.omschrijving}</td>
+            <td>${item.hoeveelheid}</td>
+            <td>${geleverdAantal}</td>
+            <td><span class="status-badge ${statusClass}">${status}</span></td>
+            <td>${leverdatum}</td>
+            <td>
+              <div class="badges-container">
+                <button class="btn btn-sm btn-primary edit-button" data-id="${item.id}" title="Bewerken">
+                  <i class="bi bi-pencil"></i>
+                </button>
+                ${!isVolledigGeleverd ? `
+                <button class="btn btn-sm btn-success deliver-button" data-id="${item.id}" title="Markeren als geleverd">
+                  <i class="bi bi-truck"></i>
+                </button>` : ''}
+                <button class="btn btn-sm btn-danger delete-button" data-id="${item.id}" title="Verwijderen">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+        tableBody.append(row);
+      });
+    }
+
+    // Functie om de artikel samenvattingen weer te geven
+    function displayArticleSummaries(items) {
+      const summaryContainer = $("#article-summaries");
+      summaryContainer.empty();
+      
+      // Groepeer items per artikelnummer
+      const articleGroups = {};
+      
+      items.forEach(item => {
+        if (!articleGroups[item.artikelnummer]) {
+          articleGroups[item.artikelnummer] = {
+            artikelnummer: item.artikelnummer,
+            omschrijving: item.omschrijving,
+            totaalHoeveelheid: 0,
+            totaalGeleverd: 0,
+            items: []
+          };
+        }
+        
+        articleGroups[item.artikelnummer].totaalHoeveelheid += parseInt(item.hoeveelheid);
+        articleGroups[item.artikelnummer].totaalGeleverd += parseInt(item.geleverd_aantal || 0);
+        articleGroups[item.artikelnummer].items.push(item);
+      });
+      
+      // Maak een kaart voor elk artikelnummer
+      Object.values(articleGroups).forEach(group => {
+        const nogTeLeveren = group.totaalHoeveelheid - group.totaalGeleverd;
+        const percentage = Math.round((group.totaalGeleverd / group.totaalHoeveelheid) * 100);
+        
+        const card = `
+          <div class="col-md-6 col-lg-4">
+            <div class="card summary-card">
+              <div class="card-body">
+                <h5 class="card-title">${group.artikelnummer}</h5>
+                <h6 class="card-subtitle mb-2 text-muted">${group.omschrijving}</h6>
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                  <div>
+                    <p class="mb-1">Totaal in afroep: <span class="total-badge">${group.totaalHoeveelheid}</span></p>
+                    <p class="mb-1">Totaal geleverd: <span class="total-badge">${group.totaalGeleverd}</span></p>
+                    <p class="mb-1">Nog te leveren: <span class="total-badge">${nogTeLeveren}</span></p>
+                  </div>
+                  <div class="text-center">
+                    <h3 class="mb-0">${percentage}%</h3>
+                    <p class="mb-0">Geleverd</p>
+                  </div>
+                </div>
+                <div class="progress mt-3">
+                  <div class="progress-bar bg-success" role="progressbar" style="width: ${percentage}%" 
+                    aria-valuenow="${percentage}" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+        
+        summaryContainer.append(card);
+      });
+    }
+
+    // Functie om een item te bewerken
+    function editItem(itemId) {
+      // Haal de details van het item op
+      $.ajax({
+        url: `/api/klantforecast/${itemId}`,
+        method: 'GET',
+        success: function(item) {
+          // Vul het formulier in
+          $("#item_id").val(item.id);
+          $("#omschrijving").val(item.omschrijving);
+          $("#artikelnummer").val(item.artikelnummer);
+          $("#klant_artikelnummer").val(item.klant_artikelnummer);
+          $("#hoeveelheid").val(item.hoeveelheid);
+          $("#leverdatum").val(item.leverdatum);
+          
+          // Verander de titel van het modal
+          $("#addForecastModalLabel").text("Forecast Item Bewerken");
+          
+          // Toon het modal
+          var modal = new bootstrap.Modal(document.getElementById('addForecastModal'));
+          modal.show();
+        },
+        error: function(error) {
+          console.error('Error loading item details:', error);
+          alert('Er is een fout opgetreden bij het laden van de item details.');
+        }
+      });
+    }
+
+    // Functie om een item op te slaan (nieuw of bewerkt)
+    function saveForecastItem() {
+      // Valideer het formulier
+      if (!$("#addForecastForm")[0].checkValidity()) {
+        $("#addForecastForm")[0].reportValidity();
+        return;
+      }
+      
+      // Verzamel de gegevens
+      const itemId = $("#item_id").val();
+      const itemData = {
+        omschrijving: $("#omschrijving").val(),
+        artikelnummer: $("#artikelnummer").val(),
+        klant_artikelnummer: $("#klant_artikelnummer").val(),
+        hoeveelheid: $("#hoeveelheid").val(),
+        leverdatum: $("#leverdatum").val()
+      };
+      
+      // Bepaal of het een update of nieuwe toevoeging is
+      const url = itemId ? `/api/klantforecast/${itemId}` : '/api/klantforecast';
+      const method = itemId ? 'PUT' : 'POST';
+      
+      // Stuur de aanvraag
+      $.ajax({
+        url: url,
+        method: method,
+        data: itemData,
+        success: function(response) {
+          if (response.success) {
+            // Sluit het modal en voorkom JavaScript fouten door getInstance te controleren
+            const modalEl = document.getElementById('addForecastModal');
+            const modalInstance = bootstrap.Modal.getInstance(modalEl);
+            if (modalInstance) {
+              modalInstance.hide();
+            }
+            
+            // Reset het formulier
+            $("#addForecastForm")[0].reset();
+            $("#item_id").val('');
+            
+            // Herlaad de items
+            loadForecastItems();
+            
+            // Toon een succesmelding
+            alert(response.message);
+          } else {
+            alert(response.error || 'Er is een fout opgetreden.');
+          }
+        },
+        error: function(xhr) {
+          console.error('Error saving item:', xhr);
+          let errorMsg = 'Er is een fout opgetreden bij het opslaan van het item.';
+          if (xhr.responseJSON && xhr.responseJSON.error) {
+            errorMsg = xhr.responseJSON.error;
+          }
+          alert(errorMsg);
+        }
+      });
+    }
+
+    // Functie om het leveringsmodal te tonen
+    function showDeliveryModal(itemId) {
+      // Haal de details van het item op
+      $.ajax({
+        url: `/api/klantforecast/${itemId}`,
+        method: 'GET',
+        success: function(item) {
+          // Vul het formulier in
+          $("#delivery_item_id").val(item.id);
+          $("#modal_artikel").text(`${item.artikelnummer} - ${item.omschrijving}`);
+          $("#modal_totaal").text(item.hoeveelheid);
+          
+          const geleverdAantal = item.geleverd_aantal || 0;
+          const nogTeLeveren = item.hoeveelheid - geleverdAantal;
+          
+          $("#modal_reeds_geleverd").text(geleverdAantal);
+          $("#modal_nog_te_leveren").text(nogTeLeveren);
+          
+          // Stel het maximaal te leveren aantal in
+          $("#geleverd_aantal").attr("max", nogTeLeveren);
+          $("#geleverd_aantal").val(nogTeLeveren); // Standaard het volledige resterende aantal
+          
+          // Toon het modal
+          var modal = new bootstrap.Modal(document.getElementById('markDeliveredModal'));
+          modal.show();
+        },
+        error: function(error) {
+          console.error('Error loading item details:', error);
+          alert('Er is een fout opgetreden bij het laden van de item details.');
+        }
+      });
+    }
+
+    // Functie om een levering te bevestigen
+    function confirmDelivery() {
+      // Valideer het formulier
+      if (!$("#markDeliveredForm")[0].checkValidity()) {
+        $("#markDeliveredForm")[0].reportValidity();
+        return;
+      }
+      
+      // Verzamel de gegevens
+      const itemId = $("#delivery_item_id").val();
+      const deliveryData = {
+        geleverd_aantal: $("#geleverd_aantal").val(),
+        opmerkingen: $("#opmerkingen").val()
+      };
+      
+      // Stuur de aanvraag
+      $.ajax({
+        url: `/api/klantforecast/${itemId}/geleverd`,
+        method: 'POST',
+        data: deliveryData,
+        success: function(response) {
+          if (response.success) {
+            // Sluit het modal veilig
+            const modalEl = document.getElementById('markDeliveredModal');
+            const modalInstance = bootstrap.Modal.getInstance(modalEl);
+            if (modalInstance) {
+              modalInstance.hide();
+            }
+            
+            // Reset het formulier
+            $("#markDeliveredForm")[0].reset();
+            
+            // Herlaad de items
+            loadForecastItems();
+            
+            // Toon een succesmelding
+            alert(response.message);
+          } else {
+            alert(response.error || 'Er is een fout opgetreden.');
+          }
+        },
+        error: function(xhr) {
+          console.error('Error confirming delivery:', xhr);
+          let errorMsg = 'Er is een fout opgetreden bij het bevestigen van de levering.';
+          if (xhr.responseJSON && xhr.responseJSON.error) {
+            errorMsg = xhr.responseJSON.error;
+          }
+          alert(errorMsg);
+        }
+      });
+    }
+
+    // Functie om een item te verwijderen
+    function deleteItem(itemId) {
+      if (confirm('Weet je zeker dat je dit forecast item wilt verwijderen?')) {
+        $.ajax({
+          url: `/api/klantforecast/${itemId}`,
+          method: 'DELETE',
+          success: function(response) {
+            if (response.success) {
+              // Herlaad de items
+              loadForecastItems();
+              
+              // Toon een succesmelding
+              alert(response.message);
+            } else {
+              alert(response.error || 'Er is een fout opgetreden.');
+            }
+          },
+          error: function(xhr) {
+            console.error('Error deleting item:', xhr);
+            let errorMsg = 'Er is een fout opgetreden bij het verwijderen van het item.';
+            if (xhr.responseJSON && xhr.responseJSON.error) {
+              errorMsg = xhr.responseJSON.error;
+            }
+            alert(errorMsg);
+          }
+        });
+      }
+    }
+  </script>
+</body>
+</html>

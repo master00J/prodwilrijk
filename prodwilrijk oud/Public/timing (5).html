@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Werkregistratie</title>
+  <!-- Tailwind CSS -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+  <!-- Font Awesome (voor iconen) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <!-- Custom Styles -->
+  <style>
+    body {
+      background-color: #f9fafb;
+    }
+
+    /* Verbeterde tablet-styling */
+    @media (max-width: 1024px) {
+      .tablet-full {
+        width: 100% !important;
+      }
+
+      .tablet-btn {
+        min-height: 48px;
+        font-size: 1rem;
+        padding: 0.75rem 1rem;
+      }
+
+      .tablet-input {
+        min-height: 48px;
+        font-size: 1rem;
+      }
+
+      .tablet-card {
+        margin-bottom: 1rem;
+      }
+    }
+
+    /* Actieve tab markering */
+    .tab-active {
+      border-bottom: 3px solid #2563eb;
+      color: #2563eb;
+      font-weight: bold;
+    }
+
+    /* Eenvoudige modal transitions */
+    .modal-enter {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    .modal-enter-active {
+      opacity: 1;
+      transform: scale(1);
+      transition: all 300ms ease-in-out;
+    }
+    .modal-exit {
+      opacity: 1;
+      transform: scale(1);
+    }
+    .modal-exit-active {
+      opacity: 0;
+      transform: scale(0.95);
+      transition: all 300ms ease-in-out;
+    }
+
+    /* Zorg ervoor dat de order-modal scrollbaar is als de inhoud te hoog wordt */
+    #order-modal > .modal-content {
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    /* Visualisatie voor houtgebruik */
+    .wood-piece {
+      display: inline-block;
+      height: 30px;
+      margin: 0 2px;
+      position: relative;
+      vertical-align: middle;
+    }
+
+    .wood-piece-label {
+      font-size: 10px;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    /* De schaalbalk voor houtvisualisatie */
+    .scale-bar {
+      display: flex;
+      align-items: center;
+      margin-top: 5px;
+      font-size: 12px;
+    }
+
+    .scale-line {
+      height: 2px;
+      background-color: #000;
+      margin: 0 5px;
+    }
+
+    /* Zwevende action buttons op tablet */
+    .floating-action-button {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 100;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    }
+    
+    /* Barcode scanner styling */
+    #barcode-scanner-modal {
+      transition: opacity 0.3s ease;
+    }
+    
+    #barcode-scanner-modal.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    
+    #barcode-scanner-modal:not(.hidden) {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    
+    #barcode-scanner-video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    
+    #scanner-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    .sub-tab-active {
+        background-color: #e0e7ff; /* Light indigo background */
+        color: #3730a3; /* Darker indigo text */
+        font-weight: bold;
+    }
+  </style>
+  
+  <!-- QR/Barcode scanning library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+</head>
+<body class="bg-gray-50">
+  <main class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold text-center mb-8">Werkregistratie</h1>
+
+    <!-- Hoofd Tabbladen Navigatie -->
+    <div class="mb-6 border-b">
+      <nav class="flex flex-wrap -mb-px" id="main-tabs">
+        <button id="tab-active" class="main-tab tab-active text-lg py-3 px-6 tablet-btn">Actieve Orders</button>
+        <button id="tab-completed" class="main-tab text-lg py-3 px-6 tablet-btn">Afgewerkte Orders</button>
+        <button id="tab-prepack" class="main-tab text-lg py-3 px-6 tablet-btn">Prepack</button>
+      </nav>
+    </div>
+    
+    <!-- Prepack Sub-Tab Navigatie Container (initially hidden) -->
+    <div id="prepack-divisions-container" class="mb-4 border-b hidden">
+        <nav class="flex flex-wrap -mb-px" id="prepack-sub-tabs">
+            <button data-division="Service Center" class="prepack-sub-tab sub-tab-active text-md py-2 px-4 tablet-btn">Service Center</button>
+            <button data-division="Kitting" class="prepack-sub-tab text-md py-2 px-4 tablet-btn">Kitting</button>
+            <button data-division="Powertools" class="prepack-sub-tab text-md py-2 px-4 tablet-btn">Powertools</button>
+        </nav>
+    </div>
+
+    <!-- Zoek en filters -->
+    <div class="mb-6 flex flex-col lg:flex-row gap-4 items-center">
+      <div class="w-full lg:w-1/3">
+        <input type="text" id="search-input" placeholder="Zoek orders..."
+               class="w-full px-4 py-3 border rounded-lg shadow-sm tablet-input">
+      </div>
+      <div class="w-full lg:w-1/3">
+        <select id="status-filter" class="w-full px-4 py-3 border rounded-lg shadow-sm tablet-input">
+          <option value="all">Alle statussen (actieve orders)</option>
+          <option value="Open">Open</option>
+          <option value="In uitvoering">In uitvoering</option>
+        </select>
+      </div>
+      <div class="w-full lg:w-1/3 flex gap-2">
+        <select id="sort-orders" class="w-full px-4 py-3 border rounded-lg shadow-sm tablet-input">
+          <option value="recent">Meest recent</option>
+          <option value="deadline">Deadline (vroegst eerst)</option>
+          <option value="klant">Klant (A-Z)</option>
+        </select>
+        <button id="barcode-scan-btn" class="bg-blue-600 text-white px-4 py-3 rounded-lg shadow-sm tablet-btn hover:bg-blue-700">
+          <i class="fas fa-barcode mr-2"></i>Scan Barcode
+        </button>
+      </div>
+    </div>
+
+    <!-- Orders Tab Content Containers -->
+    <div id="orders-active-container" class="tab-content-main">
+      <section class="overflow-x-auto bg-white rounded-lg shadow">
+        <table id="orders-table-active" class="min-w-full table-auto">
+          <thead class="bg-gray-100">
+            <tr>
+              <th class="px-6 py-3 text-left text-sm font-semibold">Ordernummer</th>
+              <th class="px-6 py-3 text-left text-sm font-semibold hidden md:table-cell">Klant</th>
+              <th class="px-6 py-3 text-left text-sm font-semibold hidden lg:table-cell">Beschrijving</th>
+              <th class="px-6 py-3 text-left text-sm font-semibold hidden md:table-cell">Deadline</th>
+              <th class="px-6 py-3 text-left text-sm font-semibold">Status</th>
+              <th class="px-6 py-3 text-left text-sm font-semibold hidden md:table-cell">Voortgang</th>
+              <th class="px-6 py-3 text-left text-sm font-semibold">Acties</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+      <div id="orders-cards-active" class="md:hidden space-y-4 mt-4"></div>
+    </div>
+
+    <div id="orders-completed-container" class="tab-content-main hidden">
+      <section class="overflow-x-auto bg-white rounded-lg shadow">
+        <table id="orders-table-completed" class="min-w-full table-auto">
+          <thead class="bg-gray-100">
+            <tr>
+              <th class="px-6 py-3 text-left text-sm font-semibold">Ordernummer</th>
+              <th class="px-6 py-3 text-left text-sm font-semibold hidden md:table-cell">Klant</th>
+              <th class="px-6 py-3 text-left text-sm font-semibold hidden lg:table-cell">Beschrijving</th>
+              <th class="px-6 py-3 text-left text-sm font-semibold hidden md:table-cell">Afgewerkt op</th>
+              <th class="px-6 py-3 text-left text-sm font-semibold hidden md:table-cell">Totale Manuren</th>
+              <th class="px-6 py-3 text-left text-sm font-semibold">Acties</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+      <div id="orders-cards-completed" class="md:hidden space-y-4 mt-4"></div>
+    </div>
+
+    <!-- Prepack Tab Content Container (This specific container might be less used if orders-active-container is reused for prepack) -->
+    <div id="orders-prepack-container" class="tab-content-main hidden">
+        <!-- Content for prepack orders, IF NOT using orders-active-container, would go here. -->
+        <!-- The JS currently renders prepack items into orders-active-container -->
+        <!-- The division-specific tables below will NOT be auto-populated by the current JS. -->
+        <div id="prepack-servicecenter-content" class="tab-content-sub hidden">
+            <section class="overflow-x-auto bg-white rounded-lg shadow">
+                <table id="orders-table-prepack-servicecenter" class="min-w-full table-auto">
+                     <thead class="bg-gray-100">
+                        <tr>
+                          <th class="px-6 py-3 text-left text-sm font-semibold">Ordernummer</th>
+                          <th class="px-6 py-3 text-left text-sm font-semibold hidden md:table-cell">Klant</th>
+                          <th class="px-6 py-3 text-left text-sm font-semibold hidden lg:table-cell">Beschrijving</th>
+                          <th class="px-6 py-3 text-left text-sm font-semibold hidden md:table-cell">Deadline</th>
+                          <th class="px-6 py-3 text-left text-sm font-semibold">Status</th>
+                          <th class="px-6 py-3 text-left text-sm font-semibold hidden md:table-cell">Voortgang</th>
+                          <th class="px-6 py-3 text-left text-sm font-semibold">Acties</th>
+                        </tr>
+                      </thead>
+                    <tbody></tbody>
+                </table>
+            </section>
+            <div id="orders-cards-prepack-servicecenter" class="md:hidden space-y-4 mt-4"></div>
+        </div>
+        <div id="prepack-kitting-content" class="tab-content-sub hidden">
+             <section class="overflow-x-auto bg-white rounded-lg shadow">
+                <table id="orders-table-prepack-kitting" class="min-w-full table-auto">
+                     <thead class="bg-gray-100">
+                        <tr>
+                          <th class="px-6 py-3 text-left text-sm font-semibold">Ordernummer</th>
+                          <th class="px-6 py-3 text-left text-sm font-semibold hidden md:table-cell">Klant</th>
+                          <th class="px-6 py-3 text-left text-sm font-semibold hidden lg:table-cell">Beschrijving</th>
+                          <th class="px-6 py-3 text-left text-sm font-semibold hidden md:table-cell">Deadline</th>
+                          <th class="px-6 py-3 text-left text-sm font-semibold">Status</th>
+                          <th class="px-6 py-3 text-left text-sm font-semibold hidden md:table-cell">Voortgang</th>
+                          <th class="px-6 py-3 text-left text-sm font-semibold">Acties</th>
+                        </tr>
+                      </thead>
+                    <tbody></tbody>
+                </table>
+            </section>
+            <div id="orders-cards-prepack-kitting" class="md:hidden space-y-4 mt-4"></div>
+        </div>
+        <div id="prepack-powertools-content" class="tab-content-sub hidden">
+             <section class="overflow-x-auto bg-white rounded-lg shadow">
+                <table id="orders-table-prepack-powertools" class="min-w-full table-auto">
+                     <thead class="bg-gray-100">
+                        <tr>
+                          <th class="px-6 py-3 text-left text-sm font-semibold">Ordernummer</th>
+                          <th class="px-6 py-3 text-left text-sm font-semibold hidden md:table-cell">Klant</th>
+                          <th class="px-6 py-3 text-left text-sm font-semibold hidden lg:table-cell">Beschrijving</th>
+                          <th class="px-6 py-3 text-left text-sm font-semibold hidden md:table-cell">Deadline</th>
+                          <th class="px-6 py-3 text-left text-sm font-semibold">Status</th>
+                          <th class="px-6 py-3 text-left text-sm font-semibold hidden md:table-cell">Voortgang</th>
+                          <th class="px-6 py-3 text-left text-sm font-semibold">Acties</th>
+                        </tr>
+                      </thead>
+                    <tbody></tbody>
+                </table>
+            </section>
+            <div id="orders-cards-prepack-powertools" class="md:hidden space-y-4 mt-4"></div>
+        </div>
+    </div>
+
+  </main>
+
+  <!-- Notificatie Container -->
+  <div id="notification-container" class="fixed top-4 right-4 z-50 flex flex-col items-end"></div>
+
+  <!-- Order Details Modal - verbeterd voor tablet -->
+  <div id="order-modal" class="fixed inset-0 flex items-center justify-center z-40 bg-black bg-opacity-50 opacity-0 pointer-events-none" aria-modal="true" role="dialog">
+    <div class="modal-content bg-white rounded-lg w-full max-w-4xl mx-4 transform scale-95 transition-all duration-300">
+      <!-- Sticky header -->
+      <div class="sticky top-0 bg-white z-10 p-6 border-b flex justify-between items-center">
+        <h2 class="text-2xl font-bold">Order Details</h2>
+        <button class="close-modal text-gray-500 hover:text-gray-700 p-2 rounded-full hover:bg-gray-100" aria-label="Sluit modal">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Order Info -->
+      <div class="p-6">
+        <div id="order-info" class="mb-6 bg-blue-50 p-4 rounded-lg">
+          <!-- Order algemene info komt hier -->
+        </div>
+
+        <!-- Actieve Tijdsregistraties -->
+        <section id="active-timelogs" class="mb-8">
+          <h3 class="text-lg font-semibold mb-4">Actieve Tijdsregistraties</h3>
+          <div id="active-timelogs-list" class="space-y-4"></div>
+        </section>
+
+        <!-- Order Items met verbeterde tablet UI -->
+        <section class="mb-8">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold">Items</h3>
+            <button id="optimize-wood-btn" class="bg-purple-600 text-white px-4 py-2 rounded-lg shadow hover:bg-purple-700 tablet-btn">
+              <i class="fas fa-puzzle-piece mr-2"></i>Optimaliseer Houtgebruik
+            </button>
+          </div>
+
+          <!-- Tabel voor grotere schermen -->
+          <div class="overflow-x-auto mb-4 hidden md:block">
+            <table id="order-items-table" class="min-w-full">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-4 py-2">Item</th>
+                  <th class="px-4 py-2">Hoeveelheid</th>
+                  <th class="px-4 py-2">Afgewerkt</th>
+                  <th class="px-4 py-2">Stuklijst</th>
+                  <th class="px-4 py-2">Status</th>
+                  <th class="px-4 py-2">Acties</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Items worden hier dynamisch ingevuld -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Cards voor tablet/mobiel -->
+          <div id="order-items-cards" class="space-y-4 md:hidden">
+            <!-- Item cards worden hier dynamisch ingevuld -->
+          </div>
+        </section>
+
+        <!-- Tijdsregistratie Formulier - tablet vriendelijk -->
+        <div class="bg-gray-50 p-4 rounded-lg shadow">
+          <h3 class="text-lg font-semibold mb-4">Nieuwe Tijdsregistratie</h3>
+          <form id="time-registration-form" class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label for="item-select" class="block text-sm font-medium mb-2">Item</label>
+                <select id="item-select" class="w-full px-3 py-3 border rounded-lg shadow-sm tablet-input" required>
+                  <option value="">Selecteer item</option>
+                </select>
+              </div>
+              <div>
+                <label for="employee-select" class="block text-sm font-medium mb-2">Werknemer</label>
+                <select id="employee-select" class="w-full px-3 py-3 border rounded-lg shadow-sm tablet-input" multiple required></select>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label for="production-step-select" class="block text-sm font-medium mb-2">Productiestap</label>
+                <select id="production-step-select" class="w-full px-3 py-3 border rounded-lg shadow-sm tablet-input" required>
+                  <option value="">Selecteer stap</option>
+                </select>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-3">
+              <button type="button" id="start-time-btn" class="bg-blue-600 text-white px-6 py-3 rounded-lg shadow tablet-btn hover:bg-blue-700">
+                <i class="fas fa-play mr-2"></i>Start
+              </button>
+              <button type="button" id="hout-halen-btn" class="bg-yellow-500 text-white px-6 py-3 rounded-lg shadow tablet-btn hover:bg-yellow-600">
+                <i class="fas fa-truck-loading mr-2"></i>Hout Halen
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stuklijst Modal - verbeterd voor tablet -->
+  <div id="stuklijst-modal" class="fixed inset-0 z-50 hidden" aria-modal="true" role="dialog">
+    <div class="absolute inset-0 bg-black bg-opacity-50"></div>
+    <div class="fixed inset-0 overflow-y-auto">
+      <div class="flex min-h-full items-center justify-center p-4">
+        <div class="relative w-full max-w-3xl bg-white rounded-lg shadow-xl">
+          <div class="p-4 border-b flex justify-between items-center">
+            <h3 class="text-xl font-bold">Stuklijst & Voorgestelde Houtselectie</h3>
+            <button id="close-stuklijst-modal" class="bg-red-500 text-white px-4 py-2 rounded-lg tablet-btn" aria-label="Sluit stuklijst modal">
+              Sluiten
+            </button>
+          </div>
+          <div class="relative max-h-[calc(100vh-12rem)] overflow-y-auto">
+            <div id="stuklijst-details" class="p-4 space-y-4"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Verbeterde Houtoptimalisatie Modal -->
+  <div id="cutting-plan-modal" class="fixed inset-0 z-50 hidden" aria-modal="true" role="dialog">
+    <div class="fixed inset-0 bg-black bg-opacity-50"></div>
+    <div class="fixed inset-0 overflow-y-auto">
+      <div class="flex min-h-full items-center justify-center p-4">
+        <div class="relative bg-white rounded-lg w-full max-w-4xl">
+          <div class="flex items-center justify-between p-4 border-b">
+            <h3 class="text-xl font-bold">Optimale Zaagindeling</h3>
+            <button id="close-cutting-plan-modal" class="text-gray-500 hover:text-gray-700 p-2 rounded-full hover:bg-gray-100" aria-label="Sluit zaagplan modal">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+
+          <div class="p-6 max-h-[70vh] overflow-y-auto">
+            <!-- Algemene statistieken -->
+            <div id="overall-stats" class="mb-6 p-4 bg-blue-50 rounded-lg">
+              <h4 class="font-semibold mb-2">Totale Statistieken:</h4>
+              <div id="overall-stats-content" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+            </div>
+
+            <!-- Materiaallijst -->
+            <div class="mb-6">
+              <h4 class="font-semibold mb-3">Benodigde materialen:</h4>
+              <div id="material-list" class="bg-gray-50 p-4 rounded-lg"></div>
+            </div>
+
+            <!-- Zaagplan visualisatie - tablet vriendelijk -->
+            <div id="cutting-plan-details" class="space-y-6"></div>
+
+            <!-- Locatie Informatie -->
+            <div id="location-info" class="mt-6 p-4 bg-green-50 rounded-lg">
+              <h4 class="font-semibold mb-2">Opslaglocaties:</h4>
+              <div id="storage-locations" class="space-y-2"></div>
+            </div>
+
+            <!-- Legenda -->
+            <div class="mt-6 p-4 bg-gray-50 rounded-lg">
+              <h4 class="font-semibold mb-2">Legenda:</h4>
+              <div class="flex flex-wrap gap-4">
+                <div class="flex items-center">
+                  <span class="w-6 h-6 bg-blue-300 mr-2"></span>
+                  <span>Te gebruiken stuk</span>
+                </div>
+                <div class="flex items-center">
+                  <span class="w-6 h-6 bg-red-300 mr-2"></span>
+                  <span>Zaagsnede (5mm)</span>
+                </div>
+                <div class="flex items-center">
+                  <span class="w-6 h-6 bg-green-300 mr-2"></span>
+                  <span>Herbruikbaar restant</span>
+                </div>
+                <div class="flex items-center">
+                  <span class="w-6 h-6 bg-orange-200 mr-2"></span>
+                  <span>Afval</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Actie knoppen -->
+            <div class="mt-6 flex justify-end">
+              <button id="print-cutting-plan" class="bg-blue-600 text-white px-4 py-2 rounded-lg shadow tablet-btn mr-3">
+                <i class="fas fa-print mr-2"></i>Afdrukken
+              </button>
+              <button id="download-cutting-plan" class="bg-green-600 text-white px-4 py-2 rounded-lg shadow tablet-btn">
+                <i class="fas fa-download mr-2"></i>Downloaden
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+   <!-- Mobiele Filter Modal -->
+  <div id="mobile-filter-modal" class="fixed inset-0 z-50 hidden" aria-modal="true" role="dialog">
+    <div class="absolute inset-0 bg-black bg-opacity-50"></div>
+    <div class="fixed inset-0 overflow-y-auto">
+      <div class="flex min-h-full items-center justify-center p-4">
+        <div class="relative w-full max-w-md bg-white rounded-lg shadow-xl">
+          <div class="flex items-center justify-between p-4 border-b">
+            <h3 class="text-lg font-bold">Filters & Sorteren</h3>
+            <button id="close-filter-modal" class="text-gray-500 hover:text-gray-700 p-2 rounded-full hover:bg-gray-100">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+          <div class="p-4 space-y-4">
+            <div>
+              <label for="mobile-search-input" class="block text-sm font-medium mb-1">Zoeken</label>
+              <input type="text" id="mobile-search-input" placeholder="Zoek orders..." class="w-full px-4 py-3 border rounded-lg shadow-sm">
+            </div>
+            <div>
+              <label for="mobile-status-filter" class="block text-sm font-medium mb-1">Status</label>
+              <select id="mobile-status-filter" class="w-full px-4 py-3 border rounded-lg shadow-sm">
+                <option value="all">Alle statussen (actieve orders)</option>
+                <option value="Open">Open</option>
+                <option value="In uitvoering">In uitvoering</option>
+              </select>
+            </div>
+            <div>
+              <label for="mobile-sort-orders" class="block text-sm font-medium mb-1">Sorteren</label>
+              <select id="mobile-sort-orders" class="w-full px-4 py-3 border rounded-lg shadow-sm">
+                <option value="recent">Meest recent</option>
+                <option value="deadline">Deadline</option>
+                <option value="klant">Klant</option>
+              </select>
+            </div>
+          </div>
+          <div class="p-4 border-t">
+            <button id="apply-mobile-filters" class="w-full bg-blue-600 text-white px-4 py-3 rounded-lg shadow hover:bg-blue-700">
+              Toepassen
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Barcode Scanner Modal -->
+  <div id="barcode-scanner-modal" class="fixed inset-0 z-50 hidden" aria-modal="true" role="dialog">
+    <div class="absolute inset-0 bg-black bg-opacity-75"></div>
+    <div class="fixed inset-0 overflow-y-auto">
+      <div class="flex min-h-full items-center justify-center p-4">
+        <div class="relative w-full max-w-lg bg-white rounded-lg shadow-xl">
+          <div class="flex items-center justify-between p-4 border-b">
+            <h3 class="text-lg font-bold">Scan Order Barcode</h3>
+            <button id="close-barcode-scanner" class="text-gray-500 hover:text-gray-700 p-2 rounded-full hover:bg-gray-100" aria-label="Sluit scanner modal">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+          <div class="p-4">
+            <div id="barcode-scanner-video-container" class="relative w-full h-64 bg-gray-800 rounded overflow-hidden">
+              <video id="barcode-scanner-video" class="absolute inset-0 w-full h-full" playsinline></video>
+              <div id="scanner-overlay" class="absolute inset-0 flex items-center justify-center" style="display: none;">
+                <div class="w-3/4 h-1/2 border-4 border-green-500 rounded-lg"></div>
+              </div>
+            </div>
+            <div id="scanner-message" class="mt-3 text-center">Richt de camera op de barcode.</div>
+            <div class="mt-4 flex flex-col sm:flex-row gap-2">
+              <button id="toggle-flash" class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg flex-1 tablet-btn">
+                <i class="fas fa-bolt mr-2"></i>Flitser aan
+              </button>
+              <button id="switch-camera" class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg flex-1 tablet-btn">
+                <i class="fas fa-camera-rotate mr-2"></i>Wissel Camera
+              </button>
+            </div>
+            <div class="mt-4">
+              <label for="manual-order-number" class="block text-sm font-medium mb-1">Of voer handmatig in:</label>
+              <div class="flex gap-2">
+                <input type="text" id="manual-order-number" placeholder="Ordernummer" class="w-full px-4 py-3 border rounded-lg shadow-sm">
+                <button id="submit-order-number" class="bg-blue-600 text-white px-4 py-3 rounded-lg tablet-btn hover:bg-blue-700">
+                  Zoek
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Zwevende actieknoppen voor tablet/mobiel -->
+  <div class="md:hidden fixed bottom-4 right-4 z-30 space-y-3">
+    <button id="mobile-barcode-scan-btn" class="floating-action-button bg-blue-600 text-white">
+      <i class="fas fa-barcode text-xl"></i>
+    </button>
+    <!-- Placeholder for a potential mobile filter button, if needed -->
+    <!-- <button id="floating-action-btn" class="floating-action-button bg-green-500 text-white">
+      <i class="fas fa-filter text-xl"></i>
+    </button> -->
+  </div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/luxon@3.0.1/build/global/luxon.min.js"></script>
+  <script src="./werkregistratie.js"></script>
+</body>
+</html>
+</html>

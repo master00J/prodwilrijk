@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Items bij Foresco</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="scripts_items_bij_foresco.js" defer></script>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="header-placeholder"></div>
+    <div class="container">
+        <h1>Items bij Foresco</h1>
+        <div id="total-amount" style="font-weight: bold; font-size: 1.2em; margin-bottom: 1em;">Total Amount: 0</div>
+        <input type="text" id="search-bar" placeholder="Search by PO Number or Item Number">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Item Number</th>
+                    <th>PO Number</th>
+                    <th>Amount</th>
+                    <th>Date Added</th>
+                </tr>
+            </thead>
+            <tbody id="foresco-table-body">
+                <!-- Data will be inserted here by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

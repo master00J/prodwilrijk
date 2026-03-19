@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nieuwe Order</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+    <style>
+        #drop-area {
+            border: 2px dashed #ccc;
+            border-radius: 6px;
+            min-height: 150px;
+            transition: all 0.3s ease;
+        }
+        #drop-area.highlight {
+            border-color: #0d6efd;
+            background-color: rgba(13, 110, 253, 0.1);
+        }
+        .material-group {
+            margin-bottom: 0.5rem;
+        }
+        .material-header {
+            cursor: pointer;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            position: relative;
+        }
+        .material-header:hover {
+            background-color: #e9ecef;
+        }
+        .material-items {
+            padding: 10px;
+            border-left: 1px solid #dee2e6;
+            margin-left: 20px;
+            display: none;
+        }
+        .material-badge {
+            float: right;
+            background-color: #6c757d;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+        .material-toggle {
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h2>Nieuwe Order Aanmaken</h2>
+        
+        <!-- XML Import Card -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">XML Import</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <div id="drop-area" class="p-4 text-center">
+                            <p><i class="fas fa-file-import fa-2x mb-2"></i></p>
+                            <p>Sleep XML bestanden hierheen of selecteer ze</p>
+                            <div class="form-group">
+                                <input type="file" class="form-control" id="xml-import" accept=".xml,.txt" multiple>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group mb-3">
+                            <label for="wood-price-per-m3">Houtprijs per m³</label>
+                            <div class="input-group">
+                                <span class="input-group-text">€</span>
+                                <input type="number" class="form-control" id="wood-price-per-m3" value="250" min="0" step="0.01">
+                            </div>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="import-all-items" checked>
+                            <label class="form-check-label" for="import-all-items">
+                                Alle items uit XML importeren
+                            </label>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="prepack-toggle">
+                            <label class="form-check-label" for="prepack-toggle">
+                                Prepack – toon alle materialen
+                            </label>
+                        </div>
+                        <div class="form-group mb-3" id="prepack-division-group" style="display: none;">
+                            <label for="prepack-division">Prepack Divisie</label>
+                            <select class="form-select" id="prepack-division">
+                                <option value="" selected disabled>Kies een divisie...</option>
+                                <option value="Service Center">Service Center</option>
+                                <option value="Kitting">Kitting</option>
+                                <option value="Powertools">Powertools</option>
+                            </select>
+                        </div>
+                        <button type="button" class="btn btn-primary w-100" id="import-btn">
+                            <i class="fas fa-file-import"></i> Order Importeren
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Materiaalcategorieën Card -->
+        <div class="card mb-4" id="material-categories-card" style="display: none;">
+            <div class="card-header">
+                <h5 class="mb-0">Materialen en Prijzen</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">Hieronder staan alle materialen uit de geïmporteerde order. Stel prijzen in per materiaalsoort.</p>
+                
+                <div id="materials-container">
+                    <!-- Hier komen de materiaalcategorieën dynamisch -->
+                    <div class="alert alert-info">
+                        Importeer een XML bestand om materialen te laden.
+                    </div>
+                </div>
+                
+                <div class="text-end mt-3">
+                    <button type="button" class="btn btn-primary" id="apply-material-prices">
+                        <i class="fas fa-check"></i> Prijzen Toepassen
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <form id="order-form">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Order Details</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                <label for="order_nummer">Order Nummer</label>
+                                <input type="text" class="form-control" id="order_nummer" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                <label for="klant">Klant</label>
+                                <input type="text" class="form-control" id="klant" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="form-group mb-3">
+                                <label for="beschrijving">Beschrijving</label>
+                                <textarea class="form-control" id="beschrijving" rows="3"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                <label for="startdatum">Startdatum</label>
+                                <input type="date" class="form-control" id="startdatum" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                <label for="einddatum">Einddatum</label>
+                                <input type="date" class="form-control" id="einddatum" required>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Item Toevoegen</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="form-group mb-3">
+                                <label for="item_naam">Item Naam</label>
+                                <input type="text" class="form-control" id="item_naam" list="items-list">
+                                <datalist id="items-list"></datalist>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="form-group mb-3">
+                                <label for="hoeveelheid">Aantal</label>
+                                <input type="number" class="form-control" id="hoeveelheid" min="1">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="form-group mb-3">
+                                <label for="verkoopprijs">Verkoopprijs</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">€</span>
+                                    <input type="number" class="form-control" id="verkoopprijs" min="0" step="0.01">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="form-group mb-3">
+                                <label for="hout_kost">Hout Kost</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">€</span>
+                                    <input type="number" class="form-control" id="hout_kost" min="0" step="0.01">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="form-group mb-3">
+                                <label for="hulpstoffen">Hulpstoffen</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">€</span>
+                                    <input type="number" class="form-control" id="hulpstoffen" min="0" step="0.01">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Stuklijst invoer -->
+                    <h5 class="mt-4">Stuklijst (Hout benodigd per item)</h5>
+                    <p class="text-muted">Voeg per houttype in hoeveel er nodig is voor 1 item. Als je "Aantal" 5 invult, worden deze stuklijstwaarden dus 5x toegepast.</p>
+                    <table class="table" id="stuklijst-table">
+                        <thead>
+                            <tr>
+                                <th>Houtsoort</th>
+                                <th>Dikte (mm)</th>
+                                <th>Breedte (mm)</th>
+                                <th>Lengte (mm)</th>
+                                <th>Aantal</th>
+                                <th>Acties</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-secondary" id="add-stuklijst-row-btn">Rij toevoegen</button>
+                        <button type="button" class="btn btn-primary" id="add-item-btn">
+                            <i class="fas fa-plus"></i> Item Toevoegen
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Items Overzicht</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table" id="items-table">
+                            <thead>
+                                <tr>
+                                    <th>Item</th>
+                                    <th>Aantal</th>
+                                    <th>Verkoopprijs</th>
+                                    <th>Hout Kost</th>
+                                    <th>Hulpstoffen</th>
+                                    <th>Verkoop Totaal</th>
+                                    <th>Kost Totaal</th>
+                                    <th>Marge</th>
+                                    <th>Acties</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                            <tfoot>
+                                <tr class="table-info">
+                                    <td colspan="5" class="text-end"><strong>Totaal:</strong></td>
+                                    <td id="totaal-verkoop">€ 0.00</td>
+                                    <td id="totaal-kost">€ 0.00</td>
+                                    <td id="totaal-marge">€ 0.00</td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-footer">
+                <button type="button" class="btn btn-info me-2" id="show-material-usage-btn">
+                    <i class="fas fa-list-alt"></i> Materiaalverbruik per Item
+                </button>
+                <button type="submit" class="btn btn-success" id="submit-order">
+                    <i class="fas fa-save"></i> Order Opslaan
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="add_order.js"></script>
+</body>
+</html>

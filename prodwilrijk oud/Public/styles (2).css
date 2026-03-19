@@ -1,0 +1,261 @@
+/* Root variabelen voor consistente styling */
+:root {
+    --font-family: Arial, sans-serif;
+    --color-background: #f0f0f0;
+    --color-white: #ffffff;
+    --color-black: #000000;
+    --color-gray-light: #f2f2f2;
+    --color-gray-medium: #ddd;
+    --color-gray-dark: #333333;
+    --color-primary: #28a745;
+    --color-primary-dark: #218838;
+    --font-size-base: 16px;
+    --font-size-large: 18px;
+    --font-size-xlarge: 28px;
+    --padding-small: 10px;
+    --padding-base: 12px;
+    --padding-large: 15px;
+    --border-radius: 6px;
+    --transition-duration: 0.3s;
+}
+
+/* Globale stijl voor body */
+body {
+    font-family: var(--font-family);
+    margin: 0;
+    padding: 0;
+    background-color: var(--color-background);
+}
+
+/* Header styling */
+.header {
+    background-color: var(--color-gray-dark);
+    overflow: hidden;
+    text-align: center;
+}
+
+.header a {
+    color: var(--color-white);
+    display: inline-block;
+    padding: 14px 16px;
+    text-decoration: none;
+    font-size: var(--font-size-large);
+    transition: background-color var(--transition-duration) ease;
+}
+
+.header a:hover {
+    background-color: var(--color-gray-medium);
+    color: var(--color-black);
+}
+
+/* Container styling */
+.container {
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+    padding: var(--padding-large);
+    background-color: var(--color-white);
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    border-radius: var(--border-radius);
+    box-sizing: border-box;
+}
+
+/* Kopteksten */
+h1, h2 {
+    text-align: center;
+    margin-bottom: 20px;
+    font-size: var(--font-size-xlarge);
+}
+
+/* Tabel styling */
+.table-container {
+    overflow-x: auto;
+    margin-bottom: 20px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-base);
+}
+
+th,
+td {
+    border: 1px solid var(--color-gray-medium);
+    padding: var(--padding-base);
+    text-align: center;
+    white-space: nowrap;
+}
+
+th {
+    background-color: var(--color-gray-light);
+    font-size: var(--font-size-large);
+}
+
+td {
+    font-size: var(--font-size-base);
+}
+
+/* Flexibele inputvelden */
+input, select {
+    width: 100%;
+    padding: var(--padding-base);
+    box-sizing: border-box;
+}
+
+/* Verzendknop volledig schermvullend */
+#send-email {
+    width: 100%;
+    padding: 15px;
+    background-color: var(--color-primary);
+    color: white;
+    border: none;
+    font-size: var(--font-size-large);
+    border-radius: var(--border-radius);
+    text-align: center;
+    cursor: pointer;
+    margin-top: 20px;
+}
+
+#send-email:hover {
+    background-color: var(--color-primary-dark);
+}
+
+/* Wisselende rijkleuren */
+table tbody tr:nth-child(odd) {
+    background-color: var(--color-white);
+}
+
+table tbody tr:nth-child(even) {
+    background-color: var(--color-gray-light);
+}
+
+/* Grotere checkboxes */
+input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+}
+
+/* Responsieve styling */
+@media (max-width: 1024px) {
+    .container {
+        padding: var(--padding-base);
+    }
+
+    h1, h2 {
+        font-size: 24px;
+    }
+
+    table {
+        font-size: var(--font-size-base);
+    }
+
+    th, td {
+        padding: var(--padding-small);
+    }
+
+    #send-email {
+        padding: var(--padding-base);
+    }
+}
+
+@media (max-width: 768px) {
+    .container {
+        padding: var(--padding-small);
+    }
+
+    .header a {
+        display: block;
+        margin: 0 auto;
+    }
+
+    h1, h2 {
+        font-size: 22px;
+    }
+
+    table {
+        font-size: 14px;
+    }
+
+    th, td {
+        padding: 8px;
+    }
+
+    #send-email {
+        font-size: var(--font-size-base);
+    }
+}
+
+@media (max-width: 480px) {
+    .container {
+        padding: var(--padding-small);
+    }
+
+    h1, h2 {
+        font-size: 20px;
+    }
+
+    table {
+        font-size: 12px;
+    }
+
+    th, td {
+        padding: 6px;
+    }
+
+    #send-email {
+        font-size: 14px;
+    }
+}
+
+/* styles.css */
+
+/* Maak de actieve tijdsregistraties lijst aantrekkelijker */
+#active-timelogs-list .list-group-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#active-timelogs-list .badge {
+    margin-left: 10px;
+}
+
+/* Verhoog de grootte van de modal inhoud indien nodig */
+.modal-dialog.modal-xl {
+    max-width: 90%;
+}
+
+
+/* Print styles */
+@media print {
+    body {
+        margin: 0;
+        padding: 1cm;
+        box-sizing: border-box;
+        background-color: var(--color-white);
+    }
+
+    .header,
+    #send-email {
+        display: none;
+    }
+
+    .container {
+        box-shadow: none;
+        width: 100%;
+        padding: 0;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    th,
+    td {
+        border: 1px solid var(--color-black);
+        padding: 8px;
+        text-align: left;
+    }
+}

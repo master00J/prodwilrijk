@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="nl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Prepack vergelijking (BC vs Website)</title>
+    <!-- UI libs -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet" />
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; margin: 0; background:#f6f7fb; color:#10121a; }
+        nav.navbar { width:100%; margin:0; }
+        .container-page { padding: 24px; }
+        .hero { background: linear-gradient(180deg,#fff,#f6f7fb); border:1px solid #e9eef9; border-radius:16px; padding:24px; margin-bottom:16px; }
+        .hero h1 { font-size: 22px; margin:0 0 6px 0; }
+        .hero p { margin:0; color:#5e667a; }
+        .card { background: #ffffff; border: 1px solid #e9eef9; border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+        label { display:block; margin:8px 0 6px; color:#5e667a; font-size:14px; }
+        input, select, button { font-size:16px; }
+        input[type="file"], input[type="date"], input[type="text"], select { background:#ffffff; color:#10121a; border:1px solid #dfe4f1; border-radius:10px; padding:10px; width:100%; }
+        .btn-primary { background: linear-gradient(180deg, #3b6af6, #2f55d6); border:0; }
+        table { width:100%; border-collapse: collapse; }
+        th, td { border-bottom: 1px solid rgba(0,0,0,0.06); padding: 8px; text-align:left; }
+        .grid { display:grid; grid-template-columns: 1fr 1fr; gap:16px; }
+        @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+        .muted { color:#5e667a; font-size:13px; }
+        .pill { display:inline-block; padding:6px 10px; border:1px solid #dfe4f1; border-radius:999px; margin-right:6px; }
+        .ok { color:#1fb681; }
+        .warn { color:#f2b300; }
+        .bad { color:#d23b57; }
+        .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    </style>
+</head>
+<body>
+    <div id="headerMount"></div>
+    <script>
+    (function loadHeader() {
+        const mount = document.getElementById('headerMount');
+        function addCss(href, id) {
+            if (document.getElementById(id)) return Promise.resolve();
+            return new Promise((resolve) => {
+                const link = document.createElement('link');
+                link.id = id; link.rel = 'stylesheet'; link.href = href; link.onload = resolve; document.head.appendChild(link);
+            });
+        }
+        function addScript(src, id) {
+            if (document.getElementById(id)) return Promise.resolve();
+            return new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.id = id; s.src = src; s.onload = resolve; s.onerror = reject; document.head.appendChild(s);
+            });
+        }
+        Promise.all([
+            addCss('https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css', 'bootstrap-css'),
+            addCss('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css', 'fa-css'),
+            (window.jQuery ? Promise.resolve() : addScript('https://code.jquery.com/jquery-3.7.1.min.js', 'jquery-js'))
+        ]).then(() => addScript('https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js', 'bootstrap-js'))
+          .then(() => fetch('/header.html'))
+          .then(r => r.text())
+          .then(html => {
+              const doc = new DOMParser().parseFromString(html, 'text/html');
+              const style = doc.querySelector('head style');
+              if (style && !document.getElementById('header-inline-style')) {
+                  const st = document.createElement('style'); st.id = 'header-inline-style'; st.textContent = style.textContent; document.head.appendChild(st);
+              }
+              const nav = doc.querySelector('nav.navbar');
+              if (nav && mount) mount.replaceWith(nav);
+              doc.querySelectorAll('script').forEach(orig => {
+                  const s = document.createElement('script');
+                  if (orig.src) { s.src = orig.src; } else { s.textContent = orig.textContent; }
+                  document.body.appendChild(s);
+              });
+          })
+          .catch(err => console.warn('Header laden mislukt:', err));
+    })();
+    </script>
+    <div class="container-page">
+        <div class="hero">
+            <h1><i class="fa-solid fa-clipboard-check me-2"></i>Vergelijking BC vs Website-scans</h1>
+            <p>Upload een Business Central export en vergelijk met de website-scans. Afwijkingen en historiek worden hieronder getoond.</p>
+        </div>
+
+        <div class="card">
+            <form id="frm" enctype="multipart/form-data">
+                <div class="grid">
+                    <div>
+                        <label for="bc_files">BC Excel (.xlsx) — meerdere toegestaan</label>
+                        <input type="file" id="bc_files" name="bc_files" accept=".xlsx,.xls" multiple required style="display:none" />
+                        <div id="dropzone" class="card" style="border:2px dashed #bfc7dc; background:#f9fbff; text-align:center; padding:18px; cursor:pointer;">
+                            <div><i class="fa-solid fa-cloud-arrow-up" style="font-size:22px; color:#3b6af6"></i></div>
+                            <div style="margin-top:6px;">Sleep je Excel-bestanden hierheen of klik om te kiezen</div>
+                            <div class="muted" style="margin-top:4px;">Toegestaan: .xlsx, .xls — meervoudig</div>
+                        </div>
+                        <ul id="fileList" class="mt-2" style="list-style:none; padding-left:0; margin:8px 0 0 0;"></ul>
+                    </div>
+                    <div>
+                        <label for="bcNoCol">BC kolom No. (letter)</label>
+                        <input type="text" id="bcNoCol" name="bcNoCol" value="B" />
+                        <label for="bcRegisteredCol" class="mt-2">BC kolom Registered (letter)</label>
+                        <input type="text" id="bcRegisteredCol" name="bcRegisteredCol" value="S" />
+                        <label for="cmpDay" class="mt-2">Dag voor vergelijking</label>
+                        <input type="date" id="cmpDay" />
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-3 mt-3">
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-file-arrow-up me-2"></i>Uploaden en vergelijken</button>
+                    <label class="muted d-inline-flex align-items-center gap-2">
+                        <input type="checkbox" id="persistSession" /> Sessie bewaren (met afwijkingen)
+                    </label>
+                </div>
+            </form>
+        </div>
+
+        <div id="result" class="card" style="display:none">
+        <h3>Resultaat</h3>
+        <div id="summary" style="margin-bottom:10px;"></div>
+        <div id="runMeta" class="muted" style="margin:-4px 0 10px 0;"></div>
+        <div class="grid">
+            <div>
+                <h4>Alleen in BC</h4>
+                <table id="tblOnlyBC"><thead><tr><th>PAC</th></tr></thead><tbody></tbody></table>
+            </div>
+            <div>
+                <h4>Alleen in Website</h4>
+                <table id="tblOnlyTab"><thead><tr><th>PAC</th></tr></thead><tbody></tbody></table>
+            </div>
+        </div>
+        </div>
+
+        <div class="card">
+        <h3>Historiek</h3>
+        <div class="grid">
+            <div>
+                <label for="histDay">Dag</label>
+                <input type="date" id="histDay" />
+            </div>
+            <div>
+                <label for="histSession">Sessie</label>
+                <select id="histSession"><option value="">Alle sessies</option></select>
+            </div>
+            <div>
+                <label for="histLoc">Locatie</label>
+                <select id="histLoc">
+                    <option value="ALL">Alle</option>
+                    <option value="3PL">3PL</option>
+                    <option value="Service center">Service center</option>
+                    <option value="Powertools">Powertools</option>
+                </select>
+            </div>
+            <div style="align-self:end;">
+                <button id="btnLoadHist" type="button" class="btn btn-primary"><i class="fa-solid fa-rotate me-2"></i>Ophalen</button>
+            </div>
+        </div>
+        <div id="histSummary" class="muted" style="margin:10px 0"></div>
+        <div id="sessionBox" class="muted" style="margin:10px 0"></div>
+        <div id="diffBox" style="display:none; margin:10px 0;">
+            <details style="margin-bottom:8px;">
+                <summary>Afwijkingen: Alleen in BC (<span id="cntOnlyBc">0</span>)</summary>
+                <div id="onlyBcWrap" style="max-height:160px; overflow:auto; border:1px solid #dfe4f1; border-radius:8px; padding:8px; margin-top:6px;"></div>
+            </details>
+            <details>
+                <summary>Afwijkingen: Alleen in Website (<span id="cntOnlyWeb">0</span>)</summary>
+                <div id="onlyWebWrap" style="max-height:160px; overflow:auto; border:1px solid #dfe4f1; border-radius:8px; padding:8px; margin-top:6px;"></div>
+            </details>
+            <details>
+                <summary>Matches (<span id="cntMatches">0</span>)</summary>
+                <div id="matchesWrap" style="max-height:160px; overflow:auto; border:1px solid #dfe4f1; border-radius:8px; padding:8px; margin-top:6px;"></div>
+            </details>
+            <div style="margin-top:8px; display:flex; gap:8px;">
+                <button id="btnDownloadDiffs" type="button" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-file-arrow-down me-2"></i>Download afwijkingen (CSV)</button>
+            </div>
+        </div>
+        <div style="max-height:400px; overflow:auto;">
+            <table>
+                <thead><tr><th>Tijd</th><th>Barcode</th><th>Locatie</th><th>Notitie</th><th>Sessie</th><th>BC</th><th>Website</th></tr></thead>
+                <tbody id="histRows"></tbody>
+            </table>
+        </div>
+        </div>
+    </div>
+
+    <script>
+    const frm = document.getElementById('frm');
+    const result = document.getElementById('result');
+    const summary = document.getElementById('summary');
+    const tblOnlyBC = document.querySelector('#tblOnlyBC tbody');
+    const tblOnlyTab = document.querySelector('#tblOnlyTab tbody');
+    // Top-sectie datumfilters verwijderd
+    const histDay = document.getElementById('histDay');
+    const histLoc = document.getElementById('histLoc');
+    const btnLoadHist = document.getElementById('btnLoadHist');
+    const histRows = document.getElementById('histRows');
+    const histSummary = document.getElementById('histSummary');
+    const sessionBox = document.getElementById('sessionBox');
+    const runMeta = document.getElementById('runMeta');
+    const diffBox = document.getElementById('diffBox');
+    const onlyBcWrap = document.getElementById('onlyBcWrap');
+    const onlyWebWrap = document.getElementById('onlyWebWrap');
+    const matchesWrap = document.getElementById('matchesWrap');
+    const cntOnlyBc = document.getElementById('cntOnlyBc');
+    const cntOnlyWeb = document.getElementById('cntOnlyWeb');
+    const cntMatches = document.getElementById('cntMatches');
+    const btnDownloadDiffs = document.getElementById('btnDownloadDiffs');
+    const persistSession = document.getElementById('persistSession');
+    const cmpDay = document.getElementById('cmpDay');
+    const dropzone = document.getElementById('dropzone');
+    const bcFilesInput = document.getElementById('bc_files');
+    const fileList = document.getElementById('fileList');
+
+    function renderFileList(files){
+        const arr = Array.from(files || []);
+        fileList.innerHTML = arr.map(f => `<li class="mono" style="padding:6px 8px; border:1px solid #e9eef9; border-radius:8px; margin-top:6px; display:flex; justify-content:space-between; align-items:center;">
+            <span>${f.name}</span>
+            <span class="muted">${Math.max(1, Math.round(f.size/1024))} KB</span>
+        </li>`).join('');
+    }
+
+    function mergeFilesIntoInput(newFiles){
+        const current = bcFilesInput.files;
+        const dt = new DataTransfer();
+        Array.from(current).forEach(f => dt.items.add(f));
+        Array.from(newFiles).forEach(f => dt.items.add(f));
+        bcFilesInput.files = dt.files;
+        renderFileList(bcFilesInput.files);
+    }
+
+    dropzone.addEventListener('click', () => bcFilesInput.click());
+    dropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropzone.style.background = '#eef3ff';
+        dropzone.style.borderColor = '#3b6af6';
+    });
+    dropzone.addEventListener('dragleave', () => {
+        dropzone.style.background = '#f9fbff';
+        dropzone.style.borderColor = '#bfc7dc';
+    });
+    dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.style.background = '#f9fbff';
+        dropzone.style.borderColor = '#bfc7dc';
+        const files = Array.from(e.dataTransfer.files || []).filter(f => /\.xlsx$|\.xls$/i.test(f.name));
+        if (files.length) mergeFilesIntoInput(files);
+    });
+    bcFilesInput.addEventListener('change', () => renderFileList(bcFilesInput.files));
+
+    function fmt(d){ const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
+    // Geen quick range in top-sectie
+
+    const histSession = document.getElementById('histSession');
+    async function loadHistory() {
+        const params = new URLSearchParams();
+        const d = (histDay.value || '').trim();
+        if (d) params.set('day', d);
+        const loc = histLoc.value;
+        if (loc && loc !== 'ALL') params.set('location', loc);
+        const sid = (histSession.value || '').trim();
+        if (sid) params.set('session_id', sid);
+        const resp = await fetch('/api/prepack/history?' + params.toString());
+        if (!resp.ok) { alert('Historiek ophalen mislukt'); return; }
+        const data = await resp.json();
+        if (!data.success) { alert(data.error || 'Fout'); return; }
+        if (d) {
+            // dagdetail
+            histSummary.innerHTML = `Totaal: <strong>${data.summary.total}</strong> — Uniek: <strong>${data.summary.unique}</strong>`;
+            histRows.innerHTML = '';
+            const bcNameForDay = (data.session && data.session.bc_employee && data.session.bc_employee.name) ? data.session.bc_employee.name : '';
+            for (const r of (data.entries || [])) {
+                const tr = document.createElement('tr');
+                const bcCell = r.bc_employee_name || bcNameForDay || '-';
+                tr.innerHTML = `<td>${r.ts || ''}</td><td class=\"mono\">${r.code}</td><td>${r.location || ''}</td><td>${r.note || ''}</td><td>${r.session_id ? ('#'+r.session_id) : ''}</td><td>${bcCell}</td><td>${r.employee_name || '-'}</td>`;
+                histRows.appendChild(tr);
+            }
+            // sessie / afwijkingen
+            if (data.session) {
+                const s = data.session;
+                sessionBox.innerHTML = `Sessie ${s.id ? ('#'+s.id) : ''} —`+
+                    ` BC: <strong>${s.bc_employee?.name || '-'}</strong>,`+
+                    ` Website: <strong>${s.web_employee?.name || '-'}</strong>`+
+                    `<br>Afwijkingen — Alleen in BC: <strong>${(s.only_in_bc||[]).length}</strong>; Alleen in Website: <strong>${(s.only_in_web||[]).length}</strong>`;
+                // Toon de lijsten
+                const renderList = (wrap, arr) => { wrap.innerHTML = arr.map(v => `<div class="mono">${v}</div>`).join(''); };
+                renderList(onlyBcWrap, s.only_in_bc || []);
+                renderList(onlyWebWrap, s.only_in_web || []);
+                renderList(matchesWrap, s.matches || []);
+                cntOnlyBc.textContent = (s.only_in_bc||[]).length;
+                cntOnlyWeb.textContent = (s.only_in_web||[]).length;
+                cntMatches.textContent = (s.matches||[]).length;
+                diffBox.style.display = '';
+                btnDownloadDiffs.onclick = () => {
+                    const rows = [['Side','PAC']]
+                        .concat((s.only_in_bc||[]).map(v => ['BC_ONLY', v]))
+                        .concat((s.only_in_web||[]).map(v => ['WEB_ONLY', v]))
+                        .concat((s.matches||[]).map(v => ['MATCH', v]));
+                    const csv = rows.map(r => r.map(x => '"' + String(x).replace(/"/g,'""') + '"').join(',')).join('\r\n');
+                    const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = 'prepack_diffs_' + (histDay.value || 'dag') + '.csv';
+                    document.body.appendChild(a); a.click(); a.remove();
+                };
+            } else {
+                // Toon dag-niveau afwijkingen indien aanwezig (gebaseerd op geüploade sessies)
+                if (data.day_diffs) {
+                    const dd = data.day_diffs;
+                    sessionBox.innerHTML = `Dag-afwijkingen — BC totaal: <strong>${dd.bc_total_sum}</strong>, Website totaal: <strong>${dd.web_total_sum}</strong>`;
+                    const renderList = (wrap, arr) => { wrap.innerHTML = arr.map(v => `<div class="mono">${v}</div>`).join(''); };
+                    renderList(onlyBcWrap, dd.only_in_bc || []);
+                    renderList(onlyWebWrap, dd.only_in_web || []);
+                    if (typeof matchesWrap !== 'undefined' && typeof cntMatches !== 'undefined') {
+                        renderList(matchesWrap, dd.matches || []);
+                        cntMatches.textContent = (dd.matches||[]).length;
+                    }
+                    cntOnlyBc.textContent = (dd.only_in_bc||[]).length;
+                    cntOnlyWeb.textContent = (dd.only_in_web||[]).length;
+                    diffBox.style.display = '';
+                    btnDownloadDiffs.onclick = () => {
+                        const rows = [['Side','PAC']]
+                            .concat((dd.only_in_bc||[]).map(v => ['BC_ONLY', v]))
+                            .concat((dd.only_in_web||[]).map(v => ['WEB_ONLY', v]))
+                            .concat((dd.matches||[]).map(v => ['MATCH', v]));
+                        const csv = rows.map(r => r.map(x => '"' + String(x).replace(/"/g,'""') + '"').join(',')).join('\r\n');
+                        const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+                        const a = document.createElement('a');
+                        a.href = URL.createObjectURL(blob);
+                        a.download = 'prepack_diffs_' + d + '.csv';
+                        document.body.appendChild(a); a.click(); a.remove();
+                    };
+                } else {
+                    sessionBox.innerHTML = '';
+                    diffBox.style.display = 'none';
+                }
+            }
+        } else {
+            // overzicht per dag + dag-afwijkingen indien beschikbaar
+            histSummary.innerHTML = 'Laatste dagen:';
+            histRows.innerHTML = '';
+            for (const r of (data.days || [])) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${r.day}</td><td>Totaal: ${r.total} — Uniek: ${r.unique_codes}</td><td>3PL: ${r.cnt_3pl} | SC: ${r.cnt_service} | PT: ${r.cnt_powertools}</td><td></td>`;
+                histRows.appendChild(tr);
+            }
+            // Verberg diffBox als er geen dag geselecteerd is
+            sessionBox.innerHTML = '';
+            diffBox.style.display = 'none';
+        }
+    }
+    btnLoadHist.addEventListener('click', loadHistory);
+
+    // Laad sessies bij dag-selectie
+    async function refreshSessions() {
+        const d = (histDay.value || '').trim();
+        if (!d) { histSession.innerHTML = '<option value="">Alle sessies</option>'; return; }
+        const resp = await fetch('/api/prepack/sessions?day=' + encodeURIComponent(d));
+        if (!resp.ok) { histSession.innerHTML = '<option value="">Alle sessies</option>'; return; }
+        const data = await resp.json();
+        const list = (data && data.sessions) ? data.sessions : [];
+        histSession.innerHTML = '<option value="">Alle sessies</option>' + list.map(s => `<option value="${s.id}">#${s.id}${s.label?(' - '+s.label):''}</option>`).join('');
+    }
+    histDay.addEventListener('change', refreshSessions);
+
+    frm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = new FormData(frm);
+        // Geen datumfilters in de bovenste sectie
+        if (persistSession.checked) fd.set('persistSession', 'true');
+        const chosen = (cmpDay.value || '').trim();
+        if (chosen) {
+            fd.set('from', chosen);
+            fd.set('to', chosen);
+        }
+        const resp = await fetch('/api/prepack/compare-bc', { method: 'POST', body: fd });
+        if (!resp.ok) { alert('Vergelijken mislukt'); return; }
+        const data = await resp.json();
+        if (!data.success) { alert(data.error || 'Fout'); return; }
+
+        // Summary
+        summary.innerHTML = ''
+            + `<span class="pill">BC totaal: <strong>${data.summary.bc_total}</strong></span>`
+            + `<span class="pill">Website totaal: <strong>${data.summary.tablet_total}</strong></span>`
+            + `<span class="pill bad">Alleen in BC: <strong>${data.summary.only_in_bc}</strong></span>`
+            + `<span class="pill warn">Alleen in Website: <strong>${data.summary.only_in_tablet}</strong></span>`
+            + `<span class="pill ok">Match (uniek): <strong>${data.summary.matched_unique}</strong></span>`;
+
+        // Toon alleen sessie-id indien beschikbaar
+        const sessionNote = data.session_id ? `Sessie #${data.session_id}` : '';
+        runMeta.innerHTML = sessionNote;
+
+        // Tabellen
+        const fill = (tbody, arr) => {
+            tbody.innerHTML = '';
+            for (const v of arr) {
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.textContent = v;
+                td.className = 'mono';
+                tr.appendChild(td);
+                tbody.appendChild(tr);
+            }
+        };
+        fill(tblOnlyBC, data.only_in_bc || []);
+        fill(tblOnlyTab, data.only_in_tablet || []);
+
+        result.style.display = '';
+
+    });
+    </script>
+</body>
+</html>

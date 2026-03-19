@@ -1,0 +1,1349 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wilrijk - Admin Dashboard</title>
+  <!-- Bootstrap CSS + Font Awesome -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --secondary: #64748b;
+      --success: #10b981;
+      --success-dark: #059669;
+      --warning: #f59e0b;
+      --warning-dark: #d97706;
+      --info: #06b6d4;
+      --info-dark: #0891b2;
+      --danger: #ef4444;
+      --danger-dark: #dc2626;
+      --light: #f8fafc;
+      --dark: #1e293b;
+      --gray-100: #f1f5f9;
+      --gray-200: #e2e8f0;
+      --gray-300: #cbd5e1;
+      --gray-400: #94a3b8;
+      --gray-500: #64748b;
+      --gray-600: #475569;
+      --gray-700: #334155;
+      --gray-800: #1e293b;
+      --gray-900: #0f172a;
+      
+      --primary-gradient: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      --success-gradient: linear-gradient(135deg, var(--success), var(--success-dark));
+      --warning-gradient: linear-gradient(135deg, var(--warning), var(--warning-dark));
+      --info-gradient: linear-gradient(135deg, var(--info), var(--info-dark));
+      
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      
+      --border-radius-sm: 0.25rem;
+      --border-radius: 0.375rem;
+      --border-radius-md: 0.5rem;
+      --border-radius-lg: 0.75rem;
+      --border-radius-xl: 1rem;
+    }
+    
+    body {
+      background-color: var(--gray-100);
+      color: var(--gray-800);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    
+    /* Sidebar styles */
+    .sidebar {
+      background-color: white;
+      height: 100vh;
+      position: fixed;
+      width: 250px;
+      box-shadow: var(--shadow);
+      z-index: 1030;
+      transition: all 0.3s;
+    }
+    
+    .sidebar-header {
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--gray-200);
+    }
+    
+    .sidebar-logo {
+      color: var(--primary);
+      font-size: 1.5rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .sidebar-nav {
+      padding: 1rem 0;
+    }
+    
+    .nav-item {
+      margin-bottom: 0.25rem;
+    }
+    
+    .nav-link {
+      color: var(--gray-600);
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      border-radius: 0;
+      transition: all 0.2s;
+    }
+    
+    .nav-link:hover {
+      color: var(--primary);
+      background-color: var(--gray-100);
+    }
+    
+    .nav-link.active {
+      color: var(--primary);
+      background-color: rgba(37, 99, 235, 0.1);
+      border-left: 3px solid var(--primary);
+    }
+    
+    .nav-link i {
+      width: 20px;
+      text-align: center;
+    }
+    
+    /* Main content styles */
+    .main-content {
+      margin-left: 250px;
+      padding: 1.5rem;
+      min-height: 100vh;
+      transition: all 0.3s;
+    }
+    
+    /* Card styling */
+    .dashboard-card {
+      background: white;
+      border-radius: var(--border-radius-lg);
+      border: none;
+      box-shadow: var(--shadow);
+      height: 100%;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .dashboard-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+    
+    .stat-card {
+      border: none;
+      border-radius: var(--border-radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+    
+    .stat-card.primary { background: var(--primary-gradient); }
+    .stat-card.success { background: var(--success-gradient); }
+    .stat-card.warning { background: var(--warning-gradient); }
+    .stat-card.info { background: var(--info-gradient); }
+    
+    .stat-icon {
+      font-size: 2rem;
+      opacity: 0.8;
+    }
+    
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: white;
+    }
+    
+    .stat-label {
+      color: rgba(255, 255, 255, 0.8);
+      font-weight: 500;
+      font-size: 0.9rem;
+      margin-bottom: 0;
+    }
+    
+    .stat-change {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: var(--border-radius);
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-top: 0.5rem;
+    }
+    
+    .stat-change.positive { 
+      background-color: rgba(16, 185, 129, 0.2);
+      color: var(--success);
+    }
+    
+    .stat-change.negative { 
+      background-color: rgba(239, 68, 68, 0.2);
+      color: var(--danger);
+    }
+    
+    /* Tab styling */
+    .custom-tabs .nav-link {
+      color: var(--gray-600);
+      font-weight: 500;
+      padding: 0.75rem 1.25rem;
+      border: none;
+      border-radius: var(--border-radius-md);
+      margin-right: 0.5rem;
+      transition: all 0.2s;
+    }
+    
+    .custom-tabs .nav-link:hover {
+      color: var(--primary);
+      background-color: rgba(37, 99, 235, 0.05);
+    }
+    
+    .custom-tabs .nav-link.active {
+      color: white;
+      background: var(--primary-gradient);
+      border: none;
+    }
+    
+    /* Table styling */
+    .table-container {
+      background: white;
+      border-radius: var(--border-radius-lg);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    
+    .table-header {
+      background-color: var(--gray-50);
+      padding: 1rem;
+      border-bottom: 1px solid var(--gray-200);
+    }
+    
+    .table thead th {
+      background-color: var(--gray-100);
+      color: var(--gray-700);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+      padding: 0.75rem 1rem;
+      border-top: none;
+      border-bottom: 1px solid var(--gray-200);
+    }
+    
+    .table tbody tr {
+      transition: all 0.2s;
+    }
+    
+    .table tbody tr:hover {
+      background-color: rgba(37, 99, 235, 0.05);
+    }
+    
+    .active-order {
+      background-color: rgba(16, 185, 129, 0.1) !important;
+    }
+    
+    /* Badge styling */
+    .status-badge {
+      padding: 0.35em 0.65em;
+      font-weight: 600;
+      font-size: 0.75rem;
+      border-radius: var(--border-radius);
+    }
+    
+    /* Progress bar */
+    .progress {
+      height: 8px;
+      border-radius: var(--border-radius);
+      background-color: var(--gray-200);
+    }
+    
+    /* Filter controls */
+    .filter-container {
+      background-color: white;
+      border-radius: var(--border-radius-lg);
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+      box-shadow: var(--shadow);
+    }
+    
+    .filter-label {
+      font-weight: 600;
+      color: var(--gray-700);
+      margin-bottom: 0.5rem;
+    }
+    
+    .filter-control {
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      border-radius: var(--border-radius);
+      border: 1px solid var(--gray-300);
+      transition: all 0.2s;
+    }
+    
+    .filter-control:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+    }
+    
+    /* Buttons */
+    .btn-primary {
+      background: var(--primary-gradient);
+      border: none;
+      font-weight: 500;
+    }
+    
+    .btn-success {
+      background: var(--success-gradient);
+      border: none;
+      font-weight: 500;
+    }
+    
+    /* Modal styling */
+    .modal-content {
+      border-radius: var(--border-radius-lg);
+      border: none;
+      overflow: hidden;
+    }
+    
+    .modal-header {
+      background-color: var(--gray-100);
+      border-bottom: 1px solid var(--gray-200);
+      padding: 1.25rem 1.5rem;
+    }
+    
+    .modal-footer {
+      background-color: var(--gray-100);
+      border-top: 1px solid var(--gray-200);
+      padding: 1.25rem 1.5rem;
+    }
+    
+    /* Dashboard summary cards */
+    .summary-card {
+      background: white;
+      border-radius: var(--border-radius-lg);
+      padding: 1.5rem;
+      height: 100%;
+      box-shadow: var(--shadow);
+    }
+    
+    .summary-title {
+      font-weight: 600;
+      color: var(--gray-700);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    /* Chart container */
+    .chart-container {
+      background: white;
+      border-radius: var(--border-radius-lg);
+      padding: 1.5rem;
+      box-shadow: var(--shadow);
+      margin-bottom: 1.5rem;
+    }
+    
+    /* Responsive sidebar */
+    @media (max-width: 991.98px) {
+      .sidebar {
+        margin-left: -250px;
+      }
+      
+      .sidebar.active {
+        margin-left: 0;
+      }
+      
+      .main-content {
+        margin-left: 0;
+      }
+      
+      .main-content.active {
+        margin-left: 250px;
+      }
+    }
+    
+    /* Toggle button for sidebar */
+    #sidebarCollapse {
+      display: none;
+    }
+    
+    @media (max-width: 991.98px) {
+      #sidebarCollapse {
+        display: block;
+        position: fixed;
+        top: 1rem;
+        left: 1rem;
+        z-index: 1040;
+      }
+    }
+    
+    /* Fixing some spacing on mobile */
+    @media (max-width: 767.98px) {
+      .main-content {
+        padding: 1rem;
+      }
+      
+      .stat-card {
+        margin-bottom: 1rem;
+      }
+    }
+  </style>
+  <style>
+  /* Dark Theme Styles */
+body.dark-theme {
+  --primary: #3b82f6;
+  --primary-dark: #2563eb;
+  --secondary: #64748b;
+  --success: #10b981;
+  --success-dark: #059669;
+  --warning: #f59e0b;
+  --warning-dark: #d97706;
+  --info: #06b6d4;
+  --info-dark: #0891b2;
+  --danger: #ef4444;
+  --danger-dark: #dc2626;
+  --light: #1e293b;
+  --dark: #f8fafc;
+  --gray-100: #1e293b;
+  --gray-200: #334155;
+  --gray-300: #475569;
+  --gray-400: #64748b;
+  --gray-500: #94a3b8;
+  --gray-600: #cbd5e1;
+  --gray-700: #e2e8f0;
+  --gray-800: #f1f5f9;
+  --gray-900: #f8fafc;
+  
+  --primary-gradient: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  --success-gradient: linear-gradient(135deg, var(--success), var(--success-dark));
+  --warning-gradient: linear-gradient(135deg, var(--warning), var(--warning-dark));
+  --info-gradient: linear-gradient(135deg, var(--info), var(--info-dark));
+  
+  background-color: #0f172a;
+  color: #e2e8f0;
+}
+
+/* Sidebar Dark Theme */
+body.dark-theme .sidebar {
+  background-color: #1e293b;
+  box-shadow: 1px 0 3px rgba(0, 0, 0, 0.2);
+}
+
+body.dark-theme .sidebar-header {
+  border-bottom: 1px solid #334155;
+}
+
+body.dark-theme .nav-link {
+  color: #e2e8f0;
+}
+
+body.dark-theme .nav-link:hover {
+  background-color: #334155;
+  color: white;
+}
+
+body.dark-theme .nav-link.active {
+  background-color: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
+}
+
+/* Cards Dark Theme */
+body.dark-theme .dashboard-card,
+body.dark-theme .summary-card,
+body.dark-theme .chart-container,
+body.dark-theme .filter-container,
+body.dark-theme .table-container,
+body.dark-theme .card {
+  background-color: #1e293b;
+  border: none;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+}
+
+body.dark-theme .card-header {
+  background-color: #1e293b;
+  border-bottom: 1px solid #334155;
+}
+
+body.dark-theme .card-title {
+  color: #e2e8f0;
+}
+
+/* Table Dark Theme */
+body.dark-theme .table {
+  color: #e2e8f0;
+}
+
+body.dark-theme .table-light th {
+  background-color: #334155 !important;
+  color: #e2e8f0;
+  border-color: #475569;
+}
+
+body.dark-theme .table tbody tr {
+  border-color: #334155;
+}
+
+body.dark-theme .table tbody tr:hover {
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+body.dark-theme .active-order {
+  background-color: rgba(16, 185, 129, 0.1) !important;
+}
+
+body.dark-theme .table tbody td {
+  border-color: #334155;
+}
+
+/* Form Controls Dark Theme */
+body.dark-theme .form-select,
+body.dark-theme .form-control,
+body.dark-theme .input-group-text {
+  background-color: #334155;
+  border-color: #475569;
+  color: #e2e8f0;
+}
+
+body.dark-theme .form-select:focus,
+body.dark-theme .form-control:focus {
+  background-color: #334155;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 0.25rem rgba(59, 130, 246, 0.25);
+  color: #e2e8f0;
+}
+
+body.dark-theme .form-label {
+  color: #e2e8f0;
+}
+
+/* Buttons Dark Theme */
+body.dark-theme .btn-outline-primary {
+  color: #3b82f6;
+  border-color: #3b82f6;
+}
+
+body.dark-theme .btn-outline-primary:hover {
+  background-color: #3b82f6;
+  color: white;
+}
+
+body.dark-theme .btn-secondary {
+  background-color: #64748b;
+  border-color: #64748b;
+}
+
+/* Modal Dark Theme */
+body.dark-theme .modal-content {
+  background-color: #1e293b;
+  border: none;
+}
+
+body.dark-theme .modal-header {
+  background-color: #1e293b;
+  border-bottom: 1px solid #334155;
+}
+
+body.dark-theme .modal-footer {
+  background-color: #1e293b;
+  border-top: 1px solid #334155;
+}
+
+/* Alerts Dark Theme */
+body.dark-theme .alert-info {
+  background-color: rgba(6, 182, 212, 0.2);
+  border-color: rgba(6, 182, 212, 0.3);
+  color: #06b6d4;
+}
+
+body.dark-theme .alert-danger {
+  background-color: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
+body.dark-theme .alert-warning {
+  background-color: rgba(245, 158, 11, 0.2);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #f59e0b;
+}
+
+body.dark-theme .alert-success {
+  background-color: rgba(16, 185, 129, 0.2);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #10b981;
+}
+
+/* Progress Bars Dark Theme */
+body.dark-theme .progress {
+  background-color: #334155;
+}
+
+/* Text colors */
+body.dark-theme .text-muted {
+  color: #94a3b8 !important;
+}
+
+/* Dropdown Dark Theme */
+body.dark-theme .dropdown-menu {
+  background-color: #1e293b;
+  border-color: #334155;
+}
+
+body.dark-theme .dropdown-item {
+  color: #e2e8f0;
+}
+
+body.dark-theme .dropdown-item:hover,
+body.dark-theme .dropdown-item:focus {
+  background-color: rgba(59, 130, 246, 0.1);
+  color: white;
+}
+
+/* Toast Dark Theme */
+body.dark-theme .toast {
+  background-color: #1e293b;
+  border-color: #334155;
+}
+
+body.dark-theme .toast-header {
+  background-color: #1e293b;
+  border-bottom-color: #334155;
+  color: #e2e8f0;
+}
+
+/* Collapsed Sidebar Styles */
+.sidebar.collapsed {
+  width: 70px;
+}
+
+.sidebar.collapsed .sidebar-logo span,
+.sidebar.collapsed .nav-link span {
+  display: none;
+}
+
+.sidebar.collapsed .nav-link {
+  justify-content: center;
+  padding: 0.75rem;
+}
+
+.sidebar.collapsed .nav-link i {
+  margin-right: 0;
+  font-size: 1.25rem;
+}
+
+.main-content.expanded {
+  margin-left: 70px;
+}
+</style>
+</head>
+<body>
+  <!-- Sidebar Toggle Button (visible on mobile) -->
+  <button type="button" id="sidebarCollapse" class="btn btn-primary d-md-none">
+    <i class="fas fa-bars"></i>
+  </button>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <i class="fas fa-tree"></i>
+        <span>Wilrijk</span>
+      </div>
+    </div>
+    
+    <div class="sidebar-nav">
+      <ul class="nav flex-column">
+        <li class="nav-item">
+          <a href="index.html" class="nav-link">
+            <i class="fas fa-home"></i>
+            <span>Home</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="admin.html" class="nav-link active">
+            <i class="fas fa-clipboard-list"></i>
+            <span>Orders</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="add_order.html" class="nav-link">
+            <i class="fas fa-plus-circle"></i>
+            <span>Nieuwe Order</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <div>
+        <h1 class="h3 mb-0">Order Management</h1>
+        <p class="text-muted">Beheer en controleer de voortgang van alle orders</p>
+      </div>
+      <div class="d-flex gap-2">
+        <button class="btn btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#exportModal">
+          <i class="fas fa-file-export me-2"></i>Exporteren
+        </button>
+        <a href="add_order.html" class="btn btn-primary">
+          <i class="fas fa-plus me-2"></i>Nieuwe Order
+        </a>
+      </div>
+    </div>
+
+    <!-- Custom Tabs -->
+    <ul class="nav nav-pills custom-tabs mb-4" id="adminTab" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="orders-tab" data-bs-toggle="tab" data-bs-target="#orders-tab-pane" type="button" role="tab" aria-controls="orders-tab-pane" aria-selected="true">
+          <i class="fas fa-clipboard-list me-2"></i>Orders
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="zaag-tab" data-bs-toggle="tab" data-bs-target="#zaag-tab-pane" type="button" role="tab" aria-controls="zaag-tab-pane" aria-selected="false">
+          <i class="fas fa-cut me-2"></i>Zaag Dashboard
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="analytics-tab" data-bs-toggle="tab" data-bs-target="#analytics-tab-pane" type="button" role="tab" aria-controls="analytics-tab-pane" aria-selected="false">
+          <i class="fas fa-chart-line me-2"></i>Order Analytics
+        </button>
+      </li>
+    </ul>
+
+    <div class="tab-content" id="adminTabContent">
+      <!-- ORDERS TAB -->
+      <div class="tab-pane fade show active" id="orders-tab-pane" role="tabpanel" aria-labelledby="orders-tab">
+        <!-- Statistics Cards -->
+        <div class="row mb-4">
+          <div class="col-md-3">
+            <div class="stat-card primary">
+              <div class="card-body">
+                <div class="d-flex justify-content-between">
+                  <div>
+                    <p class="stat-label">Actieve Orders</p>
+                    <h2 class="stat-value" id="active-orders-count">-</h2>
+                  </div>
+                  <div class="stat-icon">
+                    <i class="fas fa-clipboard-list"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="stat-card success">
+              <div class="card-body">
+                <div class="d-flex justify-content-between">
+                  <div>
+                    <p class="stat-label">Afgewerkte Orders</p>
+                    <h2 class="stat-value" id="completed-orders-count">-</h2>
+                  </div>
+                  <div class="stat-icon">
+                    <i class="fas fa-check-circle"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="stat-card warning">
+              <div class="card-body">
+                <div class="d-flex justify-content-between">
+                  <div>
+                    <p class="stat-label">Totaal Items</p>
+                    <h2 class="stat-value" id="total-items-count">-</h2>
+                  </div>
+                  <div class="stat-icon">
+                    <i class="fas fa-boxes"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="stat-card info">
+              <div class="card-body">
+                <div class="d-flex justify-content-between">
+                  <div>
+                    <p class="stat-label">Actieve Werknemers</p>
+                    <h2 class="stat-value" id="active-workers-count">-</h2>
+                  </div>
+                  <div class="stat-icon">
+                    <i class="fas fa-users"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter Controls -->
+        <div class="filter-container mb-4">
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label for="order-status-filter" class="filter-label">Status Filter</label>
+              <select id="order-status-filter" class="form-select">
+                <option value="all">Alle Orders</option>
+                <option value="active">Actieve Orders</option>
+                <option value="completed">Afgewerkte Orders</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label for="start-date-filter" class="filter-label">Startdatum</label>
+              <input type="date" id="start-date-filter" class="form-control">
+            </div>
+            <div class="col-md-3">
+              <label for="end-date-filter" class="filter-label">Einddatum</label>
+              <input type="date" id="end-date-filter" class="form-control">
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+              <button id="apply-date-filter" class="btn btn-primary w-100">
+                <i class="fas fa-filter me-2"></i>Filter Toepassen
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Orders Table -->
+        <div class="table-container mb-4">
+          <div class="d-flex justify-content-between align-items-center p-3 border-bottom">
+            <h5 class="mb-0">Orders Overzicht</h5>
+            <button id="export-all-excel" class="btn btn-success btn-sm">
+              <i class="fas fa-file-excel me-2"></i>Exporteer Alles
+            </button>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover mb-0" id="admin-orders-table">
+              <thead>
+                <tr>
+                  <th>Ordernummer</th>
+                  <th>Klant</th>
+                  <th>Beschrijving</th>
+                  <th>Startdatum</th>
+                  <th>Einddatum</th>
+                  <th>Status</th>
+                  <th>Totale Tijd</th>
+                  <th>Voortgang</th>
+                  <th>Narrowcast</th>
+                  <th>Acties</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Dynamisch gevuld via admin.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ZAAG DASHBOARD TAB -->
+      <div class="tab-pane fade" id="zaag-tab-pane" role="tabpanel" aria-labelledby="zaag-tab">
+        <div class="alert alert-info mb-4">
+          <i class="fas fa-info-circle me-2"></i>
+          <strong>Tip:</strong> De zaagstatistieken laten zien hoe efficiënt het zaagproces verloopt. Kijk naar de verhouding tussen zaaguren en hout halen om processen te optimaliseren.
+        </div>
+        
+        <div id="zaag-dashboard-container">
+          <div class="text-center p-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-3 text-muted">Zaag statistieken worden geladen...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ORDER ANALYTICS TAB -->
+      <div class="tab-pane fade" id="analytics-tab-pane" role="tabpanel" aria-labelledby="analytics-tab">
+        <div class="alert alert-info mb-4">
+          <i class="fas fa-lightbulb me-2"></i>
+          <strong>Inzicht:</strong> Analyseer afgewerkte orders om bottlenecks te ontdekken, klantenpatronen te herkennen en je planning te verbeteren.
+        </div>
+
+        <div id="order-analytics-loading" class="text-center py-5">
+          <div class="spinner-border text-primary" role="status"></div>
+          <p class="mt-3 text-muted">Analytics worden geladen...</p>
+        </div>
+
+        <div id="order-analytics-content" class="d-none">
+          <!-- Filters -->
+          <div class="filter-container mb-4">
+            <div class="row g-3 align-items-end">
+              <div class="col-lg-3 col-md-6">
+                <label class="filter-label" for="analytics-period">Tijdsperiode</label>
+                <select class="form-select" id="analytics-period">
+                  <option value="7">Laatste 7 dagen</option>
+                  <option value="30" selected>Laatste 30 dagen</option>
+                  <option value="90">Laatste 90 dagen</option>
+                  <option value="365">Laatste 12 maanden</option>
+                  <option value="custom">Aangepaste periode</option>
+                </select>
+              </div>
+              <div class="col-lg-4 col-md-6" id="analytics-custom-range" style="display: none;">
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <label class="filter-label" for="analytics-start-date">Startdatum</label>
+                    <input type="date" class="form-control" id="analytics-start-date">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="filter-label" for="analytics-end-date">Einddatum</label>
+                    <input type="date" class="form-control" id="analytics-end-date">
+                  </div>
+                </div>
+              </div>
+              <div class="col-lg-3 col-md-6">
+                <label class="filter-label" for="analytics-customer">Klant</label>
+                <select class="form-select" id="analytics-customer">
+                  <option value="all">Alle klanten</option>
+                </select>
+              </div>
+              <div class="col-lg-2 col-md-6">
+                <button class="btn btn-outline-secondary w-100" id="analytics-reset">
+                  <i class="fas fa-undo me-2"></i>Reset filters
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Metrics -->
+          <div class="row g-3 mb-4">
+            <div class="col-lg-3 col-md-6">
+              <div class="stat-card success">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                      <p class="stat-label">Afgewerkte Orders</p>
+                      <h2 class="stat-value" id="analytics-total-completed">-</h2>
+                    </div>
+                    <div class="stat-icon">
+                      <i class="fas fa-check-circle"></i>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+              <div class="stat-card info">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                      <p class="stat-label">Orders per week</p>
+                      <h2 class="stat-value" id="analytics-throughput">-</h2>
+                    </div>
+                    <div class="stat-icon">
+                      <i class="fas fa-tachometer-alt"></i>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+              <div class="stat-card warning">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                      <p class="stat-label">Gem. doorlooptijd</p>
+                      <h2 class="stat-value" id="analytics-avg-lead-time">-</h2>
+                    </div>
+                    <div class="stat-icon">
+                      <i class="fas fa-stopwatch"></i>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+              <div class="stat-card primary">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                      <p class="stat-label">Totale productie uren</p>
+                      <h2 class="stat-value" id="analytics-total-hours">-</h2>
+                    </div>
+                    <div class="stat-icon">
+                      <i class="fas fa-industry"></i>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="alert alert-warning d-none" id="order-analytics-empty">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            Geen afgewerkte orders gevonden binnen de geselecteerde filters.
+          </div>
+
+          <!-- Charts -->
+          <div class="row g-4 mb-4">
+            <div class="col-lg-8">
+              <div class="card dashboard-card h-100">
+                <div class="card-header bg-light border-0">
+                  <h5 class="mb-0">Afgewerkte orders per dag</h5>
+                </div>
+                <div class="card-body">
+                  <div class="chart-container" style="height: 300px;">
+                    <canvas id="analytics-orders-trend"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-4">
+              <div class="card dashboard-card h-100">
+                <div class="card-header bg-light border-0">
+                  <h5 class="mb-0">Doorlooptijd verdeling</h5>
+                </div>
+                <div class="card-body">
+                  <div class="chart-container" style="height: 300px;">
+                    <canvas id="analytics-leadtime-distribution"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tables -->
+          <div class="row g-4 mb-4">
+            <div class="col-lg-6">
+              <div class="card dashboard-card h-100">
+                <div class="card-header bg-light border-0 d-flex justify-content-between align-items-center">
+                  <h5 class="mb-0">Top klanten</h5>
+                  <button class="btn btn-sm btn-outline-primary" id="analytics-customers-export">
+                    <i class="fas fa-download me-2"></i>Exporteren
+                  </button>
+                </div>
+                <div class="card-body">
+                  <div class="chart-container mb-4" style="height: 220px;">
+                    <canvas id="analytics-customer-chart"></canvas>
+                  </div>
+                  <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="analytics-top-customers-table">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Klant</th>
+                          <th>Orders</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td colspan="3" class="text-center text-muted">Nog geen gegevens</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-6">
+              <div class="card dashboard-card h-100">
+                <div class="card-header bg-light border-0 d-flex justify-content-between align-items-center">
+                  <h5 class="mb-0">Langste doorlooptijden</h5>
+                  <button class="btn btn-sm btn-outline-primary" id="analytics-slowest-export">
+                    <i class="fas fa-download me-2"></i>Exporteren
+                  </button>
+                </div>
+                <div class="card-body">
+                  <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="analytics-slowest-orders-table">
+                      <thead>
+                        <tr>
+                          <th>Order</th>
+                          <th>Klant</th>
+                          <th>Doorlooptijd</th>
+                          <th>Afgewerkt op</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td colspan="4" class="text-center text-muted">Nog geen gegevens</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Insights -->
+          <div class="card border-0 shadow-sm">
+            <div class="card-header bg-light border-0">
+              <h5 class="mb-0">Belangrijkste inzichten</h5>
+            </div>
+            <div class="card-body">
+              <ul class="list-unstyled mb-0" id="analytics-insights-list">
+                <li class="text-muted">Analytics worden geladen...</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div> <!-- /tab-content -->
+  </div> <!-- /container-fluid -->
+
+  <!-- Narrowcast Settings Modal -->
+  <div class="modal fade" id="narrowcastSettingsModal" tabindex="-1" style="z-index: 1070 !important;">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <i class="fas fa-tv me-2"></i>Narrowcast instellingen
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label text-muted">Order</label>
+            <div id="narrowcast-order-info" class="fw-semibold">-</div>
+          </div>
+          <div class="mb-3">
+            <label for="narrowcast-sequence-input" class="form-label">Productie volgorde</label>
+            <div class="input-group">
+              <input type="number" min="1" class="form-control" id="narrowcast-sequence-input" placeholder="Geen vaste volgorde">
+              <button class="btn btn-outline-secondary" type="button" id="narrowcast-sequence-auto">
+                <i class="fas fa-sort-numeric-down me-1"></i>Volgende
+              </button>
+              <button class="btn btn-outline-danger" type="button" id="narrowcast-sequence-clear">
+                <i class="fas fa-times-circle me-1"></i>Leegmaken
+              </button>
+            </div>
+            <div class="form-text">Laat leeg om deze order niet op een vaste plek te pinnen.</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Toon op schermen</label>
+            <div id="narrowcast-locations-container" class="d-flex flex-wrap gap-2">
+              <span class="text-muted small">Locaties worden geladen...</span>
+            </div>
+            <div class="form-text">
+              Selecteer één of meerdere schermen. Kies <span class="fw-semibold">All Displays</span> om overal te tonen.
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+          <button type="button" class="btn btn-primary" id="narrowcast-save-btn">
+            <i class="fas fa-save me-2"></i>Opslaan
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Narrowcast Settings Modal for ITEMS -->
+  <div class="modal fade" id="narrowcastItemSettingsModal" tabindex="-1" style="z-index: 1070 !important;">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <i class="fas fa-tv me-2"></i>Item Narrowcast instellingen
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label text-muted">Item</label>
+            <div id="narrowcast-item-info" class="fw-semibold">-</div>
+          </div>
+          <div class="mb-3">
+            <label for="narrowcast-item-sequence-input" class="form-label">Productie volgorde</label>
+            <div class="input-group">
+              <input type="number" min="1" class="form-control" id="narrowcast-item-sequence-input" placeholder="Geen vaste volgorde">
+              <button class="btn btn-outline-secondary" type="button" id="narrowcast-item-sequence-auto">
+                <i class="fas fa-sort-numeric-down me-1"></i>Volgende
+              </button>
+              <button class="btn btn-outline-danger" type="button" id="narrowcast-item-sequence-clear">
+                <i class="fas fa-times-circle me-1"></i>Leegmaken
+              </button>
+            </div>
+            <div class="form-text">Laat leeg om dit item niet op narrowcast te tonen.</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Toon op schermen</label>
+            <div id="narrowcast-item-locations-container" class="d-flex flex-wrap gap-2">
+              <span class="text-muted small">Locaties worden geladen...</span>
+            </div>
+            <div class="form-text">
+              Selecteer één of meerdere schermen. Kies <span class="fw-semibold">All Displays</span> om overal te tonen.
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+          <button type="button" class="btn btn-primary" id="narrowcast-item-save-btn">
+            <i class="fas fa-save me-2"></i>Opslaan
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Order Details Modal -->
+  <div class="modal fade" id="orderDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Order Details</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <!-- Wordt dynamisch gevuld door admin.js -->
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" onclick="exportTimeRegistrationsToExcel()">
+            <i class="fas fa-file-excel me-2"></i>Exporteer naar Excel
+          </button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Sluiten</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Export Modal -->
+  <div class="modal fade" id="exportModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Exporteer Gegevens</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Exporteer Type</label>
+            <select class="form-select" id="export-type">
+              <option value="all_orders">Alle Orders</option>
+              <option value="active_orders">Alleen Actieve Orders</option>
+              <option value="completed_orders">Alleen Afgewerkte Orders</option>
+              <option value="production_summary">Productie Samenvatting</option>
+              <option value="financial_report">Financieel Rapport</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Datumbereik</label>
+            <div class="input-group">
+              <input type="date" class="form-control" id="export-start-date">
+              <span class="input-group-text">tot</span>
+              <input type="date" class="form-control" id="export-end-date">
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Bestandsformaat</label>
+            <div class="d-flex gap-2">
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="export-format" id="format-excel" value="excel" checked>
+                <label class="form-check-label" for="format-excel">Excel</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="export-format" id="format-csv" value="csv">
+                <label class="form-check-label" for="format-csv">CSV</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="export-format" id="format-pdf" value="pdf">
+                <label class="form-check-label" for="format-pdf">PDF</label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+          <button type="button" class="btn btn-primary" onclick="exportAllOrdersToExcel()">
+            <i class="fas fa-download me-2"></i>Exporteren
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Preferences Modal -->
+<div class="modal fade" id="preferencesModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Instellingen</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label for="prefs-theme" class="form-label">Thema</label>
+          <select class="form-select" id="prefs-theme">
+            <option value="light">Licht</option>
+            <option value="dark">Donker</option>
+          </select>
+        </div>
+        
+        <div class="mb-3">
+          <label for="prefs-table-rows" class="form-label">Rijen per tabel</label>
+          <input type="number" class="form-control" id="prefs-table-rows" min="5" max="100">
+        </div>
+        
+        <div class="mb-3">
+          <label for="prefs-refresh-interval" class="form-label">Automatisch vernieuwen (seconden)</label>
+          <input type="number" class="form-control" id="prefs-refresh-interval" min="0" max="3600">
+          <div class="form-text">0 = uitgeschakeld</div>
+        </div>
+        
+        <div class="mb-3">
+          <label for="prefs-date-format" class="form-label">Datumformaat</label>
+          <select class="form-select" id="prefs-date-format">
+            <option value="dd/MM/yyyy">DD/MM/JJJJ</option>
+            <option value="MM/dd/yyyy">MM/DD/JJJJ</option>
+            <option value="yyyy-MM-dd">JJJJ-MM-DD</option>
+          </select>
+        </div>
+        
+        <div class="mb-3">
+          <label for="prefs-sidebar" class="form-label">Zijbalk</label>
+          <select class="form-select" id="prefs-sidebar">
+            <option value="expanded">Uitgeklapt</option>
+            <option value="collapsed">Ingeklapt</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+        <button type="button" class="btn btn-primary btn-save-prefs">Opslaan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+  <!-- Bootstrap + dependencies -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  
+  <!-- Custom JS for sidebar toggle -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const sidebarCollapse = document.getElementById('sidebarCollapse');
+      const sidebar = document.querySelector('.sidebar');
+      const mainContent = document.querySelector('.main-content');
+      
+      if (sidebarCollapse) {
+        sidebarCollapse.addEventListener('click', function() {
+          sidebar.classList.toggle('active');
+          mainContent.classList.toggle('active');
+        });
+      }
+    });
+  </script>
+  
+  <!-- Jouw admin.js -->
+  <script src="admin.js"></script>
+</body>
+</html>
+
+

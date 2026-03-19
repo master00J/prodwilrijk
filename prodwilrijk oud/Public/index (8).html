@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prodwilrijk - Dashboard</title>
+    
+    <!-- CSS Libraries -->
+    <link 
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" 
+      rel="stylesheet"
+    >
+    <link 
+      rel="stylesheet" 
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    >
+    
+    <!-- React & Recharts Libraries (specifieke versies) -->
+    <script src="https://unpkg.com/prop-types@15.8.1/prop-types.js"></script>
+    <script src="https://unpkg.com/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.7.2/Recharts.js"></script>
+
+    <!-- Chart.js als fallback -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- (optioneel) je eigen jquery.min.js -->
+    <script src="/jquery.min.js"></script>
+
+    <style>
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .container {
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 3rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            position: relative;
+            padding-bottom: 15px;
+        }
+
+        h1:after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100px;
+            height: 4px;
+            background: linear-gradient(to right, #3498db, #2ecc71);
+            border-radius: 2px;
+        }
+
+        .dashboard {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .dashboard-section {
+            background: white;
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .dashboard-section h2 {
+            color: #2c3e50;
+            margin-bottom: 1.5rem;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 10px;
+            padding: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-icon {
+            font-size: 2rem;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-content {
+            flex: 1;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #6c757d;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-time {
+            font-size: 0.8rem;
+            color: #adb5bd;
+        }
+
+        .chart-container {
+            width: 100%;
+            height: 400px;
+            margin-top: 1rem;
+            background: white;
+            border-radius: 8px;
+            padding: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        #analysis-chart {
+            width: 100%;
+            height: 100%;
+        }
+
+        .department-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+            padding: 1rem;
+            margin-top: 2rem;
+        }
+
+        .department-card {
+            background: white;
+            border-radius: 15px;
+            padding: 2rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .department-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .department-card:before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 5px;
+            background: linear-gradient(to right, #3498db, #2ecc71);
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform 0.3s ease;
+        }
+
+        .department-card:hover:before {
+            transform: scaleX(1);
+        }
+
+        .department-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: #3498db;
+            transition: transform 0.3s ease;
+        }
+
+        .department-name {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+
+        .department-description {
+            font-size: 0.9rem;
+            color: #7f8c8d;
+            line-height: 1.4;
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .container {
+                padding: 1rem;
+            }
+
+            h1 {
+                font-size: 1.75rem;
+                margin-bottom: 2rem;
+            }
+        }
+
+        .updated {
+            animation: highlight 1s ease;
+        }
+        @keyframes highlight {
+            0% { background-color: yellow; }
+            100% { background-color: inherit; }
+        }
+
+        .analysis-summary {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 1rem;
+        }
+
+        .department-summary {
+            margin-bottom: 1rem;
+            padding: 1rem;
+            background: white;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .department-summary h4 {
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .analysis-point {
+            padding-left: 1.5rem;
+            position: relative;
+            margin-bottom: 0.5rem;
+        }
+
+        .analysis-point:before {
+            content: "•";
+            position: absolute;
+            left: 0.5rem;
+            color: #6c757d;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .loading i {
+            margin-right: 10px;
+        }
+
+        .alert {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        .alert-danger {
+            background-color: #fee2e2;
+            border: 1px solid #ef4444;
+            color: #991b1b;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background-color: #2563eb;
+            color: white;
+            border: none;
+        }
+
+        .btn-primary:hover {
+            background-color: #1d4ed8;
+        }
+
+        .mt-3 {
+            margin-top: 1rem;
+        }
+
+        .tasks-list li {
+            list-style: none;
+            margin-bottom: 0.5rem;
+        }
+
+        .badge-high {
+            background-color: #dc2626;
+            color: white;
+        }
+
+        .badge-medium {
+            background-color: #fbbf24;
+            color: black;
+        }
+
+        .badge-low {
+            background-color: #10b981;
+            color: white;
+        }
+        
+        /* Updates weergave */
+        .updates-container {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .update-item {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid #3498db;
+        }
+        .update-item:last-child {
+            margin-bottom: 0;
+        }
+        .update-title {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+        .update-message {
+            color: #666;
+            margin-bottom: 0.5rem;
+        }
+        .update-time {
+            font-size: 0.8rem;
+            color: #999;
+        }
+
+    </style>
+</head>
+<body>
+    
+    <!-- Header laden (optioneel) -->
+    <div id="header-placeholder"></div>
+
+    <div class="container">
+        <h1>Welkom bij Prodwilrijk</h1>
+        
+        <!-- Waarschuwingssectie voor lage voorraad -->
+        <div id="dashboard-messages" class="mb-3"></div>
+        
+        <!-- Updates Sectie -->
+        <div class="dashboard-section updates">
+            <h2><i class="fas fa-bell"></i> Updates</h2>
+            <div id="updates-list" class="updates-container">
+                <!-- Updates worden hier dynamisch geladen -->
+            </div>
+        </div>
+
+        <!-- Taken Sectie (bovenaan) in 3 kolommen -->
+        <div class="dashboard-section tasks">
+            <h2><i class="fas fa-tasks"></i> Taken</h2>
+            <p>Overdue, vandaag en morgen uit te voeren taken:</p>
+            <div id="tasks-container" class="tasks-list">
+                <!-- Taken worden hier dynamisch geladen -->
+            </div>
+            <div class="mt-3">
+                <a href="/tasks.html" class="btn btn-primary">
+                    <i class="fas fa-arrow-right"></i> Naar de volledige takenpagina
+                </a>
+            </div>
+        </div>
+
+        <div class="dashboard">
+            <!-- Prepack Section -->
+            <div class="dashboard-section prepack">
+                <h2><i class="fas fa-box-open"></i> Prepack Status</h2>
+                <div class="stats-grid">
+                    <div class="stat-card incoming">
+                        <div class="stat-icon">
+                            <i class="fas fa-truck-loading"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="prepack-incoming">0</div>
+                            <div class="stat-label">Inkomende Goederen</div>
+                            <div class="stat-time">Live update</div>
+                        </div>
+                    </div>
+                    <div class="stat-card to-pack">
+                        <div class="stat-icon">
+                            <i class="fas fa-boxes"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="prepack-to-pack">0</div>
+                            <div class="stat-label">Te Verpakken</div>
+                            <div class="stat-time">Live Update</div>
+                        </div>
+                    </div>
+                    <div class="stat-card packed">
+                        <div class="stat-icon">
+                            <i class="fas fa-box-check"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="prepack-packed">0</div>
+                            <div class="stat-label">Verpakt</div>
+                            <div class="stat-time">Live Update</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Airtec Section -->
+            <div class="dashboard-section airtec">
+                <h2><i class="fas fa-wind"></i> Airtec Status</h2>
+                <div class="stats-grid">
+                    <div class="stat-card incoming">
+                        <div class="stat-icon">
+                            <i class="fas fa-truck-loading"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="airtec-incoming">0</div>
+                            <div class="stat-label">Inkomende Goederen</div>
+                            <div class="stat-time">Live update</div>
+                        </div>
+                    </div>
+                    <div class="stat-card to-pack">
+                        <div class="stat-icon">
+                            <i class="fas fa-boxes"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="airtec-to-pack">0</div>
+                            <div class="stat-label">Te Verwerken</div>
+                            <div class="stat-time">Live Update</div>
+                        </div>
+                    </div>
+                    <div class="stat-card packed">
+                        <div class="stat-icon">
+                            <i class="fas fa-box-check"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="airtec-packed">0</div>
+                            <div class="stat-label">Verwerkt</div>
+                            <div class="stat-time">Live Update</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analyse Section -->
+            <div class="dashboard-section analysis">
+                <h2><i class="fas fa-chart-line"></i> Dagelijkse Analyse</h2>
+                <div class="chart-container">
+                    <div id="analysis-chart"></div>
+                </div>
+                <div id="daily-analysis" class="stat-card">
+                    <div class="stat-content">
+                        <div class="stat-label">Analyseresultaat</div>
+                        <div id="analysis-result">Laad analyse...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Department Cards -->
+        <div class="department-grid">
+            <div class="department-card" onclick="window.location.href='/prepack.html'">
+                <i class="department-icon fas fa-box-open"></i>
+                <div class="department-name">Prepack</div>
+                <div class="department-description">Beheer Prepack</div>
+            </div>
+
+            <div class="department-card" onclick="window.location.href='/airtec.html'">
+                <i class="department-icon fas fa-wind"></i>
+                <div class="department-name">Airtec</div>
+                <div class="department-description">Beheer Airtec</div>
+            </div>
+
+            <div class="department-card" onclick="window.location.href='/hout_picking.html'">
+                <i class="department-icon fas fa-tree"></i>
+                <div class="department-name">Houtvoorraad</div>
+                <div class="department-description">Beheer Hout</div>
+            </div>
+
+            <div class="department-card" onclick="window.location.href='/zagen.html'">
+                <i class="department-icon fas fa-hammer"></i>
+                <div class="department-name">Zagen</div>
+                <div class="department-description">Zaagwerkzaamheden en materiaalbewerking</div>
+            </div>
+
+            <div class="department-card" onclick="window.location.href='/assemblage.html'">
+                <i class="department-icon fas fa-tools"></i>
+                <div class="department-name">Assemblage</div>
+                <div class="department-description">Product samenstelling en montage</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script 
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js">
+    </script>
+    <!-- Custom JS / Dashboard logica -->
+    <script>
+    $(document).ready(function() {
+        // Laad eventueel een header in (optioneel)
+        $("#header-placeholder").load("/header.html", function() {
+            initializeApp();
+        });
+
+        function initializeApp() {
+            const elements = {
+                prepackIncoming: document.getElementById('prepack-incoming'),
+                prepackToPack: document.getElementById('prepack-to-pack'),
+                prepackPacked: document.getElementById('prepack-packed'),
+                airtecIncoming: document.getElementById('airtec-incoming'),
+                airtecToPack: document.getElementById('airtec-to-pack'),
+                airtecPacked: document.getElementById('airtec-packed'),
+                analysisResult: document.getElementById('analysis-result'),
+                analysisChart: document.getElementById('analysis-chart')
+            };
+
+            // ---------------------
+            //   UPDATES LADEN
+            // ---------------------
+            function escapeHtml(str) {
+                if (!str) return '';
+                const div = document.createElement('div');
+                div.textContent = str;
+                return div.innerHTML;
+            }
+            function formatDate(dateString) {
+                if (!dateString) return '';
+                const date = new Date(dateString);
+                return date.toLocaleString('nl-NL', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            }
+            async function loadUpdates() {
+                try {
+                    const response = await fetch('/api/announcements');
+                    const updates = await response.json();
+                    
+                    const updatesList = document.getElementById('updates-list');
+                    if (!updatesList) return;
+
+                    if (!updates || updates.length === 0) {
+                        updatesList.innerHTML = `
+                            <div class="text-center text-muted p-4">
+                                Geen updates beschikbaar
+                            </div>`;
+                        return;
+                    }
+
+                    updatesList.innerHTML = updates.map(update => `
+                        <div class="update-item">
+                            <div class="update-title">${escapeHtml(update.title)}</div>
+                            <div class="update-message">${escapeHtml(update.message)}</div>
+                            <div class="update-time">
+                                ${formatDate(update.created_at)}
+                            </div>
+                        </div>
+                    `).join('');
+                } catch (error) {
+                    console.error('Error loading updates:', error);
+                    const updatesList = document.getElementById('updates-list');
+                    if (updatesList) {
+                        updatesList.innerHTML = `
+                            <div class="alert alert-danger">
+                                Kon updates niet laden: ${error.message}
+                            </div>`;
+                    }
+                }
+            }
+            loadUpdates();
+            // Ververs updates elke 5 minuten
+            setInterval(loadUpdates, 300000);
+
+            // ---------------------
+            //   TAKEN LADEN
+            // ---------------------
+            function fetchTasks() {
+                const tasksContainer = document.getElementById('tasks-container');
+                tasksContainer.innerHTML = 
+                  '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Taken worden geladen...</div>';
+
+                fetch('/api/tasks', { credentials: 'include' })
+                  .then(response => response.json())
+                  .then(data => {
+                    const tasks = data.tasks || [];
+                    const now = new Date();
+                    const todayStr = now.toISOString().split('T')[0];
+
+                    const tomorrow = new Date(now);
+                    tomorrow.setDate(now.getDate() + 1);
+                    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+                    const overdueTasks = tasks.filter(task => task.dueDate && new Date(task.dueDate) < now);
+                    const todayTasks = tasks.filter(task => {
+                        if (!task.dueDate) return false;
+                        const dueStr = new Date(task.dueDate).toISOString().split('T')[0];
+                        return dueStr === todayStr;
+                    });
+                    const tomorrowTasks = tasks.filter(task => {
+                        if (!task.dueDate) return false;
+                        const dueStr = new Date(task.dueDate).toISOString().split('T')[0];
+                        return dueStr === tomorrowStr;
+                    });
+
+                    // Sorteer op prioriteit
+                    const priorityOrder = { 'High': 1, 'Medium': 2, 'Low': 3 };
+                    const sortByPriority = arr => arr.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+
+                    sortByPriority(overdueTasks);
+                    sortByPriority(todayTasks);
+                    sortByPriority(tomorrowTasks);
+
+                    function createTaskList(title, arr) {
+                        let html = `<h5>${title}</h5>`;
+                        if (arr.length === 0) {
+                            html += `<p>Geen taken</p>`;
+                            return html;
+                        }
+                        html += '<ul class="list-unstyled">';
+                        arr.forEach(task => {
+                            let badgeClass = 'badge-low';
+                            if (task.priority === 'High') badgeClass = 'badge-high';
+                            else if (task.priority === 'Medium') badgeClass = 'badge-medium';
+                            const dueDateStr = task.dueDate 
+                              ? new Date(task.dueDate).toLocaleDateString('nl-NL') 
+                              : 'Onbekend';
+                            html += `
+                                <li>
+                                    <span class="badge ${badgeClass}">${task.priority}</span> 
+                                    ${task.title}
+                                    <br><small class="text-muted">Due: ${dueDateStr}</small>
+                                </li>
+                            `;
+                        });
+                        html += '</ul>';
+                        return html;
+                    }
+
+                    let finalHtml = `
+                      <div class="row">
+                          <div class="col-md-4">${createTaskList('Overdue Taken', overdueTasks)}</div>
+                          <div class="col-md-4">${createTaskList('Vandaag', todayTasks)}</div>
+                          <div class="col-md-4">${createTaskList('Morgen', tomorrowTasks)}</div>
+                      </div>
+                    `;
+                    tasksContainer.innerHTML = finalHtml;
+                  })
+                  .catch(error => {
+                    console.error('Error fetching tasks:', error);
+                    tasksContainer.innerHTML = 
+                      '<div class="alert alert-danger">Fout bij het laden van taken.</div>';
+                  });
+            }
+            fetchTasks();
+            // Ververs taken elke 10 minuten
+            setInterval(fetchTasks, 600000);
+
+            // ---------------------
+            //   LIVE DATA 
+            // ---------------------
+            function sumItems(items) {
+                if (!Array.isArray(items)) return 0;
+                return items.reduce((sum, item) => sum + (parseInt(item.amount || item.quantity) || 0), 0);
+            }
+            function updateStat(element, value) {
+                if (!element) return;
+                element.textContent = value;
+                element.classList.add('updated');
+                setTimeout(() => element.classList.remove('updated'), 1000);
+            }
+            function showError(message) {
+                console.error(message);
+            }
+            async function fetchAllData() {
+                try {
+                    const [
+                        prepackIncoming,
+                        prepackToPack,
+                        prepackPacked,
+                        airtecIncoming,
+                        airtecToPack,
+                        airtecPacked
+                    ] = await Promise.all([
+                        fetch('/api/incoming_goods').then(r => r.json()),
+                        fetch('/api/items_to_pack').then(r => r.json()),
+                        fetch('/api/packed_items').then(r => r.json()),
+                        fetch('/api/incoming_goods_airtec').then(r => r.json()),
+                        fetch('/api/items_to_pack_airtec').then(r => r.json()),
+                        fetch('/api/packed_items_airtec').then(r => r.json())
+                    ]);
+
+                    updateStat(elements.prepackIncoming, sumItems(prepackIncoming));
+                    updateStat(elements.prepackToPack, sumItems(prepackToPack));
+                    updateStat(elements.prepackPacked, sumItems(prepackPacked));
+                    updateStat(elements.airtecIncoming, sumItems(airtecIncoming));
+                    updateStat(elements.airtecToPack, sumItems(airtecToPack));
+                    updateStat(elements.airtecPacked, sumItems(airtecPacked));
+                } catch (error) {
+                    console.error('Error fetching data:', error);
+                    showError('Failed to fetch real-time data');
+                }
+            }
+            fetchAllData();
+            // Ververs live data elke 10s
+            setInterval(fetchAllData, 10000);
+
+            // ---------------------
+            //   DAGELIJKSE ANALYSE 
+            // ---------------------
+            let root = null;
+
+            function processAnalysisText(analysisText, prepackAverage, airtecAverage) {
+                // Input: analysisText uit de backend, plus (prepackAverage, airtecAverage)
+                // Output: een HTML-string die we in analysisResult zetten
+                return `
+                    <div class="analysis-summary">
+                        <div class="department-summary prepack">
+                            <h4 class="text-primary">Prepack</h4>
+                            <p>Gemiddeld per werkdag: ${prepackAverage} items</p>
+                        </div>
+                        <div class="department-summary airtec">
+                            <h4 class="text-danger">Airtec</h4>
+                            <p>Gemiddeld per werkdag: ${airtecAverage} items</p>
+                        </div>
+                        ${analysisText.split('\n').map(line => {
+                            if (line.includes('Prepack Afdeling:')) {
+                                return `<h5 class="text-primary mt-4">Prepack Afdeling:</h5>`;
+                            }
+                            if (line.includes('Airtec Afdeling:')) {
+                                return `<h5 class="text-danger mt-4">Airtec Afdeling:</h5>`;
+                            }
+                            if (line.includes('Opvallend')) {
+                                return `<h5 class="text-info mt-4">Analyse & Aanbevelingen:</h5>`;
+                            }
+                            if (line.trim().startsWith('-')) {
+                                return `<p class="analysis-point">${line}</p>`;
+                            }
+                            return line ? `<p>${line}</p>` : '';
+                        }).join('')}
+                    </div>
+                `;
+            }
+
+            async function fetchDailyAnalysis() {
+                if (!elements.analysisResult) return;
+
+                try {
+                    elements.analysisResult.innerHTML = `
+                        <div class="loading">
+                            <i class="fas fa-spinner fa-spin"></i> Analyse wordt geladen...
+                        </div>
+                    `;
+
+                    const response = await fetch('/api/daily_analysis');
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+
+                    if (!data.analysisData || !data.analysisData.prepack || !data.analysisData.airtec) {
+                        throw new Error('Data structuur is onvolledig of ongeldig.');
+                    }
+
+                    const filteredPrepackData = (data.analysisData.prepack.dailyData || []).filter(day => 
+                        day.total_items > 0
+                    );
+                    const filteredAirtecData = (data.analysisData.airtec.dailyData || []).filter(day => 
+                        day.total_items > 0
+                    );
+
+                    const workingDaysCount = filteredPrepackData.length || 1;
+                    const prepackAverage = Math.round(
+                        filteredPrepackData.reduce((sum, day) => sum + (Number(day.total_items) || 0), 0) / workingDaysCount
+                    );
+                    const airtecAverage = Math.round(
+                        filteredAirtecData.reduce((sum, day) => sum + (Number(day.total_items) || 0), 0) / workingDaysCount
+                    );
+
+                    if (data.analysis) {
+                        elements.analysisResult.innerHTML = 
+                            processAnalysisText(data.analysis, prepackAverage, airtecAverage);
+                    } else {
+                        elements.analysisResult.innerHTML = '<p>Geen analyse beschikbaar.</p>';
+                    }
+
+                    // Recharts grafiek
+                    if (elements.analysisChart && window.Recharts) {
+                        const chartData = filteredPrepackData.map((prepackDay) => {
+                            const matchingAirtecDay = filteredAirtecData.find(
+                                aDay => new Date(aDay.pack_date).toDateString() === new Date(prepackDay.pack_date).toDateString()
+                            ) || { total_items: 0 };
+
+                            return {
+                                date: new Date(prepackDay.pack_date).toLocaleDateString('nl-NL', {
+                                    weekday: 'short',
+                                    day: '2-digit',
+                                    month: '2-digit'
+                                }),
+                                Prepack: parseInt(prepackDay.total_items) || 0,
+                                Airtec: parseInt(matchingAirtecDay.total_items) || 0,
+                                'Prepack Gemiddelde': prepackAverage,
+                                'Airtec Gemiddelde': airtecAverage
+                            };
+                        });
+
+                        try {
+                            const chartElement = React.createElement(
+                                window.Recharts.ResponsiveContainer, 
+                                { width: '100%', height: 300 },
+                                React.createElement(
+                                    window.Recharts.LineChart, 
+                                    { data: chartData },
+                                    React.createElement(window.Recharts.CartesianGrid, { strokeDasharray: '3 3' }),
+                                    React.createElement(window.Recharts.XAxis, { 
+                                        dataKey: 'date',
+                                        angle: -45,
+                                        textAnchor: 'end',
+                                        height: 80
+                                    }),
+                                    React.createElement(window.Recharts.YAxis),
+                                    React.createElement(window.Recharts.Tooltip),
+                                    React.createElement(window.Recharts.Legend),
+                                    React.createElement(window.Recharts.Line, {
+                                        type: 'monotone',
+                                        dataKey: 'Prepack',
+                                        stroke: '#2563eb',
+                                        strokeWidth: 2,
+                                        dot: { r: 4 }
+                                    }),
+                                    React.createElement(window.Recharts.Line, {
+                                        type: 'monotone',
+                                        dataKey: 'Airtec',
+                                        stroke: '#dc2626',
+                                        strokeWidth: 2,
+                                        dot: { r: 4 }
+                                    }),
+                                    React.createElement(window.Recharts.Line, {
+                                        type: 'monotone',
+                                        dataKey: 'Prepack Gemiddelde',
+                                        stroke: '#2563eb',
+                                        strokeWidth: 1,
+                                        strokeDasharray: '5 5',
+                                        dot: false
+                                    }),
+                                    React.createElement(window.Recharts.Line, {
+                                        type: 'monotone',
+                                        dataKey: 'Airtec Gemiddelde',
+                                        stroke: '#dc2626',
+                                        strokeWidth: 1,
+                                        strokeDasharray: '5 5',
+                                        dot: false
+                                    })
+                                )
+                            );
+
+                            if (!root) {
+                                elements.analysisChart.innerHTML = '';
+                                root = ReactDOM.createRoot(elements.analysisChart);
+                            }
+                            root.render(chartElement);
+
+                        } catch (renderError) {
+                            console.error('Chart render error:', renderError);
+                            elements.analysisChart.innerHTML = `
+                                <div class="alert alert-danger">
+                                    Fout bij het laden van de grafiek: ${renderError.message}
+                                </div>
+                            `;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error in fetchDailyAnalysis:', error);
+                    elements.analysisResult.innerHTML = `
+                        <div class="alert alert-danger">
+                            Er is een fout opgetreden bij het laden van de analyse: ${error.message}
+                        </div>
+                    `;
+                    if (elements.analysisChart) {
+                        elements.analysisChart.innerHTML = `
+                            <div class="alert alert-danger">
+                                Fout bij het laden van de grafiek. Probeer de pagina te verversen.
+                            </div>
+                        `;
+                    }
+                }
+            }
+            fetchDailyAnalysis();
+            // Ververs analyse elke 5 minuten
+            setInterval(fetchDailyAnalysis, 300000);
+
+            // Eventuele toggle-luisteraars voor collapses
+            $('#analysisContent').on('shown.bs.collapse', function () {
+                $('#toggleAnalysis i').removeClass('fa-chevron-down').addClass('fa-chevron-up');
+            });
+            $('#analysisContent').on('hidden.bs.collapse', function () {
+                $('#toggleAnalysis i').removeClass('fa-chevron-up').addClass('fa-chevron-down');
+            });
+            $('#analysisResult').on('shown.bs.collapse', function () {
+                $('#toggleAnalysisText i').removeClass('fa-chevron-down').addClass('fa-chevron-up');
+            });
+            $('#analysisResult').on('hidden.bs.collapse', function () {
+                $('#toggleAnalysisText i').removeClass('fa-chevron-up').addClass('fa-chevron-down');
+            });
+
+            // Opruimen Recharts root bij verlaten pagina
+            $(window).on('unload', function() {
+                if (root) {
+                    root.unmount();
+                }
+            });
+            
+            // Functie om bodemvoorraad te controleren en waarschuwingen weer te geven
+            function checkBodemStock() {
+                // Haal de instellingen op uit localStorage
+                let stockSettings = {
+                    minStockHigh: 10,
+                    minStockLow: 10
+                };
+                
+                const savedSettings = localStorage.getItem('bodemStockSettings');
+                if (savedSettings) {
+                    stockSettings = JSON.parse(savedSettings);
+                }
+                
+                // Haal eerst alle bestellingen op
+                fetch('/api/bodems_bestellingen')
+                    .then(response => {
+                        if (!response.ok) {
+                            // Als er een probleem is met de bestellingen API, gaan we gewoon door zonder bestellingsinformatie
+                            console.warn('Kon bestellingen niet laden, waarschijnlijk is de tabel nog niet aangemaakt:', response.status);
+                            // Return een lege lijst als fallback
+                            return {json: () => []};
+                        }
+                        return response;
+                    })
+                    .then(response => response.json ? response.json() : response)
+                    .then(bestellingen => {
+                        // Als bestellingen geen array is (bijv. bij een error), gebruik een lege array
+                        if (!Array.isArray(bestellingen)) {
+                            console.warn('Ongeldig bestellingen formaat, gebruik lege lijst');
+                            bestellingen = [];
+                        }
+                        
+                        // Filter actieve bestellingen (niet ontvangen)
+                        const actieveBestellingen = bestellingen.filter(b => b.status !== 'ontvangen');
+                        
+                        // Groepeer bestellingen per type
+                        const bestellingenPerType = {
+                            hoog: actieveBestellingen.filter(b => b.bodem_type === 'hoog'),
+                            laag: actieveBestellingen.filter(b => b.bodem_type === 'laag')
+                        };
+                        
+                        // Bereken totalen
+                        const bestellingenHoog = bestellingenPerType.hoog.reduce((sum, b) => sum + b.aantal, 0);
+                        const bestellingenLaag = bestellingenPerType.laag.reduce((sum, b) => sum + b.aantal, 0);
+                        
+                        // Nu de voorraad ophalen
+                        return fetch('/api/bodems_stock')
+                            .then(response => response.json())
+                            .then(data => {
+                                if (!data || data.length === 0) {
+                                    return;
+                                }
+                                
+                                let hasLowStock = false;
+                                let lowStockMessage = '';
+                                let bestellingenMessage = '';
+                                
+                                data.forEach(item => {
+                                    const typeLabel = item.bodem_type === 'hoog' ? 'Hoge' : 'Lage';
+                                    const minStock = item.bodem_type === 'hoog' ? 
+                                        stockSettings.minStockHigh : stockSettings.minStockLow;
+                                    
+                                    const bestellingAantal = item.bodem_type === 'hoog' ? bestellingenHoog : bestellingenLaag;
+                                    
+                                    if (item.quantity < minStock) {
+                                        hasLowStock = true;
+                                        lowStockMessage += `${typeLabel} Bodems (${item.quantity}/${minStock}), `;
+                                        
+                                        if (bestellingAantal > 0) {
+                                            bestellingenMessage += `${bestellingAantal} ${typeLabel} bodems besteld, `;
+                                        }
+                                    }
+                                });
+                                
+                                if (hasLowStock) {
+                                    // Verwijder laatste komma en spatie
+                                    lowStockMessage = lowStockMessage.slice(0, -2);
+                                    
+                                    // Info over bestellingen
+                                    if (bestellingenMessage) {
+                                        bestellingenMessage = bestellingenMessage.slice(0, -2);
+                                    }
+                                    
+                                    // Bericht voor in de update lijst
+                                    let updateMessage = `De voorraad van CNH bodems is onder het minimum: ${lowStockMessage}. Er moeten dringend bodems bijgemaakt worden.`;
+                                    
+                                    // Voeg info over bestellingen toe indien aanwezig
+                                    if (bestellingenMessage) {
+                                        updateMessage += `<br><span class="text-info"><i class="fas fa-info-circle me-1"></i>Er zijn al bestellingen onderweg: ${bestellingenMessage}.</span>`;
+                                    }
+                                    
+                                    // Voeg waarschuwing toe aan de Updates lijst
+                                    const updatesList = document.getElementById('updates-list');
+                                    if (updatesList) {
+                                        const updateDiv = document.createElement('div');
+                                        updateDiv.className = 'update-item';
+                                        updateDiv.style.borderLeft = '4px solid #dc3545'; // Rode rand voor waarschuwing
+                                        
+                                        const now = new Date();
+                                        const formattedDate = now.toLocaleString('nl-BE');
+                                        
+                                        updateDiv.innerHTML = `
+                                            <div class="update-title">
+                                                <i class="fas fa-exclamation-triangle text-danger me-2"></i>
+                                                Waarschuwing: CNH Bodems Voorraad Laag
+                                            </div>
+                                            <div class="update-message">
+                                                ${updateMessage}
+                                            </div>
+                                            <div class="update-time">${formattedDate}</div>
+                                        `;
+                                        
+                                        // Plaats het bovenaan de lijst
+                                        if (updatesList.firstChild) {
+                                            updatesList.insertBefore(updateDiv, updatesList.firstChild);
+                                        } else {
+                                            updatesList.appendChild(updateDiv);
+                                        }
+                                    }
+                                    
+                                    // Bericht voor de alert bovenaan
+                                    let alertMessage = `De voorraad van CNH bodems is laag: ${lowStockMessage}. Er moeten dringend bodems bijgemaakt worden.`;
+                                    
+                                    // Voeg info over bestellingen toe indien aanwezig
+                                    if (bestellingenMessage) {
+                                        alertMessage += ` Er zijn al bestellingen onderweg: ${bestellingenMessage}.`;
+                                    }
+                                    
+                                    // Toon ook een melding via de showMessage functie
+                                    const messagesContainer = document.getElementById('dashboard-messages');
+                                    if (messagesContainer) {
+                                        const alertDiv = document.createElement('div');
+                                        alertDiv.className = 'alert alert-warning alert-dismissible fade show';
+                                        alertDiv.innerHTML = `
+                                            <strong><i class="fas fa-exclamation-triangle me-2"></i>Waarschuwing!</strong> 
+                                            ${alertMessage}
+                                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                        `;
+                                        messagesContainer.appendChild(alertDiv);
+                                        
+                                        // Automatisch verwijderen na 10 seconden
+                                        setTimeout(() => {
+                                            alertDiv.classList.remove('show');
+                                            setTimeout(() => alertDiv.remove(), 150);
+                                        }, 10000);
+                                    }
+                                }
+                            });
+                    })
+                    .catch(error => {
+                        console.error('Error checking bodem stock:', error);
+                    });
+            }
+            
+            // Controleer de voorraad bij het laden van de pagina
+            checkBodemStock();
+            
+            // Controleer de voorraad elke 5 minuten
+            setInterval(checkBodemStock, 300000);
+        }
+    });
+    </script>
+</body>
+</html>

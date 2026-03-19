@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CNH Incoming Goods</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="scripts_cnh.js" defer></script>
+</head>
+<body>
+    <div id="header-placeholder"></div>
+    <div class="container">
+        <h1>Input CNH Incoming Goods</h1>
+        <form id="incoming-goods-form">
+            <label for="motornummer">Motornummer:</label>
+            <input type="text" id="motornummer" name="motornummer" required>
+            <label for="type">Type:</label>
+            <input type="text" id="type" name="type" required>
+            <label for="verzendnota">Verzendnota:</label>
+            <input type="text" id="verzendnota" name="verzendnota" required>
+            <label for="datum_binnen">Datum Binnen:</label>
+            <input type="date" id="datum_binnen" name="datum_binnen" required>
+            <button type="submit">Submit</button>
+        </form>
+        <div id="response-message"></div>
+        <h2>Upload Multiple Incoming Goods</h2>
+        <form id="upload-excel-form" enctype="multipart/form-data">
+            <input type="file" id="file-input" name="excelFile" accept=".xlsx, .xls">
+            <button type="submit" id="upload-button">Upload</button>
+        </form>
+        <div id="upload-response-message"></div>
+    </div>
+
+    <!-- Modal for displaying row insertion count -->
+    <div id="row-count-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <p id="row-count-message"></p>
+        </div>
+    </div>
+
+    <script>
+        // JavaScript for modal behavior
+        const modal = document.getElementById("row-count-modal");
+        const span = document.getElementsByClassName("close")[0];
+
+        span.onclick = function() {
+            modal.style.display = "none";
+        }
+
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+    </script>
+</body>
+</html>
+

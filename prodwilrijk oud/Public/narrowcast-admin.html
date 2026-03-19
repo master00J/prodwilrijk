@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Narrowcast Admin Panel</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #1f6feb;
+            --bg-dark: #0d1117;
+            --bg-card: #161b22;
+            --border-color: #30363d;
+            --text-primary: #e6edf3;
+            --text-secondary: #7d8590;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+        
+        .navbar {
+            background: var(--bg-card) !important;
+            border-bottom: 1px solid var(--border-color);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.5rem;
+        }
+        
+        .content-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            transition: all 0.2s;
+        }
+        
+        .content-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }
+        
+        .btn-primary {
+            background: var(--primary-color);
+            border: none;
+        }
+        
+        .btn-primary:hover {
+            background: #1a5cd7;
+        }
+        
+        .form-control, .form-select {
+            background: var(--bg-dark);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+        
+        .form-control:focus, .form-select:focus {
+            background: var(--bg-dark);
+            border-color: var(--primary-color);
+            color: var(--text-primary);
+            box-shadow: 0 0 0 0.25rem rgba(31, 111, 235, 0.25);
+        }
+        
+        .form-label {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+        
+        .modal-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+        }
+        
+        .modal-header {
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .modal-footer {
+            border-top: 1px solid var(--border-color);
+        }
+        
+        .badge {
+            padding: 0.4em 0.8em;
+            font-weight: 600;
+        }
+        
+        .preview-image {
+            max-width: 100px;
+            max-height: 100px;
+            object-fit: cover;
+            border-radius: 4px;
+            margin: 4px;
+            cursor: pointer;
+        }
+        
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+        }
+        
+        .status-active {
+            background: #3fb950;
+            box-shadow: 0 0 8px rgba(63, 185, 80, 0.5);
+        }
+        
+        .status-inactive {
+            background: #8b949e;
+        }
+        
+        .status-scheduled {
+            background: #ffa657;
+        }
+        
+        .content-preview {
+            background: var(--bg-dark);
+            padding: 1rem;
+            border-radius: 6px;
+            margin-top: 0.5rem;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .drag-drop-area {
+            border: 2px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 3rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .drag-drop-area:hover {
+            border-color: var(--primary-color);
+            background: rgba(31, 111, 235, 0.05);
+        }
+        
+        .drag-drop-area.dragging {
+            border-color: var(--primary-color);
+            background: rgba(31, 111, 235, 0.1);
+        }
+        
+        .file-preview-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 1rem;
+        }
+        
+        .file-preview-item {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .file-preview-item .remove-btn {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #f85149;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+        
+        .color-picker-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .color-picker-wrapper input[type="color"] {
+            width: 60px;
+            height: 40px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .time-badge {
+            background: rgba(31, 111, 235, 0.15);
+            color: var(--primary-color);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text-secondary);
+        }
+        
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.3;
+        }
+        
+        .loading-spinner {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 3rem;
+        }
+        
+        .quick-actions {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .stats-card {
+            background: linear-gradient(135deg, var(--primary-color), #1a5cd7);
+            border: none;
+            color: white;
+        }
+        
+        /* Upload Progress Bar */
+        .upload-progress-container {
+            margin-top: 1rem;
+            display: none;
+        }
+        
+        .upload-progress-container.active {
+            display: block;
+        }
+        
+        .upload-progress-bar {
+            height: 24px;
+            background: var(--bg-dark);
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+            border: 1px solid var(--border-color);
+        }
+        
+        .upload-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-color), #3b8cf7);
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 0.85rem;
+            box-shadow: 0 0 10px rgba(31, 111, 235, 0.5);
+        }
+        
+        .upload-progress-text {
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .upload-speed {
+            color: var(--primary-color);
+        }
+        
+        @media (max-width: 768px) {
+            .content-card {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark sticky-top">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <i class="fas fa-broadcast-tower"></i> Narrowcast Admin Panel
+            </span>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-danger" onclick="window.location.href='/narrowcast-monitoring.html'">
+                    <i class="fas fa-heartbeat"></i> Monitoring
+                </button>
+                <button class="btn btn-sm btn-outline-warning" onclick="window.location.href='/narrowcast-locations.html'">
+                    <i class="fas fa-map-marker-alt"></i> Locations
+                </button>
+                <button class="btn btn-sm btn-outline-info" onclick="window.location.href='/narrowcast-scheduler.html'">
+                    <i class="fas fa-calendar-alt"></i> Scheduler
+                </button>
+                <button class="btn btn-sm btn-outline-light" onclick="window.open('/narrowcast-display.html', '_blank')">
+                    <i class="fas fa-tv"></i> Open Display
+                </button>
+                <button class="btn btn-sm btn-success" onclick="showCreateModal()">
+                    <i class="fas fa-plus"></i> New Content
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid py-4">
+        <!-- Stats Row -->
+        <div class="row mb-4">
+            <div class="col-md-3 mb-3">
+                <div class="content-card stats-card">
+                    <h6 class="mb-2"><i class="fas fa-check-circle"></i> Active Content</h6>
+                    <h2 class="mb-0" id="stat-active">0</h2>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="content-card">
+                    <h6 class="mb-2 text-secondary"><i class="fas fa-pause-circle"></i> Inactive</h6>
+                    <h2 class="mb-0" id="stat-inactive">0</h2>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="content-card">
+                    <h6 class="mb-2 text-warning"><i class="fas fa-clock"></i> Scheduled</h6>
+                    <h2 class="mb-0" id="stat-scheduled">0</h2>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="content-card">
+                    <h6 class="mb-2 text-info"><i class="fas fa-database"></i> Total</h6>
+                    <h2 class="mb-0" id="stat-total">0</h2>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter and Sort -->
+        <div class="content-card mb-4">
+            <div class="row align-items-center">
+                <div class="col-md-4">
+                    <input type="text" class="form-control" id="searchInput" placeholder="Search content...">
+                </div>
+                <div class="col-md-3 mt-2 mt-md-0">
+                    <select class="form-select" id="filterType">
+                        <option value="">All Types</option>
+                        <option value="text">Text</option>
+                        <option value="image">Image</option>
+                        <option value="production_orders">Production Orders</option>
+                        <option value="video">Video</option>
+                        <option value="url">URL</option>
+                        <option value="slideshow">Slideshow</option>
+                    </select>
+                </div>
+                <div class="col-md-3 mt-2 mt-md-0">
+                    <select class="form-select" id="filterStatus">
+                        <option value="">All Status</option>
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                        <option value="scheduled">Scheduled</option>
+                    </select>
+                </div>
+                <div class="col-md-2 mt-2 mt-md-0">
+                    <button class="btn btn-primary w-100" onclick="loadContent()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Content List -->
+        <div id="contentList" class="row">
+            <div class="col-12">
+                <div class="loading-spinner">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create/Edit Modal -->
+    <div class="modal fade" id="contentModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">
+                        <i class="fas fa-plus-circle"></i> Create New Content
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="contentForm">
+                        <input type="hidden" id="contentId">
+                        
+                        <!-- Type Selection -->
+                        <div class="mb-3">
+                            <label class="form-label">Content Type</label>
+                            <select class="form-select" id="contentType" required onchange="toggleContentFields()">
+                                <option value="text">Text Message</option>
+                                <option value="image">Image</option>
+                                <option value="video">Video</option>
+                                <option value="url">Website URL</option>
+                                <option value="slideshow">Slideshow</option>
+                                <option value="production_orders">Production Orders</option>
+                            </select>
+                        </div>
+
+                        <!-- Title -->
+                        <div class="mb-3">
+                            <label class="form-label">Title</label>
+                            <input type="text" class="form-control" id="contentTitle" required placeholder="Enter content title">
+                        </div>
+
+                        <!-- Text Content (for text type) -->
+                        <div class="mb-3" id="field-text">
+                            <label class="form-label">Message</label>
+                            <textarea class="form-control" id="contentText" rows="6" placeholder="Enter your message here..."></textarea>
+                            <small class="text-secondary">Supports HTML formatting</small>
+                        </div>
+
+                        <!-- URL Field (for url type) -->
+                        <div class="mb-3 d-none" id="field-url">
+                            <label class="form-label">Website URL</label>
+                            <input type="url" class="form-control" id="contentUrl" placeholder="https://example.com">
+                        </div>
+
+                        <!-- Single Media Upload (for image/video) -->
+                        <div class="mb-3 d-none" id="field-single-media">
+                            <label class="form-label">Upload Media</label>
+                            <div class="drag-drop-area" id="singleDropZone" onclick="document.getElementById('singleFileInput').click()">
+                                <i class="fas fa-cloud-upload-alt fa-3x mb-3"></i>
+                                <p>Click or drag file here</p>
+                                <small class="text-secondary">
+                                    Max 500MB • 
+                                    Images: JPG, PNG, GIF, WebP • 
+                                    Videos: MP4, WebM, OGG only
+                                </small>
+                            </div>
+                            <input type="file" id="singleFileInput" class="d-none" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/ogg" onchange="handleSingleFileSelect(event)">
+                            
+                            <!-- Upload Progress -->
+                            <div id="singleUploadProgress" class="upload-progress-container">
+                                <div class="upload-progress-bar">
+                                    <div id="singleProgressFill" class="upload-progress-fill" style="width: 0%">0%</div>
+                                </div>
+                                <div class="upload-progress-text">
+                                    <span id="singleProgressText">Uploading...</span>
+                                    <span id="singleProgressSpeed" class="upload-speed"></span>
+                                </div>
+                            </div>
+                            
+                            <div id="singleFilePreview" class="file-preview-container"></div>
+                            <div class="alert alert-info mt-2" style="font-size: 0.85rem;">
+                                <i class="fas fa-info-circle"></i> 
+                                <strong>Video format notice:</strong> Only MP4, WebM, and OGG videos are supported for web playback. 
+                                MKV, AVI, MOV and other formats will NOT work. Please convert your video to MP4 first.
+                            </div>
+                        </div>
+
+                        <!-- Multiple Media Upload (for slideshow) -->
+                        <div class="mb-3 d-none" id="field-multi-media">
+                            <label class="form-label">Upload Images for Slideshow</label>
+                            <div class="drag-drop-area" id="multiDropZone" onclick="document.getElementById('multiFileInput').click()">
+                                <i class="fas fa-images fa-3x mb-3"></i>
+                                <p>Click or drag multiple images here</p>
+                                <small class="text-secondary">Max 20 images, 500MB each</small>
+                            </div>
+                            <input type="file" id="multiFileInput" class="d-none" accept="image/*" multiple onchange="handleMultiFileSelect(event)">
+                            
+                            <!-- Upload Progress for Multiple Files -->
+                            <div id="multiUploadProgress" class="upload-progress-container">
+                                <div class="upload-progress-bar">
+                                    <div id="multiProgressFill" class="upload-progress-fill" style="width: 0%">0%</div>
+                                </div>
+                                <div class="upload-progress-text">
+                                    <span id="multiProgressText">Uploading...</span>
+                                    <span id="multiProgressSpeed" class="upload-speed"></span>
+                                </div>
+                            </div>
+                            
+                            <div id="multiFilePreview" class="file-preview-container"></div>
+                        </div>
+
+                        <!-- Display Settings -->
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Display Duration (seconds)</label>
+                                <input type="number" class="form-control" id="displayDuration" value="10" min="1" max="300">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Priority</label>
+                                <input type="number" class="form-control" id="priority" value="0" min="0" max="100">
+                                <small class="text-secondary">Higher = shown first</small>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Status</label>
+                                <select class="form-select" id="active">
+                                    <option value="1">Active</option>
+                                    <option value="0">Inactive</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Styling (for text type) -->
+                        <div id="styling-fields">
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">Background Color</label>
+                                    <div class="color-picker-wrapper">
+                                        <input type="color" id="backgroundColor" value="#0d1117">
+                                        <span id="bgColorText">#0d1117</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">Text Color</label>
+                                    <div class="color-picker-wrapper">
+                                        <input type="color" id="textColor" value="#e6edf3">
+                                        <span id="textColorText">#e6edf3</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">Font Size (px)</label>
+                                    <input type="number" class="form-control" id="fontSize" value="32" min="16" max="120">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Display Locations -->
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="fas fa-map-marker-alt"></i> Display Locations
+                            </label>
+                            <div id="locationsList" class="d-flex flex-wrap gap-2">
+                                <div class="spinner-border spinner-border-sm" role="status"></div>
+                                Loading locations...
+                            </div>
+                            <small class="text-secondary">Select where this content should be shown. Leave empty or select "All" to show everywhere.</small>
+                        </div>
+
+                        <!-- Scheduling -->
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Start Time (optional)</label>
+                                <input type="datetime-local" class="form-control" id="startTime">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">End Time (optional)</label>
+                                <input type="datetime-local" class="form-control" id="endTime">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveContent()">
+                        <i class="fas fa-save"></i> Save Content
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let allContent = [];
+        let currentEditId = null;
+        let uploadedMediaUrl = null;
+        let uploadedMediaUrls = [];
+        let contentModal;
+        let availableLocations = [];
+        let selectedLocations = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            contentModal = new bootstrap.Modal(document.getElementById('contentModal'));
+            await loadLocations();
+            loadContent();
+            
+            // Color picker updates
+            document.getElementById('backgroundColor').addEventListener('input', (e) => {
+                document.getElementById('bgColorText').textContent = e.target.value;
+            });
+            document.getElementById('textColor').addEventListener('input', (e) => {
+                document.getElementById('textColorText').textContent = e.target.value;
+            });
+            
+            // Search and filter
+            document.getElementById('searchInput').addEventListener('input', filterContent);
+            document.getElementById('filterType').addEventListener('change', filterContent);
+            document.getElementById('filterStatus').addEventListener('change', filterContent);
+            
+            // Drag and drop for single file
+            setupDragDrop('singleDropZone', false);
+            setupDragDrop('multiDropZone', true);
+        });
+
+        async function loadLocations() {
+            try {
+                const response = await fetch('/api/narrowcast/locations');
+                availableLocations = await response.json();
+                console.log('Loaded locations:', availableLocations);
+            } catch (error) {
+                console.error('Error loading locations:', error);
+            }
+        }
+
+        function renderLocations() {
+            const container = document.getElementById('locationsList');
+            if (availableLocations.length === 0) {
+                container.innerHTML = '<span class="text-secondary">No locations available</span>';
+                return;
+            }
+
+            container.innerHTML = availableLocations.map(loc => {
+                const isSelected = selectedLocations.includes(loc.name);
+                return `
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" 
+                            id="loc_${loc.name}" 
+                            value="${loc.name}"
+                            ${isSelected ? 'checked' : ''}
+                            onchange="toggleLocation('${loc.name}')">
+                        <label class="form-check-label" for="loc_${loc.name}">
+                            ${loc.display_name}
+                        </label>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function toggleLocation(locationName) {
+            const index = selectedLocations.indexOf(locationName);
+            if (index > -1) {
+                selectedLocations.splice(index, 1);
+            } else {
+                selectedLocations.push(locationName);
+            }
+            console.log('Selected locations:', selectedLocations);
+        }
+
+        function setupDragDrop(zoneId, multiple) {
+            const zone = document.getElementById(zoneId);
+            
+            zone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                zone.classList.add('dragging');
+            });
+            
+            zone.addEventListener('dragleave', () => {
+                zone.classList.remove('dragging');
+            });
+            
+            zone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                zone.classList.remove('dragging');
+                
+                if (multiple) {
+                    handleMultiFileSelect({ target: { files: e.dataTransfer.files } });
+                } else {
+                    handleSingleFileSelect({ target: { files: e.dataTransfer.files } });
+                }
+            });
+        }
+
+        async function loadContent() {
+            try {
+                const response = await fetch('/api/narrowcast/content?all=true');
+                allContent = await response.json();
+                
+                // Parse locations if they're strings
+                allContent = allContent.map(item => {
+                    if (item.locations && typeof item.locations === 'string') {
+                        try {
+                            item.locations = JSON.parse(item.locations);
+                        } catch (e) {
+                            item.locations = [];
+                        }
+                    }
+                    return item;
+                });
+                
+                updateStats();
+                renderContent(allContent);
+            } catch (error) {
+                console.error('Error loading content:', error);
+                showError('Failed to load content');
+            }
+        }
+
+        function updateStats() {
+            const now = new Date();
+            const active = allContent.filter(c => c.active && isActiveNow(c, now)).length;
+            const inactive = allContent.filter(c => !c.active).length;
+            const scheduled = allContent.filter(c => c.active && !isActiveNow(c, now)).length;
+            
+            document.getElementById('stat-active').textContent = active;
+            document.getElementById('stat-inactive').textContent = inactive;
+            document.getElementById('stat-scheduled').textContent = scheduled;
+            document.getElementById('stat-total').textContent = allContent.length;
+        }
+
+        function isActiveNow(item, now) {
+            if (item.start_time && new Date(item.start_time) > now) return false;
+            if (item.end_time && new Date(item.end_time) < now) return false;
+            return true;
+        }
+
+        function getStatusInfo(item) {
+            const now = new Date();
+            if (!item.active) {
+                return { status: 'inactive', badge: 'secondary', text: 'Inactive' };
+            }
+            if (!isActiveNow(item, now)) {
+                return { status: 'scheduled', badge: 'warning', text: 'Scheduled' };
+            }
+            return { status: 'active', badge: 'success', text: 'Active' };
+        }
+
+        function renderContent(content) {
+            const container = document.getElementById('contentList');
+            
+            if (content.length === 0) {
+                container.innerHTML = `
+                    <div class="col-12">
+                        <div class="empty-state">
+                            <i class="fas fa-inbox"></i>
+                            <h4>No Content Yet</h4>
+                            <p>Create your first narrowcast content to get started</p>
+                            <button class="btn btn-primary mt-3" onclick="showCreateModal()">
+                                <i class="fas fa-plus"></i> Create Content
+                            </button>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = content.map(item => {
+                const status = getStatusInfo(item);
+                const icon = getTypeIcon(item.type);
+                
+                return `
+                    <div class="col-md-6 col-lg-4 mb-3">
+                        <div class="content-card">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h5 class="mb-0">
+                                    <i class="${icon}"></i> ${escapeHtml(item.title)}
+                                </h5>
+                                <span class="badge bg-${status.badge}">
+                                    <span class="status-indicator status-${status.status}"></span>
+                                    ${status.text}
+                                </span>
+                            </div>
+                            
+                            <div class="mb-2">
+                                <span class="badge bg-dark">${item.type}</span>
+                                <span class="badge bg-dark">
+                                    <i class="fas fa-clock"></i> ${item.display_duration}s
+                                </span>
+                                ${item.priority > 0 ? `<span class="badge bg-info">Priority ${item.priority}</span>` : ''}
+                            </div>
+                            
+                            ${renderLocationBadges(item)}
+                            
+                            ${renderContentPreview(item)}
+                            
+                            ${item.start_time || item.end_time ? `
+                                <div class="mt-2">
+                                    ${item.start_time ? `<div class="time-badge"><i class="fas fa-play"></i> ${formatDateTime(item.start_time)}</div>` : ''}
+                                    ${item.end_time ? `<div class="time-badge mt-1"><i class="fas fa-stop"></i> ${formatDateTime(item.end_time)}</div>` : ''}
+                                </div>
+                            ` : ''}
+                            
+                            <div class="quick-actions mt-3">
+                                <button class="btn btn-sm btn-primary" onclick="editContent(${item.id})">
+                                    <i class="fas fa-edit"></i> Edit
+                                </button>
+                                <button class="btn btn-sm ${item.active ? 'btn-warning' : 'btn-success'}" onclick="toggleActive(${item.id}, ${item.active})">
+                                    <i class="fas fa-${item.active ? 'pause' : 'play'}"></i> ${item.active ? 'Deactivate' : 'Activate'}
+                                </button>
+                                <button class="btn btn-sm btn-danger" onclick="deleteContent(${item.id})">
+                                    <i class="fas fa-trash"></i> Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderLocationBadges(item) {
+            if (!item.locations || item.locations.length === 0) {
+                return `<div class="mb-2"><span class="badge bg-secondary"><i class="fas fa-globe"></i> All Locations</span></div>`;
+            }
+            
+            if (item.locations.includes('all')) {
+                return `<div class="mb-2"><span class="badge bg-secondary"><i class="fas fa-globe"></i> All Locations</span></div>`;
+            }
+            
+            const locationBadges = item.locations.map(locName => {
+                const location = availableLocations.find(l => l.name === locName);
+                const displayName = location ? location.display_name : locName;
+                return `<span class="badge bg-warning text-dark"><i class="fas fa-map-marker-alt"></i> ${escapeHtml(displayName)}</span>`;
+            }).join(' ');
+            
+            return `<div class="mb-2">${locationBadges}</div>`;
+        }
+
+        function renderContentPreview(item) {
+            switch (item.type) {
+                case 'text':
+                    return `<div class="content-preview">${item.content || ''}</div>`;
+                case 'image':
+                    return item.media_url ? `<img src="${item.media_url}" class="preview-image">` : '';
+                case 'video':
+                    return item.media_url ? `<video src="${item.media_url}" class="preview-image"></video>` : '';
+                case 'url':
+                    return `<div class="content-preview"><i class="fas fa-link"></i> ${item.media_url || ''}</div>`;
+                case 'slideshow':
+                    if (item.media_urls && Array.isArray(item.media_urls)) {
+                        return `<div class="d-flex flex-wrap gap-1">${item.media_urls.slice(0, 4).map(url => 
+                            `<img src="${url}" class="preview-image">`
+                        ).join('')}${item.media_urls.length > 4 ? `<span class="badge bg-secondary">+${item.media_urls.length - 4} more</span>` : ''}</div>`;
+                    }
+                    return '';
+                case 'production_orders':
+                    return `<div class="content-preview"><i class="fas fa-industry"></i> Shows production orders with narrowcast settings</div>`;
+                default:
+                    return '';
+            }
+        }
+
+        function getTypeIcon(type) {
+            const icons = {
+                text: 'fas fa-font',
+                image: 'fas fa-image',
+                video: 'fas fa-video',
+                url: 'fas fa-link',
+                slideshow: 'fas fa-images',
+                production_orders: 'fas fa-clipboard-list'
+            };
+            return icons[type] || 'fas fa-file';
+        }
+
+        function filterContent() {
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const typeFilter = document.getElementById('filterType').value;
+            const statusFilter = document.getElementById('filterStatus').value;
+            
+            let filtered = allContent;
+            
+            if (search) {
+                filtered = filtered.filter(c => 
+                    c.title.toLowerCase().includes(search) || 
+                    (c.content && c.content.toLowerCase().includes(search))
+                );
+            }
+            
+            if (typeFilter) {
+                filtered = filtered.filter(c => c.type === typeFilter);
+            }
+            
+            if (statusFilter) {
+                const now = new Date();
+                filtered = filtered.filter(c => {
+                    const status = getStatusInfo(c);
+                    return status.status === statusFilter;
+                });
+            }
+            
+            renderContent(filtered);
+        }
+
+        function showCreateModal() {
+            currentEditId = null;
+            document.getElementById('modalTitle').innerHTML = '<i class="fas fa-plus-circle"></i> Create New Content';
+            document.getElementById('contentForm').reset();
+            document.getElementById('contentId').value = '';
+            uploadedMediaUrl = null;
+            uploadedMediaUrls = [];
+            document.getElementById('singleFilePreview').innerHTML = '';
+            document.getElementById('multiFilePreview').innerHTML = '';
+            selectedLocations = []; // Reset locations
+            toggleContentFields();
+            renderLocations();
+            contentModal.show();
+        }
+
+        async function editContent(id) {
+            const item = allContent.find(c => c.id === id);
+            if (!item) return;
+            
+            currentEditId = id;
+            document.getElementById('modalTitle').innerHTML = '<i class="fas fa-edit"></i> Edit Content';
+            document.getElementById('contentId').value = id;
+            document.getElementById('contentType').value = item.type;
+            document.getElementById('contentTitle').value = item.title;
+            document.getElementById('contentText').value = item.content || '';
+            document.getElementById('contentUrl').value = item.media_url || '';
+            document.getElementById('displayDuration').value = item.display_duration;
+            document.getElementById('priority').value = item.priority;
+            document.getElementById('active').value = item.active ? '1' : '0';
+            document.getElementById('backgroundColor').value = item.background_color;
+            document.getElementById('bgColorText').textContent = item.background_color;
+            document.getElementById('textColor').value = item.text_color;
+            document.getElementById('textColorText').textContent = item.text_color;
+            document.getElementById('fontSize').value = item.font_size;
+            
+            if (item.start_time) {
+                document.getElementById('startTime').value = formatDateTimeInput(item.start_time);
+            }
+            if (item.end_time) {
+                document.getElementById('endTime').value = formatDateTimeInput(item.end_time);
+            }
+            
+            uploadedMediaUrl = item.media_url;
+            uploadedMediaUrls = item.media_urls || [];
+            
+            if (item.type === 'image' || item.type === 'video') {
+                if (item.media_url) {
+                    const preview = item.type === 'image' 
+                        ? `<img src="${item.media_url}" class="preview-image">`
+                        : `<video src="${item.media_url}" class="preview-image" controls></video>`;
+                    document.getElementById('singleFilePreview').innerHTML = `
+                        <div class="file-preview-item">${preview}</div>
+                    `;
+                }
+            }
+            
+            if (item.type === 'slideshow' && item.media_urls && item.media_urls.length > 0) {
+                document.getElementById('multiFilePreview').innerHTML = item.media_urls.map((url, idx) => `
+                    <div class="file-preview-item">
+                        <img src="${url}" class="preview-image">
+                        <button class="remove-btn" onclick="removeMultiFile(${idx})">×</button>
+                    </div>
+                `).join('');
+            }
+            
+            // Load locations
+            selectedLocations = item.locations || [];
+            
+            toggleContentFields();
+            renderLocations();
+            contentModal.show();
+        }
+
+        function toggleContentFields() {
+            const type = document.getElementById('contentType').value;
+            
+            // Hide all conditional fields
+            document.getElementById('field-text').classList.add('d-none');
+            document.getElementById('field-url').classList.add('d-none');
+            document.getElementById('field-single-media').classList.add('d-none');
+            document.getElementById('field-multi-media').classList.add('d-none');
+            document.getElementById('styling-fields').classList.add('d-none');
+            
+            // Show relevant fields
+            if (type === 'text') {
+                document.getElementById('field-text').classList.remove('d-none');
+                document.getElementById('styling-fields').classList.remove('d-none');
+            } else if (type === 'url') {
+                document.getElementById('field-url').classList.remove('d-none');
+            } else if (type === 'image' || type === 'video') {
+                document.getElementById('field-single-media').classList.remove('d-none');
+            } else if (type === 'slideshow') {
+                document.getElementById('field-multi-media').classList.remove('d-none');
+            }
+        }
+
+        async function handleSingleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            // Client-side validation for video formats
+            const ext = '.' + file.name.split('.').pop().toLowerCase();
+            const allowedVideoFormats = ['.mp4', '.webm', '.ogg', '.ogv'];
+            
+            if (file.type.startsWith('video/') && !allowedVideoFormats.includes(ext)) {
+                showError(`Video format ${ext.toUpperCase()} is not supported. Please convert your video to MP4, WebM, or OGG format first.`);
+                document.getElementById('singleFileInput').value = '';
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            // Show progress bar
+            const progressContainer = document.getElementById('singleUploadProgress');
+            const progressFill = document.getElementById('singleProgressFill');
+            const progressText = document.getElementById('singleProgressText');
+            const progressSpeed = document.getElementById('singleProgressSpeed');
+            
+            progressContainer.classList.add('active');
+            document.getElementById('singleFilePreview').innerHTML = '';
+            
+            // Use XMLHttpRequest for upload progress
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                let startTime = Date.now();
+                let startLoaded = 0;
+                
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const percentComplete = Math.round((e.loaded / e.total) * 100);
+                        progressFill.style.width = percentComplete + '%';
+                        progressFill.textContent = percentComplete + '%';
+                        
+                        // Calculate upload speed
+                        const elapsed = (Date.now() - startTime) / 1000; // seconds
+                        const loaded = e.loaded - startLoaded;
+                        const speed = loaded / elapsed; // bytes per second
+                        
+                        if (speed > 0) {
+                            const speedMB = (speed / (1024 * 1024)).toFixed(2);
+                            progressSpeed.textContent = `${speedMB} MB/s`;
+                        }
+                        
+                        // Update text
+                        const uploadedMB = (e.loaded / (1024 * 1024)).toFixed(2);
+                        const totalMB = (e.total / (1024 * 1024)).toFixed(2);
+                        progressText.textContent = `Uploading: ${uploadedMB} MB / ${totalMB} MB`;
+                        
+                        startTime = Date.now();
+                        startLoaded = e.loaded;
+                    }
+                });
+                
+                xhr.addEventListener('load', () => {
+                    if (xhr.status === 200) {
+                        const result = JSON.parse(xhr.responseText);
+                        if (result.success) {
+                            uploadedMediaUrl = result.url;
+                            
+                            // Success state
+                            progressFill.style.width = '100%';
+                            progressFill.textContent = '✓ Upload Complete';
+                            progressText.textContent = 'Upload successful!';
+                            
+                            setTimeout(() => {
+                                progressContainer.classList.remove('active');
+                                
+                                const isVideo = file.type.startsWith('video/');
+                                const preview = isVideo 
+                                    ? `<video src="${result.url}" class="preview-image" controls></video>`
+                                    : `<img src="${result.url}" class="preview-image">`;
+                                document.getElementById('singleFilePreview').innerHTML = `
+                                    <div class="file-preview-item">${preview}</div>
+                                `;
+                            }, 1000);
+                            
+                            resolve(result);
+                        } else {
+                            throw new Error(result.message || result.error || 'Upload failed');
+                        }
+                    } else {
+                        reject(new Error('Upload failed with status: ' + xhr.status));
+                    }
+                });
+                
+                xhr.addEventListener('error', () => {
+                    reject(new Error('Upload failed'));
+                });
+                
+                xhr.open('POST', '/api/narrowcast/upload');
+                xhr.send(formData);
+            }).catch(error => {
+                console.error('Upload error:', error);
+                showError(error.message || 'Failed to upload file');
+                progressContainer.classList.remove('active');
+                document.getElementById('singleFilePreview').innerHTML = '';
+                document.getElementById('singleFileInput').value = '';
+            });
+        }
+
+        async function handleMultiFileSelect(event) {
+            const files = Array.from(event.target.files);
+            if (files.length === 0) return;
+            
+            const formData = new FormData();
+            files.forEach(file => formData.append('files', file));
+            
+            // Show progress bar
+            const progressContainer = document.getElementById('multiUploadProgress');
+            const progressFill = document.getElementById('multiProgressFill');
+            const progressText = document.getElementById('multiProgressText');
+            const progressSpeed = document.getElementById('multiProgressSpeed');
+            
+            progressContainer.classList.add('active');
+            document.getElementById('multiFilePreview').innerHTML = '';
+            
+            // Calculate total size
+            const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+            const totalMB = (totalSize / (1024 * 1024)).toFixed(2);
+            
+            // Use XMLHttpRequest for upload progress
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                let startTime = Date.now();
+                let startLoaded = 0;
+                
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const percentComplete = Math.round((e.loaded / e.total) * 100);
+                        progressFill.style.width = percentComplete + '%';
+                        progressFill.textContent = percentComplete + '%';
+                        
+                        // Calculate upload speed
+                        const elapsed = (Date.now() - startTime) / 1000;
+                        const loaded = e.loaded - startLoaded;
+                        const speed = loaded / elapsed;
+                        
+                        if (speed > 0) {
+                            const speedMB = (speed / (1024 * 1024)).toFixed(2);
+                            progressSpeed.textContent = `${speedMB} MB/s`;
+                        }
+                        
+                        // Update text
+                        const uploadedMB = (e.loaded / (1024 * 1024)).toFixed(2);
+                        progressText.textContent = `Uploading ${files.length} files: ${uploadedMB} MB / ${totalMB} MB`;
+                        
+                        startTime = Date.now();
+                        startLoaded = e.loaded;
+                    }
+                });
+                
+                xhr.addEventListener('load', () => {
+                    if (xhr.status === 200) {
+                        const result = JSON.parse(xhr.responseText);
+                        if (result.success) {
+                            uploadedMediaUrls = [...uploadedMediaUrls, ...result.urls];
+                            
+                            // Success state
+                            progressFill.style.width = '100%';
+                            progressFill.textContent = `✓ ${files.length} Files Uploaded`;
+                            progressText.textContent = 'Upload successful!';
+                            
+                            setTimeout(() => {
+                                progressContainer.classList.remove('active');
+                                renderMultiFilePreview();
+                            }, 1000);
+                            
+                            resolve(result);
+                        } else {
+                            throw new Error(result.error || 'Upload failed');
+                        }
+                    } else {
+                        reject(new Error('Upload failed with status: ' + xhr.status));
+                    }
+                });
+                
+                xhr.addEventListener('error', () => {
+                    reject(new Error('Upload failed'));
+                });
+                
+                xhr.open('POST', '/api/narrowcast/upload-multiple');
+                xhr.send(formData);
+            }).catch(error => {
+                console.error('Upload error:', error);
+                showError('Failed to upload files');
+                progressContainer.classList.remove('active');
+                document.getElementById('multiFilePreview').innerHTML = '';
+            });
+        }
+
+        function renderMultiFilePreview() {
+            document.getElementById('multiFilePreview').innerHTML = uploadedMediaUrls.map((url, idx) => `
+                <div class="file-preview-item">
+                    <img src="${url}" class="preview-image">
+                    <button class="remove-btn" onclick="removeMultiFile(${idx})">×</button>
+                </div>
+            `).join('');
+        }
+
+        function removeMultiFile(index) {
+            uploadedMediaUrls.splice(index, 1);
+            renderMultiFilePreview();
+        }
+
+        async function saveContent() {
+            const type = document.getElementById('contentType').value;
+            const title = document.getElementById('contentTitle').value;
+            
+            if (!title) {
+                showError('Title is required');
+                return;
+            }
+            
+            const data = {
+                type,
+                title,
+                content: document.getElementById('contentText').value,
+                media_url: type === 'url' ? document.getElementById('contentUrl').value : uploadedMediaUrl,
+                media_urls: type === 'slideshow' ? uploadedMediaUrls : null,
+                active: parseInt(document.getElementById('active').value),
+                priority: parseInt(document.getElementById('priority').value),
+                start_time: document.getElementById('startTime').value || null,
+                end_time: document.getElementById('endTime').value || null,
+                display_duration: parseInt(document.getElementById('displayDuration').value),
+                background_color: document.getElementById('backgroundColor').value,
+                text_color: document.getElementById('textColor').value,
+                font_size: parseInt(document.getElementById('fontSize').value),
+                locations: selectedLocations.length > 0 ? selectedLocations : null
+            };
+            
+            try {
+                const id = document.getElementById('contentId').value;
+                const url = id ? `/api/narrowcast/content/${id}` : '/api/narrowcast/content';
+                const method = id ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    contentModal.hide();
+                    showSuccess(id ? 'Content updated successfully' : 'Content created successfully');
+                    loadContent();
+                } else {
+                    throw new Error(result.error || 'Save failed');
+                }
+            } catch (error) {
+                console.error('Save error:', error);
+                showError('Failed to save content');
+            }
+        }
+
+        async function toggleActive(id, currentStatus) {
+            try {
+                const response = await fetch(`/api/narrowcast/content/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ...allContent.find(c => c.id === id),
+                        active: currentStatus ? 0 : 1
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showSuccess(`Content ${currentStatus ? 'deactivated' : 'activated'}`);
+                    loadContent();
+                }
+            } catch (error) {
+                console.error('Toggle error:', error);
+                showError('Failed to update status');
+            }
+        }
+
+        async function deleteContent(id) {
+            if (!confirm('Are you sure you want to delete this content?')) return;
+            
+            try {
+                const response = await fetch(`/api/narrowcast/content/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showSuccess('Content deleted successfully');
+                    loadContent();
+                } else {
+                    throw new Error(result.error || 'Delete failed');
+                }
+            } catch (error) {
+                console.error('Delete error:', error);
+                showError('Failed to delete content');
+            }
+        }
+
+        function formatDateTime(dateStr) {
+            const date = new Date(dateStr);
+            return date.toLocaleString('nl-NL', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function formatDateTimeInput(dateStr) {
+            const date = new Date(dateStr);
+            return date.toISOString().slice(0, 16);
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function showSuccess(message) {
+            // Simple alert for now, can be replaced with toast notification
+            alert(message);
+        }
+
+        function showError(message) {
+            alert('Error: ' + message);
+        }
+    </script>
+</body>
+</html>
+

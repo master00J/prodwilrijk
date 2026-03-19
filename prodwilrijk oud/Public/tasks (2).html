@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Foresco Taken Manager</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Include Bootstrap CSS -->
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+    />
+
+    <!-- Include Font Awesome -->
+    <link
+        rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"
+        integrity="sha512-1ycn6IcaQQ40/MKBW2W4Rhis/DbILU74C1vSrLJxCq57o941Ym01SwNsOMqvEBFlcgUa6xLiPY/NS5R+E6ztJQ=="
+        crossorigin="anonymous"
+        referrerpolicy="no-referrer"
+    />
+
+    <!-- Include Flatpickr for better date/time picker -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+
+    <!-- DataTables CSS -->
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css">
+
+    <!-- FullCalendar CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.css" rel="stylesheet">
+    
+    <style>
+        body {
+            font-size: 16px;
+            background-color: #f5f7fa;
+        }
+        
+        .navbar {
+            background-color: #f8f9fa;
+            box-shadow: 0 2px 4px rgba(0,0,0,.08);
+            padding: 1rem;
+        }
+
+        .navbar-brand {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .nav-link {
+            color: #6c757d;
+            transition: color 0.2s ease;
+            padding: 0.5rem 1rem;
+        }
+
+        .nav-link:hover {
+            color: #0d6efd;
+        }
+
+        .card {
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            border: none;
+            margin-bottom: 1.5rem;
+            border-radius: 0.5rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+            position: relative;
+        }
+
+        .card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        }
+
+        .overdue {
+            border-left: 5px solid #dc3545 !important; /* Red border */
+        }
+        
+        .due-today {
+            border-left: 5px solid #ffc107 !important; /* Yellow border */
+        }
+
+        .task-card {
+            margin-bottom: 1rem;
+        }
+
+        .badge {
+            margin-right: 0.5rem;
+        }
+
+        .filter-container {
+            background-color: #fff;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        }
+
+        .dashboard-card {
+            background-color: #fff;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            text-align: center;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .dashboard-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        }
+
+        .task-icon {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        .due-today-icon {
+            color: #ffc107;
+        }
+
+        .overdue-icon {
+            color: #dc3545;
+        }
+
+        .completed-icon {
+            color: #28a745;
+        }
+
+        .task-count {
+            font-size: 1.75rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .nav-tabs .nav-item .nav-link {
+            color: #6c757d;
+            font-weight: 500;
+        }
+
+        .nav-tabs .nav-item .nav-link.active {
+            color: #0d6efd;
+            font-weight: 600;
+        }
+
+        .notification-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background-color: red;
+            color: white;
+            font-weight: bold;
+            font-size: 0.7rem;
+            border-radius: 50%;
+            padding: 2px 5px;
+        }
+
+        .task-priority-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .priority-option {
+            flex: 1;
+            text-align: center;
+            padding: 10px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .priority-option:hover {
+            background-color: #f8f9fa;
+        }
+
+        .priority-option.selected {
+            border-color: #0d6efd;
+            background-color: #e7f1ff;
+        }
+
+        .priority-high {
+            border-left: 4px solid #dc3545;
+        }
+
+        .priority-medium {
+            border-left: 4px solid #ffc107;
+        }
+
+        .priority-low {
+            border-left: 4px solid #28a745;
+        }
+
+        .priority-badge {
+            font-size: 0.7em;
+            padding: 0.25em 0.6em;
+            margin-right: 0.5rem;
+        }
+
+        .priority-high-badge {
+            background-color: #dc3545;
+        }
+
+        .priority-medium-badge {
+            background-color: #ffc107;
+            color: #212529;
+        }
+
+        .priority-low-badge {
+            background-color: #28a745;
+        }
+
+        .task-action-button {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.8rem;
+        }
+
+        .comments-container {
+            margin-top: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+            padding: 10px;
+        }
+
+        .comment {
+            padding: 8px;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .comment:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+
+        .comment-meta {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-bottom: 3px;
+        }
+
+        .attachments-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .attachment {
+            display: flex;
+            align-items: center;
+            padding: 5px 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .attachment i {
+            margin-right: 5px;
+        }
+
+        .task-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 10px;
+        }
+
+        .task-tag {
+            background-color: #e9ecef;
+            color: #495057;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+
+        .custom-tag-input {
+            max-width: 150px;
+            display: inline-block;
+        }
+
+        /* Loader */
+        .loader-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.7);
+            z-index: 9999;
+        }
+
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #0d6efd;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .modal-dialog.modal-xl {
+            max-width: 1140px;
+        }
+
+        .timeline {
+            position: relative;
+            padding-left: 30px;
+            margin-top: 20px;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 2px;
+            background-color: #dee2e6;
+        }
+
+        .timeline-item {
+            position: relative;
+            margin-bottom: 15px;
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -38px;
+            top: 3px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #0d6efd;
+        }
+
+        .timeline-date {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+
+        .timeline-content {
+            padding-bottom: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .modal-dialog {
+                max-width: 95% !important;
+                margin: 1rem auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loader -->
+    <div class="loader-container" id="loader">
+        <div class="loader"></div>
+    </div>
+
+    <!-- Login Form -->
+    <div class="container mt-5" id="loginForm" style="display: none;">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0" id="authCardTitle">Inloggen</h4>
+                    </div>
+                    <div class="card-body">
+                        <form id="authForm">
+                            <div class="mb-3">
+                                <label for="username" class="form-label">Gebruikersnaam</label>
+                                <input type="text" class="form-control" id="username" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="password" class="form-label">Wachtwoord</label>
+                                <input type="password" class="form-control" id="password" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100" id="authSubmitBtn">Inloggen</button>
+                        </form>
+                        <div class="mt-3 text-center">
+                            <button class="btn btn-link" id="toggleAuthBtn">Account aanmaken</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div id="appContainer" style="display: none;">
+        <!-- Navigation -->
+        <nav class="navbar navbar-expand-lg navbar-light bg-light">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="/">
+                    <i class="fas fa-home"></i> Foresco
+                </a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav me-auto mb-2 mb-lg-0"></ul>
+                    <span class="navbar-text me-3">
+                        Ingelogd als: <span id="currentUsername">Gebruiker</span>
+                    </span>
+                    <div class="btn-group me-2" style="position: relative;">
+                        <button id="chatBtn" class="btn btn-outline-secondary">
+                            <i class="fas fa-comments me-1"></i>Berichten
+                            <span class="notification-badge" id="unreadMessagesBadge" style="display: none;">0</span>
+                        </button>
+                    </div>
+                    <button id="logoutBtn" class="btn btn-outline-danger">
+                        <i class="fas fa-sign-out-alt me-1"></i>Uitloggen
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <div class="container py-4">
+            <!-- Dashboard Stats -->
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="dashboard-card">
+                        <div class="task-icon due-today-icon">
+                            <i class="fas fa-calendar-day"></i>
+                        </div>
+                        <div class="task-count" id="dueTodayCount">0</div>
+                        <div class="task-label">Vandaag te doen</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="dashboard-card">
+                        <div class="task-icon overdue-icon">
+                            <i class="fas fa-exclamation-circle"></i>
+                        </div>
+                        <div class="task-count" id="overdueCount">0</div>
+                        <div class="task-label">Achterstallig</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="dashboard-card">
+                        <div class="task-icon completed-icon">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="task-count" id="completedWeekCount">0</div>
+                        <div class="task-label">Deze week voltooid</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Tabs -->
+            <ul class="nav nav-tabs mb-4" id="taskTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="active-tab" data-bs-toggle="tab" data-bs-target="#active-tasks" type="button" role="tab">
+                        <i class="fas fa-list me-1"></i>Actieve taken
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="completed-tab" data-bs-toggle="tab" data-bs-target="#completed-tasks" type="button" role="tab">
+                        <i class="fas fa-check-double me-1"></i>Voltooide taken
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="calendar-tab" data-bs-toggle="tab" data-bs-target="#calendar-view" type="button" role="tab">
+                        <i class="fas fa-calendar-alt me-1"></i>Kalender
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="reports-tab" data-bs-toggle="tab" data-bs-target="#reports" type="button" role="tab">
+                        <i class="fas fa-chart-bar me-1"></i>Rapporten
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content" id="taskTabsContent">
+                <!-- Active Tasks Tab -->
+                <div class="tab-pane fade show active" id="active-tasks" role="tabpanel">
+                    <!-- Filter Controls -->
+                    <div class="filter-container mb-4">
+                        <div class="row align-items-center">
+                            <div class="col-md-6 mb-3 mb-md-0">
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                    <input type="text" class="form-control" id="taskSearchInput" placeholder="Zoeken...">
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3 mb-md-0">
+                                <select class="form-select" id="taskPriorityFilter">
+                                    <option value="">Alle prioriteiten</option>
+                                    <option value="High">Hoog</option>
+                                    <option value="Medium">Middel</option>
+                                    <option value="Low">Laag</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3 mb-3 mb-md-0">
+                                <select class="form-select" id="taskAssigneeFilter">
+                                    <option value="">Alle medewerkers</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-md-4 mb-3 mb-md-0">
+                                <select class="form-select" id="taskCategoryFilter">
+                                    <option value="">Alle categorieën</option>
+                                    <option value="Administratie">Administratie</option>
+                                    <option value="Productie">Productie</option>
+                                    <option value="Onderhoud">Onderhoud</option>
+                                    <option value="Verkoop">Verkoop</option>
+                                    <option value="IT">IT</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 mb-3 mb-md-0">
+                                <select class="form-select" id="taskStatusFilter">
+                                    <option value="">Alle statussen</option>
+                                    <option value="Te doen">Te doen</option>
+                                    <option value="In uitvoering">In uitvoering</option>
+                                    <option value="In afwachting">In afwachting</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 d-grid">
+                                <button class="btn btn-success" id="newTaskBtn">
+                                    <i class="fas fa-plus me-1"></i>Nieuwe taak
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Task List -->
+                    <div class="row" id="activeTasksContainer">
+                        <!-- Tasks will be inserted here -->
+                    </div>
+                </div>
+
+                <!-- Completed Tasks Tab -->
+                <div class="tab-pane fade" id="completed-tasks" role="tabpanel">
+                    <div class="card">
+                        <div class="card-body">
+                            <table class="table table-striped" id="completedTasksTable">
+                                <thead>
+                                    <tr>
+                                        <th>Titel</th>
+                                        <th>Toegewezen aan</th>
+                                        <th>Deadline</th>
+                                        <th>Voltooid op</th>
+                                        <th>Voltooid door</th>
+                                        <th>Acties</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Completed tasks will be inserted here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Calendar Tab -->
+                <div class="tab-pane fade" id="calendar-view" role="tabpanel">
+                    <div class="card">
+                        <div class="card-body">
+                            <div id="taskCalendar">
+                                <!-- Calendar will be inserted here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reports Tab -->
+                <div class="tab-pane fade" id="reports" role="tabpanel">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title mb-4">Taken Statistieken</h5>
+                            
+                            <div class="row mb-4">
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h6 class="card-subtitle mb-3">Taken per prioriteit</h6>
+                                            <canvas id="priorityChart" height="250"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h6 class="card-subtitle mb-3">Taken per categorie</h6>
+                                            <canvas id="categoryChart" height="250"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h6 class="card-subtitle mb-3">Voltooide taken per week</h6>
+                                            <canvas id="completionChart" height="250"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h6 class="card-subtitle mb-3">Taken per medewerker</h6>
+                                            <canvas id="assigneeChart" height="250"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-4">
+                                <h5 class="mb-3">Rapport exporteren</h5>
+                                <form class="row g-3">
+                                    <div class="col-md-4">
+                                        <label for="reportStartDate" class="form-label">Startdatum</label>
+                                        <input type="date" class="form-control" id="reportStartDate">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="reportEndDate" class="form-label">Einddatum</label>
+                                        <input type="date" class="form-control" id="reportEndDate">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="reportType" class="form-label">Type rapport</label>
+                                        <select class="form-select" id="reportType">
+                                            <option value="all">Alle taken</option>
+                                            <option value="completed">Voltooide taken</option>
+                                            <option value="overdue">Achterstallige taken</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 mt-3">
+                                        <button type="button" class="btn btn-primary" id="exportReportBtn">
+                                            <i class="fas fa-file-export me-1"></i>Exporteren als Excel
+                                        </button>
+                                        <button type="button" class="btn btn-secondary ms-2" id="exportPdfBtn">
+                                            <i class="fas fa-file-pdf me-1"></i>Exporteren als PDF
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Task Modal -->
+    <div class="modal fade" id="taskModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="taskModalTitle">Nieuwe taak</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="taskForm">
+                        <div class="row mb-3">
+                            <div class="col-md-8">
+                                <label for="taskTitle" class="form-label">Titel <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="taskTitle" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="taskCategory" class="form-label">Categorie</label>
+                                <select class="form-select" id="taskCategory">
+                                    <option value="Administratie">Administratie</option>
+                                    <option value="Productie">Productie</option>
+                                    <option value="Onderhoud">Onderhoud</option>
+                                    <option value="Verkoop">Verkoop</option>
+                                    <option value="IT">IT</option>
+                                    <option value="Anders">Anders</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="taskDescription" class="form-label">Beschrijving</label>
+                            <textarea class="form-control" id="taskDescription" rows="3"></textarea>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="taskAssignee" class="form-label">Toegewezen aan</label>
+                                <input type="text" class="form-control" id="taskAssignee">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="taskStatus" class="form-label">Status</label>
+                                <select class="form-select" id="taskStatus">
+                                    <option value="Te doen">Te doen</option>
+                                    <option value="In uitvoering">In uitvoering</option>
+                                    <option value="In afwachting">In afwachting</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="taskDueDate" class="form-label">Deadline</label>
+                                <input type="text" class="form-control" id="taskDueDate">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="taskEstimatedTime" class="form-label">Geschatte tijdsduur (in uren)</label>
+                                <input type="number" class="form-control" id="taskEstimatedTime" min="0" step="0.5">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Prioriteit</label>
+                            <div class="task-priority-selector">
+                                <div class="priority-option" data-priority="Low">
+                                    <i class="fas fa-arrow-down text-success"></i>
+                                    <div>Laag</div>
+                                </div>
+                                <div class="priority-option" data-priority="Medium">
+                                    <i class="fas fa-minus text-warning"></i>
+                                    <div>Middel</div>
+                                </div>
+                                <div class="priority-option" data-priority="High">
+                                    <i class="fas fa-arrow-up text-danger"></i>
+                                    <div>Hoog</div>
+                                </div>
+                            </div>
+                            <input type="hidden" id="taskPriority" value="Medium">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Herhalingspatroon</label>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <select class="form-select" id="taskFrequency">
+                                        <option value="once">Eenmalig</option>
+                                        <option value="daily">Dagelijks</option>
+                                        <option value="weekly">Wekelijks</option>
+                                        <option value="monthly">Maandelijks</option>
+                                        <option value="custom">Aangepast</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-8" id="customFrequencyContainer" style="display: none;">
+                                    <div class="input-group">
+                                        <span class="input-group-text">Elke</span>
+                                        <input type="number" class="form-control" id="customFrequencyValue" min="1" value="1">
+                                        <select class="form-select" id="customFrequencyUnit">
+                                            <option value="days">Dagen</option>
+                                            <option value="weeks">Weken</option>
+                                            <option value="months">Maanden</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Tags</label>
+                            <div class="input-group mb-2">
+                                <input type="text" class="form-control" id="newTagInput" placeholder="Nieuwe tag...">
+                                <button class="btn btn-outline-secondary" type="button" id="addTagBtn">Toevoegen</button>
+                            </div>
+                            <div class="task-tags" id="taskTagsContainer">
+                                <!-- Tags will be inserted here -->
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Bijlagen</label>
+                            <div class="input-group mb-2">
+                                <input type="file" class="form-control" id="taskAttachment">
+                                <button class="btn btn-outline-secondary" type="button" id="addAttachmentBtn">Uploaden</button>
+                            </div>
+                            <div class="attachments-container" id="taskAttachmentsContainer">
+                                <!-- Attachments will be inserted here -->
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+                    <button type="button" class="btn btn-primary" id="saveTaskBtn">Opslaan</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Task Modal -->
+    <div class="modal fade" id="viewTaskModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="viewTaskTitle">Taak details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <h6 class="card-subtitle mb-2 text-muted">Beschrijving</h6>
+                                    <p id="viewTaskDescription">Laden...</p>
+                                    
+                                    <h6 class="card-subtitle mb-2 mt-4 text-muted">Bijlagen</h6>
+                                    <div id="viewTaskAttachments">
+                                        <p class="text-muted">Geen bijlagen</p>
+                                    </div>
+
+                                    <h6 class="card-subtitle mb-2 mt-4 text-muted">Tags</h6>
+                                    <div class="task-tags" id="viewTaskTags">
+                                        <!-- Tags will be inserted here -->
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="card">
+                                <div class="card-body">
+                                    <h6 class="card-subtitle mb-3">Opmerkingen</h6>
+                                    <div class="comments-container mb-3" id="viewTaskComments">
+                                        <!-- Comments will be inserted here -->
+                                    </div>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="newCommentText" placeholder="Voeg een opmerking toe...">
+                                        <button class="btn btn-primary" type="button" id="addCommentBtn">Versturen</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <h6 class="card-subtitle mb-3">Details</h6>
+                                    <table class="table table-sm">
+                                        <tbody>
+                                            <tr>
+                                                <th>Status</th>
+                                                <td id="viewTaskStatus">-</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Prioriteit</th>
+                                                <td id="viewTaskPriority">-</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Toegewezen aan</th>
+                                                <td id="viewTaskAssignee">-</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Categorie</th>
+                                                <td id="viewTaskCategory">-</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Deadline</th>
+                                                <td id="viewTaskDueDate">-</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Geschatte tijd</th>
+                                                <td id="viewTaskEstimatedTime">-</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Herhalingspatroon</th>
+                                                <td id="viewTaskFrequency">-</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Aangemaakt op</th>
+                                                <td id="viewTaskCreatedAt">-</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Aangemaakt door</th>
+                                                <td id="viewTaskCreatedBy">-</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            <div class="card">
+                                <div class="card-body">
+                                    <h6 class="card-subtitle mb-3">Activiteiten</h6>
+                                    <div class="timeline" id="viewTaskTimeline">
+                                        <!-- Activity timeline will be inserted here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <div class="dropdown me-auto">
+                        <button class="btn btn-secondary dropdown-toggle" type="button" id="taskActionsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            Acties
+                        </button>
+                        <ul class="dropdown-menu" aria-labelledby="taskActionsDropdown">
+                            <li><a class="dropdown-item" href="#" id="editTaskBtn"><i class="fas fa-edit me-1"></i>Bewerken</a></li>
+                            <li><a class="dropdown-item" href="#" id="duplicateTaskBtn"><i class="fas fa-copy me-1"></i>Dupliceren</a></li>
+                            <li><a class="dropdown-item" href="#" id="archiveTaskBtn"><i class="fas fa-archive me-1"></i>Archiveren</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-danger" href="#" id="deleteTaskBtn"><i class="fas fa-trash-alt me-1"></i>Verwijderen</a></li>
+                        </ul>
+                    </div>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Sluiten</button>
+                    <button type="button" class="btn btn-success" id="completeTaskBtn"><i class="fas fa-check me-1"></i>Voltooien</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Users Modal -->
+    <div class="modal fade" id="chatUsersModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Kies een gebruiker om mee te chatten</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <ul class="list-group" id="chatUsersList">
+                        <!-- Users will be inserted here -->
+                    </ul>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Sluiten</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Modal -->
+    <div class="modal fade" id="chatModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="chatModalTitle">Chat</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="chat-messages" id="chatMessages" style="height: 300px; overflow-y: auto; border: 1px solid #dee2e6; padding: 10px; margin-bottom: 15px;">
+                        <!-- Messages will be inserted here -->
+                    </div>
+                    <div class="input-group mb-3">
+                        <input type="file" class="form-control" id="chatAttachment">
+                    </div>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="chatMessageInput" placeholder="Type je bericht...">
+                        <button class="btn btn-primary" type="button" id="sendMessageBtn">Versturen</button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Sluiten</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Socket.IO -->
+    <script src="/socket.io/socket.io.js"></script>
+
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- FullCalendar -->
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.js"></script>
+
+    <!-- DataTables -->
+    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Flatpickr -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://npmcdn.com/flatpickr/dist/l10n/nl.js"></script>
+
+    <!-- Main Application Script -->
+    <script src="/js/tasks.js"></script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+/* admin.css */
+
+/* Kleurcodering voor Order Status */
+.status-actief {
+  color: #17a2b8; /* Bootstrap info kleur */
+  font-weight: bold;
+}
+
+.status-afgewerkt {
+  color: #28a745; /* Bootstrap success kleur */
+  font-weight: bold;
+}
+
+/* Kleurcodering voor Item Status */
+.item-status-in-progress {
+  color: #ffc107; /* Bootstrap warning kleur */
+  font-weight: bold;
+}
+
+.item-status-afgewerkt {
+  color: #28a745; /* Bootstrap success kleur */
+  font-weight: bold;
+}
+

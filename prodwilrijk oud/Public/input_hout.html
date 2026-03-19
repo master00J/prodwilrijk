@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Input Hout - Nieuwe Levering</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Basis styling voor de container */
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 28px;
+        }
+
+        /* Grid layout voor het formulier */
+        form {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        form label {
+            font-weight: bold;
+            color: #555;
+            margin-bottom: 5px;
+        }
+
+        form input {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 100%;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Knop styling */
+        .btn {
+            grid-column: span 2;
+            padding: 15px;
+            background-color: #28a745;
+            color: white;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .btn:hover {
+            background-color: #218838;
+        }
+
+        /* Verzorgde input stijlen */
+        input:focus {
+            border-color: #80bdff;
+            outline: none;
+            box-shadow: 0 0 5px rgba(0, 123, 255, 0.25);
+        }
+
+        /* Responsieve layout */
+        @media (max-width: 768px) {
+            form {
+                grid-template-columns: 1fr;
+            }
+
+            .btn {
+                grid-column: span 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Placeholder voor de header -->
+    <div id="header-placeholder"></div>
+    
+    <div class="container">
+        <h1>Nieuwe Hout Levering Invoeren</h1>
+        <form id="addHoutForm">
+            <div class="form-group">
+                <label for="soort">Houtsoort:</label>
+                <input type="text" id="soort" name="soort" required>
+            </div>
+
+            <div class="form-group">
+                <label for="lengte">Lengte (mm):</label>
+                <input type="number" id="lengte" name="lengte" required>
+            </div>
+
+            <div class="form-group">
+                <label for="breedte">Breedte (mm):</label>
+                <input type="number" id="breedte" name="breedte" required>
+            </div>
+
+            <div class="form-group">
+                <label for="dikte">Dikte (mm):</label>
+                <input type="number" id="dikte" name="dikte" required>
+            </div>
+
+            <div class="form-group">
+                <label for="locatie">Locatie:</label>
+                <input type="text" id="locatie" name="locatie" required>
+            </div>
+
+            <div class="form-group">
+                <label for="aantal">Aantal:</label>
+                <input type="number" id="aantal" name="aantal" required>
+            </div>
+
+            <button type="submit" class="btn">Voeg Toe</button>
+        </form>
+    </div>
+
+    <script src="jquery.min.js"></script>
+    <script src="input_hout.js"></script>
+</body>
+</html>

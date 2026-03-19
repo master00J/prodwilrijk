@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Work Order (OCR)</title>
+</head>
+<body>
+    <h1>Upload Work Order</h1>
+    <form id="uploadForm">
+        <input type="file" id="workorder" accept="application/pdf">
+        <button type="submit">Upload</button>
+    </form>
+    <div id="loading" style="display:none;">Processing, please wait...</div>
+    <div id="results"></div>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+
+            const fileInput = document.getElementById('workorder');
+            const formData = new FormData();
+            formData.append('workorder', fileInput.files[0]);
+
+            // Show loading message
+            const loadingMessage = document.getElementById('loading');
+            loadingMessage.style.display = 'block';
+
+            try {
+                const response = await fetch('/api/upload_workorder', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Unknown error occurred');
+                }
+
+                const result = await response.json();
+                displayResults(result);
+            } catch (error) {
+                console.error('Error processing work order:', error);
+                alert('Error: ' + error.message);
+            } finally {
+                // Hide loading message after processing
+                loadingMessage.style.display = 'none';
+            }
+        });
+
+        // Function to display the results from OCR processing
+        function displayResults(planks) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<h2>Required Planks</h2>';
+
+            if (!Array.isArray(planks)) {
+                resultsDiv.innerHTML = '<p>No planks found in work order.</p>';
+                return;
+            }
+
+            planks.forEach(plank => {
+                resultsDiv.innerHTML += `
+                    <div>
+                        <p><strong>Soort:</strong> ${plank.soort}</p>
+                        <p><strong>Lengte:</strong> ${plank.lengte}</p>
+                        <p><strong>Breedte:</strong> ${plank.breedte}</p>
+                        <p><strong>Dikte:</strong> ${plank.dikte}</p>
+                        <p><strong>Locatie:</strong> ${plank.locatie || 'Unknown'}</p>
+                    </div>
+                    <hr />
+                `;
+            });
+        }
+    </script>
+</body>
+</html>

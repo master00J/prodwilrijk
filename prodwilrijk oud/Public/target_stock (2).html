@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Target Voorraad Beheer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f7f7f7;
+        }
+        .card {
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            margin-bottom: 1.5rem;
+        }
+        .table th {
+            background-color: #f8f9fa;
+        }
+        .form-section {
+            background: #fff;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .table-input {
+            width: 100px;
+        }
+        .status-message {
+            min-height: 1.5rem;
+        }
+        .sortable {
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+        }
+        .sortable:hover {
+            background-color: #e9ecef;
+        }
+        .sortable i {
+            font-size: 0.8em;
+            opacity: 0.5;
+        }
+        .sortable.asc i.fa-sort {
+            display: none;
+        }
+        .sortable.desc i.fa-sort {
+            display: none;
+        }
+        .sortable.asc::after {
+            content: "\f0de";
+            font-family: "Font Awesome 5 Free";
+            font-weight: 900;
+            margin-left: 5px;
+        }
+        .sortable.desc::after {
+            content: "\f0dd";
+            font-family: "Font Awesome 5 Free";
+            font-weight: 900;
+            margin-left: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="header-placeholder"></div>
+
+    <div class="container-fluid py-4">
+        <div class="row mb-4">
+            <div class="col-12 col-xl-10 mx-auto">
+                <div class="card">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0"><i class="fas fa-bullseye me-2"></i>Target Voorraad Beheer</h4>
+                        <div>
+                            <button id="export-excel" class="btn btn-success btn-sm me-2">
+                                <i class="fas fa-file-excel me-1"></i>Export naar Excel
+                            </button>
+                            <button id="refresh-targets" class="btn btn-light btn-sm text-primary">
+                                <i class="fas fa-sync-alt me-1"></i>Vernieuwen
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-section mb-4">
+                            <h5 class="mb-3">Nieuwe target toevoegen</h5>
+                            <form id="target-form" class="row g-3">
+                                <div class="col-md-3">
+                                    <label for="form-houtsoort" class="form-label">Houtsoort</label>
+                                    <input type="text" class="form-control" id="form-houtsoort" placeholder="bv. SXT" required>
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="form-dikte" class="form-label">Dikte (mm)</label>
+                                    <input type="number" step="0.1" class="form-control" id="form-dikte" required>
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="form-breedte" class="form-label">Breedte (mm)</label>
+                                    <input type="number" step="0.1" class="form-control" id="form-breedte" required>
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="form-target" class="form-label">Gewenste packs</label>
+                                    <input type="number" min="0" class="form-control" id="form-target" required>
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="form-lengte" class="form-label">Lengte (mm)</label>
+                                    <input type="number" min="0" class="form-control" id="form-lengte" placeholder="optioneel">
+                                </div>
+                                <div class="col-md-1 d-flex align-items-end">
+                                    <button type="submit" class="btn btn-success w-100">Opslaan</button>
+                                </div>
+                                <div class="col-12">
+                                    <div id="form-status" class="status-message text-success"></div>
+                                </div>
+                            </form>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <input type="text" class="form-control" id="search-box" placeholder="Zoek... (bijv: 19x100x5000, SXT, 98x98)">
+                                </div>
+                                <div class="col-md-3">
+                                    <select class="form-select" id="filter-houtsoort">
+                                        <option value="">Alle houtsoorten</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <button id="clear-filters" class="btn btn-outline-secondary w-100">
+                                        <i class="fas fa-times me-1"></i>Wis filters
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="target-table">
+                                <thead>
+                                    <tr>
+                                        <th class="sortable" data-column="houtsoort">
+                                            Houtsoort <i class="fas fa-sort"></i>
+                                        </th>
+                                        <th class="sortable" data-column="dikte">
+                                            Dikte (mm) <i class="fas fa-sort"></i>
+                                        </th>
+                                        <th class="sortable" data-column="breedte">
+                                            Breedte (mm) <i class="fas fa-sort"></i>
+                                        </th>
+                                        <th class="sortable" data-column="target_packs">
+                                            Gewenste packs <i class="fas fa-sort"></i>
+                                        </th>
+                                        <th class="sortable" data-column="desired_length">
+                                            Lengte (mm) <i class="fas fa-sort"></i>
+                                        </th>
+                                        <th class="sortable" data-column="updated_at">
+                                            Laatste update <i class="fas fa-sort"></i>
+                                        </th>
+                                        <th class="text-end">Acties</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Dynamische rijen -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="table-status" class="status-message"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script src="target_stock.js"></script>
+</body>
+</html>

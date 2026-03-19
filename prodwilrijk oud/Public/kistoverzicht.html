@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kistoverzicht - Airtec</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        .stats-banner {
+            background-color: #f8f9fa;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .stat-card {
+            background-color: white;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #0d6efd;
+        }
+        .stat-label {
+            color: #6c757d;
+            font-size: 14px;
+        }
+        .kist-card {
+            border-left: 4px solid #0d6efd;
+            margin-bottom: 15px;
+            background-color: white;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            padding: 15px;
+        }
+        .kist-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .kist-title {
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .kist-count {
+            background-color: #0d6efd;
+            color: white;
+            border-radius: 50px;
+            padding: 5px 15px;
+            font-weight: bold;
+        }
+        .kist-details {
+            color: #6c757d;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .toast-notification {
+            display: flex;
+            padding: 12px 20px;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            margin-bottom: 10px;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .toast-content {
+            display: flex;
+            align-items: center;
+        }
+        .toast-content i {
+            margin-right: 10px;
+        }
+        .toast-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+        }
+        .kist-counter {
+            display: flex;
+            align-items: center;
+            margin-top: 10px;
+            border-top: 1px solid #eee;
+            padding-top: 12px;
+        }
+        .counter-label {
+            font-weight: bold;
+            color: #333;
+            margin-right: 10px;
+        }
+        .counter-controls {
+            display: flex;
+            align-items: center;
+        }
+        .counter-btn {
+            width: 42px;
+            height: 42px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 5px;
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .counter-btn:hover {
+            background: #e9ecef;
+        }
+        .counter-input {
+            width: 60px;
+            height: 42px;
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .counter-input:focus {
+            outline: none;
+            border-color: #0d6efd;
+        }
+        .complete-indicator {
+            margin-left: 15px;
+            padding: 5px 10px;
+            font-size: 14px;
+            border-radius: 4px;
+            background-color: #ddd;
+            color: #333;
+        }
+        .complete-true {
+            background-color: #28a745;
+            color: white;
+        }
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            .stat-card {
+                margin-bottom: 15px;
+            }
+            .counter-btn {
+                width: 48px;
+                height: 48px;
+                font-size: 20px;
+            }
+            .counter-input {
+                height: 48px;
+                width: 70px;
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="header-placeholder"></div>
+
+    <div class="container mt-4">
+        <h1>Kistoverzicht</h1>
+        <p>Overzicht van alle kisten die gemaakt moeten worden voor Airtec.</p>
+
+        <div class="stats-banner">
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-number" id="total-kisten">0</div>
+                        <div class="stat-label">Unieke kist types</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-number" id="total-items">0</div>
+                        <div class="stat-label">Totaal aantal items</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-number" id="total-quantity">0</div>
+                        <div class="stat-label">Totale hoeveelheid</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-number" id="total-completed">0</div>
+                        <div class="stat-label">Kisten gemaakt</div>
+                    </div>
+                </div>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <div id="last-updated">Laatst bijgewerkt: -</div>
+                <div>
+                    <button id="reset-counters-button" class="btn btn-sm btn-warning me-2">
+                        <i class="fas fa-undo-alt"></i> Reset Tellers
+                    </button>
+                    <button id="refresh-button" class="btn btn-sm btn-primary">
+                        <i class="fas fa-sync-alt"></i> Vernieuwen
+                    </button>
+                    <button id="print-button" class="btn btn-sm btn-secondary ms-2">
+                        <i class="fas fa-print"></i> Afdrukken
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input type="text" id="search-box" class="form-control" placeholder="Zoeken op kistnummer...">
+                </div>
+            </div>
+            <div class="col-md-6 d-flex justify-content-end">
+                <a href="items_to_pack_airtec.html" class="btn btn-outline-secondary">
+                    <i class="fas fa-box"></i> Terug naar Items om te Verpakken
+                </a>
+            </div>
+        </div>
+
+        <div id="kist-container">
+            <!-- Kistkaarten worden hier dynamisch ingevoegd -->
+        </div>
+    </div>
+
+    <script src="scripts_kistoverzicht.js"></script>
+</body>
+</html> 

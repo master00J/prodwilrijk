@@ -1,0 +1,2492 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-Bodems Beheer</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        body {
+            background-color: #f7f7f7;
+        }
+
+        .table {
+            margin-bottom: 0;
+        }
+
+        .table th, .table td {
+            padding: 0.75rem;
+            vertical-align: middle;
+        }
+
+        .table thead th {
+            background-color: #f8f9fa;
+            border-bottom: 2px solid #dee2e6;
+            font-weight: 500;
+            padding-top: 0.75rem;
+            padding-bottom: 0.75rem;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        .actions-bar {
+            padding: 1rem;
+            background: white;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .form-container {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .status-goed {
+            background-color: rgba(25, 135, 84, 0.1);
+        }
+
+        .status-reparatie {
+            background-color: rgba(255, 193, 7, 0.1);
+        }
+
+        .status-afval {
+            background-color: rgba(220, 53, 69, 0.1);
+        }
+
+        .card {
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            transition: transform 0.2s;
+            border: none;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .stats-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .stats-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #0d6efd;
+            margin: 0.5rem 0;
+        }
+
+        .filter-section {
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .nav-tabs .nav-item .nav-link {
+            border: none;
+            font-weight: 500;
+            color: #495057;
+            padding: 0.75rem 1rem;
+        }
+
+        .nav-tabs .nav-item .nav-link.active {
+            color: #0d6efd;
+            background-color: #fff;
+            border-bottom: 3px solid #0d6efd;
+        }
+
+        .location-badge {
+            display: inline-block;
+            padding: 0.25em 0.5em;
+            border-radius: 0.25rem;
+            font-size: 0.75em;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-right: 0.5rem;
+        }
+        
+        .location-wilrijk {
+            background-color: #cfe2ff;
+            color: #084298;
+        }
+        
+        .location-genk {
+            background-color: #d1e7dd;
+            color: #0f5132;
+        }
+
+        .excel-export-btn {
+            background-color: #1d6f42;
+            border-color: #1d6f42;
+        }
+
+        .excel-export-btn:hover {
+            background-color: #18593a;
+            border-color: #18593a;
+        }
+
+        .transfer-group {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .transfer-group:hover {
+            background-color: #f0f8ff;
+        }
+
+        @media (max-width: 768px) {
+            .actions-bar {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+            
+            .container-fluid {
+                padding: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="header-placeholder"></div>
+
+    <div class="container-fluid py-3">
+        <!-- Stats Dashboard -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card stats-card">
+                    <div class="card-body">
+                        <h6 class="text-muted" id="stats-title-1">Totale Voorraad Waarde (<span id="current-location">Wilrijk Voorraad</span>)</h6>
+                        <div id="total-value" class="stats-number">€0.00</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card">
+                    <div class="card-body">
+                        <h6 class="text-muted" id="stats-title-2">Totaal Aantal Items</h6>
+                        <div id="total-items" class="stats-number">0</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card">
+                    <div class="card-body">
+                        <h6 class="text-muted" id="stats-title-3">Unieke Items</h6>
+                        <div id="unique-items" class="stats-number">0</div>
+                    </div>
+                </div>
+            </div>
+            <!-- Removed "Open Transporten" card -->
+        </div>
+
+        <!-- Main Tabs -->
+        <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="voorraad-tab" data-bs-toggle="tab" data-bs-target="#voorraad-content" type="button" role="tab" aria-controls="voorraad-content" aria-selected="true">
+                    <i class="fas fa-warehouse me-2"></i>Voorraad
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="transfers-tab" data-bs-toggle="tab" data-bs-target="#transfers-content" type="button" role="tab" aria-controls="transfers-content" aria-selected="false">
+                    <i class="fas fa-exchange-alt me-2"></i>Transfers
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="movements-tab" data-bs-toggle="tab" data-bs-target="#movements-content" type="button" role="tab" aria-controls="movements-content" aria-selected="false">
+                    <i class="fas fa-history me-2"></i>Bewegingen
+                </button>
+            </li>
+        </ul>
+
+        <!-- Tab Content -->
+        <div class="tab-content" id="mainTabsContent">
+            <!-- Voorraad Tab -->
+            <div class="tab-pane fade show active" id="voorraad-content" role="tabpanel" aria-labelledby="voorraad-tab">
+                <!-- Voorraad Tabs -->
+                <ul class="nav nav-pills mt-3 mb-3" id="voorraadTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="wilrijk-tab" data-bs-toggle="pill" data-bs-target="#wilrijk-voorraad" type="button" role="tab" aria-controls="wilrijk-voorraad" aria-selected="true">
+                            Wilrijk Voorraad
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="genk-tab" data-bs-toggle="pill" data-bs-target="#genk-voorraad" type="button" role="tab" aria-controls="genk-voorraad" aria-selected="false">
+                            Genk Voorraad
+                        </button>
+                    </li>
+                </ul>
+                
+                <!-- Voorraad Pill Content -->
+                <div class="tab-content" id="voorraadTabsContent">
+                    <!-- Wilrijk Voorraad -->
+                    <div class="tab-pane fade show active" id="wilrijk-voorraad" role="tabpanel" aria-labelledby="wilrijk-tab">
+                        <div class="actions-bar">
+                            <div class="d-flex align-items-center">
+                                <input type="text" id="search-input-wilrijk" class="form-control me-2" 
+                                       placeholder="Zoeken op BC Code of Referentie">
+                                <select id="staat-filter-wilrijk" class="form-select">
+                                    <option value="">Alle Staten</option>
+                                    <option value="goed">Goede staat</option>
+                                    <option value="reparatie">Te repareren</option>
+                                    <option value="afval">Afval</option>
+                                </select>
+                            </div>
+                            <div>
+                                <button class="btn btn-success excel-export-btn me-2" id="export-wilrijk-excel">
+                                    <i class="fas fa-file-excel me-1"></i> Excel Export
+                                </button>
+                                <button class="btn btn-sm btn-primary export-pdf me-2" 
+                                        data-location="wilrijk" 
+                                        data-bs-toggle="tooltip" 
+                                        title="Exporteer Wilrijk voorraad als PDF">
+                                    <i class="fas fa-file-pdf me-1"></i> PDF Export
+                                </button>
+                                <button id="add-stock-button-wilrijk" class="btn btn-primary me-2">
+                                    <i class="fas fa-plus me-1"></i>Voorraad Toevoegen
+                                </button>
+                                <button id="bulk-transfer-button-wilrijk" class="btn btn-info">
+                                    <i class="fas fa-exchange-alt me-1"></i>Transfer Geselecteerde
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive mt-3">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th><input type="checkbox" id="select-all-wilrijk"></th>
+                                        <th>BC Code</th>
+                                        <th>Revisie</th>
+                                        <th>Referentie</th>
+                                        <th>Aantal</th>
+                                        <th>Staat</th>
+                                        <th>Verkoopprijs</th>
+                                        <th>Totale Waarde</th>
+                                        <th>Acties</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Data wordt dynamisch ingevuld -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Genk Voorraad -->
+                    <div class="tab-pane fade" id="genk-voorraad" role="tabpanel" aria-labelledby="genk-tab">
+                        <div class="actions-bar">
+                            <div class="d-flex align-items-center">
+                                <input type="text" id="search-input-genk" class="form-control me-2" 
+                                       placeholder="Zoeken op BC Code of Referentie">
+                                <select id="staat-filter-genk" class="form-select">
+                                    <option value="">Alle Staten</option>
+                                    <option value="goed">Goede staat</option>
+                                    <option value="reparatie">Te repareren</option>
+                                    <option value="afval">Afval</option>
+                                </select>
+                            </div>
+                            <div>
+                                <button class="btn btn-success excel-export-btn me-2" id="export-genk-excel">
+                                    <i class="fas fa-file-excel me-1"></i> Excel Export
+                                </button>
+                                <button class="btn btn-sm btn-primary export-pdf me-2" 
+                                        data-location="genk" 
+                                        data-bs-toggle="tooltip" 
+                                        title="Exporteer Genk voorraad als PDF">
+                                    <i class="fas fa-file-pdf me-1"></i> PDF Export
+                                </button>
+                                <button id="add-stock-button-genk" class="btn btn-primary me-2">
+                                    <i class="fas fa-plus me-1"></i>Voorraad Toevoegen
+                                </button>
+                                <button id="bulk-transfer-button-genk" class="btn btn-info">
+                                    <i class="fas fa-exchange-alt me-1"></i>Transfer Geselecteerde
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive mt-3">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th><input type="checkbox" id="select-all-genk"></th>
+                                        <th>BC Code</th>
+                                        <th>Revisie</th>
+                                        <th>Referentie</th>
+                                        <th>Aantal</th>
+                                        <th>Staat</th>
+                                        <th>TO Nummer</th>
+                                        <th>Verkoopprijs</th>
+                                        <th>Totale Waarde</th>
+                                        <th>Acties</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Data wordt dynamisch ingevuld -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Transfers Tab -->
+            <div class="tab-pane fade" id="transfers-content" role="tabpanel" aria-labelledby="transfers-tab">
+                <div class="card mt-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Transfers Overzicht</h5>
+                        <div>
+                            <button class="btn btn-success excel-export-btn" id="export-transfers-excel">
+                                <i class="fas fa-file-excel me-1"></i> Exporteer naar Excel
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <!-- Filters -->
+                        <div class="filter-section">
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label class="form-label">Van Datum</label>
+                                    <input type="date" class="form-control" id="transfer-date-from">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Tot Datum</label>
+                                    <input type="date" class="form-control" id="transfer-date-to">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Zoeken (BC Code/Referentie)</label>
+                                    <input type="text" class="form-control" id="transfer-search-input" placeholder="Zoeken...">
+                                </div>
+                                <div class="col-md-2 d-flex align-items-end">
+                                    <button class="btn btn-primary w-100" id="transfer-search-button">
+                                        <i class="fas fa-search me-2"></i>Zoeken
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                    <!-- Transfers Table -->
+                        <div class="row mt-3">
+                            <div class="col-md-12">
+                                <div class="table-responsive">
+                                    <table class="table table-hover" id="transfers-table">
+                                        <thead id="transfers-table-head">
+                                            <tr>
+                                                <th>Datum/Tijd</th>
+                                                <th>Overzicht</th>
+                                                <th>Van</th>
+                                                <th>Naar</th>
+                                                <th>Totaal Aantal</th>
+                                                <th>Totale Waarde</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <!-- Transfers worden hier dynamisch ingeladen -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Movements Tab -->
+            <div class="tab-pane fade" id="movements-content" role="tabpanel" aria-labelledby="movements-tab">
+                <div class="card mt-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Bewegingen Overzicht</h5>
+                        <div>
+                            <button class="btn btn-success excel-export-btn" id="export-movements-excel">
+                                <i class="fas fa-file-excel me-1"></i> Exporteer naar Excel
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <!-- Filters -->
+                        <div class="filter-section">
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label class="form-label">Van Datum</label>
+                                    <input type="date" class="form-control" id="date-from">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Tot Datum</label>
+                                    <input type="date" class="form-control" id="date-to">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Type Beweging</label>
+                                    <select class="form-select" id="movement-type-filter">
+                                        <option value="">Alle Types</option>
+                                        <option value="transfer">Transfer</option>
+                                        <option value="state_change">Staat Wijziging</option>
+                                        <option value="usage">Verbruik</option>
+                                        <option value="addition">Toevoeging</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2 d-flex align-items-end">
+                                    <button class="btn btn-primary w-100" id="apply-movement-filters">
+                                        <i class="fas fa-filter me-2"></i>Filter
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Movements Table -->
+                        <div class="table-responsive mt-3">
+                            <table class="table table-hover" id="movements-table">
+                                <thead id="movements-table-head">
+                                    <tr>
+                                        <th>Datum</th>
+                                        <th>BC Code</th>
+                                        <th>Type</th>
+                                        <th>Van</th>
+                                        <th>Naar</th>
+                                        <th>Aantal</th>
+                                        <th>Staat</th>
+                                        <th>Stukprijs</th>
+                                        <th>Totale Waarde</th>
+                                        <th>TO Nummer</th>
+                                        <th>Opmerkingen</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Bewegingen worden hier dynamisch ingeladen -->
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <td colspan="8" class="text-end"><strong>Totale Waarde:</strong></td>
+                                        <td id="total-movement-value" colspan="3">€0.00</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+
+    <!-- Details Modal -->
+    <div class="modal fade" id="detailsModal" tabindex="-1" aria-labelledby="detailsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-info-circle me-2"></i>Item Details
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Sluiten"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Inhoud wordt dynamisch geladen -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>Sluiten
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transfer Details Modal -->
+    <div class="modal fade" id="transferDetailsModal" tabindex="-1" aria-labelledby="transferDetailsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-exchange-alt me-2"></i>Transfer Details
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Sluiten"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <p><strong>Datum:</strong> <span id="transfer-detail-date"></span></p>
+                            <p><strong>BC Code:</strong> <span id="transfer-detail-glovia"></span></p>
+                            <p><strong>Referentie:</strong> <span id="transfer-detail-referentie"></span></p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Van:</strong> <span id="transfer-detail-from"></span></p>
+                            <p><strong>Naar:</strong> <span id="transfer-detail-to"></span></p>
+                            <p><strong>Aantal:</strong> <span id="transfer-detail-amount"></span></p>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <p><strong>Staat:</strong> <span id="transfer-detail-state"></span></p>
+                            <p><strong>Verkoopprijs:</strong> <span id="transfer-detail-price"></span></p>
+                            <p><strong>Totale Waarde:</strong> <span id="transfer-detail-total"></span></p>
+                            <p><strong>Opmerkingen:</strong> <span id="transfer-detail-remarks"></span></p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>Sluiten
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Staat Wijzigen Modal -->
+    <div class="modal fade" id="staatWijzigenModal" tabindex="-1" aria-labelledby="staatWijzigenModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-exchange-alt me-2"></i>Staat Wijzigen
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Sluiten"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="aantal-staat-wijzigen" class="form-label">Aantal</label>
+                        <input type="number" class="form-control" id="aantal-staat-wijzigen" min="1" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="nieuwe-staat" class="form-label">Nieuwe Staat</label>
+                        <select class="form-select" id="nieuwe-staat" required>
+                            <option value="goed">Goede staat</option>
+                            <option value="reparatie">Te repareren</option>
+                            <option value="afval">Afval</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>Annuleren
+                    </button>
+                    <button type="button" class="btn btn-primary" id="bevestig-staat-wijziging">
+                        <i class="fas fa-check me-2"></i>Wijzigen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Stock Modal -->
+    <div class="modal fade" id="addStockModal" tabindex="-1" aria-labelledby="addStockModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <form id="add-stock-form">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="fas fa-plus me-2"></i>Voorraad Toevoegen
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Sluiten"></button>
+                    </div>
+                    <div class="modal-body">
+                        <!-- Formulier velden -->
+                        <div class="mb-3">
+                            <label for="add-stock-bodem-id" class="form-label">Bodem</label>
+                            <select class="form-select" id="add-stock-bodem-id" required>
+                                <option value="">Selecteer een bodem</option>
+                                <!-- Dynamisch gegenereerde opties -->
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="add-stock-amount" class="form-label">Aantal</label>
+                            <input type="number" class="form-control" id="add-stock-amount" min="1" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="add-stock-state" class="form-label">Staat</label>
+                            <select class="form-select" id="add-stock-state" required>
+                                <option value="goed">Goede staat</option>
+                                <option value="reparatie">Te repareren</option>
+                                <option value="afval">Afval</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="add-stock-location" class="form-label">Locatie</label>
+                            <select class="form-select" id="add-stock-location" required>
+                                <option value="wilrijk">Wilrijk</option>
+                                <option value="genk">Genk</option>
+                            </select>
+                        </div>
+                        <div class="mb-3" id="add-stock-TO_nummer-container" style="display: none;">
+                            <label for="add-stock-TO_nummer" class="form-label">TO Nummer</label>
+                            <input type="text" class="form-control" id="add-stock-TO_nummer">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times me-2"></i>Annuleren
+                        </button>
+                        <button type="button" class="btn btn-primary" id="confirm-add-stock">
+                            <i class="fas fa-check me-2"></i>Toevoegen
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Bulk Transfer Modal -->
+    <div class="modal fade" id="bulkTransferModal" tabindex="-1" aria-labelledby="bulkTransferModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <form id="bulk-transfer-form">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="fas fa-exchange-alt me-2"></i>Geselecteerde Items Transfereren
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Sluiten"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>De volgende items zullen worden getransfereerd:</p>
+                        <ul id="bulk-transfer-item-list"></ul>
+                        <div class="mb-3">
+                            <label for="bulk-transfer-to-location" class="form-label">Naar Locatie</label>
+                            <select class="form-select" id="bulk-transfer-to-location" required>
+                                <option value="wilrijk">Wilrijk</option>
+                                <option value="genk">Genk</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times me-2"></i>Annuleren
+                        </button>
+                        <button type="button" class="btn btn-primary" id="confirm-bulk-transfer">
+                            <i class="fas fa-check me-2"></i>Transfereren
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <script>
+        $(document).ready(function() {
+            // Globale variabelen
+            let currentLocation = 'wilrijk';
+            let voorraadData = [];
+            let filteredData = [];
+
+            // Header laden
+            $.get('/header.html', function(data) {
+                $('#header-placeholder').html(data);
+                
+                // Bootstrap componenten initialiseren
+                var dropdowns = [].slice.call(document.querySelectorAll('.dropdown-toggle'));
+                dropdowns.map(function(dropdownToggleEl) {
+                    return new bootstrap.Dropdown(dropdownToggleEl);
+                });
+
+                // Navbar toggler initialiseren
+                var navbarToggler = document.querySelector('.navbar-toggler');
+                if (navbarToggler) {
+                    new bootstrap.Collapse(document.querySelector('.navbar-collapse'), {
+                        toggle: false
+                    });
+                }
+            }).fail(function(error) {
+                console.error('Error loading header:', error);
+            });
+
+            // Tooltips initialiseren
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+
+            // Dashboard statistieken laden - updated for transfers tab
+            function loadDashboardStats() {
+                const activeTabId = $('#mainTabs .nav-link.active').attr('id');
+                
+                if (activeTabId === 'transfers-tab') {
+                    // Fetch transfer-specific stats
+                    $.ajax({
+                        url: '/api/e_bodems/transfers/stats', // Assuming this endpoint exists
+                        method: 'GET',
+                        success: function(stats) {
+                            $('#stats-title-1').text('Totale Waarde Getransfereerd');
+                            $('#total-value').text(formatCurrency(stats.totalTransferValue || 0));
+                            $('#stats-title-2').text('Totaal Aantal Transfers');
+                            $('#total-items').text(stats.totalTransfers || 0);
+                            $('#stats-title-3').text('Unieke Transfers');
+                            $('#unique-items').text(stats.uniqueTransfers || 0);
+                        },
+                        error: function(err) {
+                            console.error('Error loading transfer stats:', err);
+                            showNotification('Fout bij laden van transfer statistieken', 'error');
+                            // Fallback to default stats if transfer stats fail
+                            loadDefaultStats();
+                        }
+                    });
+                } else {
+                    // Default stats for Voorraad and Bewegingen tabs
+                    $.ajax({
+                        url: '/api/e_bodems/stats',
+                        method: 'GET',
+                        success: function(stats) {
+                            $('#stats-title-1').text('Totale Voorraad Waarde (' + (currentLocation === 'wilrijk' ? 'Wilrijk Voorraad' : 'Genk Voorraad') + ')');
+                            $('#total-value').text(formatCurrency(stats.totaleWaarde || 0));
+                            $('#stats-title-2').text('Totaal Aantal Items');
+                            $('#total-items').text(stats.totalItems || 0);
+                            $('#stats-title-3').text('Unieke Items');
+                            $('#unique-items').text(stats.uniqueItems || 0);
+                        },
+                        error: function(err) {
+                            console.error('Error loading stats:', err);
+                            showNotification('Fout bij laden van statistieken', 'error');
+                        }
+                    });
+                }
+            }
+
+            function loadDefaultStats() {
+                $.ajax({
+                    url: '/api/e_bodems/stats',
+                    method: 'GET',
+                    success: function(stats) {
+                        $('#stats-title-1').text('Totale Voorraad Waarde (' + (currentLocation === 'wilrijk' ? 'Wilrijk Voorraad' : 'Genk Voorraad') + ')');
+                        $('#total-value').text(formatCurrency(stats.totaleWaarde || 0));
+                        $('#stats-title-2').text('Totaal Aantal Items');
+                        $('#total-items').text(stats.totalItems || 0);
+                        $('#stats-title-3').text('Unieke Items');
+                        $('#unique-items').text(stats.uniqueItems || 0);
+                    },
+                    error: function(err) {
+                        console.error('Error loading default stats:', err);
+                        showNotification('Fout bij laden van standaard statistieken', 'error');
+                    }
+                });
+            }
+
+            // Laad bodem types in de dropdown
+            // Modified function to load and sort bodem types
+function loadBodemTypes() {
+    $.ajax({
+        url: '/api/e_bodems/list',  // Correcte API endpoint
+        method: 'GET',
+        success: function(data) {
+            const select = $('#bodemType');
+            select.empty().append('<option value="">Selecteer bodem...</option>');
+            
+            const stockSelect = $('#add-stock-bodem-id');
+            stockSelect.empty().append('<option value="">Selecteer bodem...</option>');
+            
+            // Extract E-number for sorting
+            data = data.map(bodem => {
+                // Extract E-number from the referentie
+                const match = bodem.referentie && bodem.referentie.match(/E(\d+)/);
+                const eNumber = match ? parseInt(match[1]) : 9999; // Default high value if no E-number
+                
+                return {
+                    ...bodem,
+                    eNumber: eNumber
+                };
+            });
+            
+            // Sort by E-number numerically
+            data.sort((a, b) => a.eNumber - b.eNumber);
+            
+            data.forEach(bodem => {
+                const optionText = `${bodem.glovia_code} - ${bodem.referentie || '-'}`;
+                select.append(`<option value="${bodem.id}">${optionText}</option>`);
+                stockSelect.append(`<option value="${bodem.id}">${optionText}</option>`);
+            });
+        },
+        error: function(err) {
+            console.error('Error loading bodem types:', err);
+            showNotification('Fout bij laden van bodem types. De applicatie zal mogelijk beperkte functionaliteit hebben.', 'error');
+            
+            // Fallback: Voeg placeholder opties toe om te voorkomen dat de hele functionaliteit faalt
+            const placeholderOption = '<option value="">Bodemtypes konden niet worden geladen</option>';
+            $('#bodemType, #add-stock-bodem-id').html(placeholderOption);
+        }
+    });
+}
+
+            // Voorraad laden
+            function loadVoorraad(locatie = 'wilrijk') {
+                const url = locatie === 'wilrijk' ? '/api/e_bodems/voorraad' : '/api/e_bodems/voorraad/genk';
+
+                $.ajax({
+                    url: url,
+                    method: 'GET',
+                    success: function(data) {
+                        voorraadData = data;
+                        filteredData = [...data];
+                        renderVoorraadTabel(data, locatie);
+                        updateTotalen(data);
+                    },
+                    error: function(err) {
+                        console.error('Error loading voorraad:', err);
+                        showNotification('Fout bij laden van voorraad', 'error');
+                    }
+                });
+            }
+
+            // Voorraad tabel renderen met selectievakjes
+            function renderVoorraadTabel(data, locatie) {
+                const tableId = locatie === 'wilrijk' ? '#wilrijk-voorraad' : '#genk-voorraad';
+                const table = $(`${tableId} .table-responsive table tbody`);
+
+                table.empty();
+
+                // Groepeer items op glovia_code en staat
+                const groupedData = data.reduce((acc, item) => {
+                    const key = `${item.glovia_code}-${item.staat}`;
+                    if (!acc[key]) {
+                        acc[key] = {
+                            ...item,
+                            aantal: 0,
+                            totale_waarde: 0,
+                            ids: [],
+                            TO_nummer: item.TO_nummer,
+                            bodem_id: item.bodem_id
+                        };
+                    }
+                    acc[key].aantal += parseInt(item.aantal);
+                    acc[key].totale_waarde += parseFloat(item.totale_waarde || (item.aantal * item.verkoopprijs));
+                    acc[key].ids.push(item.id);
+                    if (item.TO_nummer) {
+                        acc[key].TO_nummer = item.TO_nummer;
+                    }
+                    return acc;
+                }, {});
+
+                // Converteer terug naar array en render
+                Object.values(groupedData).forEach(item => {
+                    if (locatie === 'wilrijk') {
+                        table.append(`
+                            <tr class="status-${item.staat}">
+                                <td><input type="checkbox" class="select-item" data-id="${item.ids[0]}" data-bodem-id="${item.bodem_id}" data-max-aantal="${item.aantal}" data-state="${item.staat}"></td>
+                                <td>${item.glovia_code}</td>
+                                <td>${item.revisie || '-'}</td>
+                                <td>${item.referentie || '-'}</td>
+                                <td>${item.aantal}</td>
+                                <td>${formatStaat(item.staat)}</td>
+                                <td>${formatCurrency(item.verkoopprijs)}</td>
+                                <td>${formatCurrency(item.totale_waarde)}</td>
+                                <td>
+                                    <div class="btn-group">
+                                        <button class="btn btn-sm btn-info view-details" data-id="${item.ids[0]}">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-warning change-state" 
+                                                data-id="${item.ids[0]}" 
+                                                data-aantal="${item.aantal}">
+                                            <i class="fas fa-exchange-alt"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `);
+                    } else {
+                        table.append(`
+                            <tr class="status-${item.staat}">
+                                <td><input type="checkbox" class="select-item" data-id="${item.ids[0]}" data-bodem-id="${item.bodem_id}" data-max-aantal="${item.aantal}" data-state="${item.staat}"></td>
+                                <td>${item.glovia_code}</td>
+                                <td>${item.revisie || '-'}</td>
+                                <td>${item.referentie || '-'}</td>
+                                <td>${item.aantal}</td>
+                                <td>${formatStaat(item.staat)}</td>
+                                <td>${item.TO_nummer || '-'}</td>
+                                <td>${formatCurrency(item.verkoopprijs)}</td>
+                                <td>${formatCurrency(item.totale_waarde)}</td>
+                                <td>
+                                    <div class="btn-group">
+                                        <button class="btn btn-sm btn-info view-details" data-id="${item.ids[0]}">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-warning change-state" 
+                                                data-id="${item.ids[0]}" 
+                                                data-aantal="${item.aantal}">
+                                            <i class="fas fa-exchange-alt"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-danger register-usage" 
+                                                data-id="${item.ids[0]}" 
+                                                data-aantal="${item.aantal}">
+                                            <i class="fas fa-minus"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `);
+                    }
+                });
+            }
+
+            // Totalen bijwerken
+            function updateTotalen(data) {
+                let totaleWaarde = 0;
+                let totaalAantal = 0;
+
+                data.forEach(item => {
+                    totaleWaarde += parseFloat(item.totale_waarde || (item.aantal * item.verkoopprijs));
+                    totaalAantal += parseInt(item.aantal);
+                });
+
+                $('#total-value').text(formatCurrency(totaleWaarde));
+                $('#total-items').text(totaalAantal);
+                $('#current-location').text(currentLocation === 'wilrijk' ? 'Wilrijk Voorraad' : 'Genk Voorraad');
+            }
+
+            // Load transfers met filters
+            function loadTransfers() {
+    console.log("Transfers laden gestart...");
+
+    // Standaard periode instellen op afgelopen 30 dagen als geen filters zijn ingesteld
+    if (!$('#transfer-date-from').val() && !$('#transfer-date-to').val()) {
+        const today = new Date();
+        const thirtyDaysAgo = new Date(today);
+        thirtyDaysAgo.setDate(today.getDate() - 30);
+
+        // Voor debugging
+        console.log('Standaard datumbereik: laatste 30 dagen');
+        var defaultDateFrom = thirtyDaysAgo.toISOString().split('T')[0];
+    }
+
+    const dateFrom = $('#transfer-date-from').val() || defaultDateFrom;
+    const dateTo = $('#transfer-date-to').val();
+    const searchInput = $('#transfer-search-input').val()?.toLowerCase() || '';
+
+    // Toon laad indicator
+    $('#transfers-table tbody').html(`
+        <tr>
+            <td colspan="6" class="text-center">
+                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                    <span class="visually-hidden">Laden...</span>
+                </div>
+                <span class="ms-2">Transfers worden geladen...</span>
+            </td>
+        </tr>
+    `);
+
+    // Bouw query parameters
+    const params = new URLSearchParams();
+    if (dateFrom) params.append('dateFrom', dateFrom);
+    if (dateTo) params.append('dateTo', dateTo);
+    if (searchInput) params.append('search', searchInput);
+
+    // Voor debugging
+    console.log('Transfer parameters:', Object.fromEntries(params.entries()));
+
+    // Eerst proberen met het transfers endpoint
+    $.ajax({
+        url: `/api/e_bodems/transfers?${params.toString()}`,
+        method: 'GET',
+        timeout: 15000,
+        success: function(response) {
+            console.log('Transfer response from transfers endpoint:', response);
+            renderTransfers(response);
+
+            // Bereken transfer statistieken voor dashboard
+            let totalTransferEvents = 0; // Aantal bulk transfer events (elk "Transfer Geselecteerde" telt als 1)
+            let totalItemsTransferred = 0; // Totaal aantal getransfereerde items (som van amount)
+            let totalTransferValue = 0; // Totale waarde van alle transfers (som van verkoopprijs * amount)
+
+            // Groepeer transfers op basis van een unieke identifier (bijv. timestamp of id van de bulk transfer)
+            const groupedTransfers = {};
+            response.forEach(transfer => {
+                if (!transfer) return;
+
+                // Gebruik timestamp als unieke identifier voor bulk transfers (veronderstel dat alle items in een bulk transfer dezelfde timestamp hebben)
+                const timestampKey = transfer.timestamp ? new Date(transfer.timestamp).toISOString().substring(0, 16) : 'unknown'; // YYYY-MM-DDThh:mm
+                const fromLoc = transfer.from_location || '-';
+                const toLoc = transfer.to_location || '-';
+                const groupKey = `${timestampKey}|${fromLoc}|${toLoc}`;
+
+                if (!groupedTransfers[groupKey]) {
+                    groupedTransfers[groupKey] = {
+                        items: [],
+                        totalAmount: 0,
+                        totalValue: 0
+                    };
+                    totalTransferEvents += 1; // Tel elke unieke bulk transfer
+                }
+
+                if (transfer.amount && transfer.verkoopprijs) {
+                    const amount = parseInt(transfer.amount) || 0;
+                    const prijs = parseFloat(transfer.verkoopprijs) || 0;
+                    groupedTransfers[groupKey].totalAmount += amount; // Tel items per bulk transfer
+                    groupedTransfers[groupKey].totalValue += amount * prijs; // Bereken waarde per bulk transfer
+                    groupedTransfers[groupKey].items.push(transfer);
+                    totalItemsTransferred += amount; // Tel totaal items over alle transfers
+                    totalTransferValue += amount * prijs; // Bereken totale waarde over alle transfers
+                }
+            });
+
+            // Update dashboard stats voor Transfers tab
+            $('#stats-title-1').text('Totaal Aantal Transfers');
+            $('#total-value').text(totalTransferEvents || 0); // Toon het aantal bulk transfer events (62 in screenshot)
+            $('#stats-title-2').text('Unieke Items'); // Toon totaal aantal getransfereerde items
+            $('#total-items').text(totalItemsTransferred || 0); // Toon totaal aantal getransfereerde items (100 in screenshot)
+            $('#stats-title-3').text('Totale Waarde'); // Toon totale waarde
+            $('#unique-items').text(formatCurrency(totalTransferValue || 0)); // Toon totale waarde (€21,550.49 in screenshot)
+
+            // Toon notificatie
+            showNotification(`${totalTransferEvents} transfers geladen`, 'success');
+            console.log("Transfers succesvol geladen.");
+        },
+        error: function(err) {
+            console.error('Error loading transfers:', err);
+            // Als het transfers endpoint faalt, probeer dan het movements endpoint
+            fallbackToMovements();
+        }
+    });
+
+    // Fallback naar movements endpoint
+    function fallbackToMovements() {
+        console.log('Falling back to movements endpoint');
+        const movementParams = new URLSearchParams(params);
+        movementParams.append('type', 'transfer');
+
+        $.ajax({
+            url: `/api/e_bodems/movements?${movementParams.toString()}`,
+            method: 'GET',
+            success: function(response) {
+                console.log('Transfer response from movements endpoint:', response);
+                renderTransfers(response);
+
+                // Bereken transfer statistieken voor dashboard
+                let totalTransferEvents = 0; // Aantal bulk transfer events (elk "Transfer Geselecteerde" telt als 1)
+                let totalItemsTransferred = 0; // Totaal aantal getransfereerde items (som van amount)
+                let totalTransferValue = 0; // Totale waarde van alle transfers (som van verkoopprijs * amount)
+
+                // Groepeer transfers op basis van een unieke identifier (bijv. timestamp of id van de bulk transfer)
+                const groupedTransfers = {};
+                response.forEach(transfer => {
+                    if (!transfer) return;
+
+                    // Gebruik timestamp als unieke identifier voor bulk transfers (veronderstel dat alle items in een bulk transfer dezelfde timestamp hebben)
+                    const timestampKey = transfer.timestamp ? new Date(transfer.timestamp).toISOString().substring(0, 16) : 'unknown'; // YYYY-MM-DDThh:mm
+                    const fromLoc = transfer.from_location || '-';
+                    const toLoc = transfer.to_location || '-';
+                    const groupKey = `${timestampKey}|${fromLoc}|${toLoc}`;
+
+                    if (!groupedTransfers[groupKey]) {
+                        groupedTransfers[groupKey] = {
+                            items: [],
+                            totalAmount: 0,
+                            totalValue: 0
+                        };
+                        totalTransferEvents += 1; // Tel elke unieke bulk transfer
+                    }
+
+                    if (transfer.amount && transfer.verkoopprijs) {
+                        const amount = parseInt(transfer.amount) || 0;
+                        const prijs = parseFloat(transfer.verkoopprijs) || 0;
+                        groupedTransfers[groupKey].totalAmount += amount; // Tel items per bulk transfer
+                        groupedTransfers[groupKey].totalValue += amount * prijs; // Bereken waarde per bulk transfer
+                        groupedTransfers[groupKey].items.push(transfer);
+                        totalItemsTransferred += amount; // Tel totaal items over alle transfers
+                        totalTransferValue += amount * prijs; // Bereken totale waarde over alle transfers
+                    }
+                });
+
+                // Update dashboard stats voor Transfers tab
+                $('#stats-title-1').text('Totaal Aantal Transfers');
+                $('#total-value').text(totalTransferEvents || 0); // Toon het aantal bulk transfer events (62 in screenshot)
+                $('#stats-title-2').text('Unieke Items'); // Toon totaal aantal getransfereerde items
+                $('#total-items').text(totalItemsTransferred || 0); // Toon totaal aantal getransfereerde items (100 in screenshot)
+                $('#stats-title-3').text('Totale Waarde'); // Toon totale waarde
+                $('#unique-items').text(formatCurrency(totalTransferValue || 0)); // Toon totale waarde (€21,550.49 in screenshot)
+
+                // Toon notificatie
+                showNotification(`${totalTransferEvents} transfers geladen (via fallback)`, 'success');
+                console.log("Transfers succesvol geladen via fallback.");
+            },
+            error: function(err) {
+                console.error('Both endpoints failed:', err);
+                $('#transfers-table tbody').html(`
+                    <tr>
+                        <td colspan="6" class="text-center text-danger">
+                            <div>
+                                <p><i class="fas fa-exclamation-triangle me-2"></i>Fout bij laden van transfers</p>
+                                <button class="btn btn-sm btn-outline-secondary retry-load-transfers mt-2">
+                                    <i class="fas fa-sync-alt me-1"></i>Opnieuw proberen
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `);
+
+                // Retry button handler
+                $('.retry-load-transfers').on('click', function() {
+                    loadTransfers();
+                });
+
+                // Fallback naar standaard stats als beide endpoints falen
+                loadDefaultStats();
+            }
+        });
+    }
+
+    // Render transfers
+    function renderTransfers(response) {
+        const tbody = $('#transfers-table tbody');
+        tbody.empty();
+
+        let transfers = response;
+
+        // Controleer of we een valid array hebben
+        if (transfers && !Array.isArray(transfers)) {
+            console.log('Response is not an array, trying to convert');
+            if (transfers.data && Array.isArray(transfers.data)) {
+                transfers = transfers.data;
+            } else {
+                // Probeer om te zetten naar array
+                try {
+                    transfers = Object.values(transfers).filter(item => item && typeof item === 'object');
+                } catch (e) {
+                    console.error('Failed to convert response to array:', e);
+                    transfers = [];
+                }
+            }
+        }
+
+        console.log('Processed transfers:', transfers && transfers.length ? transfers.length : 0);
+
+        if (!transfers || !Array.isArray(transfers) || transfers.length === 0) {
+            tbody.html(`
+                <tr>
+                    <td colspan="6" class="text-center">
+                        Geen transfers gevonden in de geselecteerde periode.
+                    </td>
+                </tr>
+            `);
+            return;
+        }
+
+        // Groepeer transfers op datum en locaties (van -> naar) voor weergave
+        const groupedTransfers = {};
+
+        transfers.forEach(transfer => {
+            if (!transfer) return;
+
+            // Bepaal een groep-sleutel op basis van datum en locaties
+            const dateObj = new Date(transfer.timestamp || transfer.datum || 0);
+            const dateStr = dateObj.toISOString().substring(0, 16); // YYYY-MM-DDThh:mm
+            const fromLoc = transfer.from_location || '-';
+            const toLoc = transfer.to_location || '-';
+            const groupKey = `${dateStr}|${fromLoc}|${toLoc}`;
+
+            if (!groupedTransfers[groupKey]) {
+                groupedTransfers[groupKey] = {
+                    datum: dateObj,
+                    from_location: fromLoc,
+                    to_location: toLoc,
+                    aantal: 0,
+                    waarde: 0,
+                    items: []
+                };
+            }
+
+            const amount = parseInt(transfer.amount) || 0;
+            const prijs = parseFloat(transfer.verkoopprijs) || 0;
+            const waarde = amount * prijs;
+
+            groupedTransfers[groupKey].aantal += amount;
+            groupedTransfers[groupKey].waarde += waarde;
+
+            groupedTransfers[groupKey].items.push({
+                id: transfer.id,
+                glovia_code: transfer.glovia_code,
+                referentie: transfer.referentie,
+                amount: amount,
+                prijs: prijs,
+                staat: transfer.state || transfer.staat
+            });
+        });
+
+        // Converteer naar array en sorteer op datum (nieuwste eerst)
+        const groupedArray = Object.values(groupedTransfers).sort((a, b) => {
+            return b.datum - a.datum;
+        });
+
+        // Render de gegroepeerde transfers
+        groupedArray.forEach(group => {
+            const itemsCount = group.items.length;
+            tbody.append(`
+                <tr class="transfer-group" data-items='${JSON.stringify(group.items)}'>
+                    <td>${formatDate(group.datum)}</td>
+                    <td>${itemsCount} items</td>
+                    <td>${formatLocation(group.from_location)}</td>
+                    <td>${formatLocation(group.to_location)}</td>
+                    <td>${group.aantal}</td>
+                    <td>${formatCurrency(group.waarde)}</td>
+                </tr>
+            `);
+        });
+
+        // Klik handler om items te tonen
+        $('.transfer-group').on('click', function() {
+            try {
+                const items = JSON.parse($(this).attr('data-items'));
+                showTransferItems(items);
+            } catch (e) {
+                console.error('Error parsing items:', e);
+            }
+        });
+    }
+
+    // Toon transfer items in een modal
+    function showTransferItems(items) {
+        // Bereken totalen
+        let totalAmount = 0;
+        let totalValue = 0;
+
+        const itemsHTML = items.map(item => {
+            const amount = parseInt(item.amount) || 0;
+            const prijs = parseFloat(item.prijs) || 0;
+            const waarde = amount * prijs;
+
+            totalAmount += amount;
+            totalValue += waarde;
+
+            return `
+                <tr class="status-${item.staat ? item.staat.toLowerCase() : ''}">
+                    <td>${item.glovia_code || '-'}</td>
+                    <td>${item.referentie || '-'}</td>
+                    <td>${amount}</td>
+                    <td>${formatStaat(item.staat)}</td>
+                    <td>${formatCurrency(prijs)}</td>
+                    <td>${formatCurrency(waarde)}</td>
+                </tr>
+            `;
+        }).join('');
+
+        // Als er al een modal bestaat, verwijder deze
+        $('#transferItemsModal').remove();
+
+        // Maak een nieuwe modal
+        $('body').append(`
+            <div class="modal fade" id="transferItemsModal" tabindex="-1" aria-labelledby="transferItemsModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="transferItemsModalLabel">
+                                Transfer Details
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>BC Code</th>
+                                            <th>Referentie</th>
+                                            <th>Aantal</th>
+                                            <th>Staat</th>
+                                            <th>Stukprijs</th>
+                                            <th>Totale Waarde</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${itemsHTML}
+                                    </tbody>
+                                    <tfoot>
+                                        <tr class="fw-bold">
+                                            <td colspan="2">Totaal</td>
+                                            <td>${totalAmount}</td>
+                                            <td></td>
+                                            <td></td>
+                                            <td>${formatCurrency(totalValue)}</td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-success" id="exportItemsToExcel">
+                                <i class="fas fa-file-excel me-1"></i> Exporteer naar Excel
+                            </button>
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Sluiten</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `);
+
+        // Export naar Excel functie
+        $('#exportItemsToExcel').on('click', function() {
+            try {
+                if (typeof XLSX === 'undefined') {
+                    showNotification('Excel export bibliotheek niet geladen. Probeer de pagina te vernieuwen.', 'error');
+                    return;
+                }
+
+                // Maak Excel bestand met de items
+                const wb = XLSX.utils.book_new();
+
+                // Maak een tabel met de items
+                const itemsData = [
+                    ['BC Code', 'Referentie', 'Aantal', 'Staat', 'Stukprijs', 'Totale Waarde']
+                ];
+
+                items.forEach(item => {
+                    const amount = parseInt(item.amount) || 0;
+                    const prijs = parseFloat(item.prijs) || 0;
+
+                    itemsData.push([
+                        item.glovia_code || '-',
+                        item.referentie || '-',
+                        amount,
+                        item.staat || '-',
+                        prijs,
+                        amount * prijs
+                    ]);
+                });
+
+                // Voeg een totaalrij toe
+                itemsData.push(['Totaal', '', totalAmount, '', '', totalValue]);
+
+                // Maak een worksheet
+                const ws = XLSX.utils.aoa_to_sheet(itemsData);
+
+                // Voeg toe aan workbook
+                XLSX.utils.book_append_sheet(wb, ws, 'Transfer Items');
+
+                // Exporteer
+                XLSX.writeFile(wb, `transfer_items_${new Date().toISOString().substring(0, 19).replace(/[:-]/g, '')}.xlsx`);
+
+                showNotification('Excel export is succesvol', 'success');
+            } catch (e) {
+                console.error('Error exporting to Excel:', e);
+                showNotification('Er is een fout opgetreden bij het exporteren naar Excel', 'error');
+            }
+        });
+
+        // Toon de modal
+        const modal = new bootstrap.Modal(document.getElementById('transferItemsModal'));
+        modal.show();
+    }
+}
+
+            // Toon transfer details
+            function showTransferDetails(transfer) {
+                $('#transfer-detail-date').text(formatDate(transfer.timestamp));
+                $('#transfer-detail-glovia').text(transfer.glovia_code);
+                $('#transfer-detail-referentie').text(transfer.referentie || '-');
+                $('#transfer-detail-from').text(formatLocation(transfer.from_location));
+                $('#transfer-detail-to').text(formatLocation(transfer.to_location));
+                $('#transfer-detail-amount').text(transfer.amount);
+                $('#transfer-detail-state').text(formatStaat(transfer.state));
+                $('#transfer-detail-price').text(formatCurrency(transfer.verkoopprijs));
+                $('#transfer-detail-total').text(formatCurrency(transfer.amount * transfer.verkoopprijs));
+                $('#transfer-detail-remarks').text(transfer.remarks || '-');
+
+                const modal = new bootstrap.Modal(document.getElementById('transferDetailsModal'));
+                modal.show();
+            }
+
+            // Load movements - modified to ensure data loads properly
+            function loadMovements() {
+                // Set default date range to last 6 months if no filters are set
+                if (!$('#date-from').val() && !$('#date-to').val()) {
+                    const today = new Date();
+                    const sixMonthsAgo = new Date();
+                    sixMonthsAgo.setMonth(today.getMonth() - 6);
+                    var defaultDateFrom = sixMonthsAgo.toISOString().split('T')[0];
+                }
+
+                const dateFrom = $('#date-from').val() || defaultDateFrom;
+                const dateTo = $('#date-to').val();
+                const movementType = $('#movement-type-filter').val();
+
+                // Show loading indicator
+                $('#movements-table tbody').html(`
+                    <tr>
+                        <td colspan="11" class="text-center">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">Laden...</span>
+                            </div>
+                            <span class="ms-2">Bewegingen worden geladen...</span>
+                        </td>
+                    </tr>
+                `);
+
+                const params = new URLSearchParams();
+                if (dateFrom) params.append('dateFrom', dateFrom);
+                if (dateTo) params.append('dateTo', dateTo);
+                if (movementType) params.append('type', movementType);
+
+                // Debug information
+                console.log('Movements query params:', Object.fromEntries(params.entries()));
+
+                const url = `/api/e_bodems/movements?${params.toString()}`;
+
+                $.ajax({
+                    url: url,
+                    method: 'GET',
+                    timeout: 20000,
+                    success: function(movements) {
+                        console.log('Movements response:', movements);
+                        const tbody = $('#movements-table tbody');
+                        tbody.empty();
+
+                        if (!movements || !Array.isArray(movements) || movements.length === 0) {
+                            tbody.append(`
+                                <tr>
+                                    <td colspan="11" class="text-center">
+                                        Geen bewegingen gevonden in de geselecteerde periode. 
+                                        Pas de filters aan of <a href="#" class="load-all-movements">laad alle bewegingen</a>.
+                                    </td>
+                                </tr>
+                            `);
+                            
+                            $('.load-all-movements').on('click', function(e) {
+                                e.preventDefault();
+                                $('#date-from, #date-to').val('');
+                                $('#movement-type-filter').val('');
+                                loadMovements();
+                            });
+                            
+                            $('#total-movement-value').text(formatCurrency(0));
+                            return;
+                        }
+
+                        let totalValue = 0;
+
+                        movements.forEach(movement => {
+                            if (!movement) return;
+                            
+                            const movementValue = parseFloat(movement.movement_value || 0) || 
+                                                 (parseFloat(movement.verkoopprijs || 0) * parseFloat(movement.amount || 0));
+                            totalValue += movementValue;
+
+                            tbody.append(`
+                                <tr>
+                                    <td>${formatDate(movement.timestamp || movement.datum)}</td>
+                                    <td>${movement.glovia_code || '-'}</td>
+                                    <td>${formatMovementType(movement.movement_type || movement.type)}</td>
+                                    <td>${formatLocation(movement.from_location)}</td>
+                                    <td>${formatLocation(movement.to_location)}</td>
+                                    <td>${movement.amount || 0}</td>
+                                    <td>${formatStaat(movement.state || movement.staat)}</td>
+                                    <td>${formatCurrency(movement.verkoopprijs || 0)}</td>
+                                    <td>${formatCurrency(movementValue)}</td>
+                                    <td>${movement.TO_nummer || '-'}</td>
+                                    <td>${movement.remarks || movement.opmerkingen || '-'}</td>
+                                </tr>
+                            `);
+                        });
+
+                        $('#total-movement-value').text(formatCurrency(totalValue));
+                        showNotification(`${movements.length} bewegingen geladen`, 'success');
+                    },
+                    error: function(err) {
+                        console.error('Error loading movements:', err);
+                        const tbody = $('#movements-table tbody');
+                        tbody.empty().append(`
+                            <tr>
+                                <td colspan="11" class="text-center text-danger">
+                                    <div>
+                                        <p><i class="fas fa-exclamation-triangle me-2"></i>Fout bij laden van bewegingen</p>
+                                        <p class="small">${err.responseJSON?.message || err.statusText || 'Onbekende fout'}</p>
+                                        <button class="btn btn-sm btn-outline-secondary retry-load-movements mt-2">
+                                            <i class="fas fa-sync-alt me-1"></i>Opnieuw proberen
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `);
+                        
+                        $('.retry-load-movements').on('click', function() {
+                            loadMovements();
+                        });
+                        
+                        $('#total-movement-value').text(formatCurrency(0));
+                        showNotification('Fout bij laden van bewegingen. Probeer de pagina te vernieuwen.', 'error');
+                    }
+                });
+            }
+
+            // Details modal tonen
+            function showDetailsModal(id) {
+                const item = voorraadData.find(i => i.id === id);
+
+                if (!item) {
+                    showNotification('Item niet gevonden', 'error');
+                    return;
+                }
+
+                const modal = $('#detailsModal');
+
+                modal.find('.modal-body').html(`
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Basis Informatie</h6>
+                            <p><strong>BC Code:</strong> ${item.glovia_code}</p>
+                            <p><strong>Revisie:</strong> ${item.revisie || '-'}</p>
+                            <p><strong>Referentie:</strong> ${item.referentie || '-'}</p>
+                            <p><strong>Verkoopprijs:</strong> ${formatCurrency(item.verkoopprijs)}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Voorraad Status</h6>
+                            <p><strong>Huidige Voorraad:</strong> ${item.aantal}</p>
+                            <p><strong>Staat:</strong> ${formatStaat(item.staat)}</p>
+                            <p><strong>Totale Waarde:</strong> ${formatCurrency(item.aantal * item.verkoopprijs)}</p>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <h6>Recente Bewegingen</h6>
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Datum</th>
+                                    <th>Type</th>
+                                    <th>Aantal</th>
+                                    <th>Van Locatie</th>
+                                    <th>Naar Locatie</th>
+                                    <th>Opmerkingen</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bewegingen-tbody">
+                                <tr>
+                                    <td colspan="6" class="text-center">
+                                        <div class="spinner-border spinner-border-sm" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                `);
+
+                if (!item.bodem_id) {
+                    console.error('Geen bodem_id gevonden voor item:', item);
+                    $('#bewegingen-tbody').html('<tr><td colspan="6" class="text-center text-danger">Kan bewegingen niet laden: Geen bodem ID gevonden</td></tr>');
+                    modal.modal('show');
+                    return;
+                }
+
+                // Bewegingen laden
+                $.ajax({
+                    url: `/api/e_bodems/movements/${item.bodem_id}`,
+                    method: 'GET',
+                    success: function(bewegingen) {
+                        const bewegingenHtml = bewegingen.map(b => `
+                            <tr>
+                                <td>${formatDate(b.timestamp)}</td>
+                                <td>${formatMovementType(b.movement_type)}</td>
+                                <td>${b.amount}</td>
+                                <td>${formatLocation(b.from_location)}</td>
+                                <td>${formatLocation(b.to_location)}</td>
+                                <td>${b.remarks || '-'}</td>
+                            </tr>
+                        `).join('');
+
+                        $('#bewegingen-tbody').html(bewegingenHtml || '<tr><td colspan="6" class="text-center">Geen bewegingen gevonden</td></tr>');
+                    },
+                    error: function(err) {
+                        console.error('Error loading bewegingen:', err);
+                        $('#bewegingen-tbody').html('<tr><td colspan="6" class="text-center text-danger">Fout bij laden van bewegingen</td></tr>');
+                    }
+                });
+
+                modal.modal('show');
+            }
+
+            // Verbruik registreren functie
+            function registerUsage(id) {
+                const item = voorraadData.find(i => i.id === id);
+
+                if (!item) {
+                    showNotification('Item niet gevonden', 'error');
+                    return;
+                }
+
+                const maxAantal = item.aantal;
+                const aantal = prompt(`Voer het aantal te registreren verbruik in (maximaal ${maxAantal}):`, '1');
+
+                if (aantal === null) {
+                    return;
+                }
+
+                const aantalInt = parseInt(aantal);
+
+                if (isNaN(aantalInt) || aantalInt < 1 || aantalInt > maxAantal) {
+                    showNotification('Ongeldig aantal ingevoerd', 'error');
+                    return;
+                }
+
+                $.ajax({
+                    url: '/api/e_bodems/verbruik',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        id: id,
+                        aantal: aantalInt
+                    }),
+                    success: function(response) {
+                        if (response.success) {
+                            showNotification('Verbruik succesvol geregistreerd', 'success');
+                            setTimeout(() => {
+                                loadVoorraad(currentLocation);
+                                loadDashboardStats();
+                            }, 100);
+                        } else {
+                            showNotification(response.message || 'Fout bij registreren van verbruik', 'error');
+                        }
+                    },
+                    error: function(err) {
+                        console.error('Error registering usage:', err);
+                        const errorMessage = err.responseJSON?.message || 'Fout bij registreren van verbruik';
+                        showNotification(errorMessage, 'error');
+                    }
+                });
+            }
+
+            // Voorraad toevoegen functie
+            // Modify the success callback in the addStock function
+function addStock() {
+    const bodem_id = $('#add-stock-bodem-id').val();
+    const amount = $('#add-stock-amount').val();
+    const state = $('#add-stock-state').val();
+    const location = $('#add-stock-location').val();
+    const TO_nummer = $('#add-stock-TO_nummer').val();
+
+    if (!bodem_id || !amount || !state) {
+        showNotification('Alle velden zijn verplicht', 'error');
+        return;
+    }
+
+    if (location === 'genk' && !TO_nummer) {
+        showNotification('TO nummer is verplicht voor Genk locatie', 'error');
+        return;
+    }
+
+    $.ajax({
+        url: '/api/e_bodems/add-stock',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            bodem_id: bodem_id,
+            amount: parseInt(amount),
+            state: state,
+            location: location,
+            TO_nummer: location === 'genk' ? TO_nummer : null
+        }),
+        success: function(response) {
+            if (response.success) {
+                const modalElement = document.getElementById('addStockModal');
+                const modalInstance = bootstrap.Modal.getInstance(modalElement);
+                if (modalInstance) {
+                    modalInstance.hide();
+                }
+
+                $('#add-stock-form')[0].reset();
+                showNotification('Voorraad succesvol toegevoegd', 'success');
+
+                // Update all relevant data across tabs
+                setTimeout(() => {
+                    // Update current inventory view
+                    loadVoorraad(currentLocation);
+                    
+                    // Update dashboard statistics
+                    loadDashboardStats();
+                    
+                    // Refresh transfers data if that tab exists
+                    if (typeof loadTransfers === 'function') {
+                        loadTransfers();
+                    }
+                    
+                    // Refresh movements data if that tab exists
+                    if (typeof loadMovements === 'function') {
+                        loadMovements();
+                    }
+                    
+                    // Update any other tabs or special views that might need it
+                    // (For example, if there are other custom views or specialized tabs)
+                    
+                    // Re-apply any active filters to ensure consistency
+                    const activeLocation = currentLocation;
+                    if ($(`#search-input-${activeLocation}`).val() || $(`#staat-filter-${activeLocation}`).val()) {
+                        applyFilters(activeLocation);
+                    }
+                }, 100);
+            } else {
+                showNotification(response.message || 'Fout bij toevoegen van voorraad', 'error');
+            }
+        },
+        error: function(err) {
+            console.error('Error adding stock:', err);
+            const errorMessage = err.responseJSON?.message || 'Fout bij toevoegen van voorraad';
+            showNotification(errorMessage, 'error');
+        }
+    });
+}
+
+            // Bulk transfer functie
+            function bulkTransfer(selectedItems) {
+                const from_location = currentLocation;
+                const to_location = $('#bulk-transfer-to-location').val();
+
+                if (from_location === to_location) {
+                    showNotification('Van en naar locatie moeten verschillend zijn', 'error');
+                    return;
+                }
+
+                console.log('Bulk transfer data:', {
+                    items: selectedItems,
+                    from_location: from_location,
+                    to_location: to_location
+                });
+
+                $.ajax({
+                    url: '/api/e_bodems/bulk-transfer',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        items: selectedItems,
+                        from_location: from_location,
+                        to_location: to_location
+                    }),
+                    success: function(response) {
+                        if (response.success) {
+                            const modalElement = document.getElementById('bulkTransferModal');
+                            const modalInstance = bootstrap.Modal.getInstance(modalElement);
+                            if (modalInstance) {
+                                modalInstance.hide();
+                            }
+
+                            // Reset selectie
+                            $(`#${currentLocation}-voorraad .select-item`).prop('checked', false);
+                            $(`#select-all-${currentLocation}`).prop('checked', false);
+
+                            showNotification('Items succesvol getransfereerd', 'success');
+
+                            setTimeout(() => {
+                                loadVoorraad(currentLocation);
+                                loadDashboardStats();
+                                loadTransfers();
+                                loadMovements();
+                            }, 100);
+                        } else {
+                            showNotification(response.message || 'Fout bij bulk transfer', 'error');
+                        }
+                    },
+                    error: function(err) {
+                        console.error('Error in bulk transfer:', err);
+                        const errorMessage = err.responseJSON?.message || 'Fout bij bulk transfer';
+                        showNotification(errorMessage, 'error');
+                    }
+                });
+            }
+
+            // Staat wijzigen functie
+            function changeState(id, aantal, nieuweStaat) {
+                $('#bevestig-staat-wijziging').prop('disabled', true);
+
+                // Vind het item in de voorraadData
+                const item = voorraadData.find(i => i.id === id);
+                if (!item) {
+                    showNotification('Item niet gevonden', 'error');
+                    return;
+                }
+
+                const data = {
+                    id: id,
+                    aantal: parseInt(aantal),
+                    nieuweStaat: nieuweStaat,
+                    location: currentLocation,
+                    bodem_id: item.bodem_id,
+                    huidigeStaat: item.staat
+                };
+
+                $.ajax({
+                    url: '/api/e_bodems/staat-wijzigen',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(data),
+                    timeout: 10000, // 10 seconden timeout
+                    success: function(response) {
+                        if (response.success) {
+                            const modalElement = document.getElementById('staatWijzigenModal');
+                            const modalInstance = bootstrap.Modal.getInstance(modalElement);
+                            if (modalInstance) {
+                                modalInstance.hide();
+                            }
+
+                            $('#staatWijzigenModal').removeData();
+                            $('#aantal-staat-wijzigen').val('');
+                            $('#nieuwe-staat').val('');
+
+                            showNotification('Staat succesvol bijgewerkt', 'success');
+
+                            setTimeout(() => {
+                                loadVoorraad(currentLocation);
+                                loadDashboardStats();
+                                loadMovements();
+                            }, 100);
+                        } else {
+                            showNotification(response.message || 'Fout bij wijzigen van staat', 'error');
+                        }
+                    },
+                    error: function(err) {
+                        console.error('Error changing state:', err);
+                        let errorMessage = 'Fout bij wijzigen van staat';
+
+                        if (err.responseJSON) {
+                            errorMessage = err.responseJSON.message || errorMessage;
+                            console.error('Server error details:', err.responseJSON);
+                        }
+
+                        showNotification(errorMessage, 'error');
+                    },
+                    complete: function() {
+                        $('#bevestig-staat-wijziging').prop('disabled', false);
+                    }
+                });
+            }
+
+            // Export naar PDF functie
+            function exportToPDF(location) {
+                const selectedItems = [];
+                
+                // Verzamel alle geselecteerde items
+                $(`#${location}-voorraad .select-item:checked`).each(function() {
+                    const row = $(this).closest('tr');
+                    const item = {
+                        id: $(this).data('id'),
+                        glovia_code: row.find('td:nth-child(2)').text().trim(),
+                        revisie: row.find('td:nth-child(3)').text().trim(),
+                        referentie: row.find('td:nth-child(4)').text().trim(),
+                        aantal: parseInt(row.find('td:nth-child(5)').text()),
+                        staat: $(this).data('state'),
+                        verkoopprijs: row.find('td:nth-child(' + (location === 'wilrijk' ? '7' : '8') + ')').text().trim()
+                    };
+                    selectedItems.push(item);
+                });
+
+                if (selectedItems.length === 0) {
+                    showNotification('Selecteer eerst items om te exporteren', 'warning');
+                    return;
+                }
+
+                const button = $(`.export-pdf[data-location="${location}"]`);
+                button.prop('disabled', true);
+                const originalText = button.html();
+                button.html('<i class="fas fa-spinner fa-spin"></i> Exporteren...');
+
+                $.ajax({
+                    url: '/api/e_bodems/send_pdf',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ 
+                        location: location,
+                        selectedItems: selectedItems
+                    }),
+                    success: function(response) {
+                        showNotification('Voorraadlijst succesvol verzonden via email', 'success');
+                    },
+                    error: function(err) {
+                        console.error('Error sending PDF:', err);
+                        showNotification('Fout bij versturen van voorraadlijst', 'error');
+                    },
+                    complete: function() {
+                        button.prop('disabled', false);
+                        button.html(originalText);
+                    }
+                });
+            }
+
+            // Export naar Excel functie
+                        // Export naar Excel functie
+            function exportToExcel(type) {
+                let url = '';
+                let params = new URLSearchParams();
+                
+                switch(type) {
+                    case 'wilrijk':
+                        url = '/api/e_bodems/movements/export';  // Gebruik het bestaande endpoint
+                        params.append('location', 'wilrijk');
+                        break;
+                    case 'genk':
+                        url = '/api/e_bodems/movements/export';  // Gebruik het bestaande endpoint
+                        params.append('location', 'genk');
+                        break;
+                    case 'transfers':
+                        url = '/api/e_bodems/movements/export';  // Gebruik het movements endpoint
+                        params.append('type', 'transfer');       // Filter op transfer type
+                        const transferDateFrom = $('#transfer-date-from').val();
+                        const transferDateTo = $('#transfer-date-to').val();
+                        const transferSearch = $('#transfer-search-input').val();
+                        if (transferDateFrom) params.append('dateFrom', transferDateFrom);
+                        if (transferDateTo) params.append('dateTo', transferDateTo);
+                        if (transferSearch) params.append('search', transferSearch);
+                        break;
+                    case 'movements':
+                        url = '/api/e_bodems/movements/export';  // Correct endpoint
+                        const movementDateFrom = $('#date-from').val();
+                        const movementDateTo = $('#date-to').val();
+                        const movementType = $('#movement-type-filter').val();
+                        if (movementDateFrom) params.append('dateFrom', movementDateFrom);
+                        if (movementDateTo) params.append('dateTo', movementDateTo);
+                        if (movementType) params.append('type', movementType);
+                        break;
+                    default:
+                        showNotification('Ongeldige export type', 'error');
+                        return;
+                }
+
+                // Voeg een timestamp toe om caching te voorkomen
+                params.append('t', new Date().getTime());
+                
+                // Toon notificatie dat de download wordt voorbereid
+                showNotification('Excel export wordt voorbereid...', 'info');
+                
+                // Navigeer naar de export URL
+                window.location.href = `${url}?${params.toString()}`;
+            }
+
+            // Function to update table headers based on active tab
+            function updateTableHeaders() {
+                const activeTabId = $('#mainTabs .nav-link.active').attr('id');
+                switch(activeTabId) {
+                    case 'voorraad-tab':
+                        // No headers to update for Voorraad as it uses multiple sub-tabs
+                        break;
+                    case 'transfers-tab':
+                        $('#transfers-table-head').html(`
+                            <tr>
+                                <th>Datum/Tijd</th>
+                                <th>Overzicht</th>
+                                <th>Van</th>
+                                <th>Naar</th>
+                                <th>Totaal Aantal</th>
+                                <th>Totale Waarde</th>
+                            </tr>
+                        `);
+                        break;
+                    case 'movements-tab':
+                        $('#movements-table-head').html(`
+                            <tr>
+                                <th>Datum</th>
+                                <th>BC Code</th>
+                                <th>Type</th>
+                                <th>Van</th>
+                                <th>Naar</th>
+                                <th>Aantal</th>
+                                <th>Staat</th>
+                                <th>Stukprijs</th>
+                                <th>Totale Waarde</th>
+                                <th>TO Nummer</th>
+                                <th>Opmerkingen</th>
+                            </tr>
+                        `);
+                        break;
+                }
+            }
+
+            // Event handlers
+            
+            // Tab change event handlers - Automatisch laden van gegevens bij tabwissel
+            $('#mainTabs button[data-bs-toggle="tab"]').on('shown.bs.tab', function (e) {
+                const target = $(e.target).attr('id');
+                
+                switch(target) {
+                    case 'voorraad-tab':
+                        loadVoorraad(currentLocation);
+                        break;
+                    case 'transfers-tab':
+                        // Automatisch transfers laden zonder dat je op "Zoeken" hoeft te klikken
+                        loadTransfers();
+                        break;
+                    case 'movements-tab':
+                        // Automatisch bewegingen laden zonder dat je op "Filter" hoeft te klikken
+                        loadMovements();
+                        break;
+                }
+                updateTableHeaders(); // Update headers whenever a tab is changed
+                loadDashboardStats(); // Update stats based on active tab
+            });
+
+            // Voorraad tab change event handler
+            $('#voorraadTabs button[data-bs-toggle="pill"]').on('shown.bs.tab', function (e) {
+                const target = $(e.target).attr('id');
+                currentLocation = target === 'wilrijk-tab' ? 'wilrijk' : 'genk';
+                loadVoorraad(currentLocation);
+                loadDashboardStats(); // Update stats based on current location
+            });
+
+            // Excel export buttons
+            $('#export-wilrijk-excel').click(function() {
+                exportToExcel('wilrijk');
+            });
+            
+            $('#export-genk-excel').click(function() {
+                exportToExcel('genk');
+            });
+            
+            $('#export-transfers-excel').click(function() {
+                exportToExcel('transfers');
+            });
+            
+            $('#export-movements-excel').click(function() {
+                exportToExcel('movements');
+            });
+
+            // PDF export buttons
+            $('.export-pdf').click(function() {
+                const location = $(this).data('location');
+                exportToPDF(location);
+            });
+
+            // Transfer zoeken - ook laden als Enter wordt ingedrukt
+            $('#transfer-search-button').click(function() {
+                loadTransfers();
+            });
+            
+            // Enter toets in zoekveld triggert ook het zoeken
+            $('#transfer-search-input').on('keyup', function(e) {
+                if (e.key === 'Enter') {
+                    loadTransfers();
+                }
+            });
+            
+            // Enter toets in datumvelden triggert ook het zoeken
+            $('#transfer-date-from, #transfer-date-to').on('keyup', function(e) {
+                if (e.key === 'Enter') {
+                    loadTransfers();
+                }
+            });
+
+            // Add stock button
+            $('[id^=add-stock-button]').click(function() {
+                const modal = new bootstrap.Modal(document.getElementById('addStockModal'));
+                
+                // Reset form
+                $('#add-stock-form')[0].reset();
+                
+                // Set default location based on button ID
+                const location = $(this).attr('id').includes('wilrijk') ? 'wilrijk' : 'genk';
+                $('#add-stock-location').val(location);
+                
+                // Show/hide TO nummer field based on location
+                updateTONummerVisibility();
+                
+                modal.show();
+            });
+
+            // Bulk transfer button
+            $('[id^=bulk-transfer-button]').click(function() {
+                const location = $(this).attr('id').includes('wilrijk') ? 'wilrijk' : 'genk';
+                currentLocation = location;
+                
+                const selectedItems = [];
+                $(`#${location}-voorraad .select-item:checked`).each(function() {
+                    const itemId = $(this).data('id');
+                    const bodemId = $(this).data('bodem-id');
+                    const maxAantal = $(this).data('max-aantal');
+                    const state = $(this).data('state');
+
+                    selectedItems.push({
+                        id: itemId,
+                        bodem_id: bodemId,
+                        aantal: parseInt(maxAantal),
+                        state: state
+                    });
+                });
+
+                if (selectedItems.length === 0) {
+                    showNotification('Selecteer eerst items om te transfereren', 'warning');
+                    return;
+                }
+
+                // Open de bulk transfer modal
+                const modal = new bootstrap.Modal(document.getElementById('bulkTransferModal'));
+                
+                // Set default to_location to the other location
+                $('#bulk-transfer-to-location').val(location === 'wilrijk' ? 'genk' : 'wilrijk');
+                
+                // Update item list
+                const itemList = selectedItems.map(item => {
+                    const itemDetails = voorraadData.find(i => i.id === item.id);
+                    return `
+                        <li>
+                            ${itemDetails ? itemDetails.glovia_code : 'Onbekend'} - Aantal: ${item.aantal} - Staat: ${formatStaat(item.state)}
+                        </li>
+                    `;
+                }).join('');
+                
+                $('#bulk-transfer-item-list').html(itemList);
+                
+                // Store selected items in modal data
+                $('#bulkTransferModal').data('selectedItems', selectedItems);
+                
+                modal.show();
+            });
+
+            // Confirm bulk transfer
+            $('#confirm-bulk-transfer').click(function() {
+                const selectedItems = $('#bulkTransferModal').data('selectedItems') || [];
+                bulkTransfer(selectedItems);
+            });
+
+            // Change state button
+            $(document).on('click', '.change-state', function() {
+                const id = $(this).data('id');
+                const maxAantal = $(this).data('aantal');
+                const item = voorraadData.find(i => i.id === id);
+
+                if (!item) {
+                    showNotification('Item niet gevonden', 'error');
+                    return;
+                }
+
+                $('#aantal-staat-wijzigen').val('').attr({
+                    'max': maxAantal,
+                    'min': 1,
+                    'placeholder': `Maximum ${maxAantal}`
+                });
+
+                $('#nieuwe-staat option').show();
+                $(`#nieuwe-staat option[value="${item.staat}"]`).hide();
+                $('#nieuwe-staat').val($('#nieuwe-staat option:visible:first').val());
+
+                const modal = new bootstrap.Modal(document.getElementById('staatWijzigenModal'));
+                $('#staatWijzigenModal').data({
+                    'itemId': id,
+                    'currentStaat': item.staat,
+                    'location': currentLocation,
+                    'maxAantal': maxAantal
+                });
+                modal.show();
+            });
+
+            // Bevestig staat wijziging
+            $('#bevestig-staat-wijziging').click(function() {
+                const modal = $('#staatWijzigenModal');
+                const id = modal.data('itemId');
+                const maxAantal = modal.data('maxAantal');
+                const currentStaat = modal.data('currentStaat');
+
+                const aantal = parseInt($('#aantal-staat-wijzigen').val());
+                const nieuweStaat = $('#nieuwe-staat').val();
+
+                if (!aantal || isNaN(aantal) || aantal < 1) {
+                    showNotification('Vul een geldig aantal in', 'error');
+                    return;
+                }
+
+                if (aantal > maxAantal) {
+                    showNotification(`Maximum aantal is ${maxAantal}`, 'error');
+                    return;
+                }
+
+                if (!nieuweStaat) {
+                    showNotification('Selecteer een nieuwe staat', 'error');
+                    return;
+                }
+
+                if (nieuweStaat === currentStaat) {
+                    showNotification('Kies een andere staat', 'warning');
+                    return;
+                }
+
+                changeState(id, aantal, nieuweStaat);
+            });
+
+            // View details button
+            $(document).on('click', '.view-details', function() {
+                const id = $(this).data('id');
+                showDetailsModal(id);
+            });
+
+            // Register usage button
+            $(document).on('click', '.register-usage', function() {
+                const id = $(this).data('id');
+                registerUsage(id);
+            });
+
+            // Confirm add stock
+            $('#confirm-add-stock').click(function() {
+                addStock();
+            });
+
+            // Select all checkbox handlers
+            $('#select-all-wilrijk').change(function() {
+                const isChecked = $(this).prop('checked');
+                $('#wilrijk-voorraad .select-item').prop('checked', isChecked);
+            });
+
+            $('#select-all-genk').change(function() {
+                const isChecked = $(this).prop('checked');
+                $('#genk-voorraad .select-item').prop('checked', isChecked);
+            });
+
+            // Update TO_nummer visibility based on location
+            $('#add-stock-location').change(function() {
+                updateTONummerVisibility();
+            });
+
+            function updateTONummerVisibility() {
+                const location = $('#add-stock-location').val();
+                if (location === 'genk') {
+                    $('#add-stock-TO_nummer-container').show();
+                    $('#add-stock-TO_nummer').prop('required', true);
+                } else {
+                    $('#add-stock-TO_nummer-container').hide();
+                    $('#add-stock-TO_nummer').prop('required', false);
+                }
+            }
+
+            // Search en filter events
+            $('[id^=search-input-]').on('input', function() {
+                const location = $(this).attr('id').includes('wilrijk') ? 'wilrijk' : 'genk';
+                applyFilters(location);
+            });
+
+            $('[id^=staat-filter-]').on('change', function() {
+                const location = $(this).attr('id').includes('wilrijk') ? 'wilrijk' : 'genk';
+                applyFilters(location);
+            });
+
+            // Apply filters function
+            function applyFilters(location) {
+                const searchInput = $(`#search-input-${location}`).val().toLowerCase();
+                const staatFilter = $(`#staat-filter-${location}`).val();
+                
+                // Filter voorraadData voor de huidige locatie
+                filteredData = voorraadData.filter(item => {
+                    const matchesSearch = !searchInput || 
+                        (item.glovia_code && item.glovia_code.toLowerCase().includes(searchInput)) ||
+                        (item.referentie && item.referentie.toLowerCase().includes(searchInput));
+                    
+                    const matchesStaat = !staatFilter || item.staat === staatFilter;
+                    
+                    return matchesSearch && matchesStaat;
+                });
+                
+                renderVoorraadTabel(filteredData, location);
+                updateTotalen(filteredData);
+            }
+
+            // Helper functies
+            function formatCurrency(amount) {
+                return new Intl.NumberFormat('nl-BE', { 
+                    style: 'currency', 
+                    currency: 'EUR' 
+                }).format(amount || 0);
+            }
+
+            function formatNumber(number) {
+                return new Intl.NumberFormat('nl-BE').format(number || 0);
+            }
+
+            function formatDate(dateString) {
+                return new Date(dateString).toLocaleDateString('nl-BE', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            }
+
+            function formatStaat(staat) {
+                if (!staat) return '-';
+
+                const states = {
+                    'goed': 'Goede staat',
+                    'goede staat': 'Goede staat',
+                    'reparatie': 'Te repareren',
+                    'te repareren': 'Te repareren',
+                    'afval': 'Afval'
+                };
+                return states[staat.toLowerCase()] || staat;
+            }
+
+            function formatLocation(location) {
+                if (!location) return '-';
+                
+                return `<span class="location-badge location-${location.toLowerCase()}">${location}</span>`;
+            }
+
+            function formatMovementType(type) {
+                const types = {
+                    'transfer': 'Transfer',
+                    'state_change': 'Staat Wijziging',
+                    'usage': 'Verbruik',
+                    'addition': 'Toevoeging'
+                };
+                return types[type] || type;
+            }
+
+            function showNotification(message, type = 'info') {
+                const alertClass = {
+                    'success': 'alert-success',
+                    'error': 'alert-danger',
+                    'warning': 'alert-warning',
+                    'info': 'alert-info'
+                };
+            
+                const alert = $(`
+                    <div class="alert ${alertClass[type]} alert-dismissible fade show position-fixed top-0 end-0 m-3" 
+                         role="alert" style="z-index: 1050;">
+                        ${message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                `);
+            
+                $('body').append(alert);
+                
+                // Use Bootstrap's alert API correctly
+                setTimeout(() => {
+                    alert.find('.btn-close').click();
+                }, 5000);
+            }
+
+            // Initialisatie - Auto-load bij openen van de pagina
+            loadDashboardStats();
+            loadBodemTypes();
+            loadVoorraad('wilrijk');
+            
+            // Bepaal welk tabblad actief is en laad de bijbehorende gegevens
+            setTimeout(function() {
+                // Get active tab and load its data if not already loaded
+                const activeTabId = $('#mainTabs .nav-link.active').attr('id');
+                switch(activeTabId) {
+                    case 'transfers-tab':
+                        loadTransfers();
+                        break;
+                    case 'movements-tab':
+                        loadMovements();
+                        break;
+                }
+                updateTableHeaders(); // Update headers on initial load
+            }, 500);
+            
+            // Voeg default error handlers toe voor ajax verzoeken
+            $(document).ajaxError(function(event, jqXHR, settings, thrownError) {
+                console.error('Ajax error voor URL: ' + settings.url, thrownError);
+                if (settings.url.indexOf('/api/e_bodems/stats') === -1) { // Vermijd dubbele meldingen
+                    showNotification('Er is een fout opgetreden bij het communiceren met de server. Probeer de pagina te vernieuwen.', 'error');
+                }
+            });
+        });
+    </script>
+    
+    <!-- Self-executing repair script to fix header issues and auto-load data -->
+    <script>
+        (function() {
+            console.log("Repair script gestart");
+            
+            function repairPage() {
+                $("body").contents().each(function() {
+                    if (this.nodeType === 3) { // Text node
+                        const text = $(this).text();
+                        if (text.includes("$('#apply-movement-filters').click") || 
+                            text.includes("loadMovements()") ||
+                            text.includes("// Filter toepassen")) {
+                            $(this).remove();
+                            console.log("JavaScript tekst uit DOM verwijderd");
+                        }
+                    }
+                });
+                
+                if (typeof loadMovements === 'function') {
+                    $(document).off('click', '#apply-movement-filters').on('click', '#apply-movement-filters', function() {
+                        console.log("Bewegingsfilters toepassen");
+                        loadMovements();
+                    });
+                    
+                    $(document).off('keyup', '#date-from, #date-to').on('keyup', '#date-from, #date-to', function(e) {
+                        if (e.key === 'Enter') {
+                            console.log("Enter gedrukt in datumfilter");
+                            $('#apply-movement-filters').click();
+                        }
+                    });
+                    
+                    $(document).off('change', '#movement-type-filter').on('change', '#movement-type-filter', function() {
+                        console.log("Type filter gewijzigd");
+                        loadMovements();
+                    });
+                    
+                    console.log("Event handlers succesvol toegevoegd");
+                }
+                
+                $(document).off('click', 'button:contains("Zoeken")').on('click', 'button:contains("Zoeken")', function() {
+                    console.log("Zoekknop aangeklikt");
+                });
+            }
+            
+            function autoLoadData() {
+                console.log("Auto-load data functie");
+                
+                const activeTab = $('.nav-link.active').text().trim();
+                console.log("Actieve tab:", activeTab);
+                
+                if (activeTab.includes("Transfers") || $('#transfers-tab').hasClass('active')) {
+                    console.log("Transfers tab actief, zoekknop zoeken");
+                    
+                    const searchBtn = $('button.btn-primary:contains("Zoeken")').filter(':visible');
+                    if (searchBtn.length) {
+                        console.log("Zoekknop gevonden, klikken...");
+                        searchBtn.click();
+                    } else {
+                        console.log("Geen zoekknop gevonden, loadTransfers direct aanroepen");
+                        if (typeof loadTransfers === 'function') {
+                            loadTransfers();
+                        } else {
+                            console.log("loadTransfers functie niet gevonden");
+                        }
+                    }
+                } else if (activeTab.includes("Bewegingen") || $('#movements-tab').hasClass('active')) {
+                    console.log("Bewegingen tab actief");
+                    if (typeof loadMovements === 'function') {
+                        loadMovements();
+                    }
+                }
+            }
+            
+            $(document).ready(function() {
+                console.log("Document ready - repair script");
+                
+                setTimeout(repairPage, 500);
+                
+                setTimeout(autoLoadData, 1000);
+                
+                $(document).on('click', 'a[data-bs-toggle="tab"], button[data-bs-toggle="tab"]', function() {
+                    console.log("Tab change gedetecteerd");
+                    setTimeout(autoLoadData, 500);
+                });
+            });
+        })();
+    </script>
+    
+    <!-- Inline CSS fix to hide any JavaScript code text that might appear -->
+    <style>
+        /* Verberg JavaScript code die als tekst verschijnt */
+        body > :not(script):not(style):contains("$('#apply-movement-filters')") {
+            display: none !important;
+        }
+        
+        /* Verberg tekst die codepatronen bevat */
+        *:not(script):not(style):contains("loadMovements()") {
+            display: none !important;
+        }
+    </style>
+</body>
+</html>

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checklist Overzicht</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        button {
+            padding: 8px 12px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #218838;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Checklist Overzicht</h1>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>WerkOrder</th>
+                <th>Datum</th>
+                <th>Verantwoordelijke</th>
+                <th>Order Beschrijving</th>  <!-- Kolom voor de order_description -->
+                <th>Acties</th>
+            </tr>
+        </thead>
+        <tbody id="checklist-table-body">
+            <!-- De checklist data wordt hier dynamisch geladen -->
+        </tbody>
+    </table>
+
+    <script src="checklist_overzicht.js"></script>
+</body>
+</html>

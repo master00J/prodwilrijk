@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Productie Checklist</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        label {
+            font-weight: bold;
+        }
+
+        select, input[type="date"], input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        table, th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+
+        th {
+            background-color: #f4f4f4;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 10px 15px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .btn:hover {
+            background-color: #218838;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Productie Checklist</h1>
+
+    <!-- Werkorder selecteren -->
+    <div>
+        <label for="werkorder">WerkOrder Nummer:</label>
+        <select id="werkorder" name="werkorder">
+            <option value="">Selecteer een werkorder</option>
+        </select>
+        
+        <label for="order_description">Order Beschrijving:</label>
+        <select id="order_description" name="order_description">
+            <option value="">Selecteer een werkorder lijn</option>
+        <!-- Beschrijvingen worden hier geladen -->
+        </select>
+        
+        <label for="datum">Datum:</label>
+        <input type="date" id="datum" name="datum">
+
+        <label for="verantwoordelijke">Naam Verantwoordelijke:</label>
+        <input type="text" id="verantwoordelijke" name="verantwoordelijke">
+    </div>
+
+    <h2>AFMETINGEN</h2>
+    <table>
+        <tr>
+            <td>Conform STUKLIJST</td>
+            <td><input type="checkbox" id="stuklijst" name="stuklijst"></td>
+        </tr>
+        <tr>
+            <td>Conform TEKENING</td>
+            <td><input type="checkbox" id="tekening" name="tekening"></td>
+        </tr>
+    </table>
+
+    <h2>VERNAGELING</h2>
+    <table>
+        <tr>
+            <td>Juiste Nagel type / lengte</td>
+            <td><input type="checkbox" id="nagel_type_lengte" name="nagel_type_lengte"></td>
+        </tr>
+        <tr>
+            <td>Juiste Nagel wijze</td>
+            <td><input type="checkbox" id="nagel_wijze" name="nagel_wijze"></td>
+        </tr>
+        <tr>
+            <td>Uitstekende Nagels</td>
+            <td><input type="checkbox" id="uitstekende_nagels" name="uitstekende_nagels"></td>
+        </tr>
+        <tr>
+            <td>Nagelkoppen Verzinken</td>
+            <td><input type="checkbox" id="nagelkoppen_verzinken" name="nagelkoppen_verzinken"></td>
+        </tr>
+        <tr>
+            <td>Nagelpunten Gekloken</td>
+            <td><input type="checkbox" id="nagelpunten_gekloken" name="nagelpunten_gekloken"></td>
+        </tr>
+    </table>
+
+    <h2>CONTROLE NA 1ste</h2>
+    <table>
+        <tr>
+            <td>Na 1ste Onderdeel</td>
+            <td><input type="checkbox" id="na_1ste_onderdeel" name="na_1ste_onderdeel"></td>
+        </tr>
+        <tr>
+            <td>Kist / Krat Opbouw</td>
+            <td><input type="checkbox" id="kist_opbouw" name="kist_opbouw"></td>
+        </tr>
+    </table>
+
+    <h2>TUSSENTIJDSE CONTROLE</h2>
+    <table>
+        <tr>
+            <td>Steekproeven op alles</td>
+            <td><input type="checkbox" id="steekproeven" name="steekproeven"></td>
+        </tr>
+    </table>
+
+    <h2>MARKERINGEN</h2>
+    <table>
+        <tr>
+            <td>HT Stempel</td>
+            <td><input type="checkbox" id="ht_stempel" name="ht_stempel"></td>
+        </tr>
+        <tr>
+            <td>Afmeting Stempel</td>
+            <td><input type="checkbox" id="afmeting_stempel" name="afmeting_stempel"></td>
+        </tr>
+        <tr>
+            <td>Klantspecifiek Stempel</td>
+            <td><input type="checkbox" id="klantspecifiek_stempel" name="klantspecifiek_stempel"></td>
+        </tr>
+    </table>
+
+    <h2>STAPELING</h2>
+    <table>
+        <tr>
+            <td>Label (Juiste Code)</td>
+            <td><input type="checkbox" id="label_code" name="label_code"></td>
+        </tr>
+        <tr>
+            <td>Aantal per Stapel / WO</td>
+            <td><input type="checkbox" id="aantal_stapel" name="aantal_stapel"></td>
+        </tr>
+        <tr>
+            <td>Conform Strapping</td>
+            <td><input type="checkbox" id="conform_strapping" name="conform_strapping"></td>
+        </tr>
+    </table>
+
+    <h2>EIND CONTROLE</h2>
+    <table>
+        <tr>
+            <td>Steekproeven op alles</td>
+            <td><input type="checkbox" id="eind_steekproeven" name="eind_steekproeven"></td>
+        </tr>
+    </table>
+    
+    <label for="commentaar">Commentaar:</label>
+    <textarea id="commentaar" name="commentaar" rows="4" style="width:100%;"></textarea>  <!-- Commentaar invoer -->
+
+
+    <!-- Opslaan Knop -->
+        <button type="button" onclick="submitChecklist()">Checklist Opslaan</button>
+    </form>
+
+    <script src="checklist.js"></script>
+</body>
+</html>

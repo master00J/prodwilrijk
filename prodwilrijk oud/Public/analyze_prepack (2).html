@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prepack Nacalculatie</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@2.9.4/dist/Chart.min.css">
+    
+    <style>
+        body {
+            font-size: 16px;
+        }
+        
+        .card {
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stats-banner {
+            background-color: #e9ecef;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .stat-box {
+            background-color: #fff;
+            border-radius: 5px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 15px;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        .stat-label {
+            color: #6c757d;
+            font-size: 14px;
+        }
+        
+        .profit {
+            color: #28a745;
+        }
+        
+        .loss {
+            color: #dc3545;
+        }
+        
+        .filters {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-bottom: 20px;
+        }
+        
+        .table-container {
+            overflow-x: auto;
+        }
+        
+        .table th {
+            position: sticky;
+            top: 0;
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <div id="header-placeholder"></div>
+    
+    <div class="container-fluid py-3">
+        <h2 class="mb-4">Prepack Nacalculatie</h2>
+        
+        <!-- Filters -->
+        <div class="card">
+            <div class="card-header">
+                <h5>Filters</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label for="date-range" class="form-label">Periode</label>
+                            <select class="form-select" id="date-range">
+                                <option value="7">Afgelopen 7 dagen</option>
+                                <option value="30" selected>Afgelopen 30 dagen</option>
+                                <option value="90">Afgelopen 3 maanden</option>
+                                <option value="365">Afgelopen jaar</option>
+                                <option value="custom">Aangepaste periode</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-8">
+                        <div class="row" id="custom-date-range" style="display: none;">
+                            <div class="col-md-5">
+                                <div class="mb-3">
+                                    <label for="start-date" class="form-label">Startdatum</label>
+                                    <input type="text" class="form-control" id="start-date">
+                                </div>
+                            </div>
+                            <div class="col-md-5">
+                                <div class="mb-3">
+                                    <label for="end-date" class="form-label">Einddatum</label>
+                                    <input type="text" class="form-control" id="end-date">
+                                </div>
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <button class="btn btn-primary mb-3" id="apply-dates">Toepassen</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Overzicht -->
+        <div class="row">
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-box">
+                    <div class="stat-value" id="total-revenue">€0,00</div>
+                    <div class="stat-label">Totale Omzet</div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-box">
+                    <div class="stat-value" id="total-costs">€0,00</div>
+                    <div class="stat-label">Totale Kosten</div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-box">
+                    <div class="stat-value" id="total-profit">€0,00</div>
+                    <div class="stat-label">Marge</div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-box">
+                    <div class="stat-value" id="total-hours">0h</div>
+                    <div class="stat-label">Totaal Arbeidsuren</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Grafieken -->
+        <div class="row">
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Omzet en Kosten per Dag</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="revenue-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Arbeidsuren per Dag</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="hours-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Gedetailleerde tabel -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5>Gedetailleerd Overzicht</h5>
+                <div class="btn-group">
+                    <button class="btn btn-primary" id="edit-mode-btn">
+                        <i class="fas fa-edit me-1"></i> Bewerken
+                    </button>
+                    <button class="btn btn-success" id="save-changes-btn" style="display: none;">
+                        <i class="fas fa-save me-1"></i> Opslaan
+                    </button>
+                    <button class="btn btn-secondary" id="cancel-changes-btn" style="display: none;">
+                        <i class="fas fa-times me-1"></i> Annuleren
+                    </button>
+                    <button class="btn btn-success" id="export-data-btn">
+                        <i class="fas fa-download me-1"></i> Exporteren als Excel
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-container">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Datum</th>
+                                <th>Aantal Items</th>
+                                <th>Omzet</th>
+                                <th data-bs-toggle="tooltip" title="Inclusief houtkosten en hulpstoffen">Materiaalkosten</th>
+                                <th>Arbeidskosten</th>
+                                <th>Totale Kosten</th>
+                                <th>Overhead (€)</th>
+                                <th>Arbeidsuren</th>
+                                <th>Marge (€)</th>
+                                <th>Marge (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="data-table-body">
+                            <!-- Data wordt hier dynamisch toegevoegd -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4/dist/Chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="scripts_analyze_prepack.js"></script>
+</body>
+</html> 

@@ -1,0 +1,120 @@
+/* General styling */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f4f4f4;
+    color: #333;
+    line-height: 1.6;
+}
+
+h1 {
+    background-color: #007BFF;
+    color: white;
+    padding: 20px;
+    text-align: center;
+    margin: 0;
+}
+
+.tabs {
+    display: flex;
+    justify-content: center;
+    background-color: #007BFF;
+    padding: 10px 0;
+}
+
+.tabs button {
+    background-color: #007BFF;
+    border: none;
+    color: white;
+    padding: 14px 20px;
+    cursor: pointer;
+    font-size: 16px;
+    margin: 0 5px;
+}
+
+.tabs button:hover {
+    background-color: #0056b3;
+}
+
+.tabs button.active {
+    background-color: #0056b3;
+}
+
+.tab {
+    display: none;
+    padding: 20px;
+}
+
+.tab.active {
+    display: block;
+}
+
+form {
+    margin-bottom: 20px;
+    display: flex;
+    gap: 10px;
+}
+
+input[type="text"], select {
+    padding: 10px;
+    width: calc(100% - 22px);
+    margin: 5px 0 10px 0;
+    display: inline-block;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+button[type="submit"], button#generateScheduleBtn {
+    background-color: #007BFF;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+button[type="submit"]:hover, button#generateScheduleBtn:hover {
+    background-color: #0056b3;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    background-color: white;
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+table, th, td {
+    border: 1px solid #ddd;
+}
+
+th, td {
+    padding: 12px;
+    text-align: left;
+}
+
+th {
+    background-color: #007BFF;
+    color: white;
+}
+
+tbody tr:nth-child(even) {
+    background-color: #f2f2f2;
+}
+
+.legend {
+    background-color: #f9f9f9;
+    border: 1px solid #ddd;
+    padding: 10px;
+    margin-top: 20px;
+    border-radius: 4px;
+}
+
+.legend h3 {
+    margin-top: 0;
+}

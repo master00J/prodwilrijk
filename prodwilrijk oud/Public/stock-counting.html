@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stocktelling</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        form { margin-bottom: 20px; }
+        input, button { margin: 5px 0; padding: 5px; }
+        #message { margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h1>Stocktelling</h1>
+    <form id="stockForm">
+        <label for="itemNumber">Itemnummer:</label><br>
+        <input type="text" id="itemNumber" required><br>
+        <label for="quantity">Toe te voegen aantal:</label><br>
+        <input type="number" id="quantity" required><br>
+        <button type="submit">Bijwerken</button>
+    </form>
+    <div id="message"></div>
+    <h2>Huidige Voorraad</h2>
+    <table id="inventoryTable">
+        <thead>
+            <tr>
+                <th>Itemnummer</th>
+                <th>Totale hoeveelheid</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <script>
+        const form = document.getElementById('stockForm');
+        const messageDiv = document.getElementById('message');
+        const inventoryTable = document.getElementById('inventoryTable').getElementsByTagName('tbody')[0];
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const itemNumber = document.getElementById('itemNumber').value;
+            const quantity = document.getElementById('quantity').value;
+
+            try {
+                const response = await axios.post('/api/update-inventory', { itemNumber, quantity });
+                messageDiv.textContent = `${response.data.message}. Nieuwe totale hoeveelheid: ${response.data.newQuantity}`;
+                updateInventoryTable();
+            } catch (error) {
+                messageDiv.textContent = 'Er is een fout opgetreden bij het bijwerken van de voorraad.';
+            }
+        });
+
+        async function updateInventoryTable() {
+            try {
+                const response = await axios.get('/api/inventory');
+                inventoryTable.innerHTML = '';
+                response.data.forEach(item => {
+                    const row = inventoryTable.insertRow();
+                    row.insertCell(0).textContent = item.item_number;
+                    row.insertCell(1).textContent = item.quantity;
+                });
+            } catch (error) {
+                console.error('Fout bij het ophalen van de voorraad:', error);
+            }
+        }
+
+        updateInventoryTable();
+    </script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+/* print.css */
+@media print {
+    /* Verberg alle andere elementen behalve de tabel */
+    body {
+        visibility: hidden;
+    }
+
+    table {
+        visibility: visible;
+        width: 100%;
+        border-collapse: collapse;
+        margin: 0;
+    }
+
+    /* Stijl voor de tabelkop */
+    th {
+        background-color: #f2f2f2;
+        font-weight: bold;
+        padding: 12px;
+        text-align: left;
+        font-size: 14pt;  /* Grotere tekst voor koptekst */
+        border-bottom: 2px solid #000;  /* Dikke rand onder de kop */
+    }
+
+    /* Stijl voor de tabelcellen */
+    td {
+        padding: 10px;
+        text-align: left;
+        font-size: 12pt;
+        border-bottom: 1px solid #ddd;  /* Draagbare en nette lijnen tussen rijen */
+    }
+
+    /* Zorg ervoor dat rijen netjes zijn afgebakend */
+    tr:nth-child(even) {
+        background-color: #f9f9f9;
+    }
+
+    tr:hover {
+        background-color: #f1f1f1;  /* Effect bij het afdrukken niet zichtbaar, maar in print blijft netjes */
+    }
+
+    /* Stijl voor printomgeving */
+    body, table {
+        font-family: Arial, sans-serif;
+        color: black;
+    }
+}

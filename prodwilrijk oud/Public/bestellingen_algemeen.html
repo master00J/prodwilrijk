@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bestellingen Algemeen</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding: 20px;
+        }
+
+        .search-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+
+        .table-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+
+        .table th {
+            background-color: #f8f9fa;
+        }
+
+        .order-quantity {
+            width: 80px;
+        }
+
+        .btn-add {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .btn-remove {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .btn-send {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+        }
+
+        .table-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <h1 class="mb-4">Bestellingen Algemeen</h1>
+
+        <!-- Zoekbalk -->
+        <div class="search-container mb-4">
+            <div class="row">
+                <div class="col-md-6">
+                    <input type="text" 
+                           id="search-bar" 
+                           class="form-control" 
+                           placeholder="Zoek op artikelomschrijving of artikelnummer...">
+                </div>
+            </div>
+        </div>
+
+        <!-- Artikelen Tabel -->
+        <div class="table-container">
+            <div class="table-title">Gevonden Artikelen</div>
+            <div class="table-responsive">
+                <table id="artikels-table" class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Omschrijving</th>
+                            <th>Artikelnummer</th>
+                            <th>Aantal</th>
+                            <th>Actie</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="4" class="text-center">Gebruik de zoekbalk om artikelen te zoeken</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Order Lijst -->
+        <div class="table-container">
+            <div class="table-title">Te Bestellen Artikelen</div>
+            <div class="table-responsive">
+                <table id="order-list" class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Omschrijving</th>
+                            <th>Artikelnummer</th>
+                            <th>Aantal</th>
+                            <th>Actie</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="4" class="text-center">Geen artikelen geselecteerd</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Verstuur Knop -->
+            <div class="d-flex justify-content-end mt-3">
+                <button id="send-order-btn" class="btn btn-primary">
+                    <i class="fas fa-paper-plane me-2"></i>Verstuur Bestelling
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script src="bestellingen_algemeen.js"></script>
+</body>
+</html>

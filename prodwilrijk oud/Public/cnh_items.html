@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CNH Incoming Goods</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="/scripts_cnh_items.js" defer></script>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .search-sort-container {
+            margin-bottom: 20px;
+        }
+        .search-sort-container input,
+        .search-sort-container button {
+            margin-right: 10px;
+        }
+        .editable {
+            border: 1px solid #ccc;
+            padding: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div id="header-placeholder"></div>
+    <div class="container">
+        <h1>CNH Incoming Goods</h1>
+        <div class="search-sort-container">
+            <input type="text" id="search-location" placeholder="Search Location">
+            <input type="text" id="search-type" placeholder="Search Type">
+            <input type="text" id="search-verzendnota" placeholder="Search Verzendnota">
+            <input type="text" id="search-motornumber" placeholder="Search Motornumber">
+            <button id="search-button">Search</button>
+            <button id="sort-button">Sort by Date Arrived</button>
+        </div>
+        <p>Total Items: <span id="total-items">0</span></p>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Location</th>
+                    <th>Type</th>
+                    <th>Verzendnota</th>
+                    <th>Motornumber</th>
+                    <th>Date Arrived</th>
+                    <th>Received</th>
+                </tr>
+            </thead>
+            <tbody id="goods-table-body">
+                <!-- Data will be inserted here by JavaScript -->
+            </tbody>
+        </table>
+        <button id="update-button">Update Selected</button>
+    </div>
+</body>
+</html>

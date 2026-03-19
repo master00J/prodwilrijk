@@ -1,0 +1,334 @@
+<!-- Chat Component -->
+<style>
+    .chat-wrapper {
+        position: fixed;
+        bottom: 0;
+        right: 20px;
+        z-index: 1050;
+    }
+
+    #global-chat {
+        width: 300px;
+        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+
+    .chat-messages {
+        height: 300px;
+        overflow-y: auto;
+        padding: 10px;
+    }
+
+    .message-bubble {
+        max-width: 80%;
+        margin-bottom: 10px;
+        padding: 8px 12px;
+        border-radius: 15px;
+        word-wrap: break-word;
+    }
+
+    .message-sent {
+        background-color: #007bff;
+        color: white;
+        margin-left: auto;
+        border-bottom-right-radius: 5px;
+    }
+
+    .message-received {
+        background-color: #e9ecef;
+        color: black;
+        border-bottom-left-radius: 5px;
+    }
+
+    .chat-file {
+        max-width: 200px;
+        cursor: pointer;
+        color: #0066cc;
+        text-decoration: underline;
+    }
+
+    .file-upload-btn {
+        cursor: pointer;
+        color: #6c757d;
+    }
+
+    .chat-timestamp {
+        font-size: 0.7rem;
+        color: #666;
+        margin-top: 2px;
+    }
+</style>
+
+<div class="chat-wrapper">
+    <div id="global-chat" class="card">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+                <span id="chat-header-text">Chat</span>
+            </div>
+            <div>
+                <button class="btn btn-sm text-white" id="minimize-chat">
+                    <i class="fas fa-minus"></i>
+                </button>
+                <button class="btn btn-sm text-white" id="close-chat">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Users List View -->
+        <div id="users-list-view" class="card-body">
+            <!-- Users will be dynamically added here -->
+        </div>
+
+        <!-- Chat View -->
+        <div id="chat-view" class="d-none">
+            <div class="chat-messages" id="chat-messages"></div>
+            <div class="card-footer">
+                <div class="input-group">
+                    <input type="file" id="file-input" style="display: none">
+                    <button class="btn btn-light file-upload-btn" id="upload-btn">
+                        <i class="fas fa-paperclip"></i>
+                    </button>
+                    <input type="text" class="form-control" id="chat-input" placeholder="Type een bericht...">
+                    <button class="btn btn-primary" id="send-message">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Connect to Socket.IO server
+    const socket = io('https://prodwilrijk.be:25022', {
+        withCredentials: true
+    });
+
+    let currentChatUser = null;
+    let isChatMinimized = false;
+    let isChatVisible = true;
+
+    const chatComponent = document.getElementById('global-chat');
+    const usersListView = document.getElementById('users-list-view');
+    const chatView = document.getElementById('chat-view');
+    const chatMessages = document.getElementById('chat-messages');
+    const chatInput = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('send-message');
+    const minimizeBtn = document.getElementById('minimize-chat');
+    const closeBtn = document.getElementById('close-chat');
+    const chatHeaderText = document.getElementById('chat-header-text');
+    const fileInput = document.getElementById('file-input');
+    const uploadBtn = document.getElementById('upload-btn');
+
+    // Socket event listeners
+    socket.on('connect', () => {
+        console.log('Connected to chat server');
+        loadUsers();
+    });
+
+    socket.on('receive_message', (msg) => {
+        if (currentChatUser && msg.sender_id === currentChatUser.id) {
+            addMessageToChat(msg, false);
+        }
+    });
+
+    socket.on('message_sent', (msg) => {
+        if (currentChatUser && msg.receiver_id === currentChatUser.id) {
+            addMessageToChat(msg, true);
+        }
+    });
+
+    // Load users list
+    function loadUsers() {
+        fetch('/api/users')
+            .then(response => response.json())
+            .then(users => {
+                usersListView.innerHTML = users.map(user => `
+                    <div class="chat-user-item p-2 hover-bg-light cursor-pointer" data-user-id="${user.id}">
+                        <i class="fas fa-user me-2"></i>
+                        ${user.username}
+                    </div>
+                `).join('');
+
+                document.querySelectorAll('.chat-user-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const userId = parseInt(item.dataset.userId);
+                        const username = item.textContent.trim();
+                        startChat({ id: userId, username });
+                    });
+                });
+            })
+            .catch(err => console.error('Error loading users:', err));
+    }
+
+    function startChat(user) {
+        currentChatUser = user;
+        usersListView.classList.add('d-none');
+        chatView.classList.remove('d-none');
+        chatHeaderText.innerHTML = `
+            <i class="fas fa-arrow-left back-button me-2" id="back-to-users"></i>
+            ${user.username}
+        `;
+        
+        document.getElementById('back-to-users').addEventListener('click', backToUsersList);
+        loadChatHistory(user.id);
+    }
+
+    function backToUsersList() {
+        currentChatUser = null;
+        usersListView.classList.remove('d-none');
+        chatView.classList.add('d-none');
+        chatHeaderText.textContent = 'Chat';
+    }
+
+    function loadChatHistory(userId) {
+        fetch(`/api/messages/${userId}`)
+            .then(response => response.json())
+            .then(messages => {
+                chatMessages.innerHTML = '';
+                messages.forEach(msg => {
+                    addMessageToChat(msg, msg.sender_id !== userId);
+                });
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            })
+            .catch(err => console.error('Error loading messages:', err));
+    }
+
+    function addMessageToChat(msg, sent) {
+        const messageElement = document.createElement('div');
+        messageElement.className = `message-bubble ${sent ? 'message-sent' : 'message-received'}`;
+        
+        // Message content
+        if (msg.message) {
+            messageElement.textContent = msg.message;
+        }
+        
+        // File attachment
+        if (msg.fileUrl) {
+            const fileLink = document.createElement('a');
+            fileLink.href = msg.fileUrl;
+            fileLink.className = 'chat-file';
+            fileLink.textContent = msg.fileUrl.split('/').pop();
+            messageElement.appendChild(fileLink);
+        }
+        
+        // Timestamp
+        const timestamp = document.createElement('div');
+        timestamp.className = 'chat-timestamp';
+        timestamp.textContent = new Date(msg.timestamp).toLocaleTimeString();
+        messageElement.appendChild(timestamp);
+        
+        chatMessages.appendChild(messageElement);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    async function sendMessage(fileUrl = null) {
+        const message = chatInput.value.trim();
+        if ((message || fileUrl) && currentChatUser) {
+            socket.emit('send_message', {
+                receiverId: currentChatUser.id,
+                message: message,
+                fileUrl: fileUrl
+            });
+            chatInput.value = '';
+        }
+    }
+
+    // File upload handling
+    uploadBtn.addEventListener('click', () => {
+        fileInput.click();
+    });
+
+    fileInput.addEventListener('change', async (e) => {
+        if (e.target.files.length > 0) {
+            const file = e.target.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/api/messages/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                if (data.url) {
+                    sendMessage(data.url);
+                }
+            } catch (err) {
+                console.error('Error uploading file:', err);
+            }
+        }
+    });
+
+    // Event Listeners
+    minimizeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        isChatMinimized = !isChatMinimized;
+        
+        if (isChatMinimized) {
+            chatView.style.display = 'none';
+            usersListView.style.display = 'none';
+            minimizeBtn.innerHTML = '<i class="fas fa-plus"></i>';
+        } else {
+            if (currentChatUser) {
+                chatView.style.display = 'block';
+            } else {
+                usersListView.style.display = 'block';
+            }
+            minimizeBtn.innerHTML = '<i class="fas fa-minus"></i>';
+        }
+        
+        saveChatState();
+    });
+
+    closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        isChatVisible = false;
+        chatComponent.style.display = 'none';
+        saveChatState();
+    });
+
+    sendBtn.addEventListener('click', () => sendMessage());
+
+    chatInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    function saveChatState() {
+        localStorage.setItem('chatState', JSON.stringify({
+            minimized: isChatMinimized,
+            visible: isChatVisible,
+            currentUserId: currentChatUser?.id
+        }));
+    }
+
+    function loadChatState() {
+        const savedState = localStorage.getItem('chatState');
+        if (savedState) {
+            const state = JSON.parse(savedState);
+            isChatMinimized = state.minimized;
+            isChatVisible = state.visible;
+            
+            if (!isChatVisible) {
+                chatComponent.style.display = 'none';
+            }
+            if (isChatMinimized) {
+                chatView.style.display = 'none';
+                usersListView.style.display = 'none';
+                minimizeBtn.innerHTML = '<i class="fas fa-plus"></i>';
+            }
+        }
+    }
+
+    // Initialize
+    loadChatState();
+    if (!isChatMinimized && isChatVisible) {
+        loadUsers();
+    }
+});
+</script>

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Artikels</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.16.9/xlsx.full.min.js"></script>
+    <script src="scripts_artikels.js"></script>
+</head>
+<body>
+    <h1>Upload Artikels</h1>
+    <div id="header-placeholder"></div>
+
+    <form id="upload-excel-form">
+        <label for="file-input">Selecteer Excel-bestand om te uploaden:</label>
+        <input type="file" id="file-input" accept=".xlsx, .xls, .csv">
+        <button type="submit" id="upload-button">Upload</button>
+    </form>
+
+    <div id="upload-response-message"></div>
+    <div id="row-count-message"></div>
+
+    <div id="row-count-modal" style="display:none;">
+        <p>Bestanden geüpload</p>
+    </div>
+</body>
+</html>

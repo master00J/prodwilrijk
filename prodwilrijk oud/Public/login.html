@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <title>Login - Admin Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .login-container {
+            max-width: 400px;
+            margin: 100px auto;
+        }
+        .card {
+            border: none;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .card-header {
+            background-color: #007bff;
+            color: white;
+            text-align: center;
+            font-weight: bold;
+            padding: 1.5rem;
+        }
+        .btn-login {
+            width: 100%;
+            padding: 0.75rem;
+            font-weight: bold;
+        }
+        .error-message {
+            color: #dc3545;
+            text-align: center;
+            margin-top: 1rem;
+            display: none;
+        }
+        .register-container {
+            text-align: center;
+            margin-top: 15px;
+        }
+        .register-container button {
+            background: none;
+            border: none;
+            color: #007bff;
+            text-decoration: underline;
+            cursor: pointer;
+            padding: 0;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container login-container">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">Admin Login</h4>
+            </div>
+            <div class="card-body">
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label for="username">Gebruikersnaam</label>
+                        <input type="text" class="form-control" id="username" name="username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Wachtwoord</label>
+                        <input type="password" class="form-control" id="password" name="password" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-login">Inloggen</button>
+                </form>
+                <div id="errorMessage" class="error-message">
+                    Ongeldige gebruikersnaam of wachtwoord
+                </div>
+                <div class="register-container">
+                    <p>Nog geen account?</p>
+                    <button type="button" data-toggle="modal" data-target="#registerModal">Registreren</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Registratie Modal -->
+    <div class="modal fade" id="registerModal" tabindex="-1" role="dialog" aria-labelledby="registerModalLabel" aria-hidden="true">
+      <div class="modal-dialog" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="registerModalLabel">Registreren</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Sluiten">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <form id="registerForm">
+              <div class="form-group">
+                <label for="regUsername">Gebruikersnaam</label>
+                <input type="text" class="form-control" id="regUsername" name="regUsername" required>
+              </div>
+              <div class="form-group">
+                <label for="regPassword">Wachtwoord</label>
+                <input type="password" class="form-control" id="regPassword" name="regPassword" required>
+              </div>
+              <div id="registerErrorMessage" class="text-danger" style="display:none;"></div>
+              <div id="registerSuccessMessage" class="text-success" style="display:none;"></div>
+              <button type="submit" class="btn btn-primary">Registreren</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    $(document).ready(function() {
+        // Login form submit
+        $('#loginForm').on('submit', function(e) {
+            e.preventDefault();
+            
+            const username = $('#username').val();
+            const password = $('#password').val();
+            
+            $.ajax({
+                url: '/api/login',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ username, password }),
+                xhrFields: {
+                    withCredentials: true
+                },
+                success: function(response) {
+                    if (response.message === 'Login successful' || response.success) {
+                        $.ajax({
+                            url: '/api/checkAuth',
+                            method: 'GET',
+                            xhrFields: {
+                                withCredentials: true
+                            },
+                            success: function(authResponse) {
+                                if (authResponse.isAuthenticated) {
+                                    window.location.href = '/index.html';
+                                } else {
+                                    $('#errorMessage').text('Sessie kon niet worden ingesteld').show();
+                                }
+                            },
+                            error: function() {
+                                $('#errorMessage').text('Fout bij sessie verificatie').show();
+                            }
+                        });
+                    } else {
+                        $('#errorMessage').text('Ongeldige inloggegevens').show();
+                    }
+                },
+                error: function(xhr) {
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        $('#errorMessage').text(response.error || response.message || 'Login mislukt').show();
+                    } catch (e) {
+                        $('#errorMessage').text('Er is een fout opgetreden tijdens het inloggen').show();
+                    }
+                }
+            });
+        });
+
+        // Register form submit
+        $('#registerForm').on('submit', function(e) {
+            e.preventDefault();
+            
+            const username = $('#regUsername').val();
+            const password = $('#regPassword').val();
+
+            $('#registerErrorMessage').hide();
+            $('#registerSuccessMessage').hide();
+
+            $.ajax({
+                url: '/api/register',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ username, password }),
+                success: function(response) {
+                    // Respons: { message: 'Registratie ontvangen, wacht op goedkeuring...' }
+                    $('#registerSuccessMessage').text(response.message).show();
+                    $('#registerForm')[0].reset();
+                },
+                error: function(xhr) {
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        $('#registerErrorMessage').text(response.error || response.message || 'Fout bij registratie').show();
+                    } catch (e) {
+                        $('#registerErrorMessage').text('Er is een fout opgetreden tijdens de registratie').show();
+                    }
+                }
+            });
+        });
+    });
+    </script>
+</body>
+</html>

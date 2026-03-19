@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Overzicht Stocktelling</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        h2 {
+            text-align: center;
+            color: #333;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+
+        .no-data {
+            text-align: center;
+            color: #999;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Overzicht van Stocktelling</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Artikelnummer</th>
+                    <th>Beschrijving</th>
+                    <th>Datum</th>
+                    <th>Aantal</th>
+                </tr>
+            </thead>
+            <tbody id="stockCountsTable">
+                <!-- Stocktelling gegevens worden hier geladen -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+    
+        function formatDate(isoString) {
+    const date = new Date(isoString);
+    return date.toLocaleString('nl-NL', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+    });
+}
+
+        async function loadStockCounts() {
+    try {
+        const response = await fetch('/api/get_stock_counts');
+        const counts = await response.json();
+        
+        const tableBody = document.getElementById('stockCountsTable');
+        tableBody.innerHTML = ''; // Maak de tabel eerst leeg
+
+        if (counts.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="4" class="no-data">Geen gegevens beschikbaar voor deze periode.</td></tr>';
+            return;
+        }
+
+        counts.forEach(count => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${count.item_number}</td>
+                <td>${count.description}</td>
+                <td>${formatDate(count.count_date)}</td>
+                <td>${count.quantity}</td>
+            `;
+            tableBody.appendChild(row);
+        });
+    } catch (error) {
+        console.error('Error loading stock counts:', error);
+        document.getElementById('stockCountsTable').innerHTML = '<tr><td colspan="4" class="no-data">Er is een fout opgetreden bij het laden van de gegevens.</td></tr>';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadStockCounts);
+
+    </script>
+</body>
+</html>

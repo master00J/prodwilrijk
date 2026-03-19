@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Work Orders</title>
+    <link rel="stylesheet" href="styles.css">
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            fetch('header.html')
+                .then(response => response.text())
+                .then(data => {
+                    document.getElementById("header-placeholder").innerHTML = data;
+                });
+        });
+    </script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f8f9fa;
+            color: black;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            padding: 20px;
+        }
+
+        h1 {
+            color: black;
+        }
+
+        .table-section, .form-section {
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        th, td {
+            padding: 12px;
+            border: 1px solid #dee2e6;
+            text-align: left;
+            color: black;
+        }
+
+        th {
+            background-color: #007bff;
+            color: black;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        .total-time {
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div id="header-placeholder"></div>
+    <div class="container">
+        <h1>Werkorders</h1>
+        <div class="form-section">
+            <h2>Nieuw Werkorder</h2>
+            <div class="form-group">
+                <label for="order-number">Ordernummer</label>
+                <input type="text" id="order-number" />
+            </div>
+            <div class="form-group">
+                <label for="order-description">Beschrijving</label>
+                <input type="text" id="order-description" />
+            </div>
+            <div class="form-group">
+                <label for="order-quantity">Aantal Stuks</label>
+                <input type="number" id="order-quantity" />
+            </div>
+            <div class="form-group">
+                <label for="steps">Stappen</label>
+                <select id="steps" multiple>
+                    <option value="zagerij">Zagerij</option>
+                    <option value="assemblage">Assemblage</option>
+                </select>
+            </div>
+            <button id="add-order-button">Voeg Werkorder Toe</button>
+        </div>
+        <div class="table-section">
+            <h2>Bestaande Werkorders</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ordernummer</th>
+                        <th>Beschrijving</th>
+                        <th>Aantal Stuks</th>
+                        <th>Zagerij</th>
+                        <th>Assemblage</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody id="workorders-table-body"></tbody>
+            </table>
+        </div>
+        <div id="order-details" style="display: none;">
+            <h2>Order Details</h2>
+            <p>Ordernummer: <span id="details-order-number"></span></p>
+            <h3>Zagerij Timelogs</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Starttijd</th>
+                        <th>Eindtijd</th>
+                        <th>Duur (minuten)</th>
+                    </tr>
+                </thead>
+                <tbody id="zagerij-timelogs"></tbody>
+            </table>
+            <h3>Assemblage Timelogs</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Starttijd</th>
+                        <th>Eindtijd</th>
+                        <th>Duur (minuten)</th>
+                    </tr>
+                </thead>
+                <tbody id="assemblage-timelogs"></tbody>
+            </table>
+            <p>Total Time: <span id="total-time"></span> minuten</p>
+        </div>
+    </div>
+
+    <script src="scripts_admin_workorders.js"></script>
+</body>
+</html>

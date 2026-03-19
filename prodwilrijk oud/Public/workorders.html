@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Werkorders</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f8f9fa;
+            margin: 0;
+            padding: 0;
+        }
+
+        .header {
+            background-color: #007bff;
+            color: white;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .container {
+            padding: 20px;
+        }
+
+        h1 {
+            color: #343a40;
+        }
+
+        .form-section {
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        .form-section label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .form-section input, .form-section select {
+            width: 100%;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ced4da;
+            margin-bottom: 10px;
+        }
+
+        .form-section button {
+            padding: 10px;
+            border-radius: 4px;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .form-section button:hover {
+            background-color: #0056b3;
+        }
+
+        .table-section {
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        th, td {
+            padding: 12px;
+            border: 1px solid #dee2e6;
+            text-align: left;
+        }
+
+        th {
+            background-color: #007bff;
+            color: blue;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        .total-time {
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+    </style>
+</head>
+<body>
+    <div class="header" id="header-placeholder">Werkorders</div>
+    <div class="container">
+        <h1>Werkorders Aanmaken en Tijdregistratie</h1>
+        <div class="form-section">
+            <label for="order-number">Ordernummer:</label>
+            <input type="text" id="order-number">
+
+            <label for="order-description">Beschrijving:</label>
+            <input type="text" id="order-description">
+
+            <label for="step">Stap:</label>
+            <select id="step">
+                <option value="zagerij">Zagerij</option>
+                <option value="assemblage">Assemblage</option>
+            </select>
+
+            <button id="add-order-button">Werkorder Toevoegen</button>
+        </div>
+        <div class="table-section">
+            <h2>Actieve Werkorders</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ordernummer</th>
+                        <th>Beschrijving</th>
+                        <th>Stap</th>
+                        <th>Starttijd</th>
+                        <th>Eindtijd</th>
+                        <th>Acties</th>
+                    </tr>
+                </thead>
+                <tbody id="workorders-table-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="scripts_workorders.js"></script>
+</body>
+</html>

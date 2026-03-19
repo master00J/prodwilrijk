@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hout Verbruik Overzicht</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        body {
+            background-color: #f7f7f7;
+        }
+
+        .table {
+            margin-bottom: 0;
+        }
+
+        .table th, .table td {
+            padding: 0.75rem;
+            vertical-align: middle;
+        }
+
+        .table thead th {
+            background-color: #f8f9fa;
+            border-bottom: 2px solid #dee2e6;
+            font-weight: 500;
+            padding-top: 0.75rem;
+            padding-bottom: 0.75rem;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        .actions-bar {
+            padding: 1rem;
+            background: white;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .filter-container {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .card {
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            margin-bottom: 1rem;
+        }
+
+        .form-control:focus {
+            border-color: #80bdff;
+            box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+        }
+
+        .btn-filter {
+            background-color: #0d6efd;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.15s ease-in-out;
+        }
+
+        .btn-filter:hover {
+            background-color: #0b5ed7;
+        }
+
+        @media (max-width: 768px) {
+            .actions-bar {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+            
+            .container-fluid {
+                padding: 0.5rem;
+            }
+
+            .filter-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .filter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div id="header-placeholder"></div>
+
+    <div class="container-fluid py-3">
+        <div class="actions-bar">
+            <h2 class="mb-0">Hout Verbruik Overzicht</h2>
+            <div class="d-flex align-items-center">
+                <div class="alert alert-info mb-0">
+                    Verbruik statistieken
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter Sectie -->
+        <div class="filter-container">
+            <div class="filter-grid">
+                <div class="mb-3">
+                    <label for="start-datum" class="form-label">Startdatum:</label>
+                    <input type="date" class="form-control" id="start-datum">
+                </div>
+
+                <div class="mb-3">
+                    <label for="eind-datum" class="form-label">Einddatum:</label>
+                    <input type="date" class="form-control" id="eind-datum">
+                </div>
+
+                <div class="mb-3">
+                    <label for="soort-filter" class="form-label">Houtsoort:</label>
+                    <input type="text" class="form-control" id="soort-filter" 
+                           placeholder="Filter op houtsoort...">
+                </div>
+
+                <div class="mb-3 d-flex align-items-end">
+                    <button id="apply-filters" class="btn btn-primary w-100">
+                        <i class="fas fa-filter me-2"></i>Pas Filters Toe
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Verbruik Tabel -->
+        <div class="card">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table id="verbruikTable" class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Houtsoort</th>
+                                <th>Lengte (mm)</th>
+                                <th>Breedte (mm)</th>
+                                <th>Dikte (mm)</th>
+                                <th>Aantal Verbruikt</th>
+                                <th>Totaal Verbruik (m³)</th>
+                                <th>Datum Verbruik</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Data wordt hier dynamisch ingevoegd -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="hout_verbruik.js"></script>
+    
+    <script>
+        $(document).ready(function() {
+            $.get('/header.html', function(data) {
+                $('#header-placeholder').html(data);
+                
+                // Bootstrap componenten initialiseren
+                var dropdowns = [].slice.call(document.querySelectorAll('.dropdown-toggle'));
+                dropdowns.map(function(dropdownToggleEl) {
+                    return new bootstrap.Dropdown(dropdownToggleEl);
+                });
+
+                // Navbar toggler initialiseren
+                var navbarToggler = document.querySelector('.navbar-toggler');
+                if (navbarToggler) {
+                    new bootstrap.Collapse(document.querySelector('.navbar-collapse'), {
+                        toggle: false
+                    });
+                }
+            }).fail(function(error) {
+                console.error('Error loading header:', error);
+            });
+        });
+    </script>
+</body>
+</html>

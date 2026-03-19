@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <title>Werkposten Beheren</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Bootstrap CSS van toegestane bron -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.5.2/css/bootstrap.min.css">
+    <!-- Je eigen stylesheet (optioneel) -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Header placeholder waar de dynamische header wordt ingeladen -->
+    <div id="header-placeholder"></div>
+
+    <div class="container my-4">
+        <h1>Werkposten Beheren</h1>
+        <form id="add-workstation-form" class="form-inline mb-4">
+            <div class="form-group mr-2">
+                <label for="workstation-name" class="sr-only">Naam:</label>
+                <input type="text" id="workstation-name" class="form-control" placeholder="Naam van de werkpost">
+            </div>
+            <button type="submit" class="btn btn-primary">Toevoegen</button>
+        </form>
+
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Naam</th>
+                    <th>Acties</th>
+                </tr>
+            </thead>
+            <tbody id="workstations-table-body">
+                <!-- Werkposten worden hier geladen -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Inclusie van jQuery en andere scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <!-- Bootstrap JS (optioneel, voor dynamische componenten) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <!-- Je eigen JavaScript-bestand -->
+    <script>
+        $(document).ready(function() {
+            // Laad de header dynamisch met jQuery's load() methode
+            $('#header-placeholder').load('header.html', function(response, status, xhr) {
+                if (status == "error") {
+                    console.error("Error loading header: " + xhr.status + " " + xhr.statusText);
+                }
+            });
+
+            // Functie om werkposten te laden
+            function loadWorkstations() {
+                $.ajax({
+                    url: '/api/workstations',
+                    method: 'GET',
+                    success: function(data) {
+                        const tbody = $('#workstations-table-body');
+                        tbody.empty();
+                        data.forEach(workstation => {
+                            tbody.append(`
+                                <tr>
+                                    <td>${workstation.id}</td>
+                                    <td>${workstation.name}</td>
+                                    <td>
+                                        <button class="btn btn-danger btn-sm delete-workstation" data-id="${workstation.id}">Verwijderen</button>
+                                    </td>
+                                </tr>
+                            `);
+                        });
+                    },
+                    error: function(err) {
+                        console.error('Error loading workstations:', err);
+                    }
+                });
+            }
+
+            // Laad de werkposten bij het openen van de pagina
+            loadWorkstations();
+
+            // Werkpost toevoegen
+            $('#add-workstation-form').submit(function(e) {
+                e.preventDefault();
+                const name = $('#workstation-name').val().trim();
+                if (name) {
+                    $.ajax({
+                        url: '/api/workstations',
+                        method: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({ name }),
+                        success: function() {
+                            $('#workstation-name').val('');
+                            loadWorkstations();
+                        },
+                        error: function(err) {
+                            console.error('Error adding workstation:', err);
+                        }
+                    });
+                } else {
+                    alert('Voer een naam in voor de werkpost.');
+                }
+            });
+
+            // Werkpost verwijderen
+            $('#workstations-table-body').on('click', '.delete-workstation', function() {
+                const id = $(this).data('id');
+                if (confirm('Weet je zeker dat je deze werkpost wilt verwijderen?')) {
+                    $.ajax({
+                        url: `/api/workstations/${id}`,
+                        method: 'DELETE',
+                        success: function() {
+                            loadWorkstations();
+                        },
+                        error: function(err) {
+                            console.error('Error deleting workstation:', err);
+                        }
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>

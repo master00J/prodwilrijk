@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="nl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Airtec Barcode Verificatie</title>
+    <link rel="stylesheet" href="/css/theme.css">
+    <meta name="theme-color" content="#0ea5a6" />
+    <style>
+      :root {
+        --bg: #0b1220;
+        --surface: #0f172a;
+        --surface-2: #111827;
+        --text: #e5e7eb;
+        --muted: #9ca3af;
+        --primary: #14b8a6;
+        --primary-600: #0ea5a6;
+        --ok: #16a34a;
+        --ok-600: #15803d;
+        --warn: #f59e0b;
+        --error: #ef4444;
+        --error-700: #b91c1c;
+        --shadow: 0 12px 30px rgba(0,0,0,.35);
+        --radius-lg: 18px;
+        --radius-md: 12px;
+        --radius-sm: 10px;
+      }
+
+      html, body {
+        height: 100%;
+        margin: 0;
+        background: linear-gradient(160deg, #0b1220 0%, #050b16 100%);
+        color: var(--text);
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      body.bg-ok {
+        background: linear-gradient(160deg, #052e1a 0%, #062612 30%, #07351a 100%);
+      }
+
+      body.bg-error {
+        background: linear-gradient(160deg, #3b0a0a 0%, #2e0909 30%, #400c0c 100%);
+      }
+
+      .wrap {
+        min-height: 100%;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+      }
+
+      /* header en switches verwijderd voor mobiele vereenvoudiging */
+
+      main {
+        display: grid;
+        place-items: center;
+        padding: clamp(16px, 3.5vw, 28px);
+      }
+
+      .card {
+        width: min(1400px, 100%);
+        background: radial-gradient(120% 150% at 0% 0%, rgba(20,184,166,.08) 0%, rgba(2,6,23,.00) 60%),
+                    linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+        border: 1px solid rgba(255,255,255,.08);
+        border-radius: var(--radius-lg);
+        padding: clamp(16px, 3.5vw, 28px);
+        box-shadow: var(--shadow);
+      }
+
+      /* Desktop optimalisatie */
+      @media (min-width: 1024px) {
+        .status-title { font-size: 22px; }
+        .status-sub { font-size: 14px; }
+        .inputs { grid-template-columns: 1fr 1fr; }
+        .history-list { max-height: 360px; }
+      }
+
+      .status {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 14px;
+        margin-bottom: clamp(16px, 3.5vw, 28px);
+      }
+
+      .status-banner {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        border-radius: var(--radius-md);
+        padding: clamp(14px, 2.8vw, 18px) clamp(14px, 3vw, 22px);
+        border: 1px solid rgba(255,255,255,.08);
+        background: linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.02));
+      }
+
+      .status-icon {
+        width: clamp(22px, 4.2vw, 28px);
+        height: clamp(22px, 4.2vw, 28px);
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        font-size: clamp(14px, 3.4vw, 18px);
+        background: #1f2937;
+      }
+
+      .status-text {
+        display: grid;
+        gap: 4px;
+      }
+
+      .status-title { font-size: clamp(16px, 3.2vw, 20px); font-weight: 650; }
+      .status-sub   { font-size: clamp(12px, 2.5vw, 14px); color: var(--muted); }
+
+      .status--idle    { border-color: rgba(148,163,184,.25); }
+      .status--ok      { border-color: rgba(34,197,94,.45); background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(34,197,94,.04)); }
+      .status--error   { border-color: rgba(239,68,68,.45); background: linear-gradient(180deg, rgba(239,68,68,.14), rgba(239,68,68,.04)); }
+
+      .inputs {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: clamp(12px, 3vw, 18px);
+      }
+
+      @media (max-width: 800px) {
+        .inputs { grid-template-columns: 1fr; }
+      }
+
+      .field {
+        display: grid;
+        gap: 10px;
+      }
+
+      label {
+        font-size: 14px;
+        color: var(--muted);
+      }
+
+      input[type="text"] {
+        font-size: clamp(18px, 3.6vw, 24px);
+        padding: 16px 18px;
+        border-radius: var(--radius-md);
+        outline: none;
+        border: 1px solid rgba(255,255,255,.08);
+        color: var(--text);
+        background: linear-gradient(180deg, rgba(17,24,39,.9), rgba(15,23,42,.9));
+        transition: border .2s ease, box-shadow .2s ease;
+      }
+
+      input[type="text"]:focus {
+        border-color: rgba(20,184,166,.5);
+        box-shadow: 0 0 0 4px rgba(20,184,166,.15);
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: clamp(16px, 3.2vw, 22px);
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 14px 18px;
+        font-size: clamp(14px, 2.8vw, 16px);
+        border-radius: var(--radius-sm);
+        border: 1px solid rgba(255,255,255,.08);
+        background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+        color: var(--text);
+        cursor: pointer;
+        user-select: none;
+        transition: transform .05s ease, background .2s ease, border .2s ease;
+      }
+
+      .btn:active { transform: translateY(1px); }
+
+      .btn.primary {
+        background: linear-gradient(180deg, rgba(20,184,166,.18), rgba(20,184,166,.06));
+        border-color: rgba(20,184,166,.45);
+      }
+
+      .history {
+        margin-top: clamp(18px, 3.5vw, 26px);
+        border-top: 1px dashed rgba(255,255,255,.12);
+        padding-top: clamp(12px, 2.8vw, 18px);
+      }
+
+      .toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      .day-counter {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,.08);
+        background: linear-gradient(180deg, rgba(34,197,94,.10), rgba(34,197,94,.04));
+      }
+      .day-counter .count-dot {
+        width: 10px; height: 10px; border-radius: 50%; background: linear-gradient(180deg, #22c55e, #16a34a);
+      }
+
+      .history h3 {
+        margin: 0 0 10px 0;
+        font-size: clamp(13px, 2.6vw, 15px);
+        color: var(--muted);
+        font-weight: 600;
+      }
+
+      .history-list {
+        display: grid;
+        gap: 10px;
+        max-height: 220px;
+        overflow: auto;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+        border: 1px solid rgba(255,255,255,.08);
+      }
+
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+      }
+
+      .dot.ok { background: linear-gradient(180deg, #22c55e, #16a34a); }
+      .dot.err{ background: linear-gradient(180deg, #f43f5e, #ef4444); }
+
+      .codes {
+        display: grid;
+        gap: 4px;
+        min-width: 0;
+      }
+
+      .code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: #e2e8f0;
+      }
+
+      footer {
+        padding: 12px 16px;
+        color: var(--muted);
+        font-size: 12px;
+        text-align: center;
+        border-top: 1px solid rgba(255,255,255,.06);
+        background: linear-gradient(0deg, rgba(255,255,255,0.02), rgba(255,255,255,0));
+      }
+
+      /* Hidden scan catcher to keep hardware scanners happy */
+      #scanCatcher {
+        position: absolute;
+        left: -9999px;
+        width: 1px;
+        height: 1px;
+        opacity: 0;
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      /* Full-screen alert overlay for mismatch */
+      .overlay {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: rgba(0,0,0,.35);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .2s ease;
+        z-index: 60;
+      }
+
+      .overlay.overlay--show { opacity: 1; pointer-events: auto; }
+
+      .panel {
+        display: grid;
+        justify-items: center;
+        gap: 12px;
+        padding: clamp(18px, 4vw, 28px);
+        border-radius: var(--radius-lg);
+        border: 1px solid rgba(255,255,255,.12);
+        box-shadow: var(--shadow);
+        max-width: min(90vw, 720px);
+        text-align: center;
+      }
+
+      .panel-error {
+        background: linear-gradient(180deg, rgba(239,68,68,.25), rgba(239,68,68,.08));
+      }
+
+      .panel-ok {
+        background: linear-gradient(180deg, rgba(34,197,94,.22), rgba(34,197,94,.08));
+      }
+
+      .panel-icon { font-size: clamp(28px, 8vw, 48px); }
+      .panel-title { font-size: clamp(22px, 6.2vw, 36px); font-weight: 700; }
+      .panel-sub { font-size: clamp(14px, 4vw, 16px); color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      
+
+      <main>
+        <section class="card" role="region" aria-labelledby="statusTitle">
+          <div class="toolbar">
+            <div class="day-counter" title="Aantal items verpakt vandaag">
+              <span class="count-dot" aria-hidden="true"></span>
+              <span>Verpakt vandaag: <strong id="dayCount">0</strong></span>
+            </div>
+          </div>
+          <div id="status" class="status">
+            <div id="statusBanner" class="status-banner status--idle" aria-live="assertive">
+              <div id="statusIcon" class="status-icon" aria-hidden="true">⏳</div>
+              <div class="status-text">
+                <div id="statusTitle" class="status-title">Wacht op scans</div>
+                <div id="statusSub" class="status-sub">Scan de eerste barcode, daarna de tweede</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="inputs" role="group" aria-label="Barcodes">
+            <div class="field">
+              <label for="code1">Barcode 1</label>
+              <input id="code1" type="text" inputmode="text" autocomplete="off" spellcheck="false" placeholder="Scan" />
+            </div>
+            <div class="field">
+              <label for="code2">Barcode 2</label>
+              <input id="code2" type="text" inputmode="text" autocomplete="off" spellcheck="false" placeholder="Scan" />
+            </div>
+          </div>
+
+          <div class="actions">
+            <button id="resetBtn" class="btn" type="button">Reset</button>
+            <button id="exportCsvBtn" class="btn" type="button" title="Exporteer naar CSV (Excel)">Exporteer CSV</button>
+            <button id="shareEmailBtn" class="btn" type="button" title="Deel via e-mail">Deel per e-mail</button>
+            <button id="clearAllBtn" class="btn" type="button" title="Wis volledige lijst">Wis lijst</button>
+          </div>
+
+          <div class="history">
+            <h3>Laatste resultaten</h3>
+            <div id="historyList" class="history-list" aria-live="polite"></div>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        Gemaakt voor Airtec • Werkt met barcodescanners (Enter/Tab-suffix ondersteund)
+      </footer>
+    </div>
+
+    <!-- Mismatch overlay -->
+    <div id="alertOverlay" class="overlay" role="alert" aria-live="assertive">
+      <div class="panel panel-error">
+        <div class="panel-icon">❌</div>
+        <div class="panel-title">GEEN match</div>
+        <div class="panel-sub">De barcodes komen niet overeen</div>
+        <button id="overlayResetBtn" class="btn" type="button">Reset</button>
+      </div>
+    </div>
+
+    <!-- Match overlay -->
+    <div id="okOverlay" class="overlay" role="status" aria-live="polite">
+      <div class="panel panel-ok">
+        <div class="panel-icon">✅</div>
+        <div class="panel-title">Match</div>
+        <div class="panel-sub">De barcodes zijn gelijk</div>
+        <button id="overlayOkBtn" class="btn" type="button">Doorgaan</button>
+      </div>
+    </div>
+
+    <input id="scanCatcher" type="text" autocomplete="off" />
+    <label class="sr-only" for="scanCatcher">Verborgen scanveld</label>
+
+    <script>
+      (function() {
+        const code1 = document.getElementById('code1');
+        const code2 = document.getElementById('code2');
+        const statusBanner = document.getElementById('statusBanner');
+        const statusIcon = document.getElementById('statusIcon');
+        const statusTitle = document.getElementById('statusTitle');
+        const statusSub = document.getElementById('statusSub');
+        const historyList = document.getElementById('historyList');
+        const resetBtn = document.getElementById('resetBtn');
+        const scanCatcher = document.getElementById('scanCatcher');
+        const alertOverlay = document.getElementById('alertOverlay');
+        const overlayResetBtn = document.getElementById('overlayResetBtn');
+        const okOverlay = document.getElementById('okOverlay');
+        const overlayOkBtn = document.getElementById('overlayOkBtn');
+        const exportCsvBtn = document.getElementById('exportCsvBtn');
+        const shareEmailBtn = document.getElementById('shareEmailBtn');
+        const clearAllBtn = document.getElementById('clearAllBtn');
+
+        const STORAGE_KEY = 'airtec_scans_v1';
+        const autoResetOnMatch = true; // header-instelling verwijderd: vaste default
+        const isMuted = false; // header-instelling verwijderd: vaste default
+
+        let pendingAutoReset = null;
+        let history = [];
+
+        // Keep scanners focused
+        function focusScanner() {
+          scanCatcher.focus({ preventScroll: true });
+        }
+
+        function sanitizeScan(value) {
+          if (typeof value !== 'string') return '';
+          return value.replace(/[\r\n\t]/g, '').trim();
+        }
+
+        function normalizeScan(value) {
+          const val = sanitizeScan(value).toUpperCase();
+          return val.replace(/^(2W|S)/, '');
+        }
+
+        function setStatusIdle() {
+          statusBanner.classList.remove('status--ok', 'status--error');
+          statusBanner.classList.add('status--idle');
+          statusIcon.textContent = '⏳';
+          statusTitle.textContent = 'Wacht op scans';
+          const next = !code1.value ? 'Scan de eerste barcode' : 'Scan de tweede barcode';
+          statusSub.textContent = next;
+          document.body.classList.remove('bg-ok', 'bg-error');
+          alertOverlay.classList.remove('overlay--show');
+          okOverlay.classList.remove('overlay--show');
+        }
+
+        function setStatusOk() {
+          statusBanner.classList.remove('status--idle', 'status--error');
+          statusBanner.classList.add('status--ok');
+          statusIcon.textContent = '✅';
+          statusTitle.textContent = 'Match';
+          statusSub.textContent = 'De barcodes zijn gelijk';
+          document.body.classList.add('bg-ok');
+          document.body.classList.remove('bg-error');
+          alertOverlay.classList.remove('overlay--show');
+          okOverlay.classList.add('overlay--show');
+        }
+
+        function setStatusError() {
+          statusBanner.classList.remove('status--idle', 'status--ok');
+          statusBanner.classList.add('status--error');
+          statusIcon.textContent = '❌';
+          statusTitle.textContent = 'GEEN match';
+          statusSub.textContent = 'De barcodes komen niet overeen';
+          document.body.classList.add('bg-error');
+          document.body.classList.remove('bg-ok');
+          alertOverlay.classList.add('overlay--show');
+          okOverlay.classList.remove('overlay--show');
+        }
+
+        function vibrateOk() {
+          if (navigator.vibrate) navigator.vibrate(50);
+        }
+
+        function vibrateError() {
+          if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
+        }
+
+        // Simple WebAudio beeps (no external files)
+        function beep(frequency, durationMs, type = 'sine', volume = 0.08) {
+          if (isMuted) return;
+          try {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            const ctx = beep._ctx || (beep._ctx = new AudioCtx());
+            const o = ctx.createOscillator();
+            const g = ctx.createGain();
+            o.type = type;
+            o.frequency.value = frequency;
+            g.gain.value = volume;
+            o.connect(g);
+            g.connect(ctx.destination);
+            const now = ctx.currentTime;
+            o.start(now);
+            o.stop(now + durationMs / 1000);
+          } catch (_) { /* ignore */ }
+        }
+
+        function playOkTone() {
+          beep(880, 120, 'triangle');
+          setTimeout(() => beep(1175, 120, 'triangle'), 110);
+        }
+
+        function playErrorTone() {
+          beep(220, 180, 'sawtooth');
+          setTimeout(() => beep(165, 180, 'sawtooth'), 100);
+        }
+
+        function addHistory(a, b, isMatch) {
+          history.unshift({ a, b, ok: isMatch, t: new Date() });
+          if (history.length > 10) history.pop();
+          renderHistory();
+          persistState();
+        }
+
+        function renderHistory() {
+          historyList.innerHTML = '';
+          for (const item of history) {
+            const row = document.createElement('div');
+            row.className = 'row';
+            const dot = document.createElement('div');
+            dot.className = 'dot ' + (item.ok ? 'ok' : 'err');
+            const codes = document.createElement('div');
+            codes.className = 'codes';
+            const c1 = document.createElement('div');
+            c1.className = 'code';
+            c1.textContent = normalizeScan(item.a || '');
+            const c2 = document.createElement('div');
+            c2.className = 'code';
+            c2.textContent = normalizeScan(item.b || '');
+            const t = document.createElement('div');
+            t.style.color = 'var(--muted)';
+            t.style.fontSize = '12px';
+            try {
+              const dt = item.t instanceof Date ? item.t : new Date(item.t);
+              t.textContent = dt.toLocaleString(undefined, {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit'
+              });
+            } catch (_) {
+              t.textContent = '' + item.t;
+            }
+            codes.appendChild(c1); codes.appendChild(c2);
+            row.appendChild(dot); row.appendChild(codes); row.appendChild(t);
+            historyList.appendChild(row);
+          }
+        }
+
+        async function evaluateIfReady() {
+          const aRaw = sanitizeScan(code1.value);
+          const bRaw = sanitizeScan(code2.value);
+          if (!aRaw || !bRaw) return false;
+          const a = normalizeScan(aRaw);
+          const b = normalizeScan(bRaw);
+          const isMatch = !!a && !!b && a === b;
+          // toon altijd de genormaliseerde kern in de velden
+          code1.value = a;
+          code2.value = b;
+          // eenvoudige validatie: kern moet alfanumeriek zijn en min. 6 tekens
+          const isValidCore = (v) => /^[A-Z0-9]{6,}$/.test(v);
+          const valid = isValidCore(a) && isValidCore(b);
+          if (!valid) {
+            setStatusError();
+            statusSub.textContent = 'Ongeldig formaat. Controleer scans.';
+            addHistory(a, b, false);
+            vibrateError();
+            playErrorTone();
+            return true;
+          }
+          if (isMatch) {
+            setStatusOk();
+            vibrateOk();
+            playOkTone();
+            // Wallboard trigger: stuur AIA/lot/item code door naar backend zodat wallboard update
+            try {
+              await fetch('/api/aia/scan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ aiacode: a, stationId: null })
+              }).catch(() => null);
+            } catch (_) {}
+            // Probeer verplaatsing op basis van lot_number (we nemen code1 als lot_number)
+            try {
+              const resp = await fetch('/api/airtec/move_by_lot', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lot_number: a })
+              }).catch(() => null);
+              if (resp && resp.ok) {
+                // Refresh teller na succesvolle verplaatsing
+                await refreshPackedTodayCount();
+              } else if (resp) {
+                const t = await resp.text().catch(() => '');
+                console.warn('Move-by-lot mislukt:', t);
+              }
+            } catch (_) {}
+          } else {
+            setStatusError();
+            vibrateError();
+            playErrorTone();
+          }
+          addHistory(a, b, isMatch);
+          if (pendingAutoReset) clearTimeout(pendingAutoReset);
+          // Alleen automatisch resetten bij MATCH. Bij GEEN match: handmatige bevestiging nodig.
+          if (isMatch && autoResetOnMatch) {
+            pendingAutoReset = setTimeout(() => {
+              doReset();
+            }, 600); // snellere doorstroom: sneller terug naar Barcode 1
+          }
+          return true;
+        }
+
+        function doReset() {
+          if (pendingAutoReset) {
+            clearTimeout(pendingAutoReset);
+            pendingAutoReset = null;
+          }
+          code1.value = '';
+          code2.value = '';
+          setStatusIdle();
+          try { code1.focus({ preventScroll: true }); } catch (_) {}
+          persistState();
+        }
+
+        // Input behaviors
+        code1.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === 'Tab') {
+            e.preventDefault();
+            code2.focus();
+            if (evaluateIfReady()) { try { code1.focus({ preventScroll: true }); } catch (_) {} }
+          }
+        });
+        code2.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === 'Tab') {
+            e.preventDefault();
+            if (evaluateIfReady()) { try { code1.focus({ preventScroll: true }); } catch (_) {} }
+            else code1.focus();
+          }
+        });
+        code1.addEventListener('input', setStatusIdle);
+        code2.addEventListener('input', setStatusIdle);
+        code1.addEventListener('input', persistState);
+        code2.addEventListener('input', persistState);
+
+        // Hidden scanner catcher: captures scans even if inputs are not focused
+        let buffer = '';
+        let scanTimer = null;
+        const SCAN_GAP_MS = 80; // end-of-scan gap for hardware scanners
+
+        function commitScan(value) {
+          const val = sanitizeScan(value);
+          const valNorm = normalizeScan(val);
+          if (!val) return;
+          if (code1.value && code2.value) {
+            doReset();
+          }
+          if (!code1.value) {
+            code1.value = valNorm;
+            try { code2.focus({ preventScroll: true }); } catch (_) {}
+          } else if (!code2.value) {
+            code2.value = valNorm;
+          }
+          setStatusIdle();
+          evaluateIfReady();
+          // Na succesvolle match richting vak 1 (vergelijk op genormaliseerde kern)
+          if (code1.value && code2.value && normalizeScan(code1.value) === normalizeScan(code2.value)) {
+            try { code1.focus({ preventScroll: true }); } catch (_) {}
+          }
+        }
+
+        function flushBuffer() {
+          if (!buffer) return;
+          commitScan(buffer);
+          buffer = '';
+        }
+
+        document.addEventListener('keydown', (e) => {
+          const active = document.activeElement;
+          const isTypingInField = active === code1 || active === code2;
+          const isModifier = e.ctrlKey || e.altKey || e.metaKey;
+          if (isTypingInField || isModifier) return; // respect manual typing
+
+          // Printable chars
+          if (e.key.length === 1) {
+            buffer += e.key;
+            clearTimeout(scanTimer);
+            scanTimer = setTimeout(flushBuffer, SCAN_GAP_MS);
+          } else if (e.key === 'Enter' || e.key === 'Tab') {
+            e.preventDefault();
+            clearTimeout(scanTimer);
+            flushBuffer();
+          } else if (e.key === 'Escape') {
+            buffer = '';
+          }
+        }, true);
+
+        // Buttons
+        resetBtn.addEventListener('click', doReset);
+        function confirmAndFocusField1() {
+          doReset();
+          try { code1.focus({ preventScroll: true }); } catch (_) {}
+        }
+        overlayResetBtn.addEventListener('click', confirmAndFocusField1);
+        overlayOkBtn.addEventListener('click', confirmAndFocusField1);
+        // Klikken op de overlay zelf telt als bevestiging
+        alertOverlay.addEventListener('click', confirmAndFocusField1);
+        okOverlay.addEventListener('click', confirmAndFocusField1);
+
+        function persistState() {
+          const payload = {
+            history,
+            code1: code1.value,
+            code2: code2.value,
+            savedAt: Date.now()
+          };
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(payload, (key, value) => {
+              if (key === 't' && value instanceof Date) return value.toISOString();
+              return value;
+            }));
+          } catch (_) {}
+        }
+
+        function hydrate() {
+          try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (raw) {
+              const data = JSON.parse(raw);
+              if (Array.isArray(data.history)) {
+                history = data.history.map(item => ({
+                  a: normalizeScan(item.a || ''),
+                  b: normalizeScan(item.b || ''),
+                  ok: !!item.ok,
+                  t: item.t ? new Date(item.t) : new Date()
+                }));
+              }
+              if (typeof data.code1 === 'string') code1.value = normalizeScan(data.code1);
+              if (typeof data.code2 === 'string') code2.value = normalizeScan(data.code2);
+            }
+          } catch (_) {}
+
+          renderHistory();
+          setStatusIdle();
+          // Laad initiële dagteller
+          refreshPackedTodayCount();
+        }
+
+        async function refreshPackedTodayCount() {
+          try {
+            const r = await fetch('/api/airtec/packed_today_count').catch(() => null);
+            if (!r || !r.ok) return;
+            const data = await r.json().catch(() => ({}));
+            const val = typeof data.count === 'number' ? data.count : 0;
+            const el = document.getElementById('dayCount');
+            if (el) el.textContent = String(val);
+          } catch (_) {}
+        }
+
+        // CSV export utilities
+        function toCsvString(items) {
+          const sep = ';';
+          const header = ['Tijdstip', 'Barcode1', 'Barcode2', 'Match'];
+          const rows = [header];
+          for (const it of items) {
+            const t = it.t instanceof Date ? it.t.toISOString() : new Date(it.t).toISOString();
+            const m = it.ok ? 'JA' : 'NEE';
+            const fields = [t, it.a || '', it.b || '', m];
+            rows.push(fields.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(sep));
+          }
+          return rows.map(r => Array.isArray(r) ? r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(sep) : r).join('\r\n');
+        }
+
+        function makeFilename(prefix) {
+          const d = new Date();
+          const pad = n => String(n).padStart(2, '0');
+          return `${prefix}_${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.csv`;
+        }
+
+        function downloadCsv() {
+          // Gebruik data-URL voor maximale compatibiliteit op mobiel
+          const csv = toCsvString(history.slice().reverse());
+          const filename = makeFilename('airtec_scans');
+          const dataUrl = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+          const a = document.createElement('a');
+          a.href = dataUrl;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        }
+
+        async function shareEmail() {
+          try {
+            const payload = { history };
+            const resp = await fetch('/api/scan_sessions/email', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+            if (!resp.ok) {
+              const t = await resp.text().catch(() => '');
+              alert('Fout bij verzenden per e-mail: ' + t);
+              playErrorTone();
+              vibrateError();
+              return;
+            }
+            playOkTone();
+            vibrateOk();
+            alert('Scan sessie verzonden per e-mail.');
+          } catch (e) {
+            console.error(e);
+            alert('Kon niet verbinden met de server. Controleer netwerk.');
+            playErrorTone();
+            vibrateError();
+          }
+        }
+
+        exportCsvBtn.addEventListener('click', downloadCsv);
+        shareEmailBtn.addEventListener('click', shareEmail);
+        clearAllBtn.addEventListener('click', () => {
+          try {
+            const code = prompt('Bevestig wissen van de volledige lijst. Wachtwoord:');
+            if (code === null) return; // geannuleerd
+            if (code === '6469') {
+              history = [];
+              renderHistory();
+              persistState();
+              playOkTone();
+              vibrateOk();
+            } else {
+              playErrorTone();
+              vibrateError();
+              alert('Onjuist wachtwoord.');
+            }
+          } catch (_) {}
+        });
+
+        // Keep focus on catcher unless user taps into a field
+        document.addEventListener('click', (e) => {
+          const path = e.composedPath ? e.composedPath() : [];
+          const clickedInFields = path.includes(code1) || path.includes(code2);
+          if (!clickedInFields) focusScanner();
+        });
+
+        // Initial state
+        hydrate();
+        focusScanner();
+      })();
+    </script>
+  </body>
+</html>
+
+
+

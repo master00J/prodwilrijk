@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wekelijkse Stocktelling</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        h2 {
+            text-align: center;
+            color: #333;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f4f4f4;
+            color: #333;
+        }
+
+        input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+
+        button {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 20px;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Wekelijkse Stocktelling</h2>
+        <form id="stockForm">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Artikelnummer</th>
+                        <th>Beschrijving</th>
+                        <th>Aantal</th>
+                    </tr>
+                </thead>
+                <tbody id="itemsList">
+                    <!-- De artikelen worden hier geladen -->
+                </tbody>
+            </table>
+            <button type="submit">Stocktelling Verzenden</button>
+        </form>
+    </div>
+
+    <script>
+        // Functie om de artikelen voor stocktelling op te halen en weer te geven
+        async function loadStockItems() {
+            try {
+                const response = await fetch('/api/get_stock_items');
+                const items = await response.json();
+                
+                const itemsList = document.getElementById('itemsList');
+                itemsList.innerHTML = ''; // Maak de lijst leeg
+
+                if (items.length === 0) {
+                    itemsList.innerHTML = '<tr><td colspan="3">Geen artikelen beschikbaar voor telling.</td></tr>';
+                    return;
+                }
+
+                items.forEach(item => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${item.item_number}</td>
+                        <td>${item.description}</td>
+                        <td><input type="number" name="quantity_${item.item_number}" placeholder="Aantal"></td>
+                    `;
+                    itemsList.appendChild(row);
+                });
+            } catch (error) {
+                console.error('Error loading stock items:', error);
+                document.getElementById('itemsList').innerHTML = '<tr><td colspan="3">Er is een fout opgetreden bij het laden van de artikelen.</td></tr>';
+            }
+        }
+
+        // Laad de artikelen bij het openen van de pagina
+        document.addEventListener('DOMContentLoaded', loadStockItems);
+
+        // Verzenden van de stocktelling
+        document.getElementById('stockForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            const stockData = [];
+
+            for (let [key, value] of formData.entries()) {
+                if (key.startsWith('quantity_') && value) {
+                    const item_number = key.split('_')[1];
+                    stockData.push({ item_number, quantity: value });
+                }
+            }
+
+            try {
+                const response = await fetch('/api/submit_stock_counts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ counts: stockData })
+                });
+                const result = await response.json();
+                alert(result.message || 'Stocktelling succesvol verzonden.');
+                loadStockItems(); // Laad de lijst opnieuw voor een nieuwe telling
+            } catch (error) {
+                console.error('Error submitting stock count:', error);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Stocktelling</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 0; /* Verwijder standaard marges */
+        }
+        #artikelen-lijst, #add-artikel-form, #reorder-section {
+            width: 90%; /* Gebruik meer van de beschikbare breedte */
+            margin: 10px auto; /* Kleinere marges */
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1); /* Voeg een subtiele schaduw toe */
+        }
+        h1, h2 {
+            color: #333; /* Donkerdere kleur voor de headings */
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input[type="text"], textarea, input[type="number"] {
+            width: calc(100% - 22px); /* Pas de breedte aan voor de padding */
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+            font-size: 16px; /* Vergroot de font size */
+        }
+        button {
+            background-color: #007bff; /* Gebruik een blauwe kleur voor de knoppen */
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 16px; /* Vergroot de font size */
+            transition: background-color 0.3s ease; /* Voeg een hover effect toe */
+        }
+        button:hover {
+            background-color: #0056b3; /* Donkerder blauw bij hover */
+        }
+
+        /* Media query voor tablets */
+        @media (max-width: 768px) {
+            #artikelen-lijst, #add-artikel-form, #reorder-section {
+                width: 95%; /* Gebruik nog meer van de beschikbare breedte */
+            }
+            input[type="text"], textarea, input[type="number"] {
+                font-size: 18px; /* Vergroot de font size verder */
+            }
+            button {
+                padding: 15px 25px; /* Vergroot de knoppen verder */
+                font-size: 18px; /* Vergroot de font size verder */
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Stocktelling</h1>
+    <div id="artikelen-lijst">
+        <h2>Artikelen</h2>
+        <ul id="artikelen"></ul>
+    </div>
+    <div id="add-artikel-form">
+        <h2>Artikel toevoegen</h2>
+        <form id="add-artikel">
+            <label for="item_name">Naam:</label>
+            <input type="text" id="item_name" name="item_name" required><br><br>
+            <label for="description">Omschrijving:</label>
+            <textarea id="description" name="description"></textarea><br><br>
+            <label for="minimum_stock">Minimum stock:</label>
+            <input type="number" id="minimum_stock" name="minimum_stock" required><br><br>
+            <button type="submit">Toevoegen</button>
+        </form>
+    </div>
+
+    <div id="reorder-section">
+        <h2>Reorder Voorstellen</h2>
+        <ul id="reorder-list"></ul>
+        <button onclick="sendReorderEmail()">Verstuur Reorder Email</button>
+    </div>
+
+    <script>
+        let reorderItems = []; // Array om reorder items op te slaan
+
+        // Haal artikelen op
+        fetch('/api/get_artikelen')
+            .then(res => res.json())
+            .then(artikelen => {
+                const artikelsList = document.getElementById('artikelen');
+                artikelen.forEach(artikel => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `
+                        ${artikel.item_name} - ${artikel.description}
+                        <br>Minimum stock: ${artikel.minimum_stock} 
+                        <br>Current stock: <input type="number" data-artikel-id="${artikel.id}" value="${artikel.current_stock || 0}">
+                        <button onclick="updateStock(${artikel.id}, '${artikel.item_name}')">Update</button>
+                    `;
+                    artikelsList.appendChild(li);
+                });
+            });
+
+        // Voeg nieuw artikel toe
+        document.getElementById('add-artikel').addEventListener('submit', (event) => {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            fetch('/api/add_stock_item', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(Object.fromEntries(formData))
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            });
+        });
+
+        // Update stock
+        function updateStock(artikelId, itemName) {
+            const newStock = document.querySelector(`input[data-artikel-id="${artikelId}"]`).value;
+            fetch('/api/update_stock', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: artikelId, current_stock: newStock })
+            })
+            .then(res => res.json())
+            .then(data => {
+                alert(data.message);
+                if (data.reorder) {
+                    // Voeg item toe aan reorderItems array met item_naam
+                    reorderItems.push({
+                        item_name: itemName,
+                        aantal: data.aantal
+                    });
+                    updateReorderList();
+                }
+            });
+        }
+
+        // Update reorder lijst in de frontend
+        function updateReorderList() {
+            const reorderList = document.getElementById('reorder-list');
+            reorderList.innerHTML = '';
+            reorderItems.forEach(item => {
+                const li = document.createElement('li');
+                li.textContent = `Artikel: ${item.item_name}, Aantal: ${item.aantal}`;
+                reorderList.appendChild(li);
+            });
+        }
+
+        // Verstuur reorder email
+        function sendReorderEmail() {
+            if (reorderItems.length === 0) {
+                alert('Geen reorder items om te versturen.');
+                return;
+            }
+
+            fetch('/api/send_reorder_email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reorderItems: reorderItems })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Reorder email succesvol verzonden.');
+                    reorderItems = [];
+                    updateReorderList();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Houtoptimalisatie Tool</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.js"></script>
+    <style>
+        .order-card {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .order-details {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        .order-item {
+            margin-bottom: 5px;
+        }
+        .afval-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .afval-table th, .afval-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .afval-table th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold mb-8 text-center text-gray-800">Houtoptimalisatie Tool</h1>
+        
+        <div class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
+            <h2 class="text-xl font-semibold mb-4">Voeg een nieuwe beschikbare plank toe</h2>
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <input type="number" id="nieuweLengte" placeholder="Lengte (mm)" class="border rounded w-full py-2 px-3">
+                <input type="number" id="nieuweDikte" placeholder="Dikte (mm)" class="border rounded w-full py-2 px-3">
+                <input type="number" id="nieuweBreedte" placeholder="Breedte (mm)" class="border rounded w-full py-2 px-3">
+                <input type="text" id="nieuweSoort" placeholder="Soort" class="border rounded w-full py-2 px-3">
+                <input type="number" id="nieuweAantal" placeholder="Aantal" class="border rounded w-full py-2 px-3">
+            </div>
+            <button onclick="addLengte()" class="mt-4 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                Toevoegen
+            </button>
+        </div>
+
+        <div class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
+            <h2 class="text-xl font-semibold mb-4">Beschikbare lengtes</h2>
+            <select id="beschikbareLengtes" class="border rounded w-full py-2 px-3"></select>
+        </div>
+
+        <div class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
+            <h2 class="text-xl font-semibold mb-4">Vereiste lengtes</h2>
+            <textarea id="vereisteLengtes" rows="5" placeholder="Voeg meerdere toe in de vorm lengte,aantal per regel" class="border rounded w-full py-2 px-3"></textarea>
+            <button onclick="optimize()" class="mt-4 bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
+                Optimaliseer
+            </button>
+        </div>
+
+        <div id="result" class="bg-white shadow-md rounded px-8 pt-6 pb-8"></div>
+    </div>
+
+    <script src="optimizer.js"></script>
+</body>
+</html>

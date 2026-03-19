@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <title>Beheer Updates</title>
+  <!-- Bootstrap CSS -->
+  <link 
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" 
+    rel="stylesheet"
+  />
+  <style>
+    body {
+      margin: 1rem;
+    }
+    .update-row td {
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Updates Beheren</h1>
+  
+  <!-- Formulier om een update toe te voegen -->
+  <div class="card mb-4">
+    <div class="card-header">Nieuwe Update Toevoegen</div>
+    <div class="card-body">
+      <form id="add-update-form">
+        <div class="mb-3">
+          <label for="update-title" class="form-label">Titel:</label>
+          <input type="text" id="update-title" class="form-control" required>
+        </div>
+        <div class="mb-3">
+          <label for="update-message" class="form-label">Bericht:</label>
+          <textarea id="update-message" class="form-control" rows="3" required></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Toevoegen</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Overzicht van bestaande updates -->
+  <div class="card">
+    <div class="card-header">Bestaande Updates</div>
+    <div class="card-body p-0">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>ID</th>
+            <th>Titel</th>
+            <th>Bericht</th>
+            <th>Acties</th>
+          </tr>
+        </thead>
+        <tbody id="updates-table-body">
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- jQuery en Bootstrap JS -->
+  <script 
+    src="https://code.jquery.com/jquery-3.6.0.min.js">
+  </script>
+  <script 
+    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js">
+  </script>
+
+  <script>
+    $(document).ready(function() {
+      // Laad alle updates wanneer de pagina laadt
+      loadUpdates();
+
+      // Form submit voor nieuwe update
+      $('#add-update-form').on('submit', function(e) {
+        e.preventDefault();
+        const title = $('#update-title').val().trim();
+        const message = $('#update-message').val().trim();
+        if (!title || !message) return;
+
+        // POST naar /api/announcements
+        $.ajax({
+          url: '/api/announcements',
+          method: 'POST',
+          contentType: 'application/json',
+          data: JSON.stringify({ 
+            title, 
+            message 
+          }),
+          success: function(newUpdate) {
+            // Form leegmaken
+            $('#update-title').val('');
+            $('#update-message').val('');
+            // Herlaad het overzicht
+            loadUpdates();
+          },
+          error: function(err) {
+            console.error('Fout bij toevoegen update:', err);
+            alert('Kon de update niet toevoegen.');
+          }
+        });
+      });
+    });
+
+    // Haal bestaande updates op (GET /api/announcements)
+    function loadUpdates() {
+      $.ajax({
+        url: '/api/announcements',
+        method: 'GET',
+        success: function(data) {
+          renderUpdatesTable(data);
+        },
+        error: function(err) {
+          console.error('Fout bij ophalen updates:', err);
+          alert('Kon de updates niet laden.');
+        }
+      });
+    }
+
+    // Teken tabelrijen voor elke update
+    function renderUpdatesTable(updates) {
+      const tbody = $('#updates-table-body');
+      tbody.empty();
+
+      if (!updates || updates.length === 0) {
+        tbody.append(`
+          <tr>
+            <td colspan="4" class="text-center py-3">Geen updates gevonden.</td>
+          </tr>
+        `);
+        return;
+      }
+
+      updates.forEach(u => {
+        tbody.append(`
+          <tr class="update-row">
+            <td>${u.id}</td>
+            <td>${escapeHtml(u.title)}</td>
+            <td>${escapeHtml(u.message)}</td>
+            <td>
+              <button class="btn btn-sm btn-danger" onclick="deleteUpdate('${u.id}')">
+                Verwijderen
+              </button>
+            </td>
+          </tr>
+        `);
+      });
+    }
+
+    // Verwijder een update
+    function deleteUpdate(id) {
+      if (!confirm('Weet je zeker dat je deze update wilt verwijderen?')) return;
+      $.ajax({
+        url: '/api/announcements/' + id,
+        method: 'DELETE',
+        success: function() {
+          loadUpdates();
+        },
+        error: function(err) {
+          console.error('Fout bij verwijderen update:', err);
+          alert('Kon de update niet verwijderen.');
+        }
+      });
+    }
+
+    // Eenvoudige functie om HTML te escapen, ter voorkoming van XSS
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Items to Pack Airtec</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        /* Base styling */
+        body {
+            font-size: 16px;
+        }
+
+        .table {
+            margin-bottom: 0;
+        }
+
+        .table th, .table td {
+            padding: 0.75rem;
+            vertical-align: middle;
+        }
+        
+        /* Visual feedback for input fields */
+        .kistnummer-input {
+            transition: background-color 0.3s;
+        }
+        
+        .kistnummer-input.saving {
+            background-color: #e2f0ff;
+        }
+        
+        .kistnummer-input.success {
+            background-color: #e8f5e9;
+        }
+        
+        .kistnummer-input.error {
+            background-color: #ffebee;
+        }
+        
+        /* Column widths - more flexible for tablet */
+        .table .col-checkbox { width: 40px; }
+        .table .col-id { width: 60px; }
+        .table .col-beschrijving { min-width: 180px; }
+        .table .col-item-number { min-width: 120px; }
+        .table .col-lot-number { min-width: 120px; }
+        .table .col-datum { width: 120px; }
+        .table .col-kistnummer { width: 100px; }
+        .table .col-divisie { width: 100px; }
+        .table .col-quantity { width: 80px; }
+        .table .col-actions { width: 80px; }
+        .table .col-priority { width: 90px; }
+
+        /* Better touch targets for tablet */
+        .custom-checkbox, .form-check-input, .priority-checkbox {
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+        }
+        
+        .kistnummer-input {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ced4da;
+            width: 100%;
+        }
+
+        .delete-button {
+            color: #dc3545;
+            background: none;
+            border: none;
+            padding: 8px;
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+
+        .delete-button:hover {
+            color: #bd2130;
+        }
+
+        .table thead th {
+            background-color: #f8f9fa;
+            border-bottom: 2px solid #dee2e6;
+            font-weight: 600;
+            text-align: left;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        /* Stats and action bar improvements */
+        .stats-banner {
+            background-color: #e9ecef;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .stats-box {
+            display: flex;
+            gap: 20px;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 1.75rem;
+            font-weight: bold;
+            line-height: 1;
+        }
+        
+        .stat-label {
+            font-size: 0.85rem;
+            color: #6c757d;
+        }
+
+        /* Action bar with improved layout for tablet */
+        .actions-bar {
+            padding: 1rem;
+            background: white;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .search-container {
+            position: relative;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .search-container i {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6c757d;
+        }
+
+        .search-container input {
+            padding-left: 35px;
+            height: 44px;
+            font-size: 1rem;
+        }
+        
+        /* Larger, touch-friendly buttons */
+        .btn {
+            padding: 10px 16px;
+            font-size: 1rem;
+        }
+
+        /* Priority styling */
+        tr.priority {
+            background-color: rgba(255, 193, 7, 0.2);
+        }
+        
+        /* Improve scrolling on tablets */
+        .table-container {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+            max-height: calc(100vh - 250px);
+            position: relative;
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 992px) {
+            .actions-bar {
+                flex-direction: column;
+            }
+            
+            .btn-group {
+                justify-content: space-between;
+                width: 100%;
+            }
+            
+            .btn {
+                flex: 1;
+            }
+            
+            .stats-banner {
+                flex-direction: column;
+                gap: 15px;
+            }
+        }
+        
+        /* Make row hover state more obvious for touch */
+        .table tbody tr:hover {
+            background-color: rgba(0, 123, 255, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <div id="header-placeholder"></div>
+    
+    <div class="container-fluid py-3">
+        <!-- New Stats Banner -->
+        <div class="stats-banner">
+            <div class="stats-box">
+                <div class="stat-item">
+                    <div class="stat-number" id="items-to-pack-count">0</div>
+                    <div class="stat-label">Items to Pack</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="priority-items-count">0</div>
+                    <div class="stat-label">Priority Items</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="total-quantity-count">0</div>
+                    <div class="stat-label">Total Quantity</div>
+                </div>
+            </div>
+            <div class="last-updated text-muted" id="last-updated">
+                Last updated: Never
+            </div>
+        </div>
+        
+        <!-- Tijdsregistratie actieve logs weergave -->
+        <div class="card mb-3" id="active-timers-card" style="display: none;">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5>Actieve Tijdsregistraties</h5>
+                <button class="btn btn-sm btn-danger" id="stop-all-timers-btn">
+                    <i class="fas fa-stop me-1"></i> Stop Alles
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="time-logs-container">
+                    <!-- Actieve tijdsregistraties worden hier getoond -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- Reorganized Actions Bar -->
+        <div class="actions-bar">
+            <div class="search-container">
+                <i class="fas fa-search"></i>
+                <input type="text" id="search-box" class="form-control" placeholder="Zoeken...">
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-secondary" id="show-priority-button">
+                    <i class="fas fa-star me-1"></i> Priorities
+                </button>
+                <button class="btn btn-primary" id="sort-button">
+                    <i class="fas fa-sort me-1"></i> Sorteer
+                </button>
+                <button class="btn btn-success" id="confirm-packed-button">
+                    <i class="fas fa-check me-1"></i> Bevestig Verpakt
+                </button>
+                <button class="btn btn-warning" id="set-priority-button">
+                    <i class="fas fa-star me-1"></i> Set Priority
+                </button>
+                <button class="btn btn-info" id="start-timer-button">
+                    <i class="fas fa-clock me-1"></i> Start Tijdsregistratie
+                </button>
+                <button class="btn btn-secondary" id="print-button">
+                    <i class="fas fa-print me-1"></i> Print
+                </button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body p-0">
+                <div class="table-container">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th class="col-checkbox">
+                                    <input type="checkbox" class="custom-checkbox" id="select-all">
+                                </th>
+                                <th class="col-id" data-sort="id">ID</th>
+                                <th class="col-beschrijving" data-sort="beschrijving">Beschrijving</th>
+                                <th class="col-item-number" data-sort="item_number">Item Number</th>
+                                <th class="col-lot-number" data-sort="lot_number">Lot Number</th>
+                                <th class="col-datum" data-sort="datum_opgestuurd">Datum Opgestuurd</th>
+                                <th class="col-kistnummer" data-sort="kistnummer">Kistnummer</th>
+                                <th class="col-divisie" data-sort="divisie">Divisie</th>
+                                <th class="col-quantity" data-sort="quantity">Quantity</th>
+                                <th class="col-datum" data-sort="datum_opgestuurd">Datum Ontvangen</th>
+                                <th class="col-priority">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <input type="checkbox" class="form-check-input" id="select-all-priority">
+                                        Priority
+                                    </div>
+                                </th>
+                                <th class="col-actions">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="items-to-pack-table-body">
+                            <!-- Data wordt hier dynamisch ingevoegd -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Floating action button for mobile -->
+        <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+            <button class="btn btn-primary rounded-circle shadow" style="width: 60px; height: 60px;" id="floating-confirm-button">
+                <i class="fas fa-check"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Tijdsregistratie Modal -->
+    <div class="modal fade" id="timeRegistrationModal" tabindex="-1" aria-labelledby="timeRegistrationModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="timeRegistrationModalLabel">Start Tijdsregistratie</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="employee-select" class="form-label">Selecteer werknemers:</label>
+                        <select class="form-select" id="employee-select" multiple size="8">
+                            <!-- Werknemers worden hier dynamisch toegevoegd -->
+                        </select>
+                        <div class="form-text">Houd CTRL ingedrukt om meerdere werknemers te selecteren</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+                    <button type="button" class="btn btn-primary" id="confirm-start-timer-btn">
+                        <i class="fas fa-play me-1"></i> Start Tijdsregistratie
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="scripts_items_to_pack_airtec.js"></script>
+</body>
+</html>

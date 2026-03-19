@@ -1,0 +1,2692 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Management | Foresco</title>
+    
+    <!-- CSS Dependencies -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/dragula/3.7.3/dragula.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
+    
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --primary-hover: #1d4ed8;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --info-color: #3b82f6;
+            --light-bg: #f8fafc;
+            --lighter-bg: #ffffff;
+            --border-color: #e5e7eb;
+            --text-primary: #1f2937;
+            --text-secondary: #6b7280;
+            --text-muted: #9ca3af;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --sidebar-width: 280px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--light-bg);
+            color: var(--text-primary);
+            line-height: 1.6;
+            margin: 0;
+        }
+
+        /* Loading State */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .loading-overlay.show {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid var(--border-color);
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Layout */
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+            margin-top: 80px;
+        }
+
+        /* Header positioning */
+        #header-placeholder {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            height: 80px;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--lighter-bg);
+            border-right: 1px solid var(--border-color);
+            position: fixed;
+            height: calc(100vh - 80px);
+            top: 80px;
+            overflow-y: auto;
+            z-index: 100;
+            transition: transform 0.3s ease;
+        }
+
+        .sidebar-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+            color: white;
+        }
+
+        .sidebar-header h2 {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .sidebar-nav {
+            padding: 1rem 0;
+        }
+
+        .nav-item {
+            padding: 0.875rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: var(--transition);
+            position: relative;
+            border-radius: 0;
+        }
+
+        .nav-item:hover {
+            background: var(--light-bg);
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+
+        .nav-item.active {
+            color: var(--primary-color);
+            background: rgba(37, 99, 235, 0.1);
+            font-weight: 500;
+        }
+
+        .nav-item.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: var(--primary-color);
+        }
+
+        .nav-item i {
+            width: 20px;
+            text-align: center;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            margin-left: var(--sidebar-width);
+            display: flex;
+            flex-direction: column;
+            min-height: calc(100vh - 80px);
+        }
+
+        .main-header {
+            background: var(--lighter-bg);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1.5rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin: 0;
+            color: var(--text-primary);
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        /* View Toggle */
+        .view-toggle {
+            display: inline-flex;
+            background: var(--light-bg);
+            border-radius: 8px;
+            padding: 0.25rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .view-toggle button {
+            padding: 0.5rem 1rem;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            border-radius: 6px;
+            transition: var(--transition);
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .view-toggle button.active {
+            background: var(--lighter-bg);
+            color: var(--primary-color);
+            box-shadow: var(--shadow-sm);
+        }
+
+        /* Content Area */
+        .content-area {
+            flex: 1;
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        /* Kanban Board */
+        .kanban-board {
+            display: flex;
+            gap: 1.5rem;
+            overflow-x: auto;
+            padding-bottom: 2rem;
+            min-height: calc(100vh - 250px);
+        }
+
+        .kanban-column {
+            flex: 0 0 350px;
+            background: var(--lighter-bg);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .kanban-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--light-bg);
+            border-radius: 12px 12px 0 0;
+        }
+
+        .kanban-title {
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.95rem;
+        }
+
+        .kanban-count {
+            background: var(--lighter-bg);
+            color: var(--text-secondary);
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            min-width: 24px;
+            text-align: center;
+        }
+
+        .kanban-tasks {
+            flex: 1;
+            padding: 1rem;
+            overflow-y: auto;
+            min-height: 200px;
+        }
+
+        /* Task Cards */
+        .task-card {
+            background: var(--lighter-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            cursor: move;
+            transition: var(--transition);
+            position: relative;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .task-card:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
+            border-color: var(--primary-color);
+        }
+
+        .task-card.dragging {
+            opacity: 0.6;
+            transform: rotate(3deg) scale(1.02);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .task-priority {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            border-radius: 10px 0 0 10px;
+        }
+
+        .task-priority.high { background: var(--danger-color); }
+        .task-priority.medium { background: var(--warning-color); }
+        .task-priority.low { background: var(--success-color); }
+
+        /* Task Type Badges */
+        .task-type-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+        }
+
+        .task-type-badge.bestellingen {
+            background: rgba(59, 130, 246, 0.1);
+            color: #1d4ed8;
+        }
+
+        .task-type-badge.materiaal {
+            background: rgba(16, 185, 129, 0.1);
+            color: #059669;
+        }
+
+        .task-type-badge.personeel {
+            background: rgba(245, 158, 11, 0.1);
+            color: #d97706;
+        }
+
+        .task-type-badge.afval {
+            background: rgba(239, 68, 68, 0.1);
+            color: #dc2626;
+        }
+
+        .task-type-badge.facturatie {
+            background: rgba(139, 92, 246, 0.1);
+            color: #7c3aed;
+        }
+
+        .task-type-badge.task {
+            background: rgba(59, 130, 246, 0.1);
+            color: #1d4ed8;
+        }
+
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 0.75rem;
+        }
+
+        .task-title {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0;
+            padding-right: 0.5rem;
+            cursor: pointer;
+            font-size: 0.95rem;
+            line-height: 1.4;
+        }
+
+        .task-title:hover {
+            color: var(--primary-color);
+        }
+
+        .task-actions {
+            display: flex;
+            gap: 0.5rem;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .task-card:hover .task-actions {
+            opacity: 1;
+        }
+
+        .task-action-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 0.25rem;
+            border-radius: 4px;
+            transition: var(--transition);
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .task-action-btn:hover {
+            background: var(--light-bg);
+            color: var(--primary-color);
+        }
+
+        .task-description {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin: 0.5rem 0;
+            line-height: 1.4;
+        }
+
+        .task-meta {
+            display: flex;
+            gap: 1rem;
+            margin-top: 0.75rem;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            flex-wrap: wrap;
+        }
+
+        .task-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .task-assignee {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        .avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .avatar-img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        /* Table View */
+        .task-table-container {
+            background: var(--lighter-bg);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .table-filters {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            background: var(--light-bg);
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .filter-group label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+
+        .task-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .task-table th {
+            background: var(--light-bg);
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .task-table td {
+            padding: 1rem;
+            border-top: 1px solid var(--border-color);
+            vertical-align: middle;
+        }
+
+        .task-table tr:hover {
+            background: var(--light-bg);
+        }
+
+        /* Modal/Drawer */
+        .task-drawer {
+            position: fixed;
+            right: -600px;
+            top: 0;
+            width: 600px;
+            height: 100vh;
+            background: var(--lighter-bg);
+            box-shadow: var(--shadow-lg);
+            transition: right 0.3s ease;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .task-drawer.open {
+            right: 0;
+        }
+
+        .drawer-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--light-bg);
+        }
+
+        .drawer-header h2 {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .drawer-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+        }
+
+        .drawer-section {
+            margin-bottom: 2rem;
+        }
+
+        .section-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Forms */
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+        }
+
+        .form-control, .form-select {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 0.875rem;
+            transition: var(--transition);
+            background: var(--lighter-bg);
+        }
+
+        .form-control:focus, .form-select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        textarea.form-control {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: var(--transition);
+            text-decoration: none;
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-secondary {
+            background: var(--light-bg);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border-color);
+        }
+
+        .btn-danger {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-sm {
+            padding: 0.5rem 1rem;
+            font-size: 0.75rem;
+        }
+
+        .btn-icon {
+            padding: 0.5rem;
+            width: 36px;
+            height: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Comments */
+        .comment-list {
+            margin-top: 1rem;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .comment {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .comment-body {
+            flex: 1;
+            background: var(--light-bg);
+            border-radius: 8px;
+            padding: 1rem;
+        }
+
+        .comment-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .comment-author {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+        }
+
+        .comment-time {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .comment-text {
+            color: var(--text-secondary);
+            line-height: 1.5;
+            font-size: 0.875rem;
+        }
+
+        .comment-form {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        /* Comment Editing Styles */
+        .comment-actions {
+            display: flex;
+            gap: 0.25rem;
+            margin-left: auto;
+        }
+
+        .comment-edit-btn,
+        .comment-delete-btn {
+            padding: 0.25rem;
+            color: var(--text-muted);
+            border: none;
+            background: none;
+            font-size: 0.75rem;
+            transition: var(--transition);
+        }
+
+        .comment-edit-btn:hover {
+            color: var(--primary-color);
+        }
+
+        .comment-delete-btn:hover {
+            color: var(--danger-color);
+        }
+
+        .comment-edited {
+            font-style: italic;
+            color: var(--text-muted);
+            font-size: 0.7rem;
+        }
+
+        .comment-edit-form {
+            margin-top: 0.5rem;
+        }
+
+        .comment-edit-textarea {
+            resize: vertical;
+            min-height: 60px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 0.5rem;
+            font-family: inherit;
+            font-size: 0.875rem;
+            width: 100%;
+        }
+
+        .comment-edit-textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+        }
+
+        .comment-edit-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        /* Activity Log */
+        .activity-list {
+            position: relative;
+            padding-left: 2rem;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .activity-list::before {
+            content: '';
+            position: absolute;
+            left: 0.75rem;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--border-color);
+        }
+
+        .activity-item {
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+
+        .activity-icon {
+            position: absolute;
+            left: -1.75rem;
+            width: 1.5rem;
+            height: 1.5rem;
+            background: var(--lighter-bg);
+            border: 2px solid var(--border-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+        }
+
+        .activity-content {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .activity-time {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        /* Notifications */
+        .notification-container {
+            position: fixed;
+            top: 100px;
+            right: 1rem;
+            z-index: 2000;
+            max-width: 400px;
+        }
+
+        .notification {
+            background: var(--lighter-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            gap: 1rem;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .notification-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 1.2rem;
+        }
+
+        .notification-success .notification-icon {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success-color);
+        }
+
+        .notification-error .notification-icon {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger-color);
+        }
+
+        .notification-info .notification-icon {
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--info-color);
+        }
+
+        .notification-warning .notification-icon {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning-color);
+        }
+
+        .notification-content {
+            flex: 1;
+        }
+
+        .notification-title {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            font-size: 0.875rem;
+        }
+
+        .notification-message {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        /* File Attachments */
+        .attachments-section {
+            margin-top: 1.5rem;
+        }
+
+        .file-upload-area {
+            border: 2px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+            background: var(--light-bg);
+            transition: var(--transition);
+            cursor: pointer;
+            margin-bottom: 1rem;
+        }
+
+        .file-upload-area:hover,
+        .file-upload-area.drag-over {
+            border-color: var(--primary-color);
+            background: rgba(37, 99, 235, 0.05);
+        }
+
+        .file-upload-icon {
+            font-size: 2rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .file-upload-text {
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .file-upload-hint {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .attachment-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .attachment-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+            background: var(--lighter-bg);
+            transition: var(--transition);
+        }
+
+        .attachment-item:hover {
+            background: var(--light-bg);
+        }
+
+        .attachment-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 6px;
+            background: var(--light-bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+        }
+
+        .attachment-info {
+            flex: 1;
+        }
+
+        .attachment-name {
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+            font-size: 0.875rem;
+        }
+
+        .attachment-meta {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .attachment-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        /* Responsive */
+        .mobile-menu-toggle {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-primary);
+        }
+
+        /* Better spacing for form rows */
+        .form-row {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .form-row .form-group {
+            flex: 1;
+            margin-bottom: 0;
+        }
+
+        /* Watcher badges */
+        .watcher-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0.5rem;
+            background: var(--light-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 0.75rem;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .watcher-badge button {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 0;
+            margin-left: 0.25rem;
+        }
+
+        .watcher-badge button:hover {
+            color: var(--danger-color);
+        }
+
+        /* Sticky drawer footer */
+        .drawer-footer {
+            position: sticky;
+            bottom: 0;
+            background: var(--lighter-bg);
+            padding: 1rem 1.5rem;
+            margin: 0 -1.5rem;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            gap: 1rem;
+        }
+
+        .drawer-footer .btn {
+            flex: 1;
+        }
+
+        /* Error states */
+        .error-state {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: var(--text-secondary);
+        }
+
+        .error-state i {
+            font-size: 3rem;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+
+        .error-state h3 {
+            margin-bottom: 0.5rem;
+            color: var(--text-primary);
+        }
+
+        .error-state p {
+            margin-bottom: 1.5rem;
+        }
+
+        /* Empty states */
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-state i {
+            font-size: 2rem;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+
+        .empty-state p {
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 1024px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+
+            .mobile-menu-toggle {
+                display: block;
+            }
+
+            .task-drawer {
+                width: 100%;
+                right: -100%;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .app-container {
+                margin-top: 60px;
+            }
+
+            #header-placeholder {
+                height: 60px;
+            }
+
+            .sidebar {
+                height: calc(100vh - 60px);
+                top: 60px;
+            }
+
+            .main-content {
+                min-height: calc(100vh - 60px);
+            }
+
+            .kanban-board {
+                flex-direction: column;
+            }
+
+            .kanban-column {
+                flex: 1 0 auto;
+                max-width: 100%;
+            }
+
+            .header-actions {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+
+            .table-filters {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+
+            .content-area {
+                padding: 1rem;
+            }
+
+            .main-header {
+                padding: 1rem;
+            }
+
+            .header-title {
+                font-size: 1.5rem;
+            }
+
+            .lightbox-nav {
+                display: none;
+            }
+
+            .lightbox-close {
+                top: 10px;
+                right: 10px;
+            }
+
+            .lightbox-info {
+                bottom: 10px;
+                font-size: 0.8rem;
+            }
+        }
+
+        /* Accessibility */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        :focus-visible {
+            outline: 2px solid var(--primary-color);
+            outline-offset: 2px;
+        }
+
+        /* Dark mode support */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --light-bg: #1f2937;
+                --lighter-bg: #111827;
+                --border-color: #374151;
+                --text-primary: #f9fafb;
+                --text-secondary: #e5e7eb;
+                --text-muted: #9ca3af;
+            }
+        }
+
+        /* Image Lightbox */
+        .image-lightbox {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .image-lightbox.open {
+            display: flex;
+        }
+
+        .lightbox-content {
+            position: relative;
+            max-width: 90%;
+            max-height: 90%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .lightbox-image {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .lightbox-close {
+            position: absolute;
+            top: -40px;
+            right: 0;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 2rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 50%;
+            transition: background 0.2s ease;
+        }
+
+        .lightbox-close:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .lightbox-nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(0, 0, 0, 0.5);
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            padding: 1rem;
+            cursor: pointer;
+            border-radius: 50%;
+            transition: background 0.2s ease;
+        }
+
+        .lightbox-nav:hover {
+            background: rgba(0, 0, 0, 0.8);
+        }
+
+        .lightbox-nav.prev {
+            left: -60px;
+        }
+
+        .lightbox-nav.next {
+            right: -60px;
+        }
+
+        .lightbox-info {
+            position: absolute;
+            bottom: -60px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            color: white;
+            font-size: 0.9rem;
+        }
+
+        /* Gallery grid for multiple images */
+        .attachment-gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .gallery-item {
+            position: relative;
+            aspect-ratio: 1;
+            overflow: hidden;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            opacity: 1;
+            transition: opacity 0.3s ease, transform 0.2s ease;
+        }
+
+        .gallery-item:hover {
+            transform: scale(1.05);
+        }
+
+        .gallery-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .gallery-item-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .gallery-item:hover .gallery-item-overlay {
+            opacity: 1;
+        }
+
+        .gallery-item-overlay i {
+            color: white;
+            font-size: 1.2rem;
+        }
+
+        .attachment-thumbnail {
+            width: 40px;
+            height: 40px;
+            border-radius: 6px;
+            object-fit: cover;
+            cursor: pointer;
+        }
+
+        /* Bulk Actions Styles */
+        .bulk-actions-bar {
+            background: var(--light-bg);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .bulk-actions-content {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            width: 100%;
+        }
+
+        .bulk-actions-info {
+            font-weight: 600;
+            color: var(--primary-color);
+            white-space: nowrap;
+        }
+
+        .bulk-actions-buttons {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .bulk-action-select {
+            min-width: 150px;
+            font-size: 0.875rem;
+        }
+
+        .task-checkbox {
+            margin-right: 0.5rem;
+        }
+
+        .task-row.selected {
+            background-color: rgba(37, 99, 235, 0.1);
+        }
+
+        /* Subtasks Styles */
+        .subtasks-section {
+            border-top: 1px solid var(--border-color);
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+        }
+
+        .subtask-form {
+            background: var(--light-bg);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .subtask-form-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .subtask-item {
+            background: var(--lighter-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            transition: var(--transition);
+        }
+
+        .subtask-item:hover {
+            background: var(--light-bg);
+        }
+
+        .subtask-checkbox {
+            margin: 0;
+        }
+
+        .subtask-content {
+            flex: 1;
+        }
+
+        .subtask-title {
+            font-weight: 500;
+            margin: 0 0 0.25rem 0;
+            font-size: 0.875rem;
+        }
+
+        .subtask-meta {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .subtask-actions {
+            display: flex;
+            gap: 0.25rem;
+        }
+
+        .subtask-action-btn {
+            padding: 0.25rem;
+            border: none;
+            background: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-radius: 4px;
+            transition: var(--transition);
+        }
+
+        .subtask-action-btn:hover {
+            background: var(--light-bg);
+            color: var(--primary-color);
+        }
+
+        .subtask-status {
+            padding: 0.125rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .subtask-status.todo {
+            background: rgba(107, 114, 128, 0.1);
+            color: #6b7280;
+        }
+
+        .subtask-status.in-progress {
+            background: rgba(37, 99, 235, 0.1);
+            color: #2563eb;
+        }
+
+        .subtask-status.done {
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+        }
+
+        /* Milestones Styles */
+        .milestone-item {
+            background: var(--lighter-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .milestone-item::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: var(--milestone-color, var(--primary-color));
+        }
+
+        .milestone-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 0.5rem;
+        }
+
+        .milestone-title {
+            font-weight: 600;
+            margin: 0;
+            color: var(--text-primary);
+        }
+
+        .milestone-due-date {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .milestone-progress {
+            margin: 0.75rem 0;
+        }
+
+        .milestone-progress-bar {
+            background: var(--light-bg);
+            border-radius: 4px;
+            height: 8px;
+            overflow: hidden;
+        }
+
+        .milestone-progress-fill {
+            height: 100%;
+            background: var(--milestone-color, var(--primary-color));
+            transition: width 0.3s ease;
+        }
+
+        .milestone-progress-text {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        .milestone-status {
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .milestone-status.pending {
+            background: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+        }
+
+        .milestone-status.completed {
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+        }
+
+        .milestone-status.overdue {
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+        }
+
+        /* Advanced Search Styles */
+        .form-check-group {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .form-check {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .search-results-info {
+            background: var(--light-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 1rem;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .search-highlight {
+            background: rgba(245, 158, 11, 0.3);
+            padding: 0.125rem 0.25rem;
+            border-radius: 3px;
+        }
+
+        /* Filter Management Styles */
+        .saved-filter-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.5rem 1rem;
+        }
+
+        .saved-filter-item:hover {
+            background: var(--light-bg);
+        }
+
+        .saved-filter-name {
+            font-weight: 500;
+        }
+
+        .saved-filter-default {
+            font-size: 0.75rem;
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        .saved-filter-actions {
+            display: flex;
+            gap: 0.25rem;
+        }
+
+        .saved-filter-delete {
+            color: var(--danger-color);
+            background: none;
+            border: none;
+            padding: 0.25rem;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+
+        .saved-filter-delete:hover {
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        /* Task Cards with Subtasks Indicator */
+        .task-card .subtasks-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+        }
+
+        .subtasks-progress {
+            font-weight: 500;
+        }
+
+        .subtasks-progress.completed {
+            color: var(--success-color);
+        }
+
+        /* Milestone Badge in Task Cards */
+        .milestone-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.5rem;
+            background: var(--milestone-color, var(--primary-color));
+            color: white;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .bulk-actions-content {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 0.75rem;
+            }
+
+            .bulk-actions-buttons {
+                justify-content: center;
+            }
+
+            .bulk-action-select {
+                min-width: auto;
+                flex: 1;
+            }
+
+            .form-check-group {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+
+            .milestone-header {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+        }
+
+        /* Notification Settings Styles */
+        .notification-settings {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .notification-option {
+            margin-left: 0.5rem;
+        }
+
+        .notification-title {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .notification-description {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        .form-check-label {
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .form-check {
+            padding: 0.75rem;
+            border-radius: 8px;
+            transition: var(--transition);
+        }
+
+        .form-check:hover {
+            background: var(--light-bg);
+        }
+
+        .form-check-input:checked + .form-check-label .notification-title {
+            color: var(--primary-color);
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <!-- Include Header -->
+    <div id="header-placeholder"></div>
+    
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2><i class="fas fa-tasks"></i> Task Manager</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-view="tasks">
+                    <i class="fas fa-list"></i>
+                    <span>Alle taken</span>
+                </a>
+                <a href="#" class="nav-item" data-view="my-tasks">
+                    <i class="fas fa-user-check"></i>
+                    <span>Mijn taken</span>
+                </a>
+                <a href="#" class="nav-item" data-view="watching">
+                    <i class="fas fa-eye"></i>
+                    <span>Volgend</span>
+                </a>
+                <hr style="margin: 1rem 1.5rem; border-color: var(--border-color);">
+                <a href="#" class="nav-item" data-filter="priority:high">
+                    <i class="fas fa-exclamation-circle" style="color: var(--danger-color);"></i>
+                    <span>Hoge prioriteit</span>
+                </a>
+                <a href="#" class="nav-item" data-filter="due:today">
+                    <i class="fas fa-calendar-day" style="color: var(--warning-color);"></i>
+                    <span>Vandaag</span>
+                </a>
+                <a href="#" class="nav-item" data-filter="due:overdue">
+                    <i class="fas fa-clock" style="color: var(--danger-color);"></i>
+                    <span>Te laat</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="main-header">
+                <div class="header-content">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <button class="mobile-menu-toggle" id="mobileMenuToggle">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                        <h1 class="header-title">Takenbeheer</h1>
+                    </div>
+                    <div class="header-actions">
+                        <!-- Advanced Search Modal Trigger -->
+                        <button class="btn btn-secondary" id="advancedSearchBtn">
+                            <i class="fas fa-search-plus"></i>
+                            Geavanceerd zoeken
+                        </button>
+                        
+                        <!-- Saved Filters Dropdown -->
+                        <div class="dropdown">
+                            <button class="btn btn-secondary dropdown-toggle" type="button" id="savedFiltersBtn" data-bs-toggle="dropdown">
+                                <i class="fas fa-filter"></i>
+                                Opgeslagen filters
+                            </button>
+                            <ul class="dropdown-menu" id="savedFiltersMenu">
+                                <li><a class="dropdown-item" href="#" id="saveCurrentFilterBtn"><i class="fas fa-save"></i> Huidige filter opslaan</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <!-- Saved filters will be populated here -->
+                            </ul>
+                        </div>
+                        
+                        <!-- Milestones Button -->
+                        <button class="btn btn-info" id="milestonesBtn">
+                            <i class="fas fa-flag"></i>
+                            Mijlpalen
+                        </button>
+                        
+                        <!-- Notification Settings Button -->
+                        <button class="btn btn-secondary" id="notificationSettingsBtn" title="Email notificatie instellingen">
+                            <i class="fas fa-bell"></i>
+                            Notificaties
+                        </button>
+                        
+                        <!-- Profile Settings Button -->
+                        <button class="btn btn-outline-secondary" id="profileSettingsBtn" title="Profiel instellingen">
+                            <i class="fas fa-user-cog"></i>
+                            Profiel
+                        </button>
+                        
+                        <div class="view-toggle">
+                            <button class="active" data-view="kanban">
+                                <i class="fas fa-columns"></i>
+                                Kanban
+                            </button>
+                            <button data-view="table">
+                                <i class="fas fa-table"></i>
+                                Tabel
+                            </button>
+                        </div>
+                        <button class="btn btn-primary" id="createTaskBtn">
+                            <i class="fas fa-plus"></i>
+                            Nieuwe taak
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <!-- Kanban Board View -->
+                <div id="kanbanView" class="kanban-board">
+                    <!-- Todo Column -->
+                    <div class="kanban-column" data-status="todo">
+                        <div class="kanban-header">
+                            <div class="kanban-title">
+                                <i class="fas fa-circle-notch" style="color: var(--text-secondary);"></i>
+                                Te doen
+                            </div>
+                            <span class="kanban-count">0</span>
+                        </div>
+                        <div class="kanban-tasks" id="todo-tasks">
+                            <!-- Tasks will be dynamically added here -->
+                        </div>
+                    </div>
+
+                    <!-- In Progress Column -->
+                    <div class="kanban-column" data-status="in-progress">
+                        <div class="kanban-header">
+                            <div class="kanban-title">
+                                <i class="fas fa-spinner" style="color: var(--primary-color);"></i>
+                                Bezig
+                            </div>
+                            <span class="kanban-count">0</span>
+                        </div>
+                        <div class="kanban-tasks" id="in-progress-tasks">
+                            <!-- Tasks will be dynamically added here -->
+                        </div>
+                    </div>
+
+                    <!-- Done Column -->
+                    <div class="kanban-column" data-status="done">
+                        <div class="kanban-header">
+                            <div class="kanban-title">
+                                <i class="fas fa-check-circle" style="color: var(--success-color);"></i>
+                                Klaar
+                            </div>
+                            <span class="kanban-count">0</span>
+                        </div>
+                        <div class="kanban-tasks" id="done-tasks">
+                            <!-- Tasks will be dynamically added here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Table View -->
+                <div id="tableView" class="task-table-container" style="display: none;">
+                    <!-- Bulk Actions Bar -->
+                    <div class="bulk-actions-bar" id="bulkActionsBar" style="display: none;">
+                        <div class="bulk-actions-content">
+                            <span class="bulk-actions-info" id="bulkActionsInfo">0 taken geselecteerd</span>
+                            <div class="bulk-actions-buttons">
+                                <select class="form-select bulk-action-select" id="bulkStatusSelect">
+                                    <option value="">Status wijzigen...</option>
+                                    <option value="todo">Te doen</option>
+                                    <option value="in-progress">Bezig</option>
+                                    <option value="done">Klaar</option>
+                                </select>
+                                <select class="form-select bulk-action-select" id="bulkPrioritySelect">
+                                    <option value="">Prioriteit wijzigen...</option>
+                                    <option value="low">Laag</option>
+                                    <option value="medium">Gemiddeld</option>
+                                    <option value="high">Hoog</option>
+                                </select>
+                                <select class="form-select bulk-action-select" id="bulkAssigneeSelect">
+                                    <option value="">Toewijzen aan...</option>
+                                    <!-- Will be populated dynamically -->
+                                </select>
+                                <button class="btn btn-danger btn-sm" id="bulkDeleteBtn">
+                                    <i class="fas fa-trash"></i>
+                                    Verwijderen
+                                </button>
+                                <button class="btn btn-secondary btn-sm" id="clearSelectionBtn">
+                                    <i class="fas fa-times"></i>
+                                    Wissen
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="table-filters">
+                        <div class="filter-group">
+                            <label for="filterStatus">Status:</label>
+                            <select class="form-select" id="filterStatus" style="width: auto;">
+                                <option value="">Alle</option>
+                                <option value="todo">Te doen</option>
+                                <option value="in-progress">Bezig</option>
+                                <option value="done">Klaar</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="filterPriority">Prioriteit:</label>
+                            <select class="form-select" id="filterPriority" style="width: auto;">
+                                <option value="">Alle</option>
+                                <option value="high">Hoog</option>
+                                <option value="medium">Gemiddeld</option>
+                                <option value="low">Laag</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="filterType">Type:</label>
+                            <select class="form-select" id="filterType" style="width: auto;">
+                                <option value="">Alle</option>
+                                <option value="bestellingen">Bestellingen</option>
+                                <option value="materiaal">Materiaal</option>
+                                <option value="personeel">Personeel</option>
+                                <option value="afval">Afval</option>
+                                <option value="facturatie">Facturatie</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="filterAssignee">Toegewezen aan:</label>
+                            <select class="form-select" id="filterAssignee" style="width: auto;">
+                                <option value="">Alle</option>
+                                <!-- Options will be populated dynamically -->
+                            </select>
+                        </div>
+                        <div class="filter-group" style="margin-left: auto;">
+                            <input type="text" class="form-control" id="searchTasks" placeholder="Zoek taken..." style="width: 200px;">
+                        </div>
+                    </div>
+                    <table class="task-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;">
+                                    <input type="checkbox" id="selectAllTasks" title="Alles selecteren">
+                                </th>
+                                <th>Titel</th>
+                                <th>Type</th>
+                                <th>Status</th>
+                                <th>Prioriteit</th>
+                                <th>Toegewezen aan</th>
+                                <th>Einddatum</th>
+                                <th>Acties</th>
+                            </tr>
+                        </thead>
+                        <tbody id="taskTableBody">
+                            <!-- Tasks will be dynamically added here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Task Drawer -->
+    <div class="task-drawer" id="taskDrawer">
+        <div class="drawer-header">
+            <h2 id="drawerTitle">Taakdetails</h2>
+            <button class="btn btn-icon btn-secondary" id="closeDrawerBtn">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="drawer-body">
+            <form id="taskForm">
+                <input type="hidden" id="taskId" name="id">
+                
+                <div class="drawer-section">
+                    <div class="form-group">
+                        <label class="form-label" for="taskTitle">Titel *</label>
+                        <input type="text" class="form-control" id="taskTitle" name="title" placeholder="Voer een titel in...">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="taskDescription">Beschrijving</label>
+                        <textarea class="form-control" id="taskDescription" name="description" rows="4" placeholder="Voer een beschrijving in..."></textarea>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="taskStatus">Status</label>
+                            <select class="form-select" id="taskStatus" name="status">
+                                <option value="todo">Te doen</option>
+                                <option value="in-progress">Bezig</option>
+                                <option value="done">Klaar</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="taskPriority">Prioriteit</label>
+                            <select class="form-select" id="taskPriority" name="priority">
+                                <option value="low">Laag</option>
+                                <option value="medium">Gemiddeld</option>
+                                <option value="high">Hoog</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="taskType">Type</label>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <select class="form-select" id="taskType" name="task_type" style="flex: 1;" onchange="taskManager.handleTypeChange(this.value)">
+                                    <option value="bestellingen">Bestellingen</option>
+                                    <option value="materiaal">Materiaal</option>
+                                    <option value="personeel">Personeel</option>
+                                    <option value="afval">Afval</option>
+                                    <option value="facturatie">Facturatie</option>
+                                    <option value="custom">Aangepast...</option>
+                                </select>
+                                <input type="text" class="form-control" id="customTaskType" placeholder="Aangepast type" style="flex: 1; display: none;">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="taskAssignee">Toegewezen aan</label>
+                            <select class="form-select" id="taskAssignee" name="assignedTo">
+                                <option value="">Niet toegewezen</option>
+                                <!-- Options will be populated dynamically -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="taskDueDate">Einddatum</label>
+                        <input type="datetime-local" class="form-control" id="taskDueDate" name="due_date">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="taskMilestone">Mijlpaal</label>
+                        <select class="form-select" id="taskMilestone" name="milestone_id">
+                            <option value="">Geen mijlpaal</option>
+                            <!-- Options will be populated dynamically -->
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Volgers</label>
+                        <div id="watchersList" style="margin-bottom: 0.5rem;">
+                            <!-- Watchers will be displayed here -->
+                        </div>
+                        <select class="form-select" id="addWatcher">
+                            <option value="">Volger toevoegen...</option>
+                            <!-- Options will be populated dynamically -->
+                        </select>
+                    </div>
+                </div>
+
+                <div class="drawer-section attachments-section">
+                    <h3 class="section-title">
+                        <i class="fas fa-paperclip"></i>
+                        Bijlagen
+                    </h3>
+                    
+                    <!-- File Upload Area -->
+                    <div class="file-upload-area" id="fileUploadArea">
+                        <input type="file" id="fileInput" multiple style="display: none;" accept="*/*">
+                        <div class="file-upload-icon">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                        </div>
+                        <div class="file-upload-text">
+                            <strong>Klik om bestanden te uploaden</strong> of sleep ze hierheen
+                        </div>
+                        <div class="file-upload-hint">
+                            Alle bestandstypen toegestaan (max 10MB per bestand)
+                        </div>
+                    </div>
+                    
+                    <!-- Image Gallery (for image attachments) -->
+                    <div id="imageGallerySection" style="display: none;">
+                        <h4 style="margin-top: 1.5rem; margin-bottom: 1rem; font-size: 0.875rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">
+                            <i class="fas fa-images"></i> Afbeeldingen
+                        </h4>
+                        <div class="attachment-gallery" id="imageGallery">
+                            <!-- Image previews will be added here -->
+                        </div>
+                    </div>
+                    
+                    <ul class="attachment-list" id="attachmentsList">
+                        <!-- Attachments will be dynamically added here -->
+                    </ul>
+                </div>
+
+                <div class="drawer-section">
+                    <h3 class="section-title">
+                        <i class="fas fa-comments"></i>
+                        Opmerkingen
+                    </h3>
+                    <div class="comment-list" id="commentsList">
+                        <!-- Comments will be dynamically added here -->
+                    </div>
+                    <div class="comment-form">
+                        <div style="flex: 1;">
+                            <textarea class="form-control" id="newComment" placeholder="Voeg een opmerking toe..." rows="2"></textarea>
+                        </div>
+                        <button type="button" class="btn btn-primary" id="addCommentBtn">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="drawer-section">
+                    <h3 class="section-title">
+                        <i class="fas fa-history"></i>
+                        Activiteit
+                    </h3>
+                    <div class="activity-list" id="activityList">
+                        <!-- Activity items will be dynamically added here -->
+                    </div>
+                </div>
+
+                <div class="drawer-section subtasks-section">
+                    <h3 class="section-title">
+                        <i class="fas fa-tasks"></i>
+                        Subtaken
+                        <button type="button" class="btn btn-sm btn-primary" id="addSubtaskBtn" style="margin-left: auto;">
+                            <i class="fas fa-plus"></i>
+                            Subtaak toevoegen
+                        </button>
+                    </h3>
+                    
+                    <!-- Add Subtask Form -->
+                    <div class="subtask-form" id="subtaskForm" style="display: none;">
+                        <div class="form-group">
+                            <input type="text" class="form-control" id="subtaskTitle" placeholder="Subtaak titel...">
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <select class="form-select" id="subtaskPriority">
+                                    <option value="low">Laag</option>
+                                    <option value="medium" selected>Gemiddeld</option>
+                                    <option value="high">Hoog</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <select class="form-select" id="subtaskAssignee">
+                                    <option value="">Niet toegewezen</option>
+                                    <!-- Options will be populated dynamically -->
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <input type="datetime-local" class="form-control" id="subtaskDueDate">
+                        </div>
+                        <div class="form-group">
+                            <textarea class="form-control" id="subtaskDescription" rows="2" placeholder="Beschrijving (optioneel)"></textarea>
+                        </div>
+                        <div class="subtask-form-actions">
+                            <button type="button" class="btn btn-sm btn-primary" id="saveSubtaskBtn">
+                                <i class="fas fa-save"></i>
+                                Opslaan
+                            </button>
+                            <button type="button" class="btn btn-sm btn-secondary" id="cancelSubtaskBtn">
+                                <i class="fas fa-times"></i>
+                                Annuleren
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Subtasks List -->
+                    <div class="subtasks-list" id="subtasksList">
+                        <!-- Subtasks will be dynamically added here -->
+                    </div>
+                </div>
+            </form>
+        </div>
+        
+        <div class="drawer-footer">
+            <button type="submit" form="taskForm" class="btn btn-primary">
+                <i class="fas fa-save"></i>
+                Opslaan
+            </button>
+            <button type="button" class="btn btn-danger" id="deleteTaskBtn">
+                <i class="fas fa-trash"></i>
+                Verwijderen
+            </button>
+        </div>
+    </div>
+
+    <!-- Overlay -->
+    <div class="drawer-overlay" id="drawerOverlay" style="position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 999; display: none; cursor: pointer;"></div>
+
+    <!-- Notification Container -->
+    <div class="notification-container" id="notificationContainer"></div>
+
+    <!-- Image Lightbox -->
+    <div class="image-lightbox" id="imageLightbox">
+        <div class="lightbox-content">
+            <button class="lightbox-close" id="lightboxClose">
+                <i class="fas fa-times"></i>
+            </button>
+            <button class="lightbox-nav prev" id="lightboxPrev">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+            <img class="lightbox-image" id="lightboxImage" src="" alt="">
+            <button class="lightbox-nav next" id="lightboxNext">
+                <i class="fas fa-chevron-right"></i>
+            </button>
+            <div class="lightbox-info" id="lightboxInfo">
+                <div id="lightboxFilename"></div>
+                <div id="lightboxCounter"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Advanced Search Modal -->
+    <div class="modal fade" id="advancedSearchModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Geavanceerd zoeken</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="advancedSearchForm">
+                        <div class="form-group">
+                            <label class="form-label">Zoekterm</label>
+                            <input type="text" class="form-control" id="advancedSearchQuery" placeholder="Voer zoekterm in...">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Zoeken in</label>
+                            <div class="form-check-group">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="searchInTitle" value="title" checked>
+                                    <label class="form-check-label" for="searchInTitle">Titel</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="searchInDescription" value="description" checked>
+                                    <label class="form-check-label" for="searchInDescription">Beschrijving</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="searchInComments" value="comments">
+                                    <label class="form-check-label" for="searchInComments">Opmerkingen</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="searchInAttachments" value="attachments">
+                                    <label class="form-check-label" for="searchInAttachments">Bijlagen</label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Status</label>
+                                <select class="form-select" id="advancedSearchStatus">
+                                    <option value="">Alle</option>
+                                    <option value="todo">Te doen</option>
+                                    <option value="in-progress">Bezig</option>
+                                    <option value="done">Klaar</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Prioriteit</label>
+                                <select class="form-select" id="advancedSearchPriority">
+                                    <option value="">Alle</option>
+                                    <option value="high">Hoog</option>
+                                    <option value="medium">Gemiddeld</option>
+                                    <option value="low">Laag</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Type</label>
+                                <select class="form-select" id="advancedSearchType">
+                                    <option value="">Alle</option>
+                                    <option value="bestellingen">Bestellingen</option>
+                                    <option value="materiaal">Materiaal</option>
+                                    <option value="personeel">Personeel</option>
+                                    <option value="afval">Afval</option>
+                                    <option value="facturatie">Facturatie</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Toegewezen aan</label>
+                                <select class="form-select" id="advancedSearchAssignee">
+                                    <option value="">Alle</option>
+                                    <!-- Options will be populated dynamically -->
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Aangemaakt vanaf</label>
+                                <input type="date" class="form-control" id="advancedSearchDateFrom">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Aangemaakt tot</label>
+                                <input type="date" class="form-control" id="advancedSearchDateTo">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+                    <button type="button" class="btn btn-primary" id="executeAdvancedSearch">
+                        <i class="fas fa-search"></i>
+                        Zoeken
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Save Filter Modal -->
+    <div class="modal fade" id="saveFilterModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Filter opslaan</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="saveFilterForm">
+                        <div class="form-group">
+                            <label class="form-label">Filter naam</label>
+                            <input type="text" class="form-control" id="filterName" placeholder="Voer een naam in..." required>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="setAsDefault">
+                            <label class="form-check-label" for="setAsDefault">
+                                Instellen als standaard filter
+                            </label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+                    <button type="button" class="btn btn-primary" id="saveFilterBtn">
+                        <i class="fas fa-save"></i>
+                        Opslaan
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Milestones Modal -->
+    <div class="modal fade" id="milestonesModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Mijlpalen beheer</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6>Mijlpalen overzicht</h6>
+                        <button type="button" class="btn btn-primary btn-sm" id="createMilestoneBtn">
+                            <i class="fas fa-plus"></i>
+                            Nieuwe mijlpaal
+                        </button>
+                    </div>
+                    
+                    <!-- Create Milestone Form -->
+                    <div class="milestone-form" id="milestoneForm" style="display: none;">
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <h6 class="card-title">Nieuwe mijlpaal</h6>
+                                <form id="createMilestoneForm">
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label class="form-label">Titel</label>
+                                            <input type="text" class="form-control" id="milestoneTitle">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Kleur</label>
+                                            <input type="color" class="form-control" id="milestoneColor" value="#3b82f6">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Beschrijving</label>
+                                        <textarea class="form-control" id="milestoneDescription" rows="2"></textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Einddatum</label>
+                                        <input type="datetime-local" class="form-control" id="milestoneDueDate">
+                                    </div>
+                                    <div class="milestone-form-actions">
+                                        <button type="button" class="btn btn-primary btn-sm" id="saveMilestoneBtn">
+                                            <i class="fas fa-save"></i>
+                                            Opslaan
+                                        </button>
+                                        <button type="button" class="btn btn-secondary btn-sm" id="cancelMilestoneBtn">
+                                            <i class="fas fa-times"></i>
+                                            Annuleren
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Milestones List -->
+                    <div class="milestones-list" id="milestonesList">
+                        <!-- Milestones will be dynamically added here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Settings Modal -->
+    <div class="modal fade" id="notificationSettingsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-bell"></i>
+                        Email Notificatie Instellingen
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted mb-3">Kies welke email notificaties je wilt ontvangen:</p>
+                    
+                    <div class="notification-settings">
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="notifyTaskAssigned" value="task_assigned">
+                            <label class="form-check-label" for="notifyTaskAssigned">
+                                <div class="notification-option">
+                                    <div class="notification-title">
+                                        <i class="fas fa-user-plus text-primary"></i>
+                                        Nieuwe taak toegewezen
+                                    </div>
+                                    <div class="notification-description">
+                                        Ontvang een email wanneer er een nieuwe taak aan je wordt toegewezen
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+                        
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="notifyTaskCommented" value="task_commented">
+                            <label class="form-check-label" for="notifyTaskCommented">
+                                <div class="notification-option">
+                                    <div class="notification-title">
+                                        <i class="fas fa-comment text-info"></i>
+                                        Nieuwe reacties op taken
+                                    </div>
+                                    <div class="notification-description">
+                                        Ontvang een email bij nieuwe reacties op taken die je volgt
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+                        
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="notifyTaskStatusChanged" value="task_status_changed">
+                            <label class="form-check-label" for="notifyTaskStatusChanged">
+                                <div class="notification-option">
+                                    <div class="notification-title">
+                                        <i class="fas fa-exchange-alt text-warning"></i>
+                                        Status wijzigingen
+                                    </div>
+                                    <div class="notification-description">
+                                        Ontvang een email wanneer de status van je taken wijzigt
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+                        
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="notifyTaskDueSoon" value="task_due_soon">
+                            <label class="form-check-label" for="notifyTaskDueSoon">
+                                <div class="notification-option">
+                                    <div class="notification-title">
+                                        <i class="fas fa-clock text-warning"></i>
+                                        Taken die binnenkort vervallen
+                                    </div>
+                                    <div class="notification-description">
+                                        Ontvang dagelijks een herinnering voor taken die vandaag vervallen
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+                        
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="notifyTaskOverdue" value="task_overdue">
+                            <label class="form-check-label" for="notifyTaskOverdue">
+                                <div class="notification-option">
+                                    <div class="notification-title">
+                                        <i class="fas fa-exclamation-triangle text-danger"></i>
+                                        Verlopen taken
+                                    </div>
+                                    <div class="notification-description">
+                                        Ontvang een email voor taken die hun vervaldatum hebben overschreden
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info mt-3">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>Let op:</strong> Notificaties worden alleen verzonden als je een geldig email adres hebt ingesteld in je profiel.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-info" onclick="taskManager.testEmailNotification()">
+                        <i class="fas fa-paper-plane"></i>
+                        Test Email
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+                    <button type="button" class="btn btn-primary" id="saveNotificationSettingsBtn">
+                        <i class="fas fa-save"></i>
+                        Instellingen opslaan
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Settings Modal -->
+    <div class="modal fade" id="profileSettingsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-user-cog"></i>
+                        Profiel Instellingen
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="profileSettingsForm">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label class="form-label">Gebruikersnaam</label>
+                                    <input type="text" class="form-control" id="profileUsername" readonly>
+                                    <small class="form-text text-muted">Gebruikersnaam kan niet worden gewijzigd</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label class="form-label">Volledige naam</label>
+                                    <input type="text" class="form-control" id="profileFullName" placeholder="Voer je volledige naam in">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label class="form-label">
+                                <i class="fas fa-envelope"></i>
+                                Email adres
+                            </label>
+                            <input type="email" class="form-control" id="profileEmail" placeholder="Voer je email adres in">
+                            <small class="form-text text-muted">
+                                Dit email adres wordt gebruikt voor taak notificaties. 
+                                <strong>Verplicht voor email notificaties.</strong>
+                            </small>
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label class="form-label">Rol</label>
+                            <input type="text" class="form-control" id="profileRole" readonly>
+                            <small class="form-text text-muted">Je rol wordt beheerd door een administrator</small>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>Privacy:</strong> Je email adres wordt alleen gebruikt voor systeem notificaties en wordt niet gedeeld met andere gebruikers.
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+                    <button type="button" class="btn btn-primary" id="saveProfileBtn">
+                        <i class="fas fa-save"></i>
+                        Profiel opslaan
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dragula/3.7.3/dragula.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <script src="scripts_task_management.js"></script>
+</body>
+</html>

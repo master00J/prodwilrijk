@@ -1,0 +1,2303 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CNH Workflow</title>
+
+  <!-- Bootstrap & FontAwesome -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+  <style>
+    body {
+      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .container {
+      margin-top: 1rem;
+      max-width: 1100px;
+      padding-bottom: 2rem;
+    }
+    h1 {
+      text-align: center;
+      color: #2c3e50;
+      margin-bottom: 1.5rem;
+      position: relative;
+      padding-bottom: 10px;
+    }
+    h1:after {
+      content: "";
+      position: absolute;
+      width: 70px;
+      height: 4px;
+      background: linear-gradient(to right, #3498db, #2ecc71);
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      border-radius: 2px;
+    }
+    .tab-content {
+      margin-top: 1rem;
+      background: white;
+      border-radius: 10px;
+      padding: 1rem;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .motor-list table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .motor-list th,
+    .motor-list td {
+      padding: 0.75rem;
+      border: 1px solid #ccc;
+      text-align: left;
+    }
+    .motor-list th {
+      background: #eee;
+    }
+    /* Timer styling */
+    #pack-timer, #load-timer {
+      font-size: 1.5rem;
+      font-weight: bold;
+      margin-bottom: 1rem;
+      display: none;
+      padding: 10px;
+      border-radius: 5px;
+      background-color: #f8f9fa;
+      text-align: center;
+    }
+    #pack-timer-value, #load-timer-value {
+      color: #dc3545;
+    }
+    /* Tablet-friendly improvements */
+    .form-control, .form-select, .btn {
+      height: auto;
+      padding: 12px;
+      font-size: 1.1rem;
+      margin-bottom: 15px;
+    }
+    .btn {
+      padding: 12px 20px;
+    }
+    /* Larger checkboxes for motor selection */
+    .packMotorCheck, .loadMotorCheck {
+      width: 24px;
+      height: 24px;
+    }
+    /* Tab navigation improvements */
+    .nav-tabs .nav-link {
+      font-size: 1.1rem;
+      padding: 12px 20px;
+    }
+    /* Template selection area */
+    .template-area {
+      margin-bottom: 20px;
+      padding: 15px;
+      background-color: #f0f7ff;
+      border-radius: 10px;
+      border: 1px solid #d0e3ff;
+    }
+    /* Required field marker */
+    .required-field::after {
+      content: " *";
+      color: red;
+    }
+    /* Quick selection buttons */
+    .quick-select-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    .quick-select-btn {
+      flex: 1;
+      min-width: 110px;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    /* Visual section dividers */
+    .section-divider {
+      margin: 20px 0;
+      height: 1px;
+      background-color: #e9ecef;
+      position: relative;
+    }
+    .section-divider::after {
+      content: attr(data-text);
+      position: absolute;
+      top: -10px;
+      left: 20px;
+      background: white;
+      padding: 0 10px;
+      font-size: 0.9rem;
+      color: #6c757d;
+    }
+    /* Active session indicator */
+    .session-active {
+      background-color: #fef5f5;
+      border-left: 4px solid #dc3545;
+      padding-left: 15px;
+    }
+    /* Operator cards */
+    .operator-card {
+      background-color: #f8f9fa;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 10px;
+      border: 1px solid #e9ecef;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .operator-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .operator-avatar {
+      width: 40px;
+      height: 40px;
+      background-color: #e9ecef;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      color: #6c757d;
+    }
+    .operator-name {
+      font-weight: 500;
+    }
+    .operator-time {
+      font-size: 14px;
+      color: #6c757d;
+    }
+    .operator-status {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 5px;
+    }
+    .operator-status.active {
+      background-color: #28a745;
+    }
+    .operator-status.inactive {
+      background-color: #dc3545;
+    }
+    /* Paused status indicator */
+    .operator-status.paused {
+      background-color: #ffc107;
+    }
+    /* Sticky action buttons at the bottom */
+    .action-buttons-sticky {
+      position: sticky;
+      bottom: 0;
+      background: white;
+      padding: 15px;
+      border-top: 1px solid #e9ecef;
+      margin: 0 -1rem -1rem -1rem;
+      border-radius: 0 0 10px 10px;
+    }
+    /* Filter bar for motor lists */
+    .motor-filter-bar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+      background: #f8f9fa;
+      padding: 10px;
+      border-radius: 5px;
+      align-items: center;
+    }
+    .motor-filter-bar input {
+      flex: 1;
+    }
+    /* Accordion styling for load presets */
+    .preset-accordion .accordion-button {
+      padding: 15px;
+      font-size: 1.1rem;
+    }
+    .preset-accordion .accordion-body {
+      padding: 20px;
+    }
+    /* Motor counter badge */
+    .motor-counter {
+      background: #6c757d;
+      color: white;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      margin-left: 10px;
+    }
+    /* Scan button style */
+    .scan-btn {
+      position: absolute;
+      right: 10px;
+      top: 38px;
+      z-index: 10;
+      background: #f8f9fa;
+      border: 1px solid #ced4da;
+      padding: 7px 12px;
+      border-radius: 0 4px 4px 0;
+    }
+    .input-with-scan {
+      position: relative;
+    }
+    /* Styles for the session status */
+    .session-status {
+      display: inline-block;
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    .session-status.active {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .session-status.paused {
+      background-color: #fff3cd;
+      color: #856404;
+    }
+    
+    /* Template lijst styling */
+    #templatesListContainer {
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid #e9ecef;
+      border-radius: 8px;
+    }
+    #templatesList .list-group-item {
+      border-left: none;
+      border-right: none;
+      padding: 10px 15px;
+      transition: background-color 0.2s;
+    }
+    #templatesList .list-group-item:first-child {
+      border-top: none;
+    }
+    #templatesList .list-group-item:last-child {
+      border-bottom: none;
+    }
+    #templatesList .list-group-item:hover {
+      background-color: #f8f9fa;
+    }
+    .template-actions {
+      display: flex;
+      gap: 5px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Eventueel je eigen header/menu -->
+  <div id="header-placeholder"></div>
+
+  <div class="container">
+    <h1>CNH Workflow</h1>
+    <!-- Status messages area -->
+    <div id="status-messages" class="mb-3"></div>
+    <!-- Nav-tabs (Inkomend / Verpakken / Laden) -->
+    <ul class="nav nav-tabs" id="workflowTabs" role="tablist">
+      <li class="nav-item">
+        <button class="nav-link active" id="incoming-tab" data-bs-toggle="tab" data-bs-target="#incoming" type="button" role="tab">
+          <i class="fa fa-truck-loading"></i> Inkomend
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" id="pack-tab" data-bs-toggle="tab" data-bs-target="#pack" type="button" role="tab">
+          <i class="fa fa-box-open"></i> Verpakken
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" id="load-tab" data-bs-toggle="tab" data-bs-target="#load" type="button" role="tab">
+          <i class="fa fa-shipping-fast"></i> Laden
+        </button>
+      </li>
+    </ul>
+
+    <div class="tab-content">
+      <!-- TAB 1: INKOMEND -->
+      <div class="tab-pane fade show active" id="incoming" role="tabpanel" aria-labelledby="incoming-tab">
+        <div class="mb-3 mt-3">
+          <label for="incomingLocation" class="form-label">Locatie</label>
+          <select id="incomingLocation" class="form-select">
+            <option value="China">China</option>
+            <option value="Amerika">Amerika</option>
+            <option value="UZB">UZB</option>
+            <option value="Other">Anders</option>
+          </select>
+        </div>
+        <!-- Verzendnota invoer -->
+        <div class="mb-3">
+          <label for="incomingShippingNote" class="form-label required-field">Verzendnota</label>
+          <div class="input-with-scan">
+            <input type="text" id="incomingShippingNote" class="form-control" placeholder="bv: VerzNote123">
+            <button class="scan-btn" id="scanShippingNote">
+              <i class="fa fa-barcode"></i>
+            </button>
+          </div>
+        </div>
+        <!-- Dynamische rijtjes voor motornummers -->
+        <div id="incomingMotorsList" class="mt-3"></div>
+        <button id="addMotorBtn" class="btn btn-secondary mb-3">
+          <i class="fa fa-plus"></i> Motor Toevoegen
+        </button>
+        <div class="action-buttons-sticky">
+          <button id="saveIncomingBtn" class="btn btn-primary btn-lg">
+            <i class="fa fa-save"></i> Opslaan (Inkomend)
+          </button>
+        </div>
+      </div>
+
+      <!-- TAB 2: VERPAKKEN -->
+      <div class="tab-pane fade" id="pack" role="tabpanel" aria-labelledby="pack-tab">
+        <h4 class="mt-3">Verpakken Workflow</h4>
+        <div id="pack-operator-row" class="mb-3">
+          <label for="packOperatorCount" class="form-label">Aantal Operators:</label>
+          <input type="number" id="packOperatorCount" class="form-control" value="1" min="1">
+        </div>
+        <div id="pack-start-stop" class="mb-3">
+          <button id="packStartBtn" class="btn btn-outline-primary btn-lg">
+            <i class="fa fa-play"></i> Begin Verpakken
+          </button>
+          <button id="packPauseBtn" class="btn btn-outline-warning btn-lg" style="display:none;">
+            <i class="fa fa-pause"></i> Pauzeer Verpakken
+          </button>
+          <button id="packResumeBtn" class="btn btn-outline-success btn-lg" style="display:none;">
+            <i class="fa fa-play"></i> Hervat Verpakken
+          </button>
+          <button id="packStopBtn" class="btn btn-outline-danger btn-lg" style="display:none;">
+            <i class="fa fa-stop"></i> Stop Verpakken
+          </button>
+        </div>
+        <div id="pack-timer">
+          Tijd bezig: <span id="pack-timer-value">00:00</span>
+        </div>
+        <div id="pack-session-status" class="session-status active" style="display: none;">
+          Actief
+        </div>
+        <!-- Individual operator controls for packaging -->
+        <div id="pack-operator-controls" class="mt-3" style="display:none;">
+          <h5>Verpakkers</h5>
+          <div id="pack-operators-container" class="mb-3">
+            <!-- Packaging operators will be added here dynamically -->
+          </div>
+          <button id="addPackOperatorBtn" class="btn btn-outline-secondary">
+            <i class="fa fa-user-plus"></i> Operator Toevoegen
+          </button>
+        </div>
+        <div class="motor-filter-bar">
+          <input type="text" id="packMotorFilter" class="form-control" placeholder="Filter op motornummer...">
+          <button class="btn btn-secondary" id="clearPackFilter">
+            <i class="fa fa-times"></i>
+          </button>
+        </div>
+        <h5>Te Verpakken Motoren <span id="packMotorCounter" class="motor-counter">0</span></h5>
+        <div id="pack-motor-list" class="motor-list"></div>
+        <div class="action-buttons-sticky" id="packActionButtons" style="display:none;">
+          <button id="packSelectedBtn" class="btn btn-success btn-lg">
+            <i class="fa fa-check"></i> Verpak Geselecteerde Motoren
+          </button>
+        </div>
+      </div>
+
+      <!-- TAB 3: LADEN -->
+      <div class="tab-pane fade" id="load" role="tabpanel" aria-labelledby="load-tab">
+        <h4 class="mt-3">Laad Workflow</h4>
+        <!-- Load Data Templates -->
+        <div class="template-area">
+          <label class="form-label">Kies een laad-template:</label>
+          <div class="row">
+            <div class="col-md-8">
+              <select id="loadTemplateSelect" class="form-select">
+                <option value="">Selecteer template...</option>
+              </select>
+            </div>
+            <div class="col-md-4 d-flex">
+              <button id="applyTemplateBtn" class="btn btn-primary flex-grow-1">
+                <i class="fa fa-check-circle"></i> Toepassen
+              </button>
+              <button id="saveAsTemplateBtn" class="btn btn-outline-secondary ms-2">
+                <i class="fa fa-save"></i>
+              </button>
+            </div>
+          </div>
+          <div class="mt-3">
+            <div class="quick-select-row">
+              <button class="btn btn-light quick-select-btn" data-target="China">China</button>
+              <button class="btn btn-light quick-select-btn" data-target="Amerika">Amerika</button>
+              <button class="btn btn-light quick-select-btn" data-target="UZB">UZB</button>
+              <button class="btn btn-light quick-select-btn" data-target="Laatste">Laatste</button>
+            </div>
+          </div>
+          
+          <!-- Template lijst met specifieke verwijderknoppen -->
+          <div class="mt-3" id="templatesListContainer">
+            <h6>Beschikbare templates:</h6>
+            <div id="templatesList" class="list-group">
+              <!-- Templates worden hier dynamisch toegevoegd -->
+            </div>
+          </div>
+        </div>
+
+        <div class="section-divider" data-text="LAAD INFORMATIE"></div>
+        <div class="row">
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label class="form-label required-field">Laad-locatie</label>
+              <input type="text" id="loadLocation" class="form-control" placeholder="vb: China">
+            </div>
+            <div class="mb-3">
+              <label class="form-label required-field">Laadreferentie</label>
+              <div class="input-with-scan">
+                <input type="text" id="loadReference" class="form-control" placeholder="vb: LOADREF123">
+                <button class="scan-btn" id="scanLoadRef">
+                  <i class="fa fa-barcode"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label class="form-label required-field">Containernummer</label>
+              <div class="input-with-scan">
+                <input type="text" id="containerNumber" class="form-control" placeholder="vb: CONT999">
+                <button class="scan-btn" id="scanContainerNum">
+                  <i class="fa fa-barcode"></i>
+                </button>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Truck nummerplaat</label>
+              <input type="text" id="truckPlate" class="form-control" placeholder="vb: 1-ABC-123">
+            </div>
+          </div>
+        </div>
+
+        <div class="section-divider" data-text="EXTRA INFORMATIE"></div>
+        <div class="row">
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label class="form-label">Booking Ref</label>
+              <input type="text" id="bookingRef" class="form-control" placeholder="bv: BK123">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Your Ref</label>
+              <input type="text" id="yourRef" class="form-control" placeholder="bv: YR999">
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label class="form-label">Container Tarra (kg)</label>
+              <input type="number" step="0.01" id="containerTarra" class="form-control" placeholder="bv: 2200.50">
+            </div>
+            <div class="mb-3">
+              <label for="loadOperatorCount" class="form-label">Aantal Operators (laden):</label>
+              <input type="number" id="loadOperatorCount" class="form-control" value="1" min="1">
+            </div>
+          </div>
+        </div>
+
+        <div id="load-session-area">
+          <div class="mb-3" id="load-session-controls">
+            <button id="loadStartBtn" class="btn btn-outline-primary btn-lg">
+              <i class="fa fa-play"></i> Begin Laden
+            </button>
+            <button id="loadStopBtn" class="btn btn-outline-danger btn-lg" style="display:none;">
+              <i class="fa fa-stop"></i> Stop Laden
+            </button>
+            <button id="loadCancelBtn" class="btn btn-outline-warning btn-lg" style="display:none; margin-left:8px;">
+              <i class="fa fa-ban"></i> Annuleer Laden
+            </button>
+          </div>
+          <div id="load-timer">
+            Laadtijd: <span id="load-timer-value">00:00</span>
+          </div>
+          <!-- Individual operator controls -->
+          <div id="operator-controls" class="mt-3" style="display:none;">
+            <h5>Operators</h5>
+            <div id="operators-container" class="mb-3">
+              <!-- Operators will be added here dynamically -->
+            </div>
+            <button id="addOperatorBtn" class="btn btn-outline-secondary">
+              <i class="fa fa-user-plus"></i> Operator Toevoegen
+            </button>
+          </div>
+        </div>
+
+        <!-- Foto maken / uploaden -->
+        <div class="mb-3" id="photo-upload-area" style="display:none;">
+          <label for="containerPhoto" class="form-label">Foto van container</label>
+          <input type="file" id="containerPhoto" accept="image/*" capture="environment" class="form-control">
+          <button id="uploadPhotoBtn" class="btn btn-secondary mt-2">
+            <i class="fa fa-camera"></i> Upload Foto
+          </button>
+          <div id="photoPreview" class="mt-2"></div>
+        </div>
+
+        <div class="section-divider" data-text="MOTOR SELECTIE"></div>
+        <div class="motor-filter-bar">
+          <input type="text" id="loadMotorFilter" class="form-control" placeholder="Filter op motornummer...">
+          <button class="btn btn-secondary" id="clearLoadFilter">
+            <i class="fa fa-times"></i>
+          </button>
+          <button class="btn btn-primary" id="selectAllLoadMotors">
+            <i class="fa fa-check-square"></i> Selecteer Alles
+          </button>
+        </div>
+        <h5>Te Laden Motoren <span id="loadMotorCounter" class="motor-counter">0</span></h5>
+        <div id="load-motor-list" class="motor-list"></div>
+        <div class="action-buttons-sticky" style="display:none;">
+          <div class="row">
+            <div class="col-6">
+              <button id="saveLoadBtn" class="btn btn-warning btn-lg w-100">
+                <i class="fa fa-shipping-fast"></i> Laden
+              </button>
+            </div>
+            <div class="col-6">
+              <button id="sendLoadEmailBtn" class="btn btn-secondary btn-lg w-100">
+                <i class="fa fa-envelope"></i> Verstuur Mail
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Template Save Modal -->
+  <div class="modal fade" id="saveTemplateModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Template Opslaan</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="templateName" class="form-label">Template Naam</label>
+            <input type="text" class="form-control" id="templateName" placeholder="Voer naam in...">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+          <button type="button" class="btn btn-primary" id="confirmSaveTemplate">Opslaan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap Bundle JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    /***********************************************
+     * GLOBALE VARS
+     ***********************************************/
+    let packTimerInterval = null;
+    let packStartTime     = null;
+    let loadTimerInterval = null;
+    let loadStartTime     = null;
+    let loadTemplates     = [];
+    let allPackMotors     = [];
+    let allLoadMotors     = [];
+    let saveTemplateModal = null;
+    let operators         = [];
+    let operatorIdCounter = 1;
+    
+    // Variables for packaging operators
+    let packOperators     = [];
+    let packSessionStatus = 'inactive'; // 'active', 'paused', 'inactive'
+    let packOperatorIdCounter = 1;
+    let packSessionPausedAt = null;
+    let packSessionTotalPausedTime = 0;
+    let packOperatorTimerInterval = null;
+    
+    /***********************************************
+     * HELPER FUNCTIONS
+     ***********************************************/
+    function formatDuration(min) {
+      if(!min || isNaN(min)) min = 0;
+      const h = Math.floor(min / 60);
+      const m = min % 60;
+      return `${h}:${String(m).padStart(2,'0')}`;
+    }
+    
+    function formatTime(ms) {
+      if(!ms || isNaN(ms)) ms = 0;
+      const totalSeconds = Math.floor(ms / 1000);
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      return `${minutes}:${String(seconds).padStart(2,'0')}`;
+    }
+    
+    function startPackOperatorTimer() {
+      if (packOperatorTimerInterval) {
+        clearInterval(packOperatorTimerInterval);
+      }
+      packOperatorTimerInterval = setInterval(() => {
+        if (packOperators.length > 0) {
+          renderPackOperators();
+        }
+      }, 1000);
+    }
+    
+    function stopPackOperatorTimer() {
+      if (packOperatorTimerInterval) {
+        clearInterval(packOperatorTimerInterval);
+        packOperatorTimerInterval = null;
+      }
+    }
+    
+    function savePackOperatorsToLocalStorage() {
+      try {
+        const operatorsToSave = packOperators.map(op => ({
+          ...op,
+          startTime: op.startTime ? op.startTime.toString() : null,
+          intervals: []
+        }));
+        localStorage.setItem('cnh_pack_operators', JSON.stringify(operatorsToSave));
+      } catch (e) {
+        console.error('Error saving pack operators to localStorage:', e);
+      }
+    }
+    
+    /***********************************************
+     * STATUS MESSAGES
+     ***********************************************/
+    function showStatus(message, type = 'info') {
+      const statusArea = document.getElementById('status-messages');
+      const alertDiv = document.createElement('div');
+      alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+      alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      `;
+      statusArea.appendChild(alertDiv);
+      setTimeout(() => {
+        alertDiv.classList.remove('show');
+        setTimeout(() => alertDiv.remove(), 500);
+      }, 5000);
+    }
+    
+    /***********************************************
+     * TAB: INKOMEND
+     ***********************************************/
+    function initIncoming() {
+      const cont = document.getElementById('incomingMotorsList');
+      cont.innerHTML = '';
+      addIncomingRow(); // start met 1 regel
+    }
+    
+    function addIncomingRow() {
+      const cont = document.getElementById('incomingMotorsList');
+      const div  = document.createElement('div');
+      div.className = 'input-group mb-3';
+      div.innerHTML = `
+        <div class="input-with-scan flex-grow-1">
+          <input type="text" class="form-control motorNumberInput" placeholder="Motornummer">
+          <button class="scan-btn scanMotorBtn">
+            <i class="fa fa-barcode"></i>
+          </button>
+        </div>
+        <button class="btn btn-outline-danger removeMotorBtn" type="button">
+          <i class="fa fa-times"></i>
+        </button>
+      `;
+      cont.appendChild(div);
+    
+      const removeBtn = div.querySelector('.removeMotorBtn');
+      removeBtn.addEventListener('click', () => {
+        cont.removeChild(div);
+      });
+      
+      const scanBtn = div.querySelector('.scanMotorBtn');
+      scanBtn.addEventListener('click', simulateScan);
+    }
+    
+    function simulateScan(e) {
+      const targetInput = e.currentTarget.closest('.input-with-scan').querySelector('input');
+      const scannedValue = prompt("Simuleer scan (voer waarde in):");
+      if (scannedValue) {
+        targetInput.value = scannedValue;
+        targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    }
+    
+    async function saveIncomingMotors() {
+      const location     = document.getElementById('incomingLocation').value;
+      const shippingNote = document.getElementById('incomingShippingNote').value.trim();
+      const inputs       = document.querySelectorAll('.motorNumberInput');
+      const motors       = [];
+    
+      inputs.forEach(i => {
+        const val = i.value.trim();
+        if (val) motors.push(val);
+      });
+    
+      if (!motors.length) {
+        showStatus('Gelieve minstens 1 motornummer in te geven', 'warning');
+        return;
+      }
+    
+      try {
+        const resp = await fetch('/api/cnh_motors/receive', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            location,
+            shippingNote,
+            motors
+          })
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Fout bij opslaan');
+    
+        showStatus(`${motors.length} inkomende motoren succesvol geregistreerd!`, 'success');
+        document.getElementById('incomingShippingNote').value = '';
+        initIncoming();      
+        fetchPackMotors();  
+      } catch(e) {
+        console.error(e);
+        showStatus('Fout bij inkomend opslaan: ' + e.message, 'danger');
+      }
+    }
+    
+    /***********************************************
+     * TAB: VERPAKKEN - OPERATORS
+     ***********************************************/
+    function addPackOperator(render = true) {
+      const operator = {
+        id: packOperatorIdCounter++,
+        name: `Verpakker ${packOperatorIdCounter - 1}`,
+        active: false,
+        startTime: null,
+        totalTime: 0,
+        intervals: [],
+        status: 'inactive'
+      };
+      packOperators.push(operator);
+      savePackOperatorsToLocalStorage();
+      if (render) {
+        renderPackOperators();
+      }
+    }
+    
+    function renderPackOperators() {
+      const container = document.getElementById('pack-operators-container');
+      if (!container) return;
+      container.innerHTML = '';
+      packOperators.forEach(operator => {
+        let displayTime = operator.totalTime;
+        if (operator.status === 'active' && operator.startTime) {
+          displayTime = operator.totalTime + (Date.now() - operator.startTime);
+        }
+        const timeDisplay = formatTime(displayTime);
+        const statusClass = operator.status;
+        const operatorEl = document.createElement('div');
+        operatorEl.className = 'operator-card';
+        operatorEl.innerHTML = `
+          <div class="operator-info">
+            <div class="operator-avatar">
+              <i class="fa fa-user"></i>
+            </div>
+            <div>
+              <div class="operator-name">
+                <span class="operator-status ${statusClass}"></span>
+                ${operator.name}
+              </div>
+              <div class="operator-time">${timeDisplay}</div>
+            </div>
+          </div>
+          <div class="operator-actions">
+            ${operator.status === 'active' ? 
+              `<button class="btn btn-sm btn-warning pause-pack-operator" data-id="${operator.id}">
+                <i class="fa fa-pause"></i> Pauze
+              </button>` 
+              : operator.status === 'paused' ?
+              `<button class="btn btn-sm btn-success resume-pack-operator" data-id="${operator.id}">
+                <i class="fa fa-play"></i> Hervat
+              </button>`
+              :
+              `<button class="btn btn-sm btn-success start-pack-operator" data-id="${operator.id}">
+                <i class="fa fa-play"></i> Start
+              </button>`
+            }
+            <button class="btn btn-sm btn-outline-secondary remove-pack-operator" data-id="${operator.id}">
+              <i class="fa fa-times"></i>
+            </button>
+          </div>
+        `;
+        container.appendChild(operatorEl);
+      });
+      document.querySelectorAll('.start-pack-operator').forEach(btn => {
+        btn.addEventListener('click', () => startPackOperator(parseInt(btn.getAttribute('data-id'), 10)));
+      });
+      document.querySelectorAll('.pause-pack-operator').forEach(btn => {
+        btn.addEventListener('click', () => pausePackOperator(parseInt(btn.getAttribute('data-id'), 10)));
+      });
+      document.querySelectorAll('.resume-pack-operator').forEach(btn => {
+        btn.addEventListener('click', () => resumePackOperator(parseInt(btn.getAttribute('data-id'), 10)));
+      });
+      document.querySelectorAll('.remove-pack-operator').forEach(btn => {
+        btn.addEventListener('click', () => removePackOperator(parseInt(btn.getAttribute('data-id'), 10)));
+      });
+    }
+    
+    function startPackOperator(operatorId) {
+      const operator = packOperators.find(op => op.id === operatorId);
+      if (!operator) return;
+      operator.status = 'active';
+      operator.startTime = Date.now();
+      renderPackOperators();
+      savePackOperatorsToLocalStorage();
+      if (packSessionStatus === 'paused' || packSessionStatus === 'inactive') {
+        resumePackSession();
+      }
+      startPackOperatorTimer();
+    }
+    
+    function pausePackOperator(operatorId) {
+      const operator = packOperators.find(op => op.id === operatorId);
+      if (!operator) return;
+      operator.status = 'paused';
+      if (operator.startTime) {
+        operator.totalTime += (Date.now() - operator.startTime);
+        operator.startTime = null;
+      }
+      renderPackOperators();
+      savePackOperatorsToLocalStorage();
+      const allPausedOrInactive = packOperators.every(op => op.status === 'paused' || op.status === 'inactive');
+      if (allPausedOrInactive && packSessionStatus === 'active') {
+        pausePackSession();
+        stopPackOperatorTimer();
+      }
+    }
+    
+    function resumePackOperator(operatorId) {
+      const operator = packOperators.find(op => op.id === operatorId);
+      if (!operator) return;
+      operator.status = 'active';
+      operator.startTime = Date.now();
+      renderPackOperators();
+      savePackOperatorsToLocalStorage();
+      if (packSessionStatus === 'paused') {
+        resumePackSession();
+      }
+      startPackOperatorTimer();
+    }
+    
+    function removePackOperator(operatorId) {
+      const operatorIndex = packOperators.findIndex(op => op.id === operatorId);
+      if (operatorIndex === -1) return;
+      const operator = packOperators[operatorIndex];
+      if (operator.status === 'active') {
+        pausePackOperator(operatorId);
+      }
+      packOperators.splice(operatorIndex, 1);
+      renderPackOperators();
+      savePackOperatorsToLocalStorage();
+    }
+    
+    function getPackOperatorsTotalTime() {
+      let totalMinutes = 0;
+      packOperators.forEach(operator => {
+        let operatorTime = operator.totalTime;
+        if (operator.status === 'active' && operator.startTime) {
+          operatorTime += (Date.now() - operator.startTime);
+        }
+        totalMinutes += Math.floor(operatorTime / 60000);
+      });
+      return totalMinutes;
+    }
+    
+    /***********************************************
+     * TAB: VERPAKKEN
+     ***********************************************/
+    function fetchPackMotors() {
+      fetch('/api/cnh_motors?state=received')
+        .then(r => r.json())
+        .then(list => {
+          allPackMotors = list;
+          buildPackTable(list);
+          updateSelectedCount();
+        })
+        .catch(err => {
+          console.error('fetchPackMotors error:', err);
+          showStatus('Fout bij ophalen motoren: ' + err.message, 'danger');
+        });
+    }
+    
+    function buildPackTable(motors) {
+      const c = document.getElementById('pack-motor-list');
+      if (!motors || !motors.length) {
+        c.innerHTML = `<p>Geen motoren (state='received').</p>`;
+        document.getElementById('packActionButtons').style.display = 'none';
+        return;
+      }
+      let html = `
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 50px;">#</th>
+              <th>MotorNr</th>
+              <th>Locatie</th>
+              <th>Verzendnota</th>
+              <th>Bodem (L/H)</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+      motors.forEach(m => {
+        const isChina = (m.location === 'China');
+        let bodemHtml = `<span class="text-muted">-</span>`;
+        if (isChina) {
+          bodemHtml = `
+            <div style="display:flex; gap:4px;">
+              <input type="number" class="form-control form-control-sm bodemLowInput" data-id="${m.id}" value="0" min="0" style="width:60px;">
+              <input type="number" class="form-control form-control-sm bodemHighInput" data-id="${m.id}" value="0" min="0" style="width:60px;">
+            </div>
+          `;
+        }
+        html += `
+          <tr>
+            <td style="text-align: center;">
+              <input type="checkbox" class="packMotorCheck" data-id="${m.id}" data-loc="${m.location}">
+            </td>
+            <td>${m.motor_nr || ''}</td>
+            <td>${m.location || 'N/A'}</td>
+            <td>${m.shipping_note || 'N/A'}</td>
+            <td>${bodemHtml}</td>
+          </tr>
+        `;
+      });
+      html += `</tbody></table>`;
+      c.innerHTML = html;
+      document.getElementById('packActionButtons').style.display = motors.length > 0 ? 'block' : 'none';
+    }
+    
+    function filterPackMotors() {
+      const filterText = document.getElementById('packMotorFilter').value.toLowerCase();
+      if (!filterText) {
+        buildPackTable(allPackMotors);
+        return;
+      }
+      const filtered = allPackMotors.filter(motor => 
+        (motor.motor_nr && motor.motor_nr.toLowerCase().includes(filterText)) ||
+        (motor.shipping_note && motor.shipping_note.toLowerCase().includes(filterText))
+      );
+      buildPackTable(filtered);
+    }
+    
+    function clearPackFilter() {
+      document.getElementById('packMotorFilter').value = '';
+      buildPackTable(allPackMotors);
+    }
+    
+    function initPackTab() {
+      const savedSessionId = localStorage.getItem('cnh_pack_sessionId');
+      if (savedSessionId) {
+        const savedStatus = localStorage.getItem('cnh_pack_sessionStatus') || 'active';
+        packSessionStatus = savedStatus;
+        packStartTime = parseInt(localStorage.getItem('cnh_pack_startTime'), 10) || Date.now();
+        packSessionTotalPausedTime = parseInt(localStorage.getItem('cnh_pack_totalPausedTime'), 10) || 0;
+        if (savedStatus === 'paused') {
+          packSessionPausedAt = parseInt(localStorage.getItem('cnh_pack_pausedAt'), 10) || Date.now();
+        }
+        const savedOperators = localStorage.getItem('cnh_pack_operators');
+        if (savedOperators) {
+          try {
+            packOperators = JSON.parse(savedOperators);
+            packOperators = packOperators.map(op => ({
+              ...op,
+              startTime: op.startTime ? parseInt(op.startTime, 10) : null,
+              intervals: []
+            }));
+            if (packOperators.length > 0) {
+              packOperatorIdCounter = Math.max(...packOperators.map(op => op.id)) + 1;
+              const hasActiveOperator = packOperators.some(op => op.status === 'active');
+              if (hasActiveOperator) {
+                startPackOperatorTimer();
+              }
+            }
+          } catch (e) {
+            console.error('Error parsing saved operators:', e);
+            packOperators = [];
+          }
+        }
+        showPackSessionUI(true, savedStatus);
+        if (savedStatus === 'active') {
+          startPackTimer();
+        }
+        renderPackOperators();
+      } else {
+        showPackSessionUI(false);
+        packOperators = [];
+        packSessionStatus = 'inactive';
+      }
+    }
+    
+    function showPackSessionUI(active, status = 'active') {
+      document.getElementById('packStartBtn').style.display = active ? 'none' : 'inline-block';
+      document.getElementById('packStopBtn').style.display = active ? 'inline-block' : 'none';
+      document.getElementById('packPauseBtn').style.display = (active && status === 'active') ? 'inline-block' : 'none';
+      document.getElementById('packResumeBtn').style.display = (active && status === 'paused') ? 'inline-block' : 'none';
+      document.getElementById('pack-operator-row').style.display = active ? 'none' : 'block';
+      document.getElementById('pack-timer').style.display = active ? 'block' : 'none';
+      document.getElementById('pack-operator-controls').style.display = active ? 'block' : 'none';
+      const statusEl = document.getElementById('pack-session-status');
+      if (active) {
+        statusEl.style.display = 'inline-block';
+        statusEl.textContent = status === 'active' ? 'Actief' : 'Gepauzeerd';
+        statusEl.className = `session-status ${status}`;
+      } else {
+        statusEl.style.display = 'none';
+        document.getElementById('pack-timer-value').textContent = '00:00';
+      }
+    }
+    
+    async function startPackSession() {
+      const operatorCount = parseInt(document.getElementById('packOperatorCount').value, 10) || 1;
+      try {
+        const resp = await fetch('/api/cnh_session/start_pack', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            location: 'N/A', 
+            packaging_persons: operatorCount
+          })
+        });
+        if (!resp.ok) throw new Error('Fout bij start sessie');
+        const data = await resp.json();
+        if (!data.sessionId) throw new Error('Geen sessionId ontvangen');
+    
+        localStorage.setItem('cnh_pack_sessionId', data.sessionId.toString());
+        localStorage.setItem('cnh_pack_startTime', Date.now().toString());
+        localStorage.setItem('cnh_pack_sessionStatus', 'active');
+        localStorage.setItem('cnh_pack_totalPausedTime', '0');
+        
+        packStartTime = Date.now();
+        packSessionStatus = 'active';
+        packSessionTotalPausedTime = 0;
+        
+        packOperators = [];
+        for (let i = 1; i <= operatorCount; i++) {
+          addPackOperator(false);
+        }
+        
+        packOperators.forEach(operator => {
+          operator.status = 'active';
+          operator.startTime = packStartTime;
+        });
+        
+        savePackOperatorsToLocalStorage();
+        startPackTimer();
+        startPackOperatorTimer();
+        showPackSessionUI(true, 'active');
+        renderPackOperators();
+        showStatus('Verpakken sessie gestart!', 'success');
+      } catch(e) {
+        console.error(e);
+        showStatus('Fout bij begin verpakken: ' + e.message, 'danger');
+      }
+    }
+    
+    function startPackTimer() {
+      if (packTimerInterval) clearInterval(packTimerInterval);
+      packTimerInterval = setInterval(() => {
+        let diffMs;
+        if (packSessionStatus === 'active') {
+          diffMs = Date.now() - packStartTime - packSessionTotalPausedTime;
+        } else if (packSessionStatus === 'paused') {
+          diffMs = packSessionPausedAt - packStartTime - packSessionTotalPausedTime;
+        } else {
+          diffMs = 0;
+        }
+        const diffSec = Math.floor(diffMs / 1000);
+        const mm = String(Math.floor(diffSec / 60)).padStart(2, '0');
+        const ss = String(diffSec % 60).padStart(2, '0');
+        document.getElementById('pack-timer-value').textContent = mm + ':' + ss;
+      }, 1000);
+    }
+    
+    function pausePackSession() {
+      if (packSessionStatus !== 'active') return;
+      packSessionStatus = 'paused';
+      packSessionPausedAt = Date.now();
+      localStorage.setItem('cnh_pack_sessionStatus', 'paused');
+      localStorage.setItem('cnh_pack_pausedAt', packSessionPausedAt.toString());
+      packOperators.forEach(operator => {
+        if (operator.status === 'active') {
+          pausePackOperator(operator.id);
+        }
+      });
+      showPackSessionUI(true, 'paused');
+      showStatus('Verpakken sessie gepauzeerd', 'info');
+    }
+    
+    function resumePackSession() {
+      if (packSessionStatus !== 'paused' && packSessionStatus !== 'inactive') return;
+      if (packSessionStatus === 'paused') {
+        const pauseDuration = Date.now() - packSessionPausedAt;
+        packSessionTotalPausedTime += pauseDuration;
+        localStorage.setItem('cnh_pack_totalPausedTime', packSessionTotalPausedTime.toString());
+      }
+      packSessionStatus = 'active';
+      localStorage.setItem('cnh_pack_sessionStatus', 'active');
+      startPackTimer();
+      showPackSessionUI(true, 'active');
+      showStatus('Verpakken sessie hervat', 'success');
+    }
+    
+    function stopPackSession() {
+      const sessionId = localStorage.getItem('cnh_pack_sessionId');
+      if (!sessionId) {
+        showStatus('Geen lopende verpak-sessie', 'warning');
+        return;
+      }
+      const confirmStop = confirm('Wilt u de verpak-sessie beëindigen zonder motoren te verpakken?');
+      if (!confirmStop) return;
+      clearPackSession();
+      showStatus('Verpakken sessie beëindigd zonder motoren te verpakken', 'info');
+    }
+    
+    async function finishPackaging() {
+      const sessionId = localStorage.getItem('cnh_pack_sessionId');
+      if (!sessionId) {
+        showStatus('Geen lopende verpak-sessie', 'warning');
+        return;
+      }
+      let diffMs;
+      if (packSessionStatus === 'active') {
+        diffMs = Date.now() - packStartTime - packSessionTotalPausedTime;
+      } else {
+        diffMs = packSessionPausedAt - packStartTime - packSessionTotalPausedTime;
+      }
+      const packaging_minutes = Math.round(diffMs / 60000);
+      const checks = document.querySelectorAll('.packMotorCheck');
+      const selectedMotors = [];
+      const locationSet = new Set();
+      checks.forEach(cb => {
+        if (cb.checked) {
+          const mId = parseInt(cb.getAttribute('data-id'), 10);
+          const mLoc = cb.getAttribute('data-loc') || 'N/A';
+          selectedMotors.push({ motorId: mId, location: mLoc });
+          locationSet.add(mLoc);
+        }
+      });
+      const packaging_count = selectedMotors.length;
+      if (!packaging_count) {
+        showStatus('Geen motoren geselecteerd. Selecteer minstens één motor.', 'warning');
+        return;
+      }
+      const motorsPayload = [];
+      selectedMotors.forEach(obj => {
+        let lVal = 0, hVal = 0;
+        if (obj.location === 'China') {
+          const lowI = document.querySelector(`.bodemLowInput[data-id='${obj.motorId}']`);
+          const higI = document.querySelector(`.bodemHighInput[data-id='${obj.motorId}']`);
+          if (lowI) lVal = parseInt(lowI.value, 10) || 0;
+          if (higI) hVal = parseInt(higI.value, 10) || 0;
+        }
+        motorsPayload.push({
+          motorId: obj.motorId,
+          bodemsLow: lVal,
+          bodemsHigh: hVal
+        });
+        
+        // Update bodem voorraad als er bodems zijn geselecteerd
+        if (lVal > 0 || hVal > 0) {
+          // Update lage bodems voorraad
+          if (lVal > 0) {
+            fetch('/api/update_bodem_stock', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                type: 'laag',
+                quantity: lVal,
+                operation: 'subtract'
+              })
+            }).catch(err => console.error('Fout bij bijwerken lage bodems voorraad:', err));
+          }
+          
+          // Update hoge bodems voorraad
+          if (hVal > 0) {
+            fetch('/api/update_bodem_stock', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                type: 'hoog',
+                quantity: hVal,
+                operation: 'subtract'
+              })
+            }).catch(err => console.error('Fout bij bijwerken hoge bodems voorraad:', err));
+          }
+        }
+      });
+      let finalLoc = 'N/A';
+      if (locationSet.size === 1) {
+        finalLoc = [...locationSet][0];
+      } else if (locationSet.size > 1) {
+        finalLoc = 'Mixed';
+      }
+      const operator_minutes = getPackOperatorsTotalTime();
+      const operatorCount = packOperators.length;
+      try {
+        const stopResp = await fetch('/api/cnh_session/stop_pack', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            sessionId: parseInt(sessionId, 10),
+            packaging_minutes,
+            packaging_count,
+            packaging_persons: operatorCount,
+            operator_minutes: operator_minutes,
+            location: finalLoc,
+            motors: selectedMotors
+          })
+        });
+        const stopData = await stopResp.json();
+        if (!stopResp.ok || !stopData.success) {
+          throw new Error(stopData.error || 'Fout in stop sessie');
+        }
+        if (motorsPayload.length > 0) {
+          await packageMotors(motorsPayload);
+        }
+        clearPackSession();
+        showStatus(`Verpakken sessie gestopt + ${packaging_count} motoren gemarkeerd als packaged`, 'success');
+        fetchPackMotors();
+        fetchLoadMotors();
+      } catch(e) {
+        console.error(e);
+        showStatus('Fout bij stop verpakken: ' + e.message, 'danger');
+      }
+    }
+    
+    function clearPackSession() {
+      if (packTimerInterval) {
+        clearInterval(packTimerInterval);
+        packTimerInterval = null;
+      }
+      stopPackOperatorTimer();
+      packSessionStatus = 'inactive';
+      packOperators = [];
+      localStorage.removeItem('cnh_pack_sessionId');
+      localStorage.removeItem('cnh_pack_startTime');
+      localStorage.removeItem('cnh_pack_sessionStatus');
+      localStorage.removeItem('cnh_pack_pausedAt');
+      localStorage.removeItem('cnh_pack_totalPausedTime');
+      localStorage.removeItem('cnh_pack_operators');
+      showPackSessionUI(false);
+    }
+    
+    async function packageMotors(motors){
+      const resp = await fetch('/api/cnh_motors/package', {
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ motors })
+      });
+      const d = await resp.json();
+      if(!resp.ok || !d.success){
+        throw new Error(d.error || 'Fout bij /api/cnh_motors/package');
+      }
+    }
+    
+    /***********************************************
+     * TAB: LADEN
+     ***********************************************/
+    function initLoadTab() {
+      const savedLoadSession = localStorage.getItem('cnh_load_sessionId');
+      if (savedLoadSession) {
+        showLoadSessionUI(true);
+        loadStartTime = parseInt(localStorage.getItem('cnh_load_startTime'), 10) || Date.now();
+        startLoadTimer();
+      } else {
+        showLoadSessionUI(false);
+      }
+    }
+    
+    function showLoadSessionUI(active) {
+      document.getElementById('loadStartBtn').style.display   = active ? 'none' : 'inline-block';
+      document.getElementById('loadStopBtn').style.display    = active ? 'inline-block' : 'none';
+      document.getElementById('loadCancelBtn').style.display  = active ? 'inline-block' : 'none';
+      document.getElementById('load-timer').style.display     = active ? 'block' : 'none';
+      document.getElementById('photo-upload-area').style.display = active ? 'block' : 'none';
+      document.getElementById('operator-controls').style.display = active ? 'block' : 'none';
+      const inputs = document.querySelectorAll('#load input:not([type="file"]), #load select');
+      inputs.forEach(input => {
+        input.readOnly = active;
+        if (active) {
+          input.classList.add('bg-light');
+        } else {
+          input.classList.remove('bg-light');
+        }
+      });
+      if (active) {
+        document.getElementById('load-session-area').classList.add('session-active');
+        initOperators();
+      } else {
+        document.getElementById('load-session-area').classList.remove('session-active');
+        document.getElementById('load-timer-value').textContent = '00:00';
+        operators = [];
+        renderOperators();
+      }
+    }
+    
+    function startLoadTimer(){
+      if(loadTimerInterval) clearInterval(loadTimerInterval);
+      loadTimerInterval = setInterval(()=>{
+        const diffSec= Math.floor((Date.now()-loadStartTime)/1000);
+        const mm= String(Math.floor(diffSec/60)).padStart(2,'0');
+        const ss= String(diffSec%60).padStart(2,'0');
+        document.getElementById('load-timer-value').textContent= mm+':'+ss;
+      },1000);
+    }
+    
+    function getOperatorsTotalTime() {
+      let totalMinutes = 0;
+      operators.forEach(operator => {
+        let operatorTime = operator.totalTime;
+        if (operator.active && operator.startTime) {
+          operatorTime += (Date.now() - operator.startTime);
+        }
+        totalMinutes += Math.floor(operatorTime / 60000);
+      });
+      return totalMinutes;
+    }
+    
+    async function startLoadSession() {
+      const loadLocation = document.getElementById('loadLocation').value.trim();
+      const loadReference = document.getElementById('loadReference').value.trim();
+      const containerNumber = document.getElementById('containerNumber').value.trim();
+      if (!loadLocation || !loadReference || !containerNumber) {
+        showStatus('Vul alle verplichte velden in (Laad-locatie, Laadreferentie, Containernummer)', 'warning');
+        return;
+      }
+      const loading_persons = parseInt(document.getElementById('loadOperatorCount').value, 10) || 1;
+      try {
+        const resp = await fetch('/api/cnh_session/start_load', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            location: loadLocation,
+            loading_persons
+          })
+        });
+        if (!resp.ok) throw new Error('Fout bij start load sessie');
+        const data = await resp.json();
+        if (!data.sessionId) throw new Error('Geen sessionId ontvangen');
+    
+        localStorage.setItem('cnh_load_sessionId', data.sessionId.toString());
+        localStorage.setItem('cnh_load_startTime', Date.now().toString());
+        loadStartTime = Date.now();
+        startLoadTimer();
+        showLoadSessionUI(true);
+        showStatus('Laadsessie gestart!', 'success');
+      } catch (e) {
+        console.error(e);
+        showStatus('Fout bij begin laden: ' + e.message, 'danger');
+      }
+    }
+    
+    function initOperators() {
+      const operatorCount = parseInt(document.getElementById('loadOperatorCount').value, 10) || 1;
+      operators = [];
+      for (let i = 1; i <= operatorCount; i++) {
+        addOperator(false);
+      }
+      renderOperators();
+    }
+    
+    function addOperator(render = true) {
+      const operator = {
+        id: operatorIdCounter++,
+        name: `Operator ${operatorIdCounter - 1}`,
+        active: false,
+        startTime: null,
+        totalTime: 0,
+        intervals: []
+      };
+      operators.push(operator);
+      if (render) {
+        renderOperators();
+      }
+    }
+    
+    function renderOperators() {
+      const container = document.getElementById('operators-container');
+      container.innerHTML = '';
+      operators.forEach(operator => {
+        const timeDisplay = formatDuration(Math.floor(operator.totalTime / 60000));
+        const isActive = operator.active;
+        const operatorEl = document.createElement('div');
+        operatorEl.className = 'operator-card';
+        operatorEl.innerHTML = `
+          <div class="operator-info">
+            <div class="operator-avatar">
+              <i class="fa fa-user"></i>
+            </div>
+            <div>
+              <div class="operator-name">
+                <span class="operator-status ${isActive ? 'active' : 'inactive'}"></span>
+                ${operator.name}
+              </div>
+              <div class="operator-time">${timeDisplay}</div>
+            </div>
+          </div>
+          <div class="operator-actions">
+            ${isActive ? 
+              `<button class="btn btn-sm btn-danger stop-operator" data-id="${operator.id}">
+                <i class="fa fa-pause"></i> Pauze
+              </button>` : 
+              `<button class="btn btn-sm btn-success start-operator" data-id="${operator.id}">
+                <i class="fa fa-play"></i> Start
+              </button>`
+            }
+            <button class="btn btn-sm btn-outline-secondary remove-operator" data-id="${operator.id}">
+              <i class="fa fa-times"></i>
+            </button>
+          </div>
+        `;
+        container.appendChild(operatorEl);
+      });
+      document.querySelectorAll('.start-operator').forEach(btn => {
+        btn.addEventListener('click', () => startOperator(parseInt(btn.getAttribute('data-id'), 10)));
+      });
+      document.querySelectorAll('.stop-operator').forEach(btn => {
+        btn.addEventListener('click', () => stopOperator(parseInt(btn.getAttribute('data-id'), 10)));
+      });
+      document.querySelectorAll('.remove-operator').forEach(btn => {
+        btn.addEventListener('click', () => removeOperator(parseInt(btn.getAttribute('data-id'), 10)));
+      });
+    }
+    
+    function startOperator(operatorId) {
+      const operator = operators.find(op => op.id === operatorId);
+      if (!operator) return;
+      operator.active = true;
+      operator.startTime = Date.now();
+      const interval = setInterval(() => {
+        if (operator.active && operator.startTime) {
+          const currentTime = Date.now();
+          const sessionTime = currentTime - operator.startTime;
+          operator.totalTime = operator.totalTime + sessionTime;
+          operator.startTime = currentTime;
+          renderOperators();
+        }
+      }, 30000);
+      operator.intervals.push(interval);
+      renderOperators();
+    }
+    
+    function stopOperator(operatorId) {
+      const operator = operators.find(op => op.id === operatorId);
+      if (!operator) return;
+      operator.active = false;
+      if (operator.startTime) {
+        operator.totalTime += (Date.now() - operator.startTime);
+        operator.startTime = null;
+      }
+      operator.intervals.forEach(interval => clearInterval(interval));
+      operator.intervals = [];
+      renderOperators();
+    }
+    
+    function removeOperator(operatorId) {
+      const operatorIndex = operators.findIndex(op => op.id === operatorId);
+      if (operatorIndex === -1) return;
+      const operator = operators[operatorIndex];
+      if (operator.active) {
+        stopOperator(operatorId);
+      }
+      operators.splice(operatorIndex, 1);
+      renderOperators();
+    }
+    
+    async function stopLoadSession() {
+      const sessionId = localStorage.getItem('cnh_load_sessionId');
+      if(!sessionId){
+        showStatus('Geen lopende laadsessie?', 'warning');
+        return;
+      }
+      const loading_minutes = getOperatorsTotalTime();
+      const checks = document.querySelectorAll('.loadMotorCheck');
+      const motorIds = [];
+      checks.forEach(cb => {
+        if(cb.checked){
+          motorIds.push(parseInt(cb.getAttribute('data-id'),10));
+        }
+      });
+      if(!motorIds.length){
+        showStatus('Selecteer minstens 1 motor om te laden.', 'warning');
+        return;
+      }
+      const loading_count = motorIds.length;
+      const loading_persons = parseInt(document.getElementById('loadOperatorCount').value,10) || 1;
+      const loadRef = document.getElementById('loadReference').value.trim() || '';
+      const contNo = document.getElementById('containerNumber').value.trim() || '';
+      const truckPl = document.getElementById('truckPlate').value.trim() || '';
+      const bookingRef = document.getElementById('bookingRef').value.trim() || '';
+      const yourRef = document.getElementById('yourRef').value.trim() || '';
+      const containerTarra = parseFloat(document.getElementById('containerTarra').value) || 0;
+      try {
+        const respLoad = await fetch('/api/cnh_motors/load', {
+          method:'PUT',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({
+            motorIds,
+            loadReference:  loadRef,
+            containerNumber: contNo,
+            truckPlate: truckPl
+          })
+        });
+        const dataLoad = await respLoad.json();
+        if(!respLoad.ok || !dataLoad.success){
+          throw new Error(dataLoad.error || 'Fout bij cnh_motors/load');
+        }
+        const stopResp = await fetch('/api/cnh_session/stop_load', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({
+            sessionId: parseInt(sessionId,10),
+            loading_minutes,
+            loading_count,
+            loading_persons,
+            load_reference: loadRef,
+            container_no: contNo,
+            truck_plate: truckPl,
+            motorIds,
+            booking_ref: bookingRef,
+            your_ref: yourRef,
+            container_tarra: containerTarra
+          })
+        });
+        const stopData = await stopResp.json();
+        if(!stopResp.ok || !stopData.success){
+          throw new Error(stopData.error || 'Fout in stop_load');
+        }
+        showStatus(`Laadsessie gestopt + ${loading_count} motoren succesvol geladen!`, 'success');
+        clearInterval(loadTimerInterval);
+        loadTimerInterval = null;
+        operators.forEach(operator => {
+          operator.intervals.forEach(interval => clearInterval(interval));
+        });
+        localStorage.removeItem('cnh_load_sessionId');
+        localStorage.removeItem('cnh_load_startTime');
+        showLoadSessionUI(false);
+        fetchLoadMotors();
+        saveLastUsedLoadValues();
+      } catch(e) {
+        console.error('stopLoadSession:', e);
+        showStatus('Fout bij stopLoadSession: '+ e.message, 'danger');
+      }
+    }
+    
+    async function cancelLoadSession() {
+      const sessionId = localStorage.getItem('cnh_load_sessionId');
+      if(!sessionId){
+        showStatus('Geen lopende laadsessie om te annuleren.', 'warning');
+        return;
+      }
+      const confirmCancel = confirm('Weet je zeker dat je de laadsessie wilt annuleren?');
+      if(!confirmCancel) return;
+      try {
+        const resp = await fetch('/api/cnh_session/cancel_load', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId: parseInt(sessionId,10) })
+        });
+        const data = await resp.json();
+        if(!resp.ok || !data.success){
+          throw new Error(data.error || 'Fout bij annuleren laadsessie');
+        }
+        showStatus('Laadsessie geannuleerd!', 'info');
+        clearInterval(loadTimerInterval);
+        loadTimerInterval = null;
+        operators.forEach(operator => {
+          operator.intervals.forEach(interval => clearInterval(interval));
+        });
+        localStorage.removeItem('cnh_load_sessionId');
+        localStorage.removeItem('cnh_load_startTime');
+        showLoadSessionUI(false);
+        fetchLoadMotors();
+      } catch(e) {
+        console.error(e);
+        showStatus('Fout bij cancelLoadSession: '+ e.message, 'danger');
+      }
+    }
+    
+    function fetchLoadMotors(){
+      fetch('/api/cnh_motors?state=packaged')
+        .then(r=>r.json())
+        .then(list=> {
+          allLoadMotors = list;
+          buildLoadTable(list);
+          updateSelectedCount();
+        })
+        .catch(err=>{
+          console.error('fetchLoadMotors error:', err);
+          showStatus('Fout bij ophalen motoren: ' + err.message, 'danger');
+        });
+    }
+    
+    function buildLoadTable(motors){
+      const c = document.getElementById('load-motor-list');
+      if(!motors || !motors.length){
+        c.innerHTML = `<p>Geen motoren (state='packaged').</p>`;
+        return;
+      }
+      let html = `
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 50px;">#</th>
+              <th>MotorNr</th>
+              <th>Locatie</th>
+              <th>Verzendnota</th>
+              <th>Bodems(L/H)</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+      motors.forEach(m=>{
+        html += `
+          <tr>
+            <td style="text-align: center;">
+              <input type="checkbox" class="loadMotorCheck" data-id="${m.id}">
+            </td>
+            <td>${m.motor_nr || ''}</td>
+            <td>${m.location || 'N/A'}</td>
+            <td>${m.shipping_note || 'N/A'}</td>
+            <td>${m.bodem_low || 0} / ${m.bodem_high || 0}</td>
+          </tr>
+        `;
+      });
+      html += `</tbody></table>`;
+      c.innerHTML = html;
+    }
+    
+    function filterLoadMotors() {
+      const filterText = document.getElementById('loadMotorFilter').value.toLowerCase();
+      if (!filterText) {
+        buildLoadTable(allLoadMotors);
+        return;
+      }
+      const filtered = allLoadMotors.filter(motor => 
+        (motor.motor_nr && motor.motor_nr.toLowerCase().includes(filterText)) ||
+        (motor.shipping_note && motor.shipping_note.toLowerCase().includes(filterText))
+      );
+      buildLoadTable(filtered);
+    }
+    
+    function clearLoadFilter() {
+      document.getElementById('loadMotorFilter').value = '';
+      buildLoadTable(allLoadMotors);
+    }
+    
+    function selectAllLoadMotors() {
+      const checkboxes = document.querySelectorAll('.loadMotorCheck');
+      const someUnchecked = Array.from(checkboxes).some(cb => !cb.checked);
+      checkboxes.forEach(cb => {
+        cb.checked = someUnchecked;
+      });
+      updateSelectedCount();
+    }
+    
+    async function saveLoading() {
+      let selectedIds = [];
+      document.querySelectorAll('.loadMotorCheck').forEach(cb => {
+        if(cb.checked){
+          selectedIds.push(parseInt(cb.getAttribute('data-id'),10));
+        }
+      });
+      if(!selectedIds.length){
+        showStatus('Selecteer minstens 1 motor om te laden', 'warning');
+        return;
+      }
+      const loadReference = document.getElementById('loadReference').value.trim() || '';
+      const containerNumber = document.getElementById('containerNumber').value.trim() || '';
+      const truckPlate = document.getElementById('truckPlate').value.trim() || '';
+      if (!loadReference || !containerNumber) {
+        showStatus('Vul Laadreferentie en Containernummer in', 'warning');
+        return;
+      }
+      try {
+        const resp = await fetch('/api/cnh_motors/load', {
+          method:'PUT',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({
+            motorIds: selectedIds,
+            loadReference,
+            containerNumber,
+            truckPlate
+          })
+        });
+        const data = await resp.json();
+        if(!resp.ok || !data.success){
+          throw new Error(data.error || 'Fout bij laden');
+        }
+        showStatus(`${selectedIds.length} motoren succesvol gemarkeerd als loaded!`, 'success');
+        fetchLoadMotors();
+        saveLastUsedLoadValues();
+      } catch(e) {
+        console.error(e);
+        showStatus('Fout bij laden: '+ e.message, 'danger');
+      }
+    }
+    
+    /***********************************************
+     * UTILS - Helper Functions
+     ***********************************************/
+    function updateSelectedCount() {
+      const packChecked = document.querySelectorAll('.packMotorCheck:checked').length;
+      const packTotal = document.querySelectorAll('.packMotorCheck').length;
+      document.getElementById('packMotorCounter').textContent = `${packChecked}/${packTotal}`;
+      const loadChecked = document.querySelectorAll('.loadMotorCheck:checked').length;
+      const loadTotal = document.querySelectorAll('.loadMotorCheck').length;
+      document.getElementById('loadMotorCounter').textContent = `${loadChecked}/${loadTotal}`;
+    }
+    
+    function previewContainerPhoto(e) {
+      const file = e.target.files[0];
+      if (!file) {
+        document.getElementById('photoPreview').innerHTML = '';
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        document.getElementById('photoPreview').innerHTML = `
+          <img src="${event.target.result}" class="img-fluid rounded" style="max-height: 200px;" alt="Container preview">
+        `;
+      };
+      reader.readAsDataURL(file);
+    }
+    
+    /***********************************************
+     * FOTO (container)
+     ***********************************************/
+    async function uploadContainerPhoto() {
+      const sessionId = localStorage.getItem('cnh_load_sessionId');
+      if(!sessionId){
+        showStatus('Geen lopende laadsessie (er is geen sessionId opgeslagen).', 'warning');
+        return;
+      }
+      const fileInput = document.getElementById('containerPhoto');
+      if(!fileInput.files.length){
+        showStatus('Geen foto geselecteerd', 'warning');
+        return;
+      }
+      const formData = new FormData();
+      formData.append('sessionId', sessionId);
+      formData.append('photo', fileInput.files[0]);
+      try {
+        const resp = await fetch('/api/cnh_sessions/upload_container_photo', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await resp.json();
+        if(!resp.ok || !data.success){
+          throw new Error(data.error || 'Fout bij uploaden foto');
+        }
+        showStatus('Foto geüpload en gekoppeld aan laadsessie!', 'success');
+        fileInput.value = '';
+        document.getElementById('photoPreview').innerHTML = '';
+      } catch(e) {
+        console.error(e);
+        showStatus('Fout bij uploadContainerPhoto: '+ e.message, 'danger');
+      }
+    }
+    
+    /***********************************************
+     * E-MAIL
+     ***********************************************/
+    async function sendLoadEmail() {
+      const loadReference = document.getElementById('loadReference').value.trim();
+      const containerNumber = document.getElementById('containerNumber').value.trim();
+      const truckPlate = document.getElementById('truckPlate').value.trim();
+      if (!loadReference || !containerNumber) {
+        showStatus('Vul Laadreferentie en Containernummer in', 'warning');
+        return;
+      }
+      try {
+        const resp = await fetch('/api/send_load_email', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({
+            loadReference,
+            containerNumber,
+            truckPlate
+          })
+        });
+        const d = await resp.json();
+        if(!resp.ok || !d.success){
+          throw new Error(d.error || 'Fout bij mail');
+        }
+        showStatus('E‑mail verzonden met PDF (en evt. foto)!', 'success');
+      } catch(e) {
+        console.error('sendLoadEmail error:', e);
+        showStatus('Fout bij versturen e‑mail: '+ e.message, 'danger');
+      }
+    }
+    
+    /***********************************************
+     * TEMPLATE MANAGEMENT
+     ***********************************************/
+    // Async functie die templates ophaalt van de server, en zo nodig uit de cache valt
+    async function loadSavedTemplates() {
+      try {
+        // Verwijder eventuele verlopen cache bij het laden
+        const timestamp = new Date().getTime();
+        const response = await fetch(`/api/cnh_templates?_nocache=${timestamp}`, {
+          method: 'GET',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Server error: ${response.status}`);
+        }
+        
+        loadTemplates = await response.json();
+        console.log(`Loaded ${loadTemplates.length} templates from server:`, loadTemplates);
+        updateTemplateDropdown();
+        localStorage.setItem('cnh_load_templates_cache', JSON.stringify(loadTemplates));
+      } catch (e) {
+        console.error('Error loading templates from server:', e);
+        showStatus('Error loading templates from server. Trying offline version...', 'warning');
+        const cachedTemplates = localStorage.getItem('cnh_load_templates_cache');
+        if (cachedTemplates) {
+          try {
+            loadTemplates = JSON.parse(cachedTemplates);
+            console.log(`Loaded ${loadTemplates.length} templates from cache`);
+            updateTemplateDropdown();
+            showStatus('Templates loaded from offline cache', 'info');
+          } catch (cacheErr) {
+            console.error('Error parsing cached templates:', cacheErr);
+            loadTemplates = [];
+          }
+        } else {
+          loadTemplates = [];
+        }
+      }
+    }
+    
+    function updateTemplateDropdown() {
+      const select = document.getElementById('loadTemplateSelect');
+      if (!select) {
+        console.error('loadTemplateSelect element not found');
+        return;
+      }
+      // Verwijder alle opties behalve de placeholder
+      while (select.options.length > 1) {
+        select.remove(1);
+      }
+      
+      if (loadTemplates && loadTemplates.length > 0) {
+        loadTemplates.forEach(template => {
+          const option = document.createElement('option');
+          option.value = template.id; // Gebruik de server-ID
+          option.textContent = template.name || 'Template ' + template.id;
+          option.setAttribute('data-template-name', template.name || 'Template ' + template.id);
+          select.appendChild(option);
+        });
+      }
+      
+      // Update ook de template lijst
+      updateTemplatesList();
+    }
+    
+    function updateTemplatesList() {
+      const listContainer = document.getElementById('templatesList');
+      if (!listContainer) return;
+      
+      // Maak de lijst leeg
+      listContainer.innerHTML = '';
+      
+      if (!loadTemplates || loadTemplates.length === 0) {
+        listContainer.innerHTML = '<div class="text-muted p-2">Geen templates beschikbaar</div>';
+        return;
+      }
+      
+      // Voor elke template, voeg een item toe aan de lijst met een verwijderknop
+      loadTemplates.forEach(template => {
+        const templateItem = document.createElement('div');
+        templateItem.className = 'list-group-item d-flex justify-content-between align-items-center';
+        
+        const templateId = template.id;
+        const templateName = template.name || 'Template ' + templateId;
+        
+        templateItem.innerHTML = `
+          <div>
+            <strong>${templateName}</strong>
+            <small class="d-block text-muted">${template.loadLocation || ''}</small>
+          </div>
+          <div class="template-actions">
+            <button class="btn btn-sm btn-outline-primary apply-template-btn" data-id="${templateId}" title="Toepassen">
+              <i class="fa fa-check-circle"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger delete-template-btn" data-id="${templateId}" data-name="${templateName}" title="Verwijderen">
+              <i class="fa fa-trash"></i>
+            </button>
+          </div>
+        `;
+        
+        listContainer.appendChild(templateItem);
+        
+        // Event listeners toevoegen voor de knoppen
+        const applyBtn = templateItem.querySelector('.apply-template-btn');
+        const deleteBtn = templateItem.querySelector('.delete-template-btn');
+        
+        applyBtn.addEventListener('click', () => {
+          const select = document.getElementById('loadTemplateSelect');
+          if (select) {
+            select.value = templateId;
+            applyLoadTemplate();
+          }
+        });
+        
+        deleteBtn.addEventListener('click', () => {
+          deleteTemplate(templateId, templateName);
+        });
+      });
+    }
+    
+    async function deleteTemplate(templateId, templateName) {
+      if (!templateId) return;
+      
+      console.log(`=========== DELETE TEMPLATE DEBUG ===========`);
+      console.log(`Verwijdering aangevraagd voor template ID=${templateId}, Naam=${templateName}`);
+      console.log(`Alle huidige templates:`, loadTemplates);
+      console.log(`=========== END DEBUG INFO ===========`);
+      
+      if (!confirm(`Weet je zeker dat je de template "${templateName}" wilt verwijderen?`)) {
+        return;
+      }
+      
+      try {
+        showStatus(`Template "${templateName}" wordt verwijderd...`, 'info');
+        
+        // Voeg een timestamp en andere parameters toe om caching te voorkomen
+        const timestamp = new Date().getTime();
+        const response = await fetch(`/api/cnh_templates/${templateId}?_nocache=${timestamp}&force=true`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          }
+        });
+        
+        console.log(`DELETE response status:`, response.status);
+        
+        if (!response.ok) {
+          throw new Error(`Server error: ${response.status}`);
+        }
+        
+        // Lees de response eerst als tekst voor debugging
+        const responseText = await response.text();
+        console.log(`DELETE response text:`, responseText);
+        
+        let result;
+        try {
+          result = JSON.parse(responseText);
+        } catch (e) {
+          console.error(`Kon response niet als JSON parsen:`, e);
+          throw new Error(`Ongeldige server response`);
+        }
+        
+        console.log(`Parsed DELETE response:`, result);
+        
+        if (result && result.success) {
+          console.log(`Server meldt succesvolle verwijdering`);
+          
+          // De meest directe oplossing voor caching problemen: forceer een pagina refresh
+          showStatus(`Template "${templateName}" verwijderd. Pagina wordt vernieuwd...`, 'success');
+          
+          // Verwijder alle caches
+          localStorage.removeItem('cnh_load_templates_cache');
+          
+          // Wacht even en vernieuw de pagina volledig
+          setTimeout(() => {
+            console.log(`Pagina wordt vernieuwd om wijzigingen toe te passen`);
+            window.location.reload();
+          }, 1500);
+        } else {
+          throw new Error(result && result.error ? result.error : 'Onbekende fout bij verwijderen');
+        }
+      } catch (e) {
+        console.error('Error deleting template:', e);
+        showStatus(`Fout bij verwijderen template: ${e.message}`, 'danger');
+      }
+    }
+    
+    function applyLoadTemplate() {
+      const select = document.getElementById('loadTemplateSelect');
+      if (!select) return;
+      const templateId = select.value;
+      if (!templateId || !loadTemplates || loadTemplates.length === 0) return;
+      const template = loadTemplates.find(t => String(t.id) === String(templateId));
+      if (!template) {
+        console.error(`Template met ID ${templateId} niet gevonden`);
+        return;
+      }
+      fillLoadFormFromTemplate(template);
+    }
+    
+    function loadSavedQuickSettings() {
+      const savedSettings = localStorage.getItem('cnh_quick_load_settings');
+      if (savedSettings) {
+        try {
+          const settings = JSON.parse(savedSettings);
+          if (settings.loadReference) document.getElementById('loadReference').value = settings.loadReference;
+          if (settings.truckPlate) document.getElementById('truckPlate').value = settings.truckPlate;
+          if (settings.loadLocation) document.getElementById('loadLocation').value = settings.loadLocation;
+          showStatus('Laad instellingen geladen van dashboard', 'info');
+        } catch (e) {
+          console.error('Error loading quick settings:', e);
+        }
+      }
+      const activeTemplate = localStorage.getItem('cnh_load_active_template');
+      if (activeTemplate) {
+        try {
+          const template = JSON.parse(activeTemplate);
+          fillLoadFormFromTemplate(template);
+          localStorage.removeItem('cnh_load_active_template');
+        } catch (e) {
+          console.error('Error loading active template:', e);
+        }
+      }
+    }
+    
+    function fillLoadFormFromTemplate(template) {
+      if (!template) return;
+      const loadLocationEl = document.getElementById('loadLocation');
+      const loadReferenceEl = document.getElementById('loadReference');
+      const truckPlateEl = document.getElementById('truckPlate');
+      const containerNumberEl = document.getElementById('containerNumber');
+      const bookingRefEl = document.getElementById('bookingRef');
+      const yourRefEl = document.getElementById('yourRef');
+      const containerTarraEl = document.getElementById('containerTarra');
+      if (loadLocationEl && template.loadLocation) loadLocationEl.value = template.loadLocation;
+      if (loadReferenceEl && template.loadReference) loadReferenceEl.value = template.loadReference;
+      if (truckPlateEl && template.truckPlate) truckPlateEl.value = template.truckPlate;
+      if (containerNumberEl && template.containerNumber) containerNumberEl.value = template.containerNumber;
+      if (bookingRefEl && template.bookingRef) bookingRefEl.value = template.bookingRef;
+      if (yourRefEl && template.yourRef) yourRefEl.value = template.yourRef;
+      if (containerTarraEl && template.containerTarra) containerTarraEl.value = template.containerTarra;
+      showStatus(`Template "${template.name || 'Onbekend'}" toegepast`, 'success');
+    }
+    
+    function showSaveTemplateModal() {
+      const templateNameEl = document.getElementById('templateName');
+      if (templateNameEl) templateNameEl.value = '';
+      if (saveTemplateModal) {
+        saveTemplateModal.show();
+      } else {
+        console.error('saveTemplateModal is not initialized');
+      }
+    }
+    
+    function saveLoadTemplate() {
+      const templateNameEl = document.getElementById('templateName');
+      if (!templateNameEl) {
+        console.error('templateName element not found');
+        return;
+      }
+      const templateName = templateNameEl.value.trim();
+      if (!templateName) {
+        showStatus('Geef een naam voor de template', 'warning');
+        return;
+      }
+      const loadLocationEl = document.getElementById('loadLocation');
+      const loadReferenceEl = document.getElementById('loadReference');
+      const containerNumberEl = document.getElementById('containerNumber');
+      const truckPlateEl = document.getElementById('truckPlate');
+      const bookingRefEl = document.getElementById('bookingRef');
+      const yourRefEl = document.getElementById('yourRef');
+      const containerTarraEl = document.getElementById('containerTarra');
+      const templateData = {
+        name: templateName,
+        loadLocation: loadLocationEl ? loadLocationEl.value.trim() : '',
+        loadReference: loadReferenceEl ? loadReferenceEl.value.trim() : '',
+        containerNumber: containerNumberEl ? containerNumberEl.value.trim() : '',
+        truckPlate: truckPlateEl ? truckPlateEl.value.trim() : '',
+        bookingRef: bookingRefEl ? bookingRefEl.value.trim() : '',
+        yourRef: yourRefEl ? yourRefEl.value.trim() : '',
+        containerTarra: containerTarraEl ? containerTarraEl.value : ''
+      };
+      if (!loadTemplates) loadTemplates = [];
+      loadTemplates.push(templateData);
+      try {
+        localStorage.setItem('cnh_load_templates', JSON.stringify(loadTemplates));
+      } catch (e) {
+        console.error('Error saving templates to localStorage:', e);
+        showStatus('Fout bij opslaan template', 'danger');
+        return;
+      }
+      updateTemplateDropdown();
+      if (saveTemplateModal) {
+        saveTemplateModal.hide();
+      }
+      showStatus(`Template "${templateName}" opgeslagen`, 'success');
+    }
+    
+    function applyQuickSelect(target) {
+      if (target === 'Laatste') {
+        const lastUsed = localStorage.getItem('cnh_load_last_used');
+        if (lastUsed) {
+          try {
+            fillLoadFormFromTemplate(JSON.parse(lastUsed));
+          } catch (e) {
+            console.error('Error parsing last used values:', e);
+            showStatus('Fout bij laden laatste waarden', 'warning');
+          }
+        } else {
+          showStatus('Geen laatst gebruikte waarden beschikbaar', 'info');
+        }
+        return;
+      }
+      const locationTemplate = loadTemplates && loadTemplates.length > 0 ? 
+        loadTemplates.find(t => t.loadLocation === target) : null;
+      if (locationTemplate) {
+        fillLoadFormFromTemplate(locationTemplate);
+      } else {
+        const loadLocationEl = document.getElementById('loadLocation');
+        if (loadLocationEl) {
+          loadLocationEl.value = target;
+          showStatus(`Locatie ingesteld op "${target}"`, 'info');
+        }
+      }
+    }
+    
+    function saveLastUsedLoadValues() {
+      const loadLocationEl = document.getElementById('loadLocation');
+      const loadReferenceEl = document.getElementById('loadReference');
+      const containerNumberEl = document.getElementById('containerNumber');
+      const truckPlateEl = document.getElementById('truckPlate');
+      const bookingRefEl = document.getElementById('bookingRef');
+      const yourRefEl = document.getElementById('yourRef');
+      const containerTarraEl = document.getElementById('containerTarra');
+      const lastUsed = {
+        name: 'Laatst gebruikt',
+        loadLocation: loadLocationEl ? loadLocationEl.value.trim() : '',
+        loadReference: loadReferenceEl ? loadReferenceEl.value.trim() : '',
+        containerNumber: containerNumberEl ? containerNumberEl.value.trim() : '',
+        truckPlate: truckPlateEl ? truckPlateEl.value.trim() : '',
+        bookingRef: bookingRefEl ? bookingRefEl.value.trim() : '',
+        yourRef: yourRefEl ? yourRefEl.value.trim() : '',
+        containerTarra: containerTarraEl ? containerTarraEl.value : ''
+      };
+      try {
+        localStorage.setItem('cnh_load_last_used', JSON.stringify(lastUsed));
+      } catch (e) {
+        console.error('Error saving last used values:', e);
+      }
+    }
+    
+    /***********************************************
+     * DOCUMENT READY & EVENT HANDLERS
+     ***********************************************/
+    $(document).ready(function() {
+      // Initialize Bootstrap components
+      saveTemplateModal = new bootstrap.Modal(document.getElementById('saveTemplateModal'));
+      
+      // Inkomend
+      document.getElementById('saveIncomingBtn').addEventListener('click', saveIncomingMotors);
+      document.getElementById('addMotorBtn').addEventListener('click', addIncomingRow);
+      document.getElementById('scanShippingNote').addEventListener('click', simulateScan);
+    
+      // Verpakken
+      document.getElementById('packStartBtn').addEventListener('click', startPackSession);
+      document.getElementById('packPauseBtn').addEventListener('click', pausePackSession);
+      document.getElementById('packResumeBtn').addEventListener('click', resumePackSession);
+      document.getElementById('packStopBtn').addEventListener('click', stopPackSession);
+      document.getElementById('packMotorFilter').addEventListener('input', filterPackMotors);
+      document.getElementById('clearPackFilter').addEventListener('click', clearPackFilter);
+      document.getElementById('packSelectedBtn').addEventListener('click', finishPackaging);
+      document.getElementById('addPackOperatorBtn').addEventListener('click', () => addPackOperator(true));
+    
+      // Laden - Templates
+      document.getElementById('applyTemplateBtn').addEventListener('click', applyLoadTemplate);
+      document.getElementById('saveAsTemplateBtn').addEventListener('click', showSaveTemplateModal);
+      document.getElementById('confirmSaveTemplate').addEventListener('click', saveLoadTemplate);
+      
+      // Quick select buttons
+      document.querySelectorAll('.quick-select-btn').forEach(btn => {
+        btn.addEventListener('click', () => applyQuickSelect(btn.getAttribute('data-target')));
+      });
+    
+      // Scan buttons
+      document.getElementById('scanLoadRef').addEventListener('click', simulateScan);
+      document.getElementById('scanContainerNum').addEventListener('click', simulateScan);
+    
+      // Laden - Session
+      document.getElementById('loadStartBtn').addEventListener('click', startLoadSession);
+      document.getElementById('loadStopBtn').addEventListener('click', stopLoadSession);
+      document.getElementById('loadCancelBtn').addEventListener('click', cancelLoadSession);
+      document.getElementById('uploadPhotoBtn').addEventListener('click', uploadContainerPhoto);
+      document.getElementById('addOperatorBtn').addEventListener('click', addOperator);
+      
+      // Laden - Motors
+      document.getElementById('loadMotorFilter').addEventListener('input', filterLoadMotors);
+      document.getElementById('clearLoadFilter').addEventListener('click', clearLoadFilter);
+      document.getElementById('selectAllLoadMotors').addEventListener('click', selectAllLoadMotors);
+      document.getElementById('saveLoadBtn').addEventListener('click', saveLoading);
+      document.getElementById('sendLoadEmailBtn').addEventListener('click', sendLoadEmail);
+    
+      // Init
+      initIncoming();
+      initPackTab();
+      initLoadTab();
+      fetchPackMotors();
+      fetchLoadMotors();
+      loadSavedTemplates();
+      loadSavedQuickSettings();
+      
+      // Event listeners voor checkboxes
+      document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('loadMotorCheck') || 
+            e.target.classList.contains('packMotorCheck')) {
+          updateSelectedCount();
+        }
+      });
+      
+      // Tab change handlers
+      const tabs = document.querySelectorAll('[data-bs-toggle="tab"]');
+      tabs.forEach(tab => {
+        tab.addEventListener('shown.bs.tab', function(e) {
+          updateSelectedCount();
+        });
+      });
+      
+      // Container photo preview
+      document.getElementById('containerPhoto').addEventListener('change', previewContainerPhoto);
+    
+      // Visibility change event voor timers
+      document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') {
+          if (packSessionStatus === 'active' && packOperators.some(op => op.status === 'active')) {
+            startPackOperatorTimer();
+            renderPackOperators();
+          }
+        } else {
+          stopPackOperatorTimer();
+        }
+      });
+    });
+  </script>
+</body>
+</html>

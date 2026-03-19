@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Stock Management - C-Kisten</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.2.1/flowbite.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+    <style>
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        .status-good { background-color: #22c55e; }
+        .status-warning { background-color: #f59e0b; }
+        .status-critical { background-color: #ef4444; }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <!-- Nav Header -->
+    <nav class="bg-white border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <h1 class="text-xl font-bold text-gray-800">Stock Management - C-Kisten</h1>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Dashboard Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-white rounded-lg shadow p-6">
+                <p class="text-sm font-medium text-gray-500">Total Stock</p>
+                <p class="text-2xl font-bold" id="total-stock">0</p>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <p class="text-sm font-medium text-gray-500">Low Stock Alerts</p>
+                <p class="text-2xl font-bold text-red-600" id="low-stock-count">0</p>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <p class="text-sm font-medium text-gray-500">Monthly Usage</p>
+                <p class="text-2xl font-bold text-green-600" id="monthly-usage">0</p>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <p class="text-sm font-medium text-gray-500">Reorder Needed</p>
+                <p class="text-2xl font-bold text-purple-600" id="reorder-count">0</p>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex gap-4 mb-6">
+            <button id="add-stock-btn" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                Add New Stock
+            </button>
+            <button id="reorder-btn" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+                Generate Reorder List
+            </button>
+            <button id="export-btn" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
+                Export Stock Report
+            </button>
+            <button id="locations-btn" class="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700">
+                Manage Locations
+            </button>
+        </div>
+
+        <!-- Filters -->
+        <div class="flex items-center mb-4 gap-4">
+            <input type="text" id="stock-search" placeholder="Search..." class="px-4 py-2 border rounded-lg" />
+            <select id="location-filter" class="px-4 py-2 border rounded-lg">
+                <option value="all">All Locations</option>
+            </select>
+        </div>
+
+        <!-- Main Stock Table -->
+        <div class="bg-white rounded-lg shadow overflow-hidden mb-8">
+            <div class="p-4">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">Current Stock Levels (C-Kisten)</h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kistnummer</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ERP Code</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Stock</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Minimum Stock</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stock-table-body" class="bg-white divide-y divide-gray-200"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Stock Modal -->
+    <div id="add-stock-modal" class="hidden fixed top-0 left-0 right-0 bottom-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div class="relative w-full max-w-md bg-white rounded-lg shadow p-6">
+            <h3 class="text-xl font-bold mb-4">Add Stock (C-Kist)</h3>
+            <form id="add-stock-form">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700">Kistnummer</label>
+                    <input type="text" id="kistnummer-input" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"/>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700">ERP Code</label>
+                    <input type="text" id="erp-code-input" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"/>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700">Quantity</label>
+                    <input type="number" id="quantity-input" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"/>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700">Location</label>
+                    <select id="location-input" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                        <option value="">Select Location</option>
+                    </select>
+                </div>
+                <div class="flex justify-end gap-4">
+                    <button type="button" class="bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300" onclick="closeAddStockModal()">Cancel</button>
+                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Add Stock</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Reorder Modal -->
+    <div id="reorder-modal" class="hidden fixed top-0 left-0 right-0 bottom-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div class="relative w-full max-w-4xl bg-white rounded-lg shadow p-6">
+            <h3 class="text-xl font-bold mb-4">Select Items to Reorder</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Genk Table -->
+                <div>
+                    <h4 class="font-bold mb-2">Genk</h4>
+                    <div class="overflow-x-auto border p-2">
+                        <table class="min-w-full">
+                            <thead>
+                                <tr class="bg-gray-50">
+                                    <th class="p-2"></th>
+                                    <th class="p-2">Kistnummer</th>
+                                    <th class="p-2">ERP Code</th>
+                                    <th class="p-2">Line #</th>
+                                    <th class="p-2">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reorder-genk-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Wilrijk Table -->
+                <div>
+                    <h4 class="font-bold mb-2">Wilrijk</h4>
+                    <div class="overflow-x-auto border p-2">
+                        <table class="min-w-full">
+                            <thead>
+                                <tr class="bg-gray-50">
+                                    <th class="p-2"></th>
+                                    <th class="p-2">Kistnummer</th>
+                                    <th class="p-2">ERP Code</th>
+                                    <th class="p-2">Line #</th>
+                                    <th class="p-2">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reorder-wilrijk-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end gap-4 mt-4">
+                <button onclick="closeReorderModal()" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Cancel</button>
+                <button onclick="submitReorderModal()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Submit</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Location Management Modal -->
+    <div id="location-modal" class="hidden fixed top-0 left-0 right-0 bottom-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div class="bg-white p-6 rounded shadow max-w-lg w-full">
+            <h3 class="text-xl font-bold mb-4">Manage Locations</h3>
+            <form id="location-form" class="mb-4">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700">Location Name</label>
+                    <input type="text" id="location-name-input" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"/>
+                </div>
+                <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Add Location</button>
+            </form>
+            <div id="locations-list"></div>
+            <div class="flex justify-end mt-4">
+                <button class="bg-gray-200 px-4 py-2 rounded hover:bg-gray-300" onclick="closeLocationModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.2.1/flowbite.min.js"></script>
+    <script src="/js/c-kisten-management.js"></script>
+</body>
+</html>

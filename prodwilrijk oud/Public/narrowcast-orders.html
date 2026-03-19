@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Productie Volgorde</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 32px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 24px;
+    }
+    header h1 {
+      font-size: 3rem;
+      margin: 0;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+    }
+    header .meta {
+      text-align: right;
+      font-size: 0.9rem;
+      color: #94a3b8;
+    }
+    #orders-container {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      flex: 1;
+    }
+    .order-card {
+      background: linear-gradient(145deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.9));
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 20px 35px -20px rgba(15, 23, 42, 0.9);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 260px;
+    }
+    .order-card.primary {
+      border-color: rgba(59, 130, 246, 0.5);
+      background: linear-gradient(145deg, rgba(30, 64, 175, 0.85), rgba(17, 24, 39, 0.9));
+    }
+    .order-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .sequence-badge {
+      background: rgba(59, 130, 246, 0.2);
+      color: #60a5fa;
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      border-radius: 12px;
+      padding: 4px 10px;
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+    .priority-badge {
+      background: rgba(234, 179, 8, 0.2);
+      color: #facc15;
+      border: 1px solid rgba(250, 204, 21, 0.4);
+      border-radius: 12px;
+      padding: 4px 10px;
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+    .status {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: #0ea5e9;
+    }
+    .customer {
+      font-size: 1.6rem;
+      font-weight: 600;
+      color: #f8fafc;
+      margin: 0;
+    }
+    .description {
+      color: #cbd5f5;
+      font-size: 1rem;
+      line-height: 1.4;
+      flex: 1;
+    }
+    .meta-line {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.95rem;
+      color: #94a3b8;
+    }
+    .locations {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .location-pill {
+      background: rgba(156, 163, 175, 0.2);
+      color: #e2e8f0;
+      border-radius: 999px;
+      padding: 4px 12px;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+    footer {
+      margin-top: 24px;
+      text-align: center;
+      color: #64748b;
+      font-size: 0.85rem;
+    }
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 64px;
+      border: 1px dashed rgba(148, 163, 184, 0.4);
+      border-radius: 16px;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Productie Volgorde</h1>
+      <div class="locations" id="active-location"></div>
+    </div>
+    <div class="meta">
+      <div>Laatste update: <span id="last-update">-</span></div>
+      <div>Bron: /api/narrowcast/production-orders</div>
+    </div>
+  </header>
+
+  <main id="orders-container">
+    <div class="empty-state" id="empty-state">
+      <div style="font-size: 1.4rem; font-weight: 600;">Geen productieorders gevonden</div>
+      <div>Controleer de filters of voeg productieorders toe in het admin paneel.</div>
+    </div>
+  </main>
+
+  <footer>
+    Narrowcast productieoverzicht &middot; vernieuwt automatisch en luistert naar realtime updates.
+  </footer>
+
+  <script src="narrowcast-orders.js"></script>
+</body>
+</html>

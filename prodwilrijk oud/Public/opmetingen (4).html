@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Opmetingen</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="scripts_opmetingen.js" defer></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            width: 90%;
+            margin: auto;
+        }
+        .measurement-item {
+            border: 1px solid black;
+            margin-bottom: 20px;
+            padding: 10px;
+            page-break-inside: avoid;
+        }
+        .measurement-item h3 {
+            margin: 0;
+            font-size: 1.2em;
+            text-align: center;
+        }
+        .measurement-item div {
+            margin-bottom: 5px;
+        }
+        .measurement-item span {
+            display: inline-block;
+            width: 150px;
+        }
+        .measurement-item table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .measurement-item th, .measurement-item td {
+            border: 1px solid black;
+            padding: 5px;
+            text-align: left;
+        }
+        .measurement-item .item-number {
+            font-weight: bold;
+        }
+        .page-header {
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            padding: 10px 0;
+        }
+        .print-section {
+            page-break-after: always;
+        }
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            .print-section, .print-section * {
+                visibility: visible;
+            }
+            .print-section {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+            }
+            .measurement-item {
+                page-break-inside: avoid;
+                margin: 10px 0;
+            }
+            .container {
+                margin-top: 0;
+                width: 100%;
+                padding: 0;
+            }
+            .page-header {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                margin: 0;
+                padding: 10px 0;
+                text-align: center;
+                font-size: 18px;
+                font-weight: bold;
+            }
+        }
+        /* Styles for the modal form */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgb(0,0,0);
+            background-color: rgba(0,0,0,0.4);
+            padding-top: 60px;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .kit-table input, .kit-table select {
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .modal-title {
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        .kit-header {
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        
+        /* Style the navigation bar */
+        .navbar {
+            overflow: hidden;
+            background-color: #333;
+        }
+
+        /* Style the navigation bar links */
+        .navbar a {
+            float: left;
+            display: block;
+            color: #f2f2f2;
+            text-align: center;
+            padding: 14px 16px;
+            text-decoration: none;
+        }
+
+        /* Add a color to the active/current link */
+        .navbar a:hover {
+            background-color: #ddd;
+            color: black;
+        }
+
+        /* Style the dropdown container (hidden by default) */
+        .dropdown {
+            float: left;
+            overflow: hidden;
+        }
+
+        /* Style the dropdown button to fit inside the navbar */
+        .dropdown .dropbtn {
+            font-size: 16px;
+            border: none;
+            outline: none;
+            color: white;
+            padding: 14px 16px;
+            background-color: inherit;
+            font-family: inherit;
+            margin: 0;
+        }
+
+        /* Style the dropdown content (hidden by default) */
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: #f9f9f9;
+            min-width: 160px;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 1;
+        }
+
+        /* Style the links inside the dropdown */
+        .dropdown-content a {
+            float: none;
+            color: black;
+            padding: 12px 16px;
+            text-decoration: none;
+            display: block;
+            text-align: left;
+        }
+
+        /* Add a grey background color to dropdown links on hover */
+        .dropdown-content a:hover {
+            background-color: #ddd;
+        }
+
+        /* Show the dropdown menu on hover */
+        .dropdown:hover .dropdown-content {
+            display: block;
+        }
+
+        /* Media Queries for Responsive Design */
+        @media (max-width: 768px) {
+            .navbar a, .dropdown .dropbtn {
+                float: none;
+                display: block;
+                text-align: left;
+                width: 100%;
+            }
+
+            .navbar a:hover, .dropdown:hover .dropbtn {
+                background-color: #ddd;
+                color: black;
+            }
+
+            .dropdown-content {
+                position: relative;
+                background-color: #333;
+            }
+
+            .dropdown-content a {
+                background-color: #333;
+                color: white;
+            }
+
+            .dropdown-content a:hover {
+                background-color: #ddd;
+                color: black;
+            }
+
+            .navbar {
+                text-align: left;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .navbar a, .dropdown .dropbtn {
+                padding: 12px;
+            }
+
+            .dropdown-content a {
+                padding: 10px 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <a href="/">Home</a>
+        <div class="dropdown">
+            <button class="dropbtn">Prepack 
+                <i class="fa fa-caret-down"></i>
+            </button>
+            <div class="dropdown-content">
+                <a href="/Prepack">Insert Prepack</a>
+                <a href="/view_prepack">View Prepack</a>
+                <a href="/items_bij_foresco">Items bij Foresco</a>
+                <a href="/items_to_pack">Items to Pack</a>
+                <a href="/packed_items">Packed Items</a>
+                <a href="/problemen">problemen</a>
+                <a href="/opmetingen.html">opmetingen</a>
+            </div>
+        </div> 
+        <div class="dropdown">
+            <button class="dropbtn">Airtec 
+                <i class="fa fa-caret-down"></i>
+            </button>
+            <div class="dropdown-content">
+                <a href="/airtec.html">Insert Airtec</a>
+                <a href="/view_airtec.html">View Airtec</a>
+                <a href="/items_to_pack_airtec.html">Items to pack Airtec</a>
+                <a href="/packed_items_airtec.html">Packed items airtec</a>
+            </div>
+        </div>
+        <div class="dropdown">
+            <button class="dropbtn">Zagen 
+                <i class="fa fa-caret-down"></i>
+            </button>
+            <div class="dropdown-content">
+                <a href="zagerij.html">Zagerij Werkorders</a>
+                <a href="zagerij_afgewerkt.html">Zagerij Afgewerkte Werkorders</a>
+            </div>
+        </div>
+        <div class="dropdown">
+            <button class="dropbtn">Assemblage 
+                <i class="fa fa-caret-down"></i>
+            </button>
+            <div class="dropdown-content">
+                <a href="assemblage.html">Assemblage Werkorders</a>
+                <a href="assemblage_afgewerkt.html">Assemblage Afgewerkte Werkorders</a>
+            </div>
+        </div>
+        <div class="dropdown">
+            <button class="dropbtn">Admin 
+                <i class="fa fa-caret-down"></i>
+            </button>
+            <div class="dropdown-content">
+                <a href="admin_workorders.html">Admin Werkorders</a>
+                <a href="admin_afgewerkt.html">Admin Afgewerkte Werkorders</a>
+                <a href="admin_stock.html">Admin stock airtec</a>
+            </div>
+        </div>
+        <a href="/cnh">CNH</a>
+    </div>
+    <div class="container">
+        <h1>Opmetingen</h1>
+        <form id="measurement-form">
+            <label for="item-number">Itemnummer:</label>
+            <input type="text" id="item-number" required>
+            <label for="item-quantity">Aantal:</label>
+            <input type="number" id="item-quantity" required>
+            <button type="submit">Toevoegen</button>
+        </form>
+        <button id="kit-button">KIT</button>
+        <div id="print-section" class="print-section">
+            <div class="page-header">
+                OPMETEN <span id="current-date"></span>
+            </div>
+            <h2>Overzicht</h2>
+            <div id="measurement-overview">
+                <!-- Ingevoerde gegevens komen hier -->
+            </div>
+        </div>
+        <button onclick="printSection()">Afdrukken</button>
+    </div>
+
+    <!-- The Modal -->
+     <div id="kitModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <div class="modal-title">Opmeting Prototype KIT</div>
+            <form id="kit-form">
+                <table class="kit-table">
+                    <thead>
+                        <tr>
+                            <th>Datum</th>
+                            <th>Stuknr AC</th>
+                            <th>Stuknr Foresco</th>
+                            <th>Kisttype</th>
+                            <th>Binnenafmetingen (L x B x H) mm</th>
+                            <th>Buitenafmetingen (L x B x H) mm</th>
+                            <th>Tarra (kg)</th>
+                            <th>Netto (kg)</th>
+                            <th>Prijs (€)</th>
+                            <th>Opmerking</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><input type="date" id="datum" required></td>
+                            <td><input type="text" id="stuknr-ac" required></td>
+                            <td><input type="text" id="stuknr-foresco" required></td>
+                            <td>
+                                <select id="kisttype" required>
+                                    <option value="MPX">MPX</option>
+                                    <option value="OSB">OSB</option>
+                                    <option value="HDB">HDB</option>
+                                    <option value="Duimse kist">Duimse kist</option>
+                                </select>
+                            </td>
+                            <td>
+                                <input type="number" id="binnenafmetingen-l" placeholder="L" required step="0.01"><br>
+                                <input type="number" id="binnenafmetingen-b" placeholder="B" required step="0.01"><br>
+                                <input type="number" id="binnenafmetingen-h" placeholder="H" required step="0.01">
+                            </td>
+                            <td>
+                                <input type="number" id="buitenafmetingen-l" placeholder="L" required readonly step="0.01"><br>
+                                <input type="number" id="buitenafmetingen-b" placeholder="B" required readonly step="0.01"><br>
+                                <input type="number" id="buitenafmetingen-h" placeholder="H" required readonly step="0.01">
+                            </td>
+                            <td><input type="text" id="tarra" required></td>
+                            <td><input type="text" id="netto" required></td>
+                            <td><input type="text" id="prijs" required></td>
+                            <td><input type="text" id="opmerking" required></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <button type="submit">Toevoegen</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

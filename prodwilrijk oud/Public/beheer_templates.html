@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beheer Checklist Templates</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="header-placeholder"></div>
+
+    <div class="container">
+        <main>
+            <div class="dashboard-section">
+                <h2><i class="fas fa-list-alt"></i> Template Beheer</h2>
+                <div class="mb-3">
+                    <button type="button" id="showAddTemplateModalBtn" class="btn btn-primary"><i class="fas fa-plus me-2"></i>Nieuwe Template Toevoegen</button>
+                </div>
+                <input type="text" id="filterTemplates" placeholder="Filter op naam, afdeling..." class="form-control mb-3">
+            </div>
+
+            <div class="dashboard-section">
+                <h3><i class="fas fa-table"></i> Bestaande Templates</h3>
+                <div class="table-responsive-wrapper">
+                    <div id="templatesContainer">
+                        <p>Bezig met laden van templates...</p>
+                        <table class="templates-table table table-striped table-hover" id="templatesTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Naam</th>
+                                    <th>Afdeling</th>
+                                    <th>Aantal Vragen</th>
+                                    <th>Laatst Gewijzigd</th>
+                                    <th>Acties</th>
+                                </tr>
+                            </thead>
+                            <tbody id="templatesTableBody">
+                                <!-- Rijen worden hier dynamisch ingevoegd -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="errorMessageTemplates" class="message error" style="display:none;"></div>
+            </div>
+        </main>
+
+        <footer>
+            <p>&copy; <span id="currentYear"></span> Foresco</p>
+        </footer>
+    </div>
+
+    <!-- Modal voor Template Toevoegen/Bewerken (voorbeeld structuur) -->
+    <div id="addEditTemplateModal" class="modal" tabindex="-1">
+        <div class="modal-dialog modal-lg"> <!-- modal-lg voor meer ruimte -->
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title" id="templateModalTitle">Nieuwe Template Toevoegen</h2>
+                    <button type="button" class="btn-close close-button" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="templateForm">
+                        <input type="hidden" id="templateId">
+                        <div class="mb-3">
+                            <label for="templateNaam" class="form-label">Naam Template</label>
+                            <input type="text" class="form-control" id="templateNaam" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="templateAfdeling" class="form-label">Afdeling</label>
+                            <input type="text" class="form-control" id="templateAfdeling">
+                        </div>
+                        
+                        <!-- NIEUW: Template Beschrijving -->
+                        <div class="mb-3">
+                            <label for="templateBeschrijving" class="form-label">Beschrijving (optioneel)</label>
+                            <textarea class="form-control" id="templateBeschrijving" rows="2"></textarea>
+                        </div>
+
+                        <!-- NIEUW: Template Actief status -->
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="templateIsActief" checked>
+                            <label class="form-check-label" for="templateIsActief">
+                                Template is Actief
+                            </label>
+                        </div>
+                        
+                        <h4>Checklist Vragen</h4>
+                        <div id="vragenContainer">
+                            <!-- NIEUW: Bericht als er geen vragen zijn -->
+                            <p id="noItemsMessage" class="text-muted" style="display:none;">Nog geen vragen toegevoegd.</p>
+                            <!-- Vragen worden hier dynamisch toegevoegd -->
+                        </div>
+                        <button type="button" id="addVraagBtn" class="btn btn-outline-secondary btn-sm mt-2 mb-3"><i class="fas fa-plus me-1"></i>Vraag Toevoegen</button>
+                        
+                        <!-- Voorbeeld van hoe een vraag eruit kan zien (voor JS referentie) -->
+                        <div class="checklist-vraag-item p-2 border rounded mb-2 mt-2" style="display:none;" id="vraagTemplateVoorbeeld">
+                            <div class="mb-2">
+                                <label class="form-label fw-bold">Vraagtekst</label>
+                                <input type="text" class="form-control form-control-sm vraag-tekst" placeholder="bv. Is het product correct gelabeld?">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Type Antwoord</label>
+                                <select class="form-select form-select-sm vraag-type">
+                                    <option value="ja/nee">Ja/Nee</option>
+                                    <option value="ok/nok">OK/Niet OK</option>
+                                    <option value="tekst">Tekstveld</option>
+                                    <option value="getal">Getal</option>
+                                    <option value="datum">Datum</option>
+                                    <option value="foto">Foto Upload</option>
+                                </select>
+                            </div>
+                             <div class="mb-2">
+                                <label class="form-label">Hulptekst (optioneel)</label>
+                                <input type="text" class="form-control form-control-sm vraag-hulptekst" placeholder="Extra uitleg of instructies">
+                            </div>
+                            <button type="button" class="btn btn-danger btn-sm verwijderVraagBtn"><i class="fas fa-trash-alt me-1"></i>Verwijder Vraag</button>
+                        </div>
+
+                    </form>
+                    <!-- NIEUW: Berichtengebied voor formulier feedback -->
+                    <div id="templateFormMessage" class="mt-3" style="display:none;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+                    <button type="submit" form="templateForm" class="btn btn-primary" id="saveTemplateBtn">Template Opslaan</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- jQuery eerst, dan Bootstrap JS, dan custom script -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Laad header
+            $("#header-placeholder").load("/header.html", function(response, status, xhr) {
+                if (status == "error") {
+                    console.log("Error loading header: " + xhr.status + " " + xhr.statusText);
+                    $("#header-placeholder").html("<p class='text-center text-danger'>Header kon niet geladen worden.</p>");
+                }
+            });
+            // Jaartal in footer
+            document.getElementById("currentYear").textContent = new Date().getFullYear();
+
+            // De Bootstrap modal instance kan hier geïnitialiseerd worden als je dat wilt,
+            // maar de click handler wordt nu beheerd door beheer_templates.js.
+            // Voorbeeld: const addEditModal = new bootstrap.Modal(document.getElementById('addEditTemplateModal'));
+            
+            // Eventuele andere initialisaties voor beheer_templates.js kunnen hierna of in dat bestand blijven
+        });
+    </script>
+    <script src="js/beheer_templates.js"></script>
+</body>
+</html> 

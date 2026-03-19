@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <title>Overzicht Werkposten</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+    <!-- Header -->
+    <div id="header-placeholder"></div>
+
+    <div class="container my-4">
+        <h1>Overzicht van Werkposten</h1>
+        <input type="date" id="filter-date" class="form-control mb-3" placeholder="Filter op datum">
+        <button class="btn btn-primary mb-3" id="fetch-assignments">Toon Toewijzingen</button>
+
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Medewerker</th>
+                    <th>Werkpost</th>
+                    <th>Start Tijd</th>
+                    <th>Eind Tijd</th>
+                    <th>Gewerkte Uren</th>
+                </tr>
+            </thead>
+            <tbody id="assignment-table-body"></tbody>
+        </table>
+    </div>
+
+    <!-- jQuery en JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            $('#header-placeholder').load('header.html');
+
+            // Laad toewijzingen bij het klikken op de knop
+            $('#fetch-assignments').click(function() {
+                const date = $('#filter-date').val();
+
+                $.ajax({
+                    url: '/api/assignments',
+                    method: 'GET',
+                    data: { date },
+                    success: function(assignments) {
+                        const tbody = $('#assignment-table-body');
+                        tbody.empty();
+
+                        assignments.forEach(a => {
+                            const startTime = new Date(a.start_time).toLocaleString('nl-NL');
+                            const endTime = a.end_time ? new Date(a.end_time).toLocaleString('nl-NL') : 'Nog aan het werk';
+                            const hoursWorked = a.hours_worked !== null ? a.hours_worked : 'N/A';
+
+                            tbody.append(`
+                                <tr>
+                                    <td>${a.employee_name}</td>
+                                    <td>${a.workstation_name}</td>
+                                    <td>${startTime}</td>
+                                    <td>${endTime}</td>
+                                    <td>${hoursWorked}</td>
+                                </tr>
+                            `);
+                        });
+                    },
+                    error: function(jqXHR, textStatus, errorThrown) {
+                        console.error('Error fetching assignments:', textStatus, errorThrown);
+                        alert('Er is een fout opgetreden bij het ophalen van de toewijzingen.');
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

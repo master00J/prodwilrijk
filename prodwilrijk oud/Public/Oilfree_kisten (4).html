@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oilfree Kistenbeheer</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        .stats-banner {
+            background-color: #f8f9fa;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .stat-card {
+            background-color: white;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #0d6efd;
+        }
+        .stat-label {
+            color: #6c757d;
+            font-size: 14px;
+        }
+        .kist-card {
+            border-left: 4px solid #0d6efd;
+            margin-bottom: 15px;
+            background-color: white;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            padding: 15px;
+        }
+        .kist-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .kist-title {
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .location-badge {
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .location-genk {
+            background-color: #198754;
+            color: white;
+        }
+        .location-wilrijk {
+            background-color: #0d6efd;
+            color: white;
+        }
+        .location-willebroek {
+            background-color: #6f42c1;
+            color: white;
+        }
+        .location-unknown {
+            background-color: #6c757d;
+            color: white;
+        }
+        .status-available {
+            background-color: #198754;
+            color: white;
+        }
+        .status-inuse {
+            background-color: #dc3545;
+            color: white;
+        }
+        .status-transit {
+            background-color: #fd7e14;
+            color: white;
+        }
+        .status-damaged {
+            background-color: #6c757d;
+            color: white;
+        }
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1050;
+        }
+        .table-responsive {
+            margin-top: 20px;
+        }
+        .bg-light-hover:hover {
+            background-color: rgba(0,0,0,0.03);
+        }
+        .action-btn {
+            margin-left: 5px;
+        }
+        .filter-section {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        
+        /* Stijlen voor sorteerbare tabellen */
+        .sortable-header {
+            position: relative;
+            cursor: pointer;
+        }
+        
+        .sortable-header:hover {
+            background-color: #f5f5f5;
+        }
+        
+        .sort-icon {
+            margin-left: 4px;
+            font-size: 0.8em;
+        }
+        
+        .sortable-header[data-sort-status="asc"] .sort-icon {
+            color: #4caf50;
+        }
+        
+        .sortable-header[data-sort-status="desc"] .sort-icon {
+            color: #f44336;
+        }
+    </style>
+</head>
+<body>
+    <div id="header-placeholder"></div>
+
+    <ul class="nav nav-tabs" id="myTab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="cases-tab" data-bs-toggle="tab" data-bs-target="#cases" type="button" role="tab" aria-controls="cases" aria-selected="true">Kisten</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="stock-tab" data-bs-toggle="tab" data-bs-target="#stock" type="button" role="tab" aria-controls="stock" aria-selected="false">Stockbeheer</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="needs-tab" data-bs-toggle="tab" data-bs-target="#needs" type="button" role="tab" aria-controls="needs" aria-selected="false">Kistbehoefte</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="orders-tab" data-bs-toggle="tab" data-bs-target="#orders" type="button" role="tab" aria-controls="orders" aria-selected="false">Bestellingen</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="packed-tab" data-bs-toggle="tab" data-bs-target="#packed" type="button" role="tab" aria-controls="packed" aria-selected="false">Verpakte Kisten</button>
+        </li>
+    </ul>
+    <div class="tab-content" id="myTabContent">
+        <div class="tab-pane fade show active" id="cases" role="tabpanel" aria-labelledby="cases-tab">
+            <div class="container mt-4">
+                <h1>Oilfree Kistenbeheer</h1>
+                <p>Overzicht en beheer van alle Oilfree kisten.</p>
+
+                <div class="stats-banner">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div id="last-updated">Laatst bijgewerkt: -</div>
+                        <div>
+                            <button id="add-manual-case-button" class="btn btn-sm btn-primary me-2">
+                                <i class="fas fa-plus"></i> Handmatig Toevoegen
+                            </button>
+                            <button id="import-csv-button" class="btn btn-sm btn-success me-2">
+                                <i class="fas fa-file-import"></i> CSV Importeren
+                            </button>
+                            <button id="refresh-button" class="btn btn-sm btn-secondary">
+                                <i class="fas fa-sync-alt"></i> Vernieuwen
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="filter-section">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                <input type="text" id="search-box" class="form-control" placeholder="Zoeken op label of serienummer...">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <select id="location-filter" class="form-select">
+                                <option value="all">Alle locaties</option>
+                                <!-- Wordt dynamisch gevuld met locaties uit de database -->
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div id="cases-count" class="text-muted">Totaal: 0 kisten</div>
+                    <div>
+                        <button id="manual-transport-button" class="btn btn-sm btn-primary" disabled>
+                            <i class="fas fa-truck"></i> Transport Aanvragen (<span id="selected-count">0</span>)
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-hover sortable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>
+                                    <input type="checkbox" id="select-all-cases" title="Alles selecteren/deselecteren">
+                                </th>
+                                <th class="sortable-header">Kist Label</th>
+                                <th class="sortable-header">Type</th>
+                                <th class="sortable-header">Serienummer</th>
+                                <th class="sortable-header">Huidige Locatie</th>
+                                <th class="sortable-header">Importdatum</th>
+                                <th class="sortable-header">Laatst bijgewerkt</th>
+                                <th>Acties</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cases-table-body">
+                            <!-- Rijen worden dynamisch toegevoegd -->
+                            <!-- Template voor cases rij -->
+                            <template id="case-row-template">
+                                <tr>
+                                    <td>
+                                        <input type="checkbox" class="case-select-checkbox" data-case-id="" data-case-label="" data-case-type="" data-current-location="">
+                                    </td>
+                                    <td class="case-label"></td>
+                                    <td class="case-type"></td>
+                                    <td class="case-serial"></td>
+                                    <td class="case-location text-dark"></td>
+                                    <td class="case-import-date"></td>
+                                    <td class="case-updated"></td>
+                                    <td>
+                                        <button class="btn btn-sm btn-info view-case-photos-btn" title="Foto's Bekijken">
+                                            <i class="fas fa-image"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-primary edit-case-btn" title="Bewerken">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-danger delete-case-btn" title="Verwijderen">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-success mark-packed-btn" title="Als Verpakt Markeren">
+                                            <i class="fas fa-box"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-warning add-to-order-btn" title="Aan Bestelling Toevoegen">
+                                            <i class="fas fa-shopping-cart"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="no-results" class="alert alert-info d-none">
+                    Geen kisten gevonden die voldoen aan de filtervoorwaarden.
+                </div>
+            </div>
+
+            <!-- CSV Import Modal -->
+            <div class="modal fade" id="csvImportModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">CSV Importeren</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="csv-upload-form">
+                                <div class="mb-3">
+                                    <label for="csv-file" class="form-label">Selecteer CSV bestand</label>
+                                    <input type="file" class="form-control" id="csv-file" accept=".csv">
+                                    <div class="form-text">Het CSV-bestand moet kolommen hebben voor kistlabel, type, etc.</div>
+                                </div>
+                            </form>
+                            <div id="import-preview" class="d-none">
+                                <h6>Voorbeeld van te importeren gegevens:</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead id="preview-thead"></thead>
+                                        <tbody id="preview-tbody"></tbody>
+                                    </table>
+                                </div>
+                                <div id="import-stats"></div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+                            <button type="button" id="preview-button" class="btn btn-info">Voorbeeld</button>
+                            <button type="button" id="import-button" class="btn btn-primary" disabled>Importeren</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add/Edit Case Modal -->
+            <div class="modal fade" id="caseModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="case-modal-title">Nieuwe Kist</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="case-form">
+                                <input type="hidden" id="case-id">
+                                <div class="mb-3">
+                                    <label for="case-label" class="form-label">Kist Label*</label>
+                                    <input type="text" class="form-control" id="case-label" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="case-type" class="form-label">Type Kist*</label>
+                                    <input type="text" class="form-control" id="case-type" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="original-type" class="form-label">Origineel Type</label>
+                                    <input type="text" class="form-control" id="original-type">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="serial-number" class="form-label">Serienummer</label>
+                                    <input type="text" class="form-control" id="serial-number">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="location" class="form-label">Huidige Locatie*</label>
+                                    <select class="form-select" id="location" required>
+                                        <option value="Genk">Genk</option>
+                                        <option value="Wilrijk">Wilrijk</option>
+                                        <option value="Willebroek">Willebroek</option>
+                                        <option value="Onbekend">Onbekend</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="case-status" class="form-label">Status</label>
+                                    <select class="form-select" id="case-status">
+                                        <option value="Beschikbaar">Beschikbaar</option>
+                                        <option value="In gebruik">Verpakt (In gebruik)</option>
+                                        <option value="In transit">In transit</option>
+                                        <option value="Beschadigd">Beschadigd</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="notes" class="form-label">Opmerkingen</label>
+                                    <textarea class="form-control" id="notes" rows="3"></textarea>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+                            <button type="button" id="save-case-button" class="btn btn-primary">Opslaan</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Toast container for notifications -->
+            <div class="toast-container"></div>
+        </div>
+        <div class="tab-pane fade" id="stock" role="tabpanel" aria-labelledby="stock-tab">
+            <div class="container mt-4">
+                <h2>Stockbeheer per Locatie</h2>
+                <button id="import-excel-button" class="btn btn-sm btn-success me-2 mb-3">
+                    <i class="fas fa-file-excel"></i> Excel Importeren
+                </button>
+                
+                <!-- Formulier voor nieuwe stock toevoegen -->
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Nieuwe Stock Toevoegen</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="add-stock-form" class="row g-3">
+                            <div class="col-md-3">
+                                <label for="new-location" class="form-label">Locatie*</label>
+                                <select class="form-select" id="new-location" required>
+                                    <option value="">Kies locatie...</option>
+                                    <option value="Genk">Genk</option>
+                                    <option value="Wilrijk">Wilrijk</option>
+                                    <option value="Willebroek">Willebroek</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="new-erp-code" class="form-label">ERP Code*</label>
+                                <input type="text" class="form-control" id="new-erp-code" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="new-case-type" class="form-label">Type Kist</label>
+                                <input type="text" class="form-control" id="new-case-type">
+                            </div>
+                            <div class="col-md-2">
+                                <label for="new-quantity" class="form-label">Aantal*</label>
+                                <input type="number" class="form-control" id="new-quantity" min="0" required>
+                            </div>
+                            <div class="col-md-1">
+                                <label for="new-production-location" class="form-label">Prod. Locatie</label>
+                                <input type="text" class="form-control" id="new-production-location">
+                                <small class="form-text text-muted">Leeg = Genk</small>
+                            </div>
+                            <div class="col-12 mt-3">
+                                <button type="submit" class="btn btn-success" id="add-stock-button">
+                                    <i class="fas fa-plus-circle"></i> Stock Toevoegen
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- Filter en zoek sectie -->
+                <div class="filter-section">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                <input type="text" id="stock-search-box" class="form-control" placeholder="Zoeken op ERP code...">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <select id="stock-location-filter" class="form-select">
+                                <option value="all">Alle locaties</option>
+                                <option value="Genk">Genk</option>
+                                <option value="Wilrijk">Wilrijk</option>
+                                <option value="Willebroek">Willebroek</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button id="stock-refresh-button" class="btn btn-sm btn-secondary w-100">
+                                <i class="fas fa-sync-alt"></i> Vernieuwen
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <h3 class="mt-4">Huidige Stock</h3>
+                <div id="stock-table" class="table-responsive">
+                    <table class="table table-hover sortable">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="sortable-header">Type Kist</th>
+                                <th class="sortable-header">ERP Code</th>
+                                <th class="sortable-header">Genk</th>
+                                <th class="sortable-header">Wilrijk</th>
+                                <th class="sortable-header">Willebroek</th>
+                                <th>Acties</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stock-table-body">
+                            <!-- Rijen worden dynamisch toegevoegd -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="no-stock-results" class="alert alert-info d-none">
+                    Geen stock gevonden die voldoet aan de filtervoorwaarden.
+                </div>
+            </div>
+
+            <!-- Excel Import Modal -->
+            <div class="modal fade" id="excelImportModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Excel Importeren</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="excel-upload-form">
+                                <div class="mb-3">
+                                    <label for="excel-file" class="form-label">Selecteer Excel bestand</label>
+                                    <input type="file" class="form-control" id="excel-file" accept=".xlsx,.xls">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="excel-location" class="form-label">Locatie*</label>
+                                    <select class="form-select" id="excel-location" required>
+                                        <option value="">Kies locatie...</option>
+                                        <option value="Genk">Genk</option>
+                                        <option value="Wilrijk">Wilrijk</option>
+                                        <option value="Willebroek">Willebroek</option>
+                                    </select>
+                                </div>
+                            </form>
+                            <div id="excel-preview" class="d-none">
+                                <h6>Voorbeeld gegevens:</h6>
+                                <table class="table table-sm">
+                                    <thead><tr><th>ERP Code</th><th>Aantal</th></tr></thead>
+                                    <tbody id="excel-preview-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+                            <button type="button" id="excel-preview-button" class="btn btn-info" disabled>Voorbeeld</button>
+                            <button type="button" id="excel-import-button" class="btn btn-primary" disabled>Importeren</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="tab-pane fade" id="needs" role="tabpanel" aria-labelledby="needs-tab">
+            <div class="container mt-4">
+                <h2>Kistbehoefte voor Productie Willebroek</h2>
+                <p>Overzicht van benodigde kisten op basis van de geimporteerde lijst, en beschikbare stock in Genk & Wilrijk.</p>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <button id="calculate-needs-button" class="btn btn-primary">
+                            <i class="fas fa-calculator"></i> Behoefte Berekenen
+                        </button>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <span id="needs-last-updated" class="text-muted">Laatst berekend: -</span>
+                    </div>
+                </div>
+
+                <div id="needs-summary" class="mb-4">
+                    <h4>Samenvatting Benodigde Kisten</h4>
+                    <div id="needs-summary-table" class="table-responsive">
+                        <table class="table table-sm table-hover sortable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="sortable-header">Type Kist</th>
+                                    <th class="sortable-header">Totaal Nodig</th>
+                                    <th class="sortable-header">Beschikbaar Willebroek</th>
+                                    <th class="sortable-header">Beschikbaar Genk</th>
+                                    <th class="sortable-header">Beschikbaar Wilrijk</th>
+                                    <th class="sortable-header">Te Bestellen Genk</th>
+                                    <th class="sortable-header">Te Bestellen Wilrijk</th>
+                                </tr>
+                            </thead>
+                            <tbody id="needs-summary-tbody">
+                                <!-- Rijen worden dynamisch toegevoegd -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="no-needs" class="alert alert-info d-none">
+                        Geen kistbehoefte berekend of geen kisten nodig. Start de berekening of importeer eerst kisten.
+                    </div>
+                </div>
+
+                <div id="order-section" class="d-none">
+                    <h4>Bestellingen Plaatsen</h4>
+                    <!-- Hier wordt het flexibele bestelformulier dynamisch toegevoegd via JavaScript -->
+                </div>
+
+            </div>
+        </div>
+        <div class="tab-pane fade" id="orders" role="tabpanel" aria-labelledby="orders-tab">
+            <div class="container mt-4">
+                <h2>Bestellingen</h2>
+                <p>Overzicht van bestellingen en leveringen.</p>
+
+                <button id="addExternalArticlesOrderBtn" class="btn btn-primary mb-3">
+                    <i class="fas fa-plus-circle"></i> Nieuwe Bestelling Artikelen (Extern)
+                </button>
+
+                <div class="filter-section">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                <input type="text" id="order-search-box" class="form-control" placeholder="Zoeken op bestelling ID of klantnaam...">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <select id="order-location-filter" class="form-select">
+                                <option value="all">Alle locaties</option>
+                                <option value="Genk">Genk</option>
+                                <option value="Wilrijk">Wilrijk</option>
+                                <option value="Willebroek">Willebroek</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button id="order-refresh-button" class="btn btn-sm btn-secondary w-100">
+                                <i class="fas fa-sync-alt"></i> Vernieuwen
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <h3 class="mt-4">Huidige Bestellingen</h3>
+                <div id="order-table" class="table-responsive">
+                    <table class="table table-hover sortable">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="sortable-header">Bestelling ID</th>
+                                <th class="sortable-header">Locatie</th>
+                                <th class="sortable-header">Klantnaam</th>
+                                <th class="sortable-header">Totaal</th>
+                                <th class="sortable-header">Status</th>
+                                <th>Acties</th>
+                            </tr>
+                        </thead>
+                        <tbody id="order-table-body">
+                            <!-- Rijen worden dynamisch toegevoegd -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="no-order-results" class="alert alert-info d-none">
+                    Geen bestellingen gevonden die voldoet aan de filtervoorwaarden.
+                </div>
+            </div>
+        </div>
+        <div class="tab-pane fade" id="packed" role="tabpanel" aria-labelledby="packed-tab">
+            <div class="container mt-4">
+                <h2>Verpakte Kisten</h2>
+                <p>Overzicht van verpakte kisten.</p>
+
+                <div class="filter-section">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                <input type="text" id="packed-search-box" class="form-control" placeholder="Zoeken op kistlabel of serienummer...">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <select id="packed-location-filter" class="form-select">
+                                <option value="all">Alle locaties</option>
+                                <option value="Genk">Genk</option>
+                                <option value="Wilrijk">Wilrijk</option>
+                                <option value="Willebroek">Willebroek</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button id="packed-refresh-button" class="btn btn-sm btn-secondary w-100">
+                                <i class="fas fa-sync-alt"></i> Vernieuwen
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <h3 class="mt-4">Huidige Verpakte Kisten</h3>
+                <div id="packed-table" class="table-responsive">
+                    <table class="table table-hover sortable">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="sortable-header">Kist Label</th>
+                                <th class="sortable-header">Type</th>
+                                <th class="sortable-header">Serienummer</th>
+                                <th class="sortable-header">Verpakkingsdatum</th>
+                                <th class="sortable-header">Importdatum</th>
+                                <th class="sortable-header">Laatst bijgewerkt</th>
+                                <th>Acties</th>
+                            </tr>
+                        </thead>
+                        <tbody id="packed-table-body">
+                            <!-- Rijen worden dynamisch toegevoegd -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="no-packed-results" class="alert alert-info d-none">
+                    Geen verpakte kisten gevonden die voldoet aan de filtervoorwaarden.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="scripts_oilfree_kisten.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <script src="camera_functionality.js"></script>
+
+    <!-- Order Detail Modal -->
+    <div class="modal fade" id="orderDetailModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="order-detail-title">Bestelling Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Bestelling ID:</strong> <span id="order-id-display"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Status:</strong> <span id="order-status-display"></span>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Datum:</strong> <span id="order-date-display"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Locatie:</strong> <span id="order-location-display"></span>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Bestelde Items</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm sortable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="sortable-header">Type Kist</th>
+                                    <th class="sortable-header">ERP Code</th>
+                                    <th class="sortable-header">Case Labels</th>
+                                    <th class="sortable-header">Aantal Besteld</th>
+                                    <th class="sortable-header">Aantal Geleverd</th>
+                                    <th class="sortable-header">Status</th>
+                                    <th>Acties</th>
+                                </tr>
+                            </thead>
+                            <tbody id="order-items-body">
+                                <!-- Bestelitems worden hier dynamisch toegevoegd -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Nieuwe sectie voor Transportplanning -->
+                    <div class="mt-4">
+                        <h6>Transportplanning</h6>
+                        <textarea id="order-transport-planning" class="form-control" rows="3" placeholder="Voeg hier notities voor transportplanning toe..."></textarea>
+                    </div>
+                    
+                    <div class="alert alert-info mt-3">
+                        <i class="fas fa-info-circle"></i> Markeer items als geleverd om ze bij te werken in de stock.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-info me-auto" id="email-order-button">
+                        <i class="fas fa-envelope"></i> Bestelling E-mailen
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Sluiten</button>
+                    <button type="button" id="save-order-changes-button" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Wijzigingen Opslaan
+                    </button>
+                    <button type="button" id="transfer-undelivered-button" class="btn btn-warning">
+                        <i class="fas fa-exchange-alt"></i> Niet-geleverde items overzetten
+                    </button>
+                    <button type="button" id="complete-order-button" class="btn btn-success">
+                        <i class="fas fa-check-circle"></i> Bestelling Voltooien
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Case Photos Modal -->
+    <div class="modal fade" id="casePhotosModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="case-photos-title">Foto's van Verpakte Kist</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <strong>Kist Label:</strong> <span id="photo-case-label"></span>
+                            <input type="hidden" id="photo-case-id">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <form id="photo-upload-form" class="mb-3">
+                            <div class="input-group">
+                                <input type="file" class="form-control" id="case-photo-input" accept="image/*" multiple>
+                                <button type="button" id="upload-photo-btn" class="btn btn-primary">
+                                    <i class="fas fa-upload"></i> Uploaden
+                                </button>
+                                <button type="button" id="camera-photo-btn" class="btn btn-success">
+                                    <i class="fas fa-camera"></i> Camera
+                                </button>
+                            </div>
+                        </form>
+                        
+                        <!-- Camera sectie -->
+                        <div id="camera-section" class="d-none">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-camera"></i> Camera
+                                        <button type="button" id="close-camera-btn" class="btn btn-sm btn-outline-secondary float-end">
+                                            <i class="fas fa-times"></i> Sluiten
+                                        </button>
+                                    </h6>
+                                </div>
+                                <div class="card-body text-center">
+                                    <video id="camera-video" autoplay muted style="max-width: 100%; max-height: 300px; border: 1px solid #ccc;"></video>
+                                    <canvas id="camera-canvas" style="display: none;"></canvas>
+                                    <div class="mt-3">
+                                        <button type="button" id="capture-photo-btn" class="btn btn-primary me-2">
+                                            <i class="fas fa-camera-retro"></i> Foto Maken
+                                        </button>
+                                        <button type="button" id="switch-camera-btn" class="btn btn-outline-secondary">
+                                            <i class="fas fa-sync-alt"></i> Camera Wisselen
+                                        </button>
+                                    </div>
+                                    <div id="camera-preview" class="mt-3 d-none">
+                                        <img id="captured-photo" style="max-width: 100%; max-height: 200px; border: 1px solid #ccc;">
+                                        <div class="mt-2">
+                                            <button type="button" id="save-captured-photo-btn" class="btn btn-success me-2">
+                                                <i class="fas fa-save"></i> Opslaan
+                                            </button>
+                                            <button type="button" id="retake-photo-btn" class="btn btn-outline-secondary">
+                                                <i class="fas fa-redo"></i> Opnieuw
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4">Huidige Foto's</h6>
+                    <!-- Weergave knoppen -->
+                    <div class="d-flex justify-content-between mb-3">
+                        <div>
+                            <button class="btn btn-sm btn-outline-secondary me-2" id="view-grid-btn" title="Rasterweergave">
+                                <i class="fas fa-th"></i> Raster
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" id="view-gallery-btn" title="Galerij">
+                                <i class="fas fa-images"></i> Galerij
+                            </button>
+                        </div>
+                        <button class="btn btn-sm btn-outline-primary" id="download-all-photos-btn" title="Alle foto's downloaden">
+                            <i class="fas fa-download"></i> Alle downloaden
+                        </button>
+                    </div>
+                    
+                    <!-- Normale rasterweergave -->
+                    <div id="case-photos-container" class="row">
+                        <!-- Foto's worden hier dynamisch toegevoegd -->
+                    </div>
+                    
+                    <!-- Galerij weergave -->
+                    <div id="case-photos-gallery" class="carousel slide d-none" data-bs-ride="false">
+                        <div class="carousel-indicators" id="gallery-indicators">
+                            <!-- Indicators worden dynamisch toegevoegd -->
+                        </div>
+                        <div class="carousel-inner" id="gallery-inner">
+                            <!-- Galerij items worden dynamisch toegevoegd -->
+                        </div>
+                        <button class="carousel-control-prev" type="button" data-bs-target="#case-photos-gallery" data-bs-slide="prev">
+                            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                            <span class="visually-hidden">Vorige</span>
+                        </button>
+                        <button class="carousel-control-next" type="button" data-bs-target="#case-photos-gallery" data-bs-slide="next">
+                            <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                            <span class="visually-hidden">Volgende</span>
+                        </button>
+                    </div>
+                    
+                    <div id="no-photos-message" class="alert alert-info mt-3 d-none">
+                        <i class="fas fa-info-circle"></i> Geen foto's gevonden voor deze kist.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Sluiten</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal voor Nieuwe Bestelling Artikelen (Extern) -->
+    <div class="modal fade" id="addExternalArticlesOrderModal" tabindex="-1" role="dialog" aria-labelledby="addExternalArticlesOrderModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addExternalArticlesOrderModalLabel">Nieuwe Bestelling Artikelen (Extern)</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="externalArticlesOrderForm">
+                        <div class="form-group">
+                            <label for="externalOrderDestinationLocation">Bestemmingslocatie:</label>
+                            <select class="form-control" id="externalOrderDestinationLocation" required>
+                                <option value="">Kies bestemming...</option>
+                                <option value="Wilrijk">Wilrijk</option>
+                                <option value="Willebroek">Willebroek</option>
+                            </select>
+                        </div>
+
+                        <hr>
+                        <h6>Artikelen Toevoegen:</h6>
+                        <div class="form-row">
+                            <div class="form-group col-md-5">
+                                <label for="searchExternalArticle">Zoek Artikel (op nr. of omschrijving)</label>
+                                <input type="text" class="form-control" id="searchExternalArticle" placeholder="Begin te typen...">
+                                <div id="externalArticleSuggestions" class="list-group" style="position: absolute; z-index: 1000; width: 90%;"></div>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label for="selectedExternalArticleName">Geselecteerd Artikel</label>
+                                <input type="text" class="form-control" id="selectedExternalArticleName" readonly>
+                                <input type="hidden" id="selectedExternalArticleNumber">
+                            </div>
+                            <div class="form-group col-md-2">
+                                <label for="externalArticleQuantity">Aantal</label>
+                                <input type="number" class="form-control" id="externalArticleQuantity" min="1" value="1">
+                            </div>
+                            <div class="form-group col-md-1 align-self-end">
+                                <button type="button" id="addExternalArticleToListBtn" class="btn btn-primary">Voeg toe</button>
+                            </div>
+                        </div>
+                        
+                        <h6>Toegevoegde Artikelen:</h6>
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Artikelnummer</th>
+                                    <th>Omschrijving</th>
+                                    <th>Aantal</th>
+                                    <th>Actie</th>
+                                </tr>
+                            </thead>
+                            <tbody id="externalArticlesOrderItemsTableBody">
+                                <!-- Items komen hier -->
+                            </tbody>
+                        </table>
+                        <hr>
+
+                        <div class="form-group">
+                            <label for="externalOrderTransportPlanning">Transportplanning Notities (optioneel):</label>
+                            <textarea class="form-control" id="externalOrderTransportPlanning" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Annuleren</button>
+                    <button type="button" id="saveExternalArticlesOrderBtn" class="btn btn-primary">Bestelling Plaatsen</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

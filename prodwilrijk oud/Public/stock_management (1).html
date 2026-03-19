@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intelligent Stock Management - Kisten</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.2.1/flowbite.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.css">
+    <style>
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        .status-good { background-color: #22c55e; }
+        .status-warning { background-color: #f59e0b; }
+        .status-critical { background-color: #ef4444; }
+        .tooltip-content {
+            display: none;
+            position: absolute;
+            background: white;
+            border: 1px solid #ddd;
+            padding: 8px;
+            border-radius: 4px;
+            z-index: 10;
+            width: 200px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .hover-trigger:hover .tooltip-content {
+            display: block;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <nav class="bg-white border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex">
+                    <div class="flex-shrink-0 flex items-center">
+                        <h1 class="text-xl font-bold text-gray-800">Intelligent Stock Management - Kisten</h1>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Tab Navigation -->
+        <div class="flex border-b border-gray-200 mb-6">
+            <button id="tab-dashboard" class="px-4 py-2 text-blue-600 border-b-2 border-blue-600 tab-button">Dashboard</button>
+            <button id="tab-inventory" class="px-4 py-2 text-gray-600 tab-button">Inventory</button>
+            <button id="tab-forecast" class="px-4 py-2 text-gray-600 tab-button">Verbruik & Voorspellingen</button>
+            <button id="tab-orders" class="px-4 py-2 text-gray-600 tab-button">Orders</button>
+        </div>
+
+        <!-- Dashboard Tab -->
+        <div id="dashboard-content" class="tab-content active">
+            <!-- Dashboard Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <p class="text-sm font-medium text-gray-500">Total Stock</p>
+                    <p class="text-2xl font-bold" id="total-stock">0</p>
+                </div>
+
+                <div class="bg-white rounded-lg shadow p-6">
+                    <p class="text-sm font-medium text-gray-500">Low Stock Alerts</p>
+                    <p class="text-2xl font-bold text-red-600" id="low-stock-count">0</p>
+                </div>
+
+                <div class="bg-white rounded-lg shadow p-6 hover-trigger">
+                    <div class="tooltip-content">
+                        Verbruik van afgelopen 30 dagen
+                    </div>
+                    <p class="text-sm font-medium text-gray-500">Monthly Usage</p>
+                    <p class="text-2xl font-bold text-green-600" id="monthly-usage">0</p>
+                </div>
+
+                <div class="bg-white rounded-lg shadow p-6">
+                    <p class="text-sm font-medium text-gray-500">Reorder Needed</p>
+                    <p class="text-2xl font-bold text-purple-600" id="reorder-count">0</p>
+                </div>
+            </div>
+
+            <!-- Usage Trends Chart -->
+            <div class="bg-white rounded-lg shadow p-6 mb-8">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">Verbruikstrends (Laatste 6 maanden)</h2>
+                <div class="chart-container" style="position: relative; height: 250px; max-height: 300px; width: 100%;">
+                    <canvas id="usage-trend-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- Stock Health Overview -->
+            <div class="bg-white rounded-lg shadow p-6 mb-8">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">Voorraadgezondheid</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="p-4 bg-green-50 rounded-lg">
+                        <h3 class="font-bold text-green-700">Gezonde Voorraad</h3>
+                        <p class="text-4xl font-bold text-green-600" id="healthy-stock-count">0</p>
+                        <p class="text-sm text-gray-500">Kisten met voldoende voorraad</p>
+                    </div>
+                    <div class="p-4 bg-yellow-50 rounded-lg">
+                        <h3 class="font-bold text-yellow-700">Aandacht Nodig</h3>
+                        <p class="text-4xl font-bold text-yellow-600" id="warning-stock-count">0</p>
+                        <p class="text-sm text-gray-500">Kisten die binnenkort aangevuld moeten worden</p>
+                    </div>
+                    <div class="p-4 bg-red-50 rounded-lg">
+                        <h3 class="font-bold text-red-700">Kritiek</h3>
+                        <p class="text-4xl font-bold text-red-600" id="critical-stock-count">0</p>
+                        <p class="text-sm text-gray-500">Kisten met tekort aan voorraad</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex gap-4 mb-6">
+                <button id="add-stock-btn" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                    Add New Stock
+                </button>
+                <button id="reorder-btn" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+                    Generate Reorder List
+                </button>
+                <button id="export-btn" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
+                    Export Stock Report
+                </button>
+                <button id="optimize-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
+                    Optimaliseer Voorraadniveaus
+                </button>
+            </div>
+        </div>
+
+        <!-- Inventory Tab -->
+        <div id="inventory-content" class="tab-content">
+            <!-- Stock Table -->
+            <div class="bg-white rounded-lg shadow overflow-hidden mb-8">
+                <div class="p-4">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold text-gray-800">Current Stock Levels</h2>
+                        <div class="flex gap-2">
+                            <select id="stock-filter" class="px-4 py-2 border rounded-lg">
+                                <option value="all">Alle items</option>
+                                <option value="low">Lage voorraad</option>
+                                <option value="critical">Kritieke voorraad</option>
+                                <option value="healthy">Gezonde voorraad</option>
+                            </select>
+                            <input type="text" id="stock-search" placeholder="Search..." class="px-4 py-2 border rounded-lg">
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kistnummer</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ERP Code</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Stock</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Minimum Stock</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gemiddeld Verbruik</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Voorraad Tot</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="stock-table-body" class="bg-white divide-y divide-gray-200">
+                                <!-- Stock rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Forecast Tab -->
+        <div id="forecast-content" class="tab-content">
+            <div class="bg-white rounded-lg shadow p-6 mb-8">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">Verbruiksanalyse & Voorspellingen</h2>
+                
+                <div class="mb-6">
+                    <h3 class="font-bold text-gray-700 mb-2">Filters</h3>
+                    <div class="flex flex-wrap gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Periode</label>
+                            <select id="forecast-period" class="mt-1 px-3 py-2 border rounded-md">
+                                <option value="30">Laatste 30 dagen</option>
+                                <option value="90">Laatste 3 maanden</option>
+                                <option value="180" selected>Laatste 6 maanden</option>
+                                <option value="365">Laatste jaar</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Voorspellingsperiode</label>
+                            <select id="prediction-period" class="mt-1 px-3 py-2 border rounded-md">
+                                <option value="30">30 dagen</option>
+                                <option value="60">60 dagen</option>
+                                <option value="90" selected>90 dagen</option>
+                                <option value="180">180 dagen</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Toon Top</label>
+                            <select id="top-items" class="mt-1 px-3 py-2 border rounded-md">
+                                <option value="5">Top 5</option>
+                                <option value="10" selected>Top 10</option>
+                                <option value="20">Top 20</option>
+                                <option value="all">Alle items</option>
+                            </select>
+                        </div>
+                        <div class="self-end">
+                            <button id="apply-forecast-filters" class="px-4 py-2 bg-blue-600 text-white rounded-md">Toepassen</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Usage Distribution Chart -->
+                <div class="mb-8">
+                    <h3 class="font-bold text-gray-700 mb-2">Verbruiksdistributie</h3>
+                    <div class="chart-container" style="position: relative; height: 250px; max-height: 300px; width: 100%;">
+                        <canvas id="usage-distribution-chart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Forecast Table -->
+                <div class="mb-8">
+                    <h3 class="font-bold text-gray-700 mb-2">Voorspellingen & Aanbevelingen</h3>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full border">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-2 border">Kistnummer</th>
+                                    <th class="px-4 py-2 border">Huidige Voorraad</th>
+                                    <th class="px-4 py-2 border">Gem. Verbruik/Maand</th>
+                                    <th class="px-4 py-2 border">Voorspeld Verbruik</th>
+                                    <th class="px-4 py-2 border">Voorraad Tot</th>
+                                    <th class="px-4 py-2 border">Min. Voorraad</th>
+                                    <th class="px-4 py-2 border">Aangeraden Min. Voorraad</th>
+                                    <th class="px-4 py-2 border">Acties</th>
+                                </tr>
+                            </thead>
+                            <tbody id="forecast-table-body">
+                                <!-- Forecast rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Orders Tab -->
+        <div id="orders-content" class="tab-content">
+            <!-- Open Transfer Orders Section -->
+            <div class="bg-white rounded-lg shadow p-4 mb-8">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">Open Transfer Orders</h2>
+                <div id="open-orders-container">
+                    <!-- Dynamically inserted transfer orders -->
+                </div>
+            </div>
+
+            <!-- Reorder History Section -->
+            <div class="bg-white rounded-lg shadow p-4 mb-8">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">Reorder History</h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full border">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-2 border">Order ID</th>
+                                <th class="px-4 py-2 border">Datum</th>
+                                <th class="px-4 py-2 border">Locatie</th>
+                                <th class="px-4 py-2 border">Aantal Items</th>
+                                <th class="px-4 py-2 border">Status</th>
+                                <th class="px-4 py-2 border">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reorder-history-table-body">
+                            <!-- Reorder history rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Optimize Results Modal -->
+    <div id="optimize-results-modal" class="hidden fixed top-0 left-0 right-0 bottom-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div class="relative w-full max-w-4xl bg-white rounded-lg shadow p-6">
+            <h3 class="text-xl font-bold mb-4">Resultaten Voorraadoptimalisatie</h3>
+            <p class="mb-4">De volgende minimum voorraadniveaus worden aanbevolen:</p>
+            
+            <div class="overflow-x-auto mb-4">
+                <table class="min-w-full border">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-2 border">Kistnummer</th>
+                            <th class="px-4 py-2 border">Huidig Min. Voorraad</th>
+                            <th class="px-4 py-2 border">Aanbevolen Min. Voorraad</th>
+                            <th class="px-4 py-2 border">Wijziging</th>
+                            <th class="px-4 py-2 border">Gem. Verbruik/Maand</th>
+                            <th class="px-4 py-2 border">Selecteren</th>
+                        </tr>
+                    </thead>
+                    <tbody id="optimize-results-table-body">
+                        <!-- optimization results rows -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="flex justify-end gap-4">
+                <button type="button" class="bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300" onclick="closeOptimizeResultsModal()">Annuleren</button>
+                <button type="button" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700" onclick="applySelectedOptimizations()">Geselecteerde Toepassen</button>
+                <button type="button" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700" onclick="applyAllOptimizations()">Alles Toepassen</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Stock Modal -->
+    <div id="add-stock-modal" class="hidden fixed top-0 left-0 right-0 bottom-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div class="relative w-full max-w-md bg-white rounded-lg shadow p-6">
+            <button type="button" class="close-modal absolute top-3 right-3 text-gray-400 hover:text-gray-500" data-modal-id="add-stock-modal">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+            <h3 class="text-xl font-bold mb-4">Voorraad Toevoegen</h3>
+            
+            <form id="add-stock-form" class="space-y-4">
+                <div>
+                    <label for="add-stock-kistnummer" class="block text-sm font-medium text-gray-700">Kistnummer</label>
+                    <input type="text" id="add-stock-kistnummer" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" required>
+                </div>
+                <div>
+                    <label for="add-stock-quantity" class="block text-sm font-medium text-gray-700">Hoeveelheid</label>
+                    <input type="number" id="add-stock-quantity" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" value="1" min="1" required>
+                </div>
+                <div class="flex justify-end pt-4">
+                    <button type="button" class="mr-2 bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300 close-modal" data-modal-id="add-stock-modal">Annuleren</button>
+                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Toevoegen</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Set Min Stock Modal -->
+    <div id="min-stock-modal" class="hidden fixed top-0 left-0 right-0 bottom-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div class="relative w-full max-w-md bg-white rounded-lg shadow p-6">
+            <button type="button" class="close-modal absolute top-3 right-3 text-gray-400 hover:text-gray-500" data-modal-id="min-stock-modal">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+            <h3 class="text-xl font-bold mb-4">Minimumvoorraad Instellen</h3>
+            
+            <form id="min-stock-form" class="space-y-4">
+                <input type="hidden" id="min-stock-kistnummer">
+                <div>
+                    <label for="current-min-stock" class="block text-sm font-medium text-gray-700">Huidige Minimumvoorraad</label>
+                    <input type="text" id="current-min-stock" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" readonly>
+                </div>
+                <div>
+                    <label for="avg-usage-info" class="block text-sm font-medium text-gray-700">Gemiddeld Verbruik</label>
+                    <input type="text" id="avg-usage-info" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" readonly>
+                </div>
+                <div>
+                    <label for="suggested-min-stock" class="block text-sm font-medium text-gray-700">Aanbevolen Minimumvoorraad</label>
+                    <input type="text" id="suggested-min-stock" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" readonly>
+                </div>
+                <div>
+                    <label for="new-min-stock" class="block text-sm font-medium text-gray-700">Nieuwe Minimumvoorraad</label>
+                    <input type="number" id="new-min-stock" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" min="0" required>
+                </div>
+                <div class="flex justify-end pt-4">
+                    <button type="button" class="mr-2 bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300 close-modal" data-modal-id="min-stock-modal">Annuleren</button>
+                    <button type="button" id="use-suggested-btn" class="mr-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">Gebruik Aanbevolen</button>
+                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Opslaan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.2.1/flowbite.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/js/stock-management.js"></script>
+</body>
+</html>

@@ -1,0 +1,1437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Narrowcast Display</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            background: #000;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        .display-container {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        .display-container.active {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+
+        .display-container.fading-out {
+            animation: fadeOut 0.5s ease-out;
+        }
+
+        /* Text Display */
+        .text-display {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4rem;
+            text-align: center;
+        }
+
+        .text-content {
+            max-width: 1400px;
+            line-height: 1.6;
+            word-wrap: break-word;
+        }
+
+        .text-content h1, .text-content h2, .text-content h3 {
+            margin-bottom: 1rem;
+        }
+
+        /* Image Display */
+        .image-display {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .image-display img {
+            max-width: 95vw;
+            max-height: 95vh;
+            object-fit: contain;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        }
+
+        /* Video Display */
+        .video-display {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+            position: relative;
+        }
+
+        .video-display video {
+            max-width: 100vw;
+            max-height: 100vh;
+            object-fit: contain;
+        }
+        
+        .unmute-hint {
+            position: absolute;
+            bottom: 2rem;
+            right: 2rem;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 0.8rem 1.2rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            opacity: 0.8;
+            cursor: pointer;
+            transition: opacity 0.3s;
+            z-index: 100;
+        }
+        
+        .unmute-hint:hover {
+            opacity: 1;
+            background: rgba(0,0,0,0.9);
+        }
+        
+        .unmute-hint i {
+            margin-right: 0.5rem;
+        }
+
+        /* URL/Iframe Display */
+        .url-display {
+            width: 100%;
+            height: 100%;
+        }
+
+        .url-display iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        /* Slideshow Display */
+        .slideshow-display {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            position: relative;
+        }
+
+        .slideshow-display img {
+            max-width: 95vw;
+            max-height: 95vh;
+            object-fit: contain;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            animation: slideIn 0.5s ease-in;
+        }
+
+        @keyframes slideIn {
+            from { 
+                opacity: 0;
+                transform: translateX(50px);
+            }
+            to { 
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .slideshow-indicator {
+            position: absolute;
+            bottom: 3rem;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            background: rgba(0,0,0,0.5);
+            padding: 10px 16px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .slideshow-indicator .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.4);
+            transition: all 0.3s;
+        }
+
+        .slideshow-indicator .dot.active {
+            background: #fff;
+            width: 30px;
+            border-radius: 6px;
+        }
+
+        /* Header Info Bar */
+        .info-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%);
+            padding: 1.5rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .info-bar.show {
+            opacity: 1;
+        }
+
+        .content-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+        }
+
+        .content-meta {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            font-size: 1rem;
+            opacity: 0.8;
+        }
+
+        .status-badge {
+            background: rgba(31, 111, 235, 0.3);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        /* Progress Bar */
+        .progress-bar-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: rgba(255,255,255,0.1);
+            z-index: 1000;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #1f6feb, #3b8cf7);
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+
+        /* Loading State */
+        .loading-state {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+            background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+            z-index: 9999;
+        }
+
+        .loading-state.hidden {
+            display: none;
+        }
+
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255,255,255,0.1);
+            border-top-color: #1f6feb;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            font-size: 1.2rem;
+            color: rgba(255,255,255,0.6);
+        }
+
+        /* No Content State */
+        .no-content-state {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+            background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .no-content-state.hidden {
+            display: none;
+        }
+
+        .no-content-icon {
+            font-size: 6rem;
+            opacity: 0.3;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 0.6; }
+        }
+
+        .no-content-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .no-content-text {
+            font-size: 1.3rem;
+            color: rgba(255,255,255,0.6);
+            max-width: 600px;
+        }
+
+        /* Connection Status */
+        .connection-status {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            z-index: 2000;
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: opacity 0.5s ease-out;
+        }
+
+        .connection-status.connected {
+            background: rgba(63, 185, 80, 0.3);
+            border: 1px solid rgba(63, 185, 80, 0.5);
+            color: #3fb950;
+        }
+
+        .connection-status.disconnected {
+            background: rgba(248, 81, 73, 0.3);
+            border: 1px solid rgba(248, 81, 73, 0.5);
+            color: #f85149;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+            animation: blink 2s ease-in-out infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .text-display {
+                padding: 2rem;
+            }
+            
+            .content-title {
+                font-size: 1.3rem;
+            }
+            
+            .info-bar {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading State -->
+    <div id="loadingState" class="loading-state">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading content...</div>
+    </div>
+
+    <!-- No Content State -->
+    <div id="noContentState" class="no-content-state hidden">
+        <div class="no-content-icon">
+            <i class="fas fa-broadcast-tower"></i>
+        </div>
+        <div class="no-content-title">No Active Content</div>
+        <div class="no-content-text">
+            There is currently no content scheduled for display.<br>
+            Please add content in the admin panel.
+        </div>
+    </div>
+
+    <!-- Connection Status -->
+    <div id="connectionStatus" class="connection-status disconnected">
+        <div class="status-dot"></div>
+        <span>Connecting...</span>
+    </div>
+
+    <!-- Info Bar (shows on hover) -->
+    <div id="infoBar" class="info-bar">
+        <div class="content-title" id="currentTitle">—</div>
+        <div class="content-meta">
+            <span class="status-badge" id="locationBadge" style="display: none;">
+                <i class="fas fa-map-marker-alt"></i> <span id="locationName">—</span>
+            </span>
+            <span class="status-badge">
+                <i class="fas fa-clock"></i> <span id="currentTime">00:00</span>
+            </span>
+            <span class="status-badge">
+                <span id="currentIndex">1</span> / <span id="totalItems">1</span>
+            </span>
+        </div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress-bar-container">
+        <div class="progress-bar" id="progressBar"></div>
+    </div>
+
+    <!-- Display Containers (dynamically created) -->
+    <div id="displayArea"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let contentItems = [];
+        let currentIndex = 0;
+        let displayTimer = null;
+        let progressTimer = null;
+        let slideshowTimer = null;
+        let currentSlideshowIndex = 0;
+        let eventSource = null;
+        let pollingInterval = null;
+        let lastContentHash = '';
+        let displayLocation = ''; // Location filter for this display
+        let heartbeatInterval = null;
+        let screenshotInterval = null;
+        let displayId = '';
+        let startTime = Date.now();
+
+        // State tracking
+        const state = {
+            isLoading: true,
+            isConnected: false,
+            currentContent: null
+        };
+        
+        // Generate unique display ID (persists in localStorage)
+        function getDisplayId() {
+            let id = localStorage.getItem('narrowcast_display_id');
+            if (!id) {
+                id = 'display_' + Math.random().toString(36).substring(2, 15);
+                localStorage.setItem('narrowcast_display_id', id);
+                console.log('[Display] Generated new display ID:', id);
+            }
+            return id;
+        }
+        
+        displayId = getDisplayId();
+        console.log('[Display] 🆔 This display ID:', displayId);
+        
+        // Get location from URL parameter
+        function getLocationFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('location') || '';
+        }
+        
+        displayLocation = getLocationFromURL();
+        if (displayLocation) {
+            console.log('[Display] 📍 Display location:', displayLocation);
+            // Show location in info bar
+            document.getElementById('locationName').textContent = displayLocation.charAt(0).toUpperCase() + displayLocation.slice(1);
+            document.getElementById('locationBadge').style.display = '';
+        } else {
+            console.log('[Display] 🌐 No location specified, showing all content');
+        }
+        
+        // Add display ID to page title for easy identification
+        document.title = `Narrowcast Display - ${displayId}${displayLocation ? ' (' + displayLocation + ')' : ''}`;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            initDisplay();
+            setupEventSource();
+            startPolling(); // Fallback polling als EventSource niet werkt
+            startHeartbeat(); // Start heartbeat monitoring
+            startScreenshotCapture(); // Start screenshot capture
+            
+            // Show info bar on hover
+            document.addEventListener('mousemove', showInfoBar);
+            let hideTimer;
+            document.addEventListener('mousemove', () => {
+                clearTimeout(hideTimer);
+                hideTimer = setTimeout(hideInfoBar, 3000);
+            });
+            
+            // Clock update
+            setInterval(updateClock, 1000);
+            updateClock();
+        });
+
+        async function initDisplay() {
+            try {
+                // Haal reguliere content op
+                const contentUrl = displayLocation 
+                    ? `/api/narrowcast/content/active?location=${encodeURIComponent(displayLocation)}`
+                    : '/api/narrowcast/content/active';
+                const contentResponse = await fetch(contentUrl);
+                let content = await contentResponse.json();
+                
+                console.log('[Display] Loaded regular content:', content.length, 'items');
+                
+                // Haal production ITEMS op (i.p.v. hele orders)
+                const itemsUrl = displayLocation
+                    ? `/api/narrowcast/production-items?location=${encodeURIComponent(displayLocation)}&limit=20`
+                    : '/api/narrowcast/production-items?location=all&limit=20';
+                const itemsResponse = await fetch(itemsUrl);
+                const itemsData = await itemsResponse.json();
+                
+                console.log('[Display] Loaded production items:', itemsData.count, 'items');
+                
+                // Als er production items zijn, voeg een auto-gegenereerd content item toe
+                if (itemsData.count > 0) {
+                    const productionItemsContent = {
+                        id: 'auto_production_items',
+                        type: 'production_orders', // Gebruik bestaand type
+                        title: 'Production Queue',
+                        active: 1,
+                        priority: 100, // Hoge priority zodat het vaak getoond wordt
+                        display_duration: 30,
+                        background_color: '#0d1117',
+                        text_color: '#e6edf3',
+                        production_orders: itemsData.items.map(item => ({
+                            // Map items naar order format voor display
+                            id: item.id,
+                            order_number: item.order_number,
+                            customer: item.customer,
+                            description: item.item_naam, // Item naam als beschrijving
+                            status: item.item_status,
+                            priority: item.priority,
+                            production_sequence: item.production_sequence,
+                            start_date: item.start_date,
+                            end_date: item.end_date,
+                            total_items: 1,
+                            completed_items: item.item_status === 'Afgewerkt' ? 1 : 0,
+                            progress: item.item_status === 'Afgewerkt' ? 100 : 0,
+                            locations: item.narrowcast_locations
+                        }))
+                    };
+                    
+                    // Voeg toe aan content array
+                    content.push(productionItemsContent);
+                    console.log('[Display] ✅ Auto-added production items content item');
+                } else {
+                    console.log('[Display] ℹ️ No production items to display');
+                }
+                
+                contentItems = content;
+                
+                // Set initial content hash
+                lastContentHash = calculateContentHash(contentItems);
+                
+                // Update connection status since fetch was successful
+                if (!state.isConnected) {
+                    updateConnectionStatus(true);
+                }
+                
+                if (contentItems.length === 0) {
+                    showNoContent();
+                } else {
+                    hideLoading();
+                    startDisplay();
+                }
+            } catch (error) {
+                console.error('[Display] Error loading content:', error);
+                updateConnectionStatus(false);
+                showNoContent();
+            }
+        }
+        
+        // Calculate hash of content for change detection
+        function calculateContentHash(content) {
+            return JSON.stringify(content.map(c => c.id + c.updated_at + c.active));
+        }
+        
+        // Reload content without interrupting current display
+        async function reloadContentList() {
+            try {
+                console.log('[Display] Reloading content list...');
+                
+                // Haal reguliere content op
+                const contentUrl = displayLocation 
+                    ? `/api/narrowcast/content/active?location=${encodeURIComponent(displayLocation)}`
+                    : '/api/narrowcast/content/active';
+                const contentResponse = await fetch(contentUrl);
+                let newContent = await contentResponse.json();
+                
+                // Haal production ITEMS op
+                const itemsUrl = displayLocation
+                    ? `/api/narrowcast/production-items?location=${encodeURIComponent(displayLocation)}&limit=20`
+                    : '/api/narrowcast/production-items?location=all&limit=20';
+                const itemsResponse = await fetch(itemsUrl);
+                const itemsData = await itemsResponse.json();
+                
+                // Als er production items zijn, voeg toe
+                if (itemsData.count > 0) {
+                    const productionItemsContent = {
+                        id: 'auto_production_items',
+                        type: 'production_orders',
+                        title: 'Production Queue',
+                        active: 1,
+                        priority: 100,
+                        display_duration: 30,
+                        background_color: '#0d1117',
+                        text_color: '#e6edf3',
+                        production_orders: itemsData.items.map(item => ({
+                            id: item.id,
+                            order_number: item.order_number,
+                            customer: item.customer,
+                            description: item.item_naam,
+                            status: item.item_status,
+                            priority: item.priority,
+                            production_sequence: item.production_sequence,
+                            start_date: item.start_date,
+                            end_date: item.end_date,
+                            total_items: 1,
+                            completed_items: item.item_status === 'Afgewerkt' ? 1 : 0,
+                            progress: item.item_status === 'Afgewerkt' ? 100 : 0,
+                            locations: item.narrowcast_locations
+                        }))
+                    };
+                    newContent.push(productionItemsContent);
+                }
+                
+                // Check if content actually changed
+                const newHash = calculateContentHash(newContent);
+                if (newHash === lastContentHash) {
+                    console.log('[Display] No changes detected, skipping update');
+                    return;
+                }
+                
+                console.log('[Display] Content changed! Old count:', contentItems.length, 'New count:', newContent.length);
+                lastContentHash = newHash;
+                
+                // Update content array
+                const oldLength = contentItems.length;
+                contentItems = newContent;
+                
+                // Update total items display
+                document.getElementById('totalItems').textContent = contentItems.length;
+                
+                // If we had no content before and now we do, start display
+                if (oldLength === 0 && contentItems.length > 0) {
+                    console.log('[Display] ✨ Content now available, starting display...');
+                    document.getElementById('noContentState').classList.add('hidden');
+                    startDisplay();
+                }
+                
+                // If content was removed and we have none left, show no content state
+                if (oldLength > 0 && contentItems.length === 0) {
+                    console.log('[Display] All content removed, showing no content state');
+                    clearTimeout(displayTimer);
+                    clearInterval(progressTimer);
+                    clearInterval(slideshowTimer);
+                    showNoContent();
+                }
+                
+                console.log('[Display] ✅ Content list updated successfully');
+            } catch (error) {
+                console.error('[Display] Error reloading content:', error);
+            }
+        }
+        
+        // Polling fallback (if EventSource doesn't work due to proxy/buffering)
+        function startPolling() {
+            console.log('[Display] Starting polling fallback (3 second interval)');
+            pollingInterval = setInterval(() => {
+                console.log('[Display] 🔄 Polling for content updates...');
+                reloadContentList();
+            }, 3000); // Check every 3 seconds
+        }
+
+        function setupEventSource() {
+            console.log('[Display] Setting up EventSource connection to /api/narrowcast/events');
+            eventSource = new EventSource('/api/narrowcast/events');
+            
+            eventSource.onopen = () => {
+                console.log('[Display] ✅ SSE connection opened successfully');
+                updateConnectionStatus(true);
+            };
+            
+            eventSource.onerror = (error) => {
+                console.error('[Display] ❌ SSE error:', error);
+                console.error('[Display] EventSource readyState:', eventSource.readyState);
+                updateConnectionStatus(false);
+                
+                // Reconnect after 5 seconds
+                setTimeout(() => {
+                    if (eventSource.readyState === EventSource.CLOSED) {
+                        console.log('[Display] Attempting to reconnect...');
+                        setupEventSource();
+                    }
+                }, 5000);
+            };
+            
+            // Listen for connection confirmation
+            eventSource.addEventListener('connected', (e) => {
+                console.log('[Display] ✅ Connection confirmed from server:', e.data);
+            });
+            
+            // Listen for ALL messages (debug)
+            eventSource.onmessage = (e) => {
+                console.log('[Display] 📨 Generic message received:', e);
+            };
+            
+            eventSource.addEventListener('content_changed', (e) => {
+                console.log('[Display] 🔔 CONTENT_CHANGED event received!');
+                console.log('[Display] Event data:', e.data);
+                try {
+                    const data = JSON.parse(e.data);
+                    console.log('[Display] Parsed data - Action:', data.action, 'ID:', data.id);
+                } catch (err) {
+                    console.log('[Display] Could not parse event data:', err);
+                }
+                
+                // Reload content list
+                console.log('[Display] Triggering content reload...');
+                reloadContentList();
+            });
+            
+            // Listen for production order updates
+            eventSource.addEventListener('production_order_updated', (e) => {
+                console.log('[Display] 🔔 PRODUCTION_ORDER_UPDATED event received!');
+                console.log('[Display] Triggering content reload...');
+                reloadContentList();
+            });
+            
+            // Listen for production item updates
+            eventSource.addEventListener('production_item_updated', (e) => {
+                console.log('[Display] 🔔 PRODUCTION_ITEM_UPDATED event received!');
+                console.log('[Display] Triggering content reload...');
+                reloadContentList();
+            });
+            
+            // Setup remote control listener
+            setupRemoteControl();
+            
+            console.log('[Display] EventSource listeners registered');
+        }
+
+        function updateConnectionStatus(connected) {
+            state.isConnected = connected;
+            const statusEl = document.getElementById('connectionStatus');
+            
+            if (connected) {
+                statusEl.className = 'connection-status connected';
+                statusEl.querySelector('span').textContent = 'Connected';
+                
+                // Auto-hide connection status after 3 seconds when connected
+                setTimeout(() => {
+                    if (state.isConnected) {
+                        statusEl.style.opacity = '0';
+                        statusEl.style.pointerEvents = 'none';
+                    }
+                }, 3000);
+            } else {
+                statusEl.className = 'connection-status disconnected';
+                statusEl.querySelector('span').textContent = 'Disconnected';
+                statusEl.style.opacity = '1';
+                statusEl.style.pointerEvents = 'auto';
+            }
+        }
+
+        function hideLoading() {
+            state.isLoading = false;
+            document.getElementById('loadingState').classList.add('hidden');
+        }
+
+        function showNoContent() {
+            hideLoading();
+            document.getElementById('noContentState').classList.remove('hidden');
+        }
+
+        function startDisplay() {
+            if (contentItems.length === 0) {
+                showNoContent();
+                return;
+            }
+            
+            document.getElementById('noContentState').classList.add('hidden');
+            document.getElementById('totalItems').textContent = contentItems.length;
+            
+            showContent(0);
+        }
+
+        function showContent(index) {
+            if (index >= contentItems.length) {
+                index = 0;
+            }
+            
+            currentIndex = index;
+            const content = contentItems[index];
+            state.currentContent = content;
+            
+            console.log('[Display] Showing content:', content);
+            
+            // Update UI
+            document.getElementById('currentTitle').textContent = content.title;
+            document.getElementById('currentIndex').textContent = index + 1;
+            
+            // Clear display area
+            const displayArea = document.getElementById('displayArea');
+            displayArea.innerHTML = '';
+            
+            // Create display based on type
+            let container;
+            switch (content.type) {
+                case 'text':
+                    container = createTextDisplay(content);
+                    break;
+                case 'image':
+                    container = createImageDisplay(content);
+                    break;
+                case 'video':
+                    container = createVideoDisplay(content);
+                    break;
+                case 'url':
+                    container = createUrlDisplay(content);
+                    break;
+                case 'slideshow':
+                    container = createSlideshowDisplay(content);
+                    break;
+                case 'production_orders':
+                    container = createProductionOrdersDisplay(content);
+                    break;
+                default:
+                    console.warn('[Display] Unknown content type:', content.type);
+                    scheduleNext();
+                    return;
+            }
+            
+            displayArea.appendChild(container);
+            
+            // Activate after a brief moment
+            setTimeout(() => {
+                container.classList.add('active');
+            }, 50);
+            
+            // For videos, don't schedule next - let video.onended handle it
+            if (content.type !== 'video') {
+                // Start progress bar
+                startProgress(content.display_duration);
+                
+                // Schedule next content
+                displayTimer = setTimeout(() => {
+                    scheduleNext();
+                }, content.display_duration * 1000);
+            } else {
+                console.log('[Display] Video content - will advance when video ends');
+            }
+        }
+
+        function createTextDisplay(content) {
+            const container = document.createElement('div');
+            container.className = 'display-container text-display';
+            container.style.background = content.background_color || '#0d1117';
+            container.style.color = content.text_color || '#e6edf3';
+            
+            const textContent = document.createElement('div');
+            textContent.className = 'text-content';
+            textContent.style.fontSize = `${content.font_size || 32}px`;
+            textContent.innerHTML = content.content || '';
+            
+            container.appendChild(textContent);
+            return container;
+        }
+
+        function createImageDisplay(content) {
+            const container = document.createElement('div');
+            container.className = 'display-container image-display';
+            container.style.background = '#000';
+            
+            const img = document.createElement('img');
+            img.src = content.media_url;
+            img.alt = content.title;
+            img.onerror = () => {
+                console.error('[Display] Image load error:', content.media_url);
+                scheduleNext();
+            };
+            
+            container.appendChild(img);
+            return container;
+        }
+
+        function createVideoDisplay(content) {
+            const container = document.createElement('div');
+            container.className = 'display-container video-display';
+            
+            const video = document.createElement('video');
+            video.src = content.media_url;
+            video.autoplay = true;
+            video.muted = true;  // Muted required for autoplay in browsers
+            video.controls = false;
+            video.playsInline = true;  // For iOS support
+            video.loop = false;
+            
+            video.onerror = () => {
+                console.error('[Display] Video load error:', content.media_url);
+                scheduleNext();
+            };
+            
+            // Explicitly try to play (browsers may still block without user interaction)
+            video.onloadedmetadata = () => {
+                console.log('[Display] Video loaded, attempting to play:', content.media_url);
+                const playPromise = video.play();
+                
+                if (playPromise !== undefined) {
+                    playPromise
+                        .then(() => {
+                            console.log('[Display] Video playing successfully');
+                        })
+                        .catch(error => {
+                            console.error('[Display] Video autoplay blocked:', error);
+                            // Fallback: show controls so user can start manually
+                            video.controls = true;
+                        });
+                }
+            };
+            
+            // When video ends, go to next content
+            video.onended = () => {
+                console.log('[Display] Video ended, moving to next content');
+                scheduleNext();
+            };
+            
+            container.appendChild(video);
+            
+            // Add unmute button (optional - user can click to enable sound)
+            const unmuteHint = document.createElement('div');
+            unmuteHint.className = 'unmute-hint';
+            unmuteHint.innerHTML = '<i class="fas fa-volume-mute"></i> Click to enable sound';
+            unmuteHint.onclick = () => {
+                video.muted = !video.muted;
+                if (video.muted) {
+                    unmuteHint.innerHTML = '<i class="fas fa-volume-mute"></i> Click to enable sound';
+                } else {
+                    unmuteHint.innerHTML = '<i class="fas fa-volume-up"></i> Sound enabled';
+                    setTimeout(() => {
+                        unmuteHint.style.opacity = '0';
+                    }, 2000);
+                }
+            };
+            container.appendChild(unmuteHint);
+            
+            return container;
+        }
+
+        function createUrlDisplay(content) {
+            const container = document.createElement('div');
+            container.className = 'display-container url-display';
+            
+            const iframe = document.createElement('iframe');
+            iframe.src = content.media_url;
+            iframe.allow = 'autoplay; fullscreen';
+            iframe.sandbox = 'allow-same-origin allow-scripts allow-forms';
+            
+            container.appendChild(iframe);
+            return container;
+        }
+
+        function createSlideshowDisplay(content) {
+            const container = document.createElement('div');
+            container.className = 'display-container slideshow-display';
+            container.style.background = '#000';
+            
+            const urls = content.media_urls || [];
+            if (urls.length === 0) {
+                scheduleNext();
+                return container;
+            }
+            
+            currentSlideshowIndex = 0;
+            
+            const img = document.createElement('img');
+            img.src = urls[0];
+            img.alt = content.title;
+            container.appendChild(img);
+            
+            // Create indicators
+            if (urls.length > 1) {
+                const indicators = document.createElement('div');
+                indicators.className = 'slideshow-indicator';
+                
+                for (let i = 0; i < urls.length; i++) {
+                    const dot = document.createElement('div');
+                    dot.className = 'dot' + (i === 0 ? ' active' : '');
+                    indicators.appendChild(dot);
+                }
+                
+                container.appendChild(indicators);
+                
+                // Auto-advance slideshow
+                const slideDuration = (content.display_duration * 1000) / urls.length;
+                const advanceSlide = () => {
+                    currentSlideshowIndex = (currentSlideshowIndex + 1) % urls.length;
+                    img.src = urls[currentSlideshowIndex];
+                    
+                    // Update indicators
+                    const dots = indicators.querySelectorAll('.dot');
+                    dots.forEach((dot, idx) => {
+                        dot.classList.toggle('active', idx === currentSlideshowIndex);
+                    });
+                };
+                
+                slideshowTimer = setInterval(advanceSlide, slideDuration);
+            }
+            
+            return container;
+        }
+
+        function createProductionOrdersDisplay(content) {
+            const container = document.createElement('div');
+            container.className = 'display-container text-display';
+            container.style.background = content.background_color || '#0d1117';
+            container.style.color = content.text_color || '#e6edf3';
+            container.style.padding = '3rem';
+            container.style.overflow = 'auto';
+            
+            const ordersContent = document.createElement('div');
+            ordersContent.style.width = '100%';
+            ordersContent.style.maxWidth = '1600px';
+            ordersContent.style.margin = '0 auto';
+            
+            // Title
+            const title = document.createElement('h1');
+            title.textContent = content.title;
+            title.style.fontSize = '3rem';
+            title.style.marginBottom = '2rem';
+            title.style.textAlign = 'center';
+            title.style.fontWeight = '700';
+            ordersContent.appendChild(title);
+            
+            // Orders list
+            const orders = content.production_orders || [];
+            
+            if (orders.length === 0) {
+                const noOrders = document.createElement('div');
+                noOrders.textContent = 'No production orders scheduled';
+                noOrders.style.fontSize = '1.5rem';
+                noOrders.style.textAlign = 'center';
+                noOrders.style.opacity = '0.6';
+                noOrders.style.padding = '4rem';
+                ordersContent.appendChild(noOrders);
+            } else {
+                // Create order cards
+                orders.forEach((order, index) => {
+                    const orderCard = document.createElement('div');
+                    orderCard.style.background = 'rgba(255, 255, 255, 0.05)';
+                    orderCard.style.border = order.priority ? '2px solid #f85149' : '1px solid rgba(255, 255, 255, 0.1)';
+                    orderCard.style.borderRadius = '12px';
+                    orderCard.style.padding = '1.5rem';
+                    orderCard.style.marginBottom = '1.5rem';
+                    orderCard.style.display = 'grid';
+                    orderCard.style.gridTemplateColumns = '80px 1fr auto';
+                    orderCard.style.gap = '1.5rem';
+                    orderCard.style.alignItems = 'center';
+                    
+                    // Sequence number
+                    const sequenceBadge = document.createElement('div');
+                    sequenceBadge.textContent = order.production_sequence || (index + 1);
+                    sequenceBadge.style.width = '70px';
+                    sequenceBadge.style.height = '70px';
+                    sequenceBadge.style.borderRadius = '50%';
+                    sequenceBadge.style.background = order.priority ? '#f85149' : '#1f6feb';
+                    sequenceBadge.style.display = 'flex';
+                    sequenceBadge.style.alignItems = 'center';
+                    sequenceBadge.style.justifyContent = 'center';
+                    sequenceBadge.style.fontSize = '2rem';
+                    sequenceBadge.style.fontWeight = '700';
+                    orderCard.appendChild(sequenceBadge);
+                    
+                    // Order info
+                    const orderInfo = document.createElement('div');
+                    
+                    const orderNumber = document.createElement('div');
+                    orderNumber.textContent = order.order_number;
+                    orderNumber.style.fontSize = '1.8rem';
+                    orderNumber.style.fontWeight = '700';
+                    orderNumber.style.marginBottom = '0.5rem';
+                    orderInfo.appendChild(orderNumber);
+                    
+                    const customer = document.createElement('div');
+                    customer.textContent = order.customer;
+                    customer.style.fontSize = '1.3rem';
+                    customer.style.opacity = '0.8';
+                    customer.style.marginBottom = '0.5rem';
+                    orderInfo.appendChild(customer);
+                    
+                    if (order.description) {
+                        const description = document.createElement('div');
+                        description.textContent = order.description;
+                        description.style.fontSize = '1.1rem';
+                        description.style.opacity = '0.6';
+                        description.style.whiteSpace = 'nowrap';
+                        description.style.overflow = 'hidden';
+                        description.style.textOverflow = 'ellipsis';
+                        orderInfo.appendChild(description);
+                    }
+                    
+                    orderCard.appendChild(orderInfo);
+                    
+                    // Progress
+                    const progressSection = document.createElement('div');
+                    progressSection.style.textAlign = 'right';
+                    progressSection.style.minWidth = '150px';
+                    
+                    const progressText = document.createElement('div');
+                    progressText.textContent = `${order.progress}%`;
+                    progressText.style.fontSize = '2.5rem';
+                    progressText.style.fontWeight = '700';
+                    progressText.style.marginBottom = '0.5rem';
+                    progressSection.appendChild(progressText);
+                    
+                    const progressBar = document.createElement('div');
+                    progressBar.style.width = '150px';
+                    progressBar.style.height = '10px';
+                    progressBar.style.background = 'rgba(255, 255, 255, 0.1)';
+                    progressBar.style.borderRadius = '5px';
+                    progressBar.style.overflow = 'hidden';
+                    
+                    const progressFill = document.createElement('div');
+                    progressFill.style.width = `${order.progress}%`;
+                    progressFill.style.height = '100%';
+                    progressFill.style.background = order.progress === 100 ? '#3fb950' : '#1f6feb';
+                    progressFill.style.borderRadius = '5px';
+                    progressBar.appendChild(progressFill);
+                    
+                    progressSection.appendChild(progressBar);
+                    
+                    const itemsText = document.createElement('div');
+                    itemsText.textContent = `${order.completed_items} / ${order.total_items} items`;
+                    itemsText.style.fontSize = '1rem';
+                    itemsText.style.opacity = '0.6';
+                    itemsText.style.marginTop = '0.5rem';
+                    progressSection.appendChild(itemsText);
+                    
+                    orderCard.appendChild(progressSection);
+                    
+                    ordersContent.appendChild(orderCard);
+                });
+            }
+            
+            container.appendChild(ordersContent);
+            return container;
+        }
+
+        function startProgress(duration) {
+            const progressBar = document.getElementById('progressBar');
+            progressBar.style.width = '0%';
+            
+            let elapsed = 0;
+            const interval = 100; // Update every 100ms
+            const totalMs = duration * 1000;
+            
+            clearInterval(progressTimer);
+            progressTimer = setInterval(() => {
+                elapsed += interval;
+                const progress = Math.min((elapsed / totalMs) * 100, 100);
+                progressBar.style.width = `${progress}%`;
+                
+                if (elapsed >= totalMs) {
+                    clearInterval(progressTimer);
+                }
+            }, interval);
+        }
+
+        function scheduleNext() {
+            clearTimeout(displayTimer);
+            clearInterval(progressTimer);
+            clearInterval(slideshowTimer);
+            
+            // Fade out current
+            const currentContainer = document.querySelector('.display-container.active');
+            if (currentContainer) {
+                currentContainer.classList.add('fading-out');
+                setTimeout(() => {
+                    currentContainer.remove();
+                }, 500);
+            }
+            
+            // Show next after fade
+            setTimeout(() => {
+                const nextIndex = (currentIndex + 1) % contentItems.length;
+                showContent(nextIndex);
+            }, 500);
+        }
+
+        function showInfoBar() {
+            document.getElementById('infoBar').classList.add('show');
+        }
+
+        function hideInfoBar() {
+            document.getElementById('infoBar').classList.remove('show');
+        }
+
+        function updateClock() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('nl-NL', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            document.getElementById('currentTime').textContent = timeStr;
+        }
+
+        // ==================== HEARTBEAT & MONITORING ====================
+
+        async function sendHeartbeat() {
+            try {
+                const uptime = Math.floor((Date.now() - startTime) / 1000);
+                const currentContent = state.currentContent;
+                
+                const heartbeatData = {
+                    display_id: displayId,
+                    location: displayLocation || 'all',
+                    current_content_id: currentContent ? currentContent.id : null,
+                    current_content_title: currentContent ? currentContent.title : null,
+                    screen_width: window.screen.width,
+                    screen_height: window.screen.height,
+                    uptime_seconds: uptime
+                };
+                
+                const response = await fetch('/api/narrowcast/heartbeat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(heartbeatData)
+                });
+                
+                if (response.ok) {
+                    console.log('[Monitoring] Heartbeat sent successfully');
+                } else {
+                    console.warn('[Monitoring] Heartbeat failed:', response.status);
+                }
+            } catch (error) {
+                console.error('[Monitoring] Error sending heartbeat:', error);
+            }
+        }
+
+        function startHeartbeat() {
+            console.log('[Monitoring] Starting heartbeat (30 second interval)');
+            
+            // Send first heartbeat immediately
+            sendHeartbeat();
+            
+            // Then every 30 seconds
+            heartbeatInterval = setInterval(sendHeartbeat, 30000);
+        }
+
+        // Screenshot capture using html2canvas alternative (native API)
+        async function captureScreenshot() {
+            try {
+                // Use the experimental Screen Capture API if available
+                // For now, we'll use canvas to capture current display
+                const displayArea = document.getElementById('displayArea');
+                if (!displayArea || !displayArea.children.length) {
+                    console.log('[Monitoring] No content to capture');
+                    return;
+                }
+                
+                // Create a simple placeholder screenshot (for now)
+                // In production, you'd use html2canvas library or native screenshot API
+                const canvas = document.createElement('canvas');
+                canvas.width = 400;
+                canvas.height = 300;
+                const ctx = canvas.getContext('2d');
+                
+                // Draw simple representation
+                ctx.fillStyle = state.currentContent?.background_color || '#0d1117';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.fillStyle = state.currentContent?.text_color || '#e6edf3';
+                ctx.font = '20px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(state.currentContent?.title || 'Display Active', canvas.width / 2, canvas.height / 2);
+                
+                const screenshotData = canvas.toDataURL('image/jpeg', 0.5);
+                
+                const response = await fetch('/api/narrowcast/screenshot', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        display_id: displayId,
+                        screenshot_data: screenshotData,
+                        content_id: state.currentContent?.id || null
+                    })
+                });
+                
+                if (response.ok) {
+                    console.log('[Monitoring] Screenshot captured');
+                } else {
+                    console.warn('[Monitoring] Screenshot upload failed');
+                }
+            } catch (error) {
+                console.error('[Monitoring] Error capturing screenshot:', error);
+            }
+        }
+
+        function startScreenshotCapture() {
+            console.log('[Monitoring] Starting screenshot capture (every 2 minutes)');
+            
+            // Capture first screenshot after 10 seconds
+            setTimeout(captureScreenshot, 10000);
+            
+            // Then every 2 minutes
+            screenshotInterval = setInterval(captureScreenshot, 120000);
+        }
+
+        // Listen for remote control commands
+        function setupRemoteControl() {
+            if (!eventSource) {
+                console.error('[Monitoring] EventSource not available for remote control');
+                return;
+            }
+            
+            console.log('[Monitoring] Setting up remote control listener for display:', displayId);
+            
+            eventSource.addEventListener('remote_control', (e) => {
+                console.log('[Monitoring] 🎮 REMOTE_CONTROL event received!');
+                console.log('[Monitoring] Raw event data:', e.data);
+                
+                try {
+                    const data = JSON.parse(e.data);
+                    console.log('[Monitoring] Parsed remote control data:', data);
+                    console.log('[Monitoring] Target display:', data.display_id, 'This display:', displayId);
+                    
+                    // Check if command is for this display or all displays
+                    if (data.display_id !== displayId && data.display_id !== 'all') {
+                        console.log('[Monitoring] Command not for this display, ignoring');
+                        return; // Not for us
+                    }
+                    
+                    console.log('[Monitoring] ✅ Command is for this display!');
+                    handleRemoteCommand(data.command);
+                } catch (err) {
+                    console.error('[Monitoring] Error parsing remote control:', err);
+                }
+            });
+            
+            console.log('[Monitoring] Remote control listener registered');
+        }
+
+        function handleRemoteCommand(command) {
+            console.log('[Monitoring] Executing command:', command);
+            
+            switch (command) {
+                case 'refresh':
+                    console.log('[Monitoring] Refreshing content...');
+                    reloadContentList();
+                    break;
+                    
+                case 'next':
+                    console.log('[Monitoring] Skipping to next content...');
+                    scheduleNext();
+                    break;
+                    
+                case 'pause':
+                    console.log('[Monitoring] Pausing playback...');
+                    clearTimeout(displayTimer);
+                    clearInterval(progressTimer);
+                    break;
+                    
+                case 'resume':
+                    console.log('[Monitoring] Resuming playback...');
+                    scheduleNext();
+                    break;
+                    
+                case 'screenshot':
+                    console.log('[Monitoring] Capturing screenshot on demand...');
+                    captureScreenshot();
+                    break;
+                    
+                default:
+                    console.warn('[Monitoring] Unknown command:', command);
+            }
+        }
+
+        // ==================== END MONITORING ====================
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (eventSource) {
+                eventSource.close();
+            }
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+            }
+            if (heartbeatInterval) {
+                clearInterval(heartbeatInterval);
+            }
+            if (screenshotInterval) {
+                clearInterval(screenshotInterval);
+            }
+            clearTimeout(displayTimer);
+            clearInterval(progressTimer);
+            clearInterval(slideshowTimer);
+        });
+
+        // Keyboard shortcuts (for testing)
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight') {
+                scheduleNext();
+            } else if (e.key === 'r' || e.key === 'R') {
+                initDisplay();
+            }
+        });
+    </script>
+</body>
+</html>
+

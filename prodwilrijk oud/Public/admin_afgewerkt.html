@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Afgewerkte Werkorders</title>
+    <link rel="stylesheet" href="admin_afgewerkt.css">
+</head>
+<body>
+    <header id="header-placeholder" role="banner"></header>
+    <main class="container">
+        <h1>Afgewerkte Werkorders</h1>
+        <section class="search-bar">
+            <input type="text" id="search-input" placeholder="Zoek op beschrijvingen..." aria-label="Zoek op beschrijvingen">
+        </section>
+        <section class="table-section">
+            <h2>Werkorders</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ordernummer</th>
+                        <th>Beschrijving</th>
+                        <th>Aantal Stuks</th>
+                        <th>Status</th>
+                        <th>Totale Tijd</th>
+                        <th>Totaal Manuren</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody id="workorders-table-body"></tbody>
+            </table>
+        </section>
+    </main>
+
+    <div id="orderDetailsModal" class="modal" role="dialog" aria-labelledby="modal-title" aria-hidden="true">
+        <div class="modal-content">
+            <button class="close" aria-label="Close">&times;</button>
+            <h2 id="modal-title">Order Details</h2>
+            <p>Ordernummer: <span id="details-order-number"></span></p>
+            <section>
+                <h3>Zagerij Timelogs</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Starttijd</th>
+                            <th>Eindtijd</th>
+                            <th>Duur</th>
+                            <th>Manuren</th>
+                        </tr>
+                    </thead>
+                    <tbody id="zagerij-timelogs"></tbody>
+                </table>
+            </section>
+            <section>
+                <h3>Assemblage Timelogs</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Starttijd</th>
+                            <th>Eindtijd</th>
+                            <th>Duur</th>
+                            <th>Manuren</th>
+                        </tr>
+                    </thead>
+                    <tbody id="assemblage-timelogs"></tbody>
+                </table>
+            </section>
+            <section>
+                <h3>Pauze Timelogs</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Stap</th>
+                            <th>Pauze Starttijd</th>
+                            <th>Pauze Eindtijd</th>
+                            <th>Reden</th>
+                            <th>Duur</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pause-timelogs"></tbody>
+                </table>
+                <p>Totaal Pauzetijd: <span id="total-pause-time"></span></p>
+                <p>Totaal Zaagtijd: <span id="total-sawing-time"></span></p>
+                <p>Totaal Assemblagetijd: <span id="total-assembly-time"></span></p>
+                <p>Totale Tijd Zagen + Assemblage: <span id="total-time"></span></p>
+            </section>
+        </div>
+    </div>
+
+    <script src="scripts_admin_afgewerkt.js"></script>
+</body>
+</html>

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Foto's koppelen aan kist</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: #0b1220; color: #e6edf3; }
+        .container { max-width: 960px; }
+        .thumb { width: 160px; height: 120px; object-fit: cover; border-radius: 6px; border: 1px solid #24314f; }
+        .card { background: #111a2b; border: 1px solid #1f2a44; }
+        .muted { color: #8b949e; }
+    </style>
+    <meta http-equiv="refresh" content="0;url=/case_photos.html" />
+</head>
+<body>
+    <div class="container py-4">
+        <h3>Foto's koppelen aan kist</h3>
+        <div class="card p-3 mt-3">
+            <div class="row g-2 align-items-end">
+                <div class="col-sm-6">
+                    <label class="form-label">Kistnummer (label)</label>
+                    <input id="caseLabel" class="form-control" placeholder="bv. K1" />
+                    <div class="form-text">Dit moet overeenkomen met het kistnummer in de items.</div>
+                </div>
+                <div class="col-sm-6">
+                    <label class="form-label">Bestanden</label>
+                    <input id="photos" type="file" class="form-control" multiple accept="image/*" />
+                </div>
+            </div>
+            <div class="mt-3 d-flex gap-2">
+                <button id="btnUpload" class="btn btn-primary">Uploaden</button>
+                <button id="btnRefresh" class="btn btn-outline-secondary">Vernieuwen</button>
+            </div>
+        </div>
+
+        <div class="mt-3">
+            <div class="d-flex align-items-center gap-2">
+                <h5 class="m-0">Gekoppelde foto's</h5>
+                <span id="count" class="badge bg-info">0</span>
+                <span class="muted">Pad: /uploads/case-photos/</span>
+            </div>
+            <div id="list" class="row g-3 mt-2"></div>
+        </div>
+    </div>
+
+    <script>
+    const caseLabel = document.getElementById('caseLabel');
+    const input = document.getElementById('photos');
+    const list = document.getElementById('list');
+    const btnUpload = document.getElementById('btnUpload');
+    const btnRefresh = document.getElementById('btnRefresh');
+    const count = document.getElementById('count');
+
+    async function getCaseIdByLabel(label){
+        const res = await fetch(`/api/cases/by-label/${encodeURIComponent(label)}`);
+        if (!res.ok) throw new Error('Kist niet gevonden');
+        const json = await res.json();
+        return json.id;
+    }
+
+    async function refresh(){
+        const label = caseLabel.value.trim();
+        if (!label) return;
+        try {
+            const id = await getCaseIdByLabel(label);
+            const res = await fetch(`/api/cases/${id}/photos`);
+            const photos = await res.json();
+            list.innerHTML = '';
+            photos.forEach(p => {
+                const col = document.createElement('div');
+                col.className = 'col-auto';
+                col.innerHTML = `
+                    <div class="text-center">
+                        <img class="thumb" src="${p.url}" alt="${p.originalName}"><br>
+                        <small class="muted">${p.originalName||''}</small><br>
+                        <button class="btn btn-sm btn-outline-danger mt-1" data-id="${p.id}">Verwijderen</button>
+                    </div>`;
+                list.appendChild(col);
+                col.querySelector('button').addEventListener('click', async () => {
+                    if (!confirm('Foto verwijderen?')) return;
+                    await fetch(`/api/cases/${id}/photos/${p.id}`, { method: 'DELETE' });
+                    await refresh();
+                });
+            });
+            count.textContent = photos.length;
+        } catch (e) {
+            alert(e.message||'Fout bij laden');
+        }
+    }
+
+    async function upload(){
+        const label = caseLabel.value.trim();
+        if (!label) return alert('Vul een kistnummer in');
+        if (!input.files || input.files.length === 0) return alert('Kies minstens één bestand');
+        try {
+            const id = await getCaseIdByLabel(label);
+            const fd = new FormData();
+            for (const f of input.files) fd.append('photos', f);
+            const res = await fetch(`/api/cases/${id}/photos`, { method: 'POST', body: fd });
+            if (!res.ok) throw new Error('Upload mislukt');
+            input.value = '';
+            await refresh();
+            alert('Upload gelukt');
+        } catch (e) {
+            alert(e.message||'Fout bij upload');
+        }
+    }
+
+    btnUpload.addEventListener('click', upload);
+    btnRefresh.addEventListener('click', refresh);
+    caseLabel.addEventListener('change', refresh);
+    </script>
+</body>
+</html>
+
+

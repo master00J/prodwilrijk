@@ -1,0 +1,914 @@
+<!doctype html>
+<html lang="nl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Scanner naar Excel</title>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#0b1020">
+    <style>
+        :root {
+            --bg: #0b1020;
+            --panel: #121831;
+            --panel-2: #0f1429;
+            --text: #e8ebff;
+            --muted: #aab0d6;
+            --primary: #4f7cff;
+            --primary-2: #3a5fe6;
+            --danger: #ff5a7a;
+            --warning: #ffd166;
+            --success: #3ddc97;
+            --border: #253057;
+        }
+        html[data-theme="light"] {
+            --bg: #f6f7fb;
+            --panel: #ffffff;
+            --panel-2: #f2f6ff;
+            --text: #10121a;
+            --muted: #5e667a;
+            --primary: #3b6af6;
+            --primary-2: #2f55d6;
+            --danger: #d23b57;
+            --warning: #f2b300;
+            --success: #1fb681;
+            --border: #dfe4f1;
+        }
+        *, *::before, *::after { box-sizing: border-box; }
+        html, body {
+            height: 100%;
+            margin: 0;
+            background: radial-gradient(1200px 1200px at 80% -10%, #1b2659 0%, #0b1020 60%);
+            color: var(--text);
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+            -webkit-font-smoothing: antialiased;
+        }
+        html[data-theme="light"] body { background: radial-gradient(1400px 1000px at 20% -10%, #eaf0ff 0%, #f6f7fb 60%); }
+        body {
+            display: block; /* Standaard block flow: header bovenaan, content eronder */
+        }
+        /* Zorg dat de ingeladen header full-width bovenaan staat */
+        nav.navbar {
+            width: 100%;
+            margin: 0;
+        }
+        .container {
+            width: min(100%, 1120px);
+            margin: 0 auto;
+            padding: 32px clamp(20px, 4vw, 48px) 80px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        @supports (padding: max(0px)) {
+            .container { padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right)); padding-bottom: max(80px, env(safe-area-inset-bottom) + 32px); }
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        h1 {
+            margin: 0;
+            font-size: clamp(24px, 4vw, 30px);
+            letter-spacing: 0.2px;
+        }
+        .card {
+            background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            box-shadow: 0 16px 42px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.05);
+            backdrop-filter: blur(8px);
+        }
+        .input-card {
+            padding: clamp(18px, 3vw, 28px);
+            display: grid;
+            grid-template-columns: 1.5fr 0.9fr 1.2fr auto;
+            gap: 16px;
+            align-items: end;
+        }
+        label { font-size: 13px; color: var(--muted); letter-spacing: 0.3px; }
+        .field { display: flex; flex-direction: column; gap: 8px; }
+        input[type="text"], input[type="number"], textarea, select {
+            background: var(--panel);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 16px;
+            outline: none;
+            font-size: 17px;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+        }
+        input[type="text"]:focus, input[type="number"]:focus, textarea:focus, select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(79,124,255,0.18);
+            transform: translateY(-1px);
+        }
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        button {
+            background: linear-gradient(180deg, var(--primary), var(--primary-2));
+            color: white;
+            border: 0;
+            border-radius: 12px;
+            padding: 13px 16px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.08s ease, box-shadow 0.2s ease, filter 0.2s ease;
+            box-shadow: 0 8px 20px rgba(79,124,255,0.35);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            user-select: none;
+            min-height: 44px;
+        }
+        button:active { transform: translateY(1px); }
+        button:focus-visible { outline: 2px solid rgba(79,124,255,0.5); outline-offset: 3px; }
+        .btn-secondary {
+            background: linear-gradient(180deg, #2a335e, #21294f);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+        }
+        .btn-danger {
+            background: linear-gradient(180deg, var(--danger), #e14662);
+            box-shadow: 0 6px 18px rgba(255,90,122,0.35);
+        }
+        .btn-warning {
+            background: linear-gradient(180deg, var(--warning), #f0b53f);
+            color: #2d2000;
+            box-shadow: 0 6px 18px rgba(255,209,102,0.35);
+        }
+        .icon-btn {
+            background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+            border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: none;
+            color: var(--text);
+            font-size: 20px;
+            padding: 10px 0;
+            width: 48px;
+            justify-content: center;
+        }
+        html[data-theme="light"] .icon-btn {
+            background: linear-gradient(180deg, rgba(0,0,0,0.03), rgba(0,0,0,0.01));
+            border: 1px solid rgba(0,0,0,0.05);
+            color: var(--text);
+        }
+        .icon-btn:hover { filter: brightness(1.15); }
+        .muted {
+            color: var(--muted);
+            font-size: 13px;
+        }
+        .stats { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+        .stat-pill {
+            background: linear-gradient(180deg, #1a2144, #121831);
+            border: 1px solid var(--border);
+            padding: 10px 14px;
+            border-radius: 999px;
+            font-size: 14px;
+            display: inline-flex;
+            gap: 6px;
+            align-items: center;
+        }
+        html[data-theme="light"] .stat-pill { background: linear-gradient(180deg, #f4f7ff, #eef2fe); border: 1px solid var(--border); }
+        .table-card { margin-top: 8px; }
+        .table-card.long-list {
+            background: linear-gradient(180deg, var(--panel-2), var(--panel));
+        }
+        .table-scroll {
+            overflow-x: auto;
+            overflow-y: auto;
+            max-height: clamp(320px, 60vh, 560px);
+            padding: 8px;
+            border-radius: 12px;
+        }
+        table { width: 100%; border-collapse: collapse; min-width: 640px; }
+        thead th {
+            text-align: left;
+            font-weight: 600;
+            color: var(--muted);
+            font-size: 12px;
+            letter-spacing: 0.2px;
+            padding: 14px 12px;
+            border-bottom: 1px solid var(--border);
+            background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+        }
+        tbody td {
+            padding: 16px 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            font-size: 15px;
+        }
+        html[data-theme="light"] tbody td { border-bottom: 1px solid rgba(0,0,0,0.06); }
+        tbody tr:hover td { background: rgba(255,255,255,0.03); }
+        html[data-theme="light"] tbody tr:hover td { background: rgba(0,0,0,0.03); }
+        tbody tr.row-fade-in { animation: fadeIn 0.25s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+        td.actions-cell { text-align: right; padding-right: 6px; }
+        thead .actions-header { text-align: right; }
+        .footer-bar {
+            position: sticky;
+            bottom: 0; left: 0; right: 0; z-index: 5;
+            background: linear-gradient(180deg, rgba(11,16,32,0), rgba(11,16,32,0.85) 35%, rgba(11,16,32,1) 70%);
+            padding-top: 16px;
+        }
+        html[data-theme="light"] .footer-bar { background: linear-gradient(180deg, rgba(246,247,251,0), rgba(246,247,251,0.85) 35%, rgba(246,247,251,1) 70%); }
+        .footer-actions {
+            display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+            padding: 10px 0 4px;
+        }
+        .inline { display: inline-flex; align-items: center; gap: 8px; }
+        .switch { display: inline-flex; gap: 8px; align-items: center; }
+        .switch input { width: 18px; height: 18px; }
+        .help { margin-top: 12px; font-size: 14px; color: var(--muted); line-height: 1.4; }
+        .spacer { height: 24px; }
+        @media (pointer: coarse) {
+            button { min-height: 48px; }
+            .toolbar { gap: 12px; }
+            tbody td { padding: 18px 14px; }
+        }
+        @media (max-width: 1080px) {
+            .container { padding: 28px clamp(18px, 5vw, 36px) 72px; }
+            .input-card { grid-template-columns: 1.4fr 0.9fr 1.1fr auto; }
+            input[type="text"], select { font-size: 18px; }
+            button { font-size: 17px; }
+            table { min-width: 600px; }
+        }
+        @media (max-width: 860px) {
+            .input-card { grid-template-columns: 1fr 1fr; }
+            .btn-add { grid-column: span 2; }
+            .toolbar { grid-column: span 2; }
+            .stats { width: 100%; justify-content: flex-start; }
+            .table-scroll { max-height: clamp(360px, 58vh, 520px); }
+        }
+        @media (max-width: 680px) {
+            .input-card { grid-template-columns: 1fr; align-items: stretch; }
+            .btn-add, .toolbar { grid-column: 1 / -1; }
+            .toolbar { justify-content: flex-start; }
+            table { min-width: 540px; }
+        }
+        html[data-theme="light"] .table-card { box-shadow: none; }
+    </style>
+</head>
+<body>
+    <div id="headerMount"></div>
+    <script>
+    (function loadHeader() {
+        const mount = document.getElementById('headerMount');
+        function addCss(href, id) {
+            if (document.getElementById(id)) return Promise.resolve();
+            return new Promise((resolve) => {
+                const link = document.createElement('link');
+                link.id = id; link.rel = 'stylesheet'; link.href = href; link.onload = resolve; document.head.appendChild(link);
+            });
+        }
+        function addScript(src, id) {
+            if (document.getElementById(id)) return Promise.resolve();
+            return new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.id = id; s.src = src; s.onload = resolve; s.onerror = reject; document.head.appendChild(s);
+            });
+        }
+        Promise.all([
+            addCss('https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css', 'bootstrap-css'),
+            addCss('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css', 'fa-css'),
+            addScript('https://code.jquery.com/jquery-3.7.1.min.js', 'jquery-js')
+        ]).then(() => addScript('https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js', 'bootstrap-js'))
+          .then(() => fetch('/header.html'))
+          .then(r => r.text())
+          .then(html => {
+              const doc = new DOMParser().parseFromString(html, 'text/html');
+              const style = doc.querySelector('head style');
+              if (style && !document.getElementById('header-inline-style')) {
+                  const st = document.createElement('style'); st.id = 'header-inline-style'; st.textContent = style.textContent; document.head.appendChild(st);
+              }
+              const nav = doc.querySelector('nav.navbar');
+              if (nav && mount) mount.replaceWith(nav);
+              doc.querySelectorAll('script').forEach(orig => {
+                  const s = document.createElement('script');
+                  if (orig.src) { s.src = orig.src; } else { s.textContent = orig.textContent; }
+                  document.body.appendChild(s);
+              });
+          })
+          .catch(err => console.warn('Header laden mislukt:', err));
+    })();
+    </script>
+    <div class="container">
+        <div class="header">
+            <h1>Scanner naar Excel</h1>
+            <div class="stats">
+                <span class="stat-pill">Totaal: <strong id="totalCount">0</strong></span>
+                <span class="stat-pill">Uniek: <strong id="uniqueCount">0</strong></span>
+                <span class="stat-pill">
+                    <label for="themeSelect" class="muted" style="margin-right:8px;">Thema</label>
+                    <select id="themeSelect">
+                        <option value="system">Systeem</option>
+                        <option value="dark">Donker</option>
+                        <option value="light">Licht</option>
+                    </select>
+                </span>
+            </div>
+        </div>
+
+        <div class="card input-card">
+            <div class="field">
+                <label for="barcodeInput">Barcode scannen of typen</label>
+                <input id="barcodeInput" type="text" placeholder="Scan hier..." autocomplete="off" autofocus inputmode="none" />
+            </div>
+            <div class="field">
+                <label for="locSelect">Locatie</label>
+                <select id="locSelect">
+                    <option value="3PL">3PL</option>
+                    <option value="Service center">Service center</option>
+                    <option value="Powertools">Powertools</option>
+                </select>
+            </div>
+            <div class="field">
+                <label for="noteInput">Notitie (optioneel)</label>
+                <input id="noteInput" type="text" placeholder="bv. locatie, batch..." />
+            </div>
+            <div>
+                <button id="addBtn" class="btn-add" title="Voeg toe (Enter)">➕ Toevoegen</button>
+                <div class="toolbar">
+                    <span class="switch"><input type="checkbox" id="beepToggle" checked /><label for="beepToggle" class="muted">Beep</label></span>
+                    <span class="switch"><input type="checkbox" id="focusToggle" checked /><label for="focusToggle" class="muted">Altijd focus</label></span>
+                    <span class="switch"><input type="checkbox" id="tsToggle" checked /><label for="tsToggle" class="muted">Tijdstempel</label></span>
+                    <span class="switch">
+                        <label for="bcEmployee" class="muted">BC werknemer</label>
+                        <select id="bcEmployee" style="min-width:160px"></select>
+                    </span>
+                    <span class="switch">
+                        <label for="webEmployee" class="muted">Website werknemer</label>
+                        <select id="webEmployee" style="min-width:160px"></select>
+                    </span>
+                    <span class="switch">
+						<button id="btnToggleSession" class="btn-secondary" type="button">Start sessie</button>
+                        <span id="sessionStatus" class="muted"></span>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="card table-card">
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 170px;">Tijd</th>
+                            <th>Barcode</th>
+                            <th style="width: 150px;">Locatie</th>
+                            <th>Notitie</th>
+                            <th class="actions-header" style="width: 80px;">Acties</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rows"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="footer-bar">
+            <div class="footer-actions">
+                <button id="copyTsvBtn">📋 Kopieer voor Excel (TSV)</button>
+                <button id="downloadCsvBtn" class="btn-secondary">⬇️ Download CSV</button>
+                <button id="emailBtn" class="btn-secondary">?? Verstuur e-mail</button>
+                <button id="undoBtn" class="btn-warning">↩️ Verwijder laatste</button>
+                <button id="clearBtn" class="btn-danger">🗑️ Alles wissen</button>
+            </div>
+            <div class="help">
+                Tip: De meeste scanners sturen Enter na de code. Focus blijft automatisch in het veld, zodat je achter elkaar kunt scannen. Met “Kopieer voor Excel” plak je direct als tabel in Excel.
+            </div>
+            <div class="spacer"></div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            /** State & storage **/
+            /** @type {{id:string, ts:string, code:string, location:string, note:string}[]} */
+            let entries = [];
+            const STORAGE_KEY = "scanner_entries_v1";
+            const SETTINGS_KEY = "scanner_settings_v1";
+            const THEME_KEY = "scanner_theme_v1";
+            const SYNCED_KEY = "scanner_synced_ids_v1";
+
+            // Registreer service worker (voor offline werking)
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                    navigator.serviceWorker.register('/sw.js').catch(function(err) {
+                        console.warn('Service worker registratie mislukt', err);
+                    });
+                });
+            }
+
+            const $ = (id) => document.getElementById(id);
+            const barcodeInput = $("barcodeInput");
+            const locSelect = $("locSelect");
+            const noteInput = $("noteInput");
+            const addBtn = $("addBtn");
+            const rows = $("rows");
+            const totalCount = $("totalCount");
+            const uniqueCount = $("uniqueCount");
+            const beepToggle = $("beepToggle");
+            const focusToggle = $("focusToggle");
+            const tsToggle = $("tsToggle");
+            const copyTsvBtn = $("copyTsvBtn");
+            const downloadCsvBtn = $("downloadCsvBtn");
+            const emailBtn = $("emailBtn");
+            const undoBtn = $("undoBtn");
+            const clearBtn = $("clearBtn");
+            const themeSelect = $("themeSelect");
+            const bcEmployee = $("bcEmployee");
+            const webEmployee = $("webEmployee");
+			const btnToggleSession = $("btnToggleSession");
+            const sessionStatus = $("sessionStatus");
+            let syncedIds = new Set();
+            let currentSessionId = null;
+
+            const createId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`;
+
+            function applyTheme(mode) {
+                const html = document.documentElement;
+                if (mode === "system") {
+                    html.removeAttribute("data-theme");
+                    const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+                    if (prefersLight) html.setAttribute("data-theme", "light");
+                } else if (mode === "light") {
+                    html.setAttribute("data-theme", "light");
+                } else {
+                    html.removeAttribute("data-theme");
+                }
+            }
+
+            function loadState() {
+                let needsSave = false;
+                try {
+                    const raw = localStorage.getItem(STORAGE_KEY);
+                    if (raw) {
+                        const parsed = JSON.parse(raw) || [];
+                        entries = parsed.map((item) => {
+                            const id = typeof item.id === "string" && item.id ? item.id : createId();
+                            if (!item.id) needsSave = true;
+                            return {
+                                id,
+                                ts: typeof item.ts === "string" ? item.ts : "",
+                                code: typeof item.code === "string" ? item.code : "",
+                                location: typeof item.location === "string" ? item.location : "",
+                                note: typeof item.note === "string" ? item.note : ""
+                            };
+                        });
+                    }
+                } catch {}
+                try {
+                    const rawSynced = localStorage.getItem(SYNCED_KEY);
+                    if (rawSynced) {
+                        const list = JSON.parse(rawSynced);
+                        if (Array.isArray(list)) {
+                            syncedIds = new Set(list.filter(x => typeof x === 'string'));
+                        }
+                    }
+                } catch {}
+                try {
+                    const rawS = localStorage.getItem(SETTINGS_KEY);
+                    if (rawS) {
+                        const s = JSON.parse(rawS);
+                        if (typeof s.beep === "boolean") beepToggle.checked = s.beep;
+                        if (typeof s.focus === "boolean") focusToggle.checked = s.focus;
+                        if (typeof s.ts === "boolean") tsToggle.checked = s.ts;
+                        if (typeof s.loc === "string") locSelect.value = s.loc;
+                        if (typeof s.bcEmployeeId === "number" || typeof s.bcEmployeeId === "string") bcEmployee.value = String(s.bcEmployeeId);
+                        if (typeof s.webEmployeeId === "number" || typeof s.webEmployeeId === "string") webEmployee.value = String(s.webEmployeeId);
+						if (typeof s.sessionId === "number") { currentSessionId = s.sessionId; }
+                    }
+                } catch {}
+                try {
+                    const t = localStorage.getItem(THEME_KEY) || "system";
+                    themeSelect.value = t;
+                    applyTheme(t);
+                } catch {}
+                if (needsSave) saveState();
+            }
+
+            function saveState() {
+                try { localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); } catch {}
+            }
+            function saveSyncedIds() {
+                try { localStorage.setItem(SYNCED_KEY, JSON.stringify(Array.from(syncedIds))); } catch {}
+            }
+            function saveSettings() {
+                const s = { beep: beepToggle.checked, focus: focusToggle.checked, ts: tsToggle.checked, loc: locSelect.value, bcEmployeeId: parseInt(bcEmployee.value || "") || null, webEmployeeId: parseInt(webEmployee.value || "") || null, sessionId: currentSessionId };
+                try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch {}
+            }
+
+            function fmtTs(d) {
+                const pad = (n) => String(n).padStart(2, "0");
+                return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+            }
+
+            // Offline queue + auto-sync met server
+            const DEVICE_KEY = 'prepack_device_id';
+            function getDeviceId() {
+                try {
+                    let id = localStorage.getItem(DEVICE_KEY);
+                    if (!id) { id = createId(); localStorage.setItem(DEVICE_KEY, id); }
+                    return id;
+                } catch { return 'unknown'; }
+            }
+
+            async function trySync() {
+                if (!navigator.onLine) return false;
+                // Stuur enkel niet-gesynchroniseerde entries
+                const pending = entries.filter(e => !syncedIds.has(e.id));
+                if (!pending.length) return true;
+                const payload = {
+                    entries: pending.map(e => ({ ts: e.ts, code: e.code, location: e.location, note: e.note })),
+                    device_id: getDeviceId(),
+                    employee_id: parseInt((webEmployee.value||"")) || null,
+                    session_id: currentSessionId || null
+                };
+                try {
+                    const resp = await fetch('/api/prepack/batch', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!resp.ok) throw new Error('sync failed');
+                    const data = await resp.json();
+                    if (data && data.success) {
+                        // Sla de gekoppelde werknemers voor deze dag op in sessie-meta (zodat historie ze kan tonen)
+                        try {
+                            const today = new Date();
+                            const yr = today.getFullYear();
+                            const mon = String(today.getMonth()+1).padStart(2,'0');
+                            const day = String(today.getDate()).padStart(2,'0');
+                            const yyyy_mm_dd = `${yr}-${mon}-${day}`;
+                            await fetch('/api/prepack/session-employees', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ day: yyyy_mm_dd, bc_employee_id: parseInt(bcEmployee.value||"")||null, web_employee_id: parseInt(webEmployee.value||"")||null })
+                            });
+                        } catch {}
+                        for (const e of pending) { syncedIds.add(e.id); }
+                        saveSyncedIds();
+                        toast('Gesynchroniseerd met server.');
+                        return true;
+                    }
+                } catch (e) {
+                    return false;
+                }
+                return false;
+            }
+
+            // Sessie beheer knoppen
+			function refreshToggleUi() {
+				if (currentSessionId) {
+					btnToggleSession.textContent = 'Stop sessie';
+					btnToggleSession.classList.remove('btn-danger');
+					btnToggleSession.classList.add('btn-warning');
+					sessionStatus.textContent = `Sessie #${currentSessionId} actief`;
+				} else {
+					btnToggleSession.textContent = 'Start sessie';
+					btnToggleSession.classList.remove('btn-warning');
+					btnToggleSession.classList.add('btn-danger');
+					sessionStatus.textContent = '';
+				}
+			}
+
+			btnToggleSession.addEventListener('click', async () => {
+				if (!currentSessionId) {
+					try {
+						const resp = await fetch('/api/prepack/sessions/start', {
+							method: 'POST', headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ label: null, bc_employee_id: parseInt(bcEmployee.value||'')||null, web_employee_id: parseInt(webEmployee.value||'')||null })
+						});
+						const data = await resp.json();
+						if (data && data.success) {
+							currentSessionId = data.session_id;
+							saveSettings();
+							toast('Sessie gestart.');
+						}
+					} catch {}
+				} else {
+					try {
+						await fetch('/api/prepack/sessions/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: currentSessionId }) });
+						sessionStatus.textContent = `Sessie #${currentSessionId} gestopt`;
+						currentSessionId = null;
+						saveSettings();
+						toast('Sessie gestopt.');
+					} catch {}
+				}
+				refreshToggleUi();
+			});
+
+			// Init UI state na loadState
+
+            window.addEventListener('online', () => { trySync(); });
+            setInterval(() => { trySync(); }, 30000);
+
+            function render() {
+                const fragment = document.createDocumentFragment();
+                for (const entry of entries) {
+                    const tr = document.createElement("tr");
+                    tr.dataset.id = entry.id;
+                    tr.classList.add("row-fade-in");
+
+                    const tdTs = document.createElement("td");
+                    tdTs.textContent = entry.ts || "";
+
+                    const tdCode = document.createElement("td");
+                    tdCode.textContent = entry.code;
+
+                    const tdLoc = document.createElement("td");
+                    tdLoc.textContent = entry.location || "";
+
+                    const tdNote = document.createElement("td");
+                    tdNote.textContent = entry.note || "";
+
+                    const tdActions = document.createElement("td");
+                    tdActions.className = "actions-cell";
+                    const deleteBtn = document.createElement("button");
+                    deleteBtn.type = "button";
+                    deleteBtn.className = "icon-btn";
+                    deleteBtn.dataset.action = "delete";
+                    deleteBtn.dataset.id = entry.id;
+                    deleteBtn.title = "Verwijder rij";
+                    deleteBtn.setAttribute("aria-label", "Verwijder deze scan");
+                    deleteBtn.textContent = "🗑️";
+                    tdActions.appendChild(deleteBtn);
+
+                    tr.appendChild(tdTs);
+                    tr.appendChild(tdCode);
+                    tr.appendChild(tdLoc);
+                    tr.appendChild(tdNote);
+                    tr.appendChild(tdActions);
+                    fragment.appendChild(tr);
+                }
+
+			// Na initialisatie UI syncen
+			refreshToggleUi();
+                rows.innerHTML = "";
+                rows.appendChild(fragment);
+
+                totalCount.textContent = String(entries.length);
+                const uniq = new Set(entries.map((e) => e.code));
+                uniqueCount.textContent = String(uniq.size);
+
+                const tableCard = document.querySelector('.table-card');
+                if (tableCard) tableCard.classList.toggle('long-list', entries.length >= 12);
+            }
+
+            function beepOk() {
+                if (!beepToggle.checked) return;
+                try {
+                    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    const o = ctx.createOscillator();
+                    const g = ctx.createGain();
+                    o.type = "sine";
+                    o.frequency.value = 880;
+                    o.connect(g);
+                    g.connect(ctx.destination);
+                    g.gain.setValueAtTime(0.0001, ctx.currentTime);
+                    g.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.01);
+                    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.12);
+                    o.start();
+                    setTimeout(() => { o.stop(); ctx.close(); }, 150);
+                } catch {}
+            }
+
+            async function addEntryFromInputs() {
+                const raw = (barcodeInput.value || "").trim();
+                if (!raw) return;
+                const location = String(locSelect.value || "");
+                const note = (noteInput.value || "").trim();
+                const ts = tsToggle.checked ? fmtTs(new Date()) : "";
+                const entry = { id: createId(), ts, code: raw, location, note };
+                entries.unshift(entry);
+                saveState();
+                render();
+                beepOk();
+                barcodeInput.value = "";
+                noteInput.value = note;
+                if (focusToggle.checked) barcodeInput.focus();
+                try { await trySync(); } catch {}
+            }
+
+            function exportTSV(includeHeader = true) {
+                const lines = [];
+                if (includeHeader) lines.push(["Tijd", "Barcode", "Locatie", "Notitie"].join("\t"));
+                for (const e of entries) {
+                    const esc = (s) => String(s ?? "").replace(/\t/g, " ").replace(/\r?\n/g, " ");
+                    lines.push([esc(e.ts || ""), esc(e.code), esc(e.location || ""), esc(e.note || "")].join("\t"));
+                }
+                return lines.join("\n");
+            }
+
+            function exportCSV() {
+                const lines = [];
+                const q = (s) => '"' + String(s ?? "").replace(/"/g, '""') + '"';
+                lines.push(["Tijd", "Barcode", "Locatie", "Notitie"].map(q).join(","));
+                for (const e of entries) {
+                    lines.push([q(e.ts || ""), q(e.code), q(e.location || ""), q(e.note || "")].join(","));
+                }
+                return lines.join("\r\n");
+            }
+
+            async function copyTSVToClipboard() {
+                const text = exportTSV(true);
+                try {
+                    await navigator.clipboard.writeText(text);
+                    toast("Gekopieerd naar klembord.");
+                } catch (err) {
+                    downloadFile("scans.tsv", new Blob([text], { type: "text/tab-separated-values" }));
+                    toast("Kopieren geblokkeerd - TSV gedownload.");
+                }
+            }
+
+            function downloadFile(filename, blob) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 5000);
+            }
+
+            async function shareViaEmail() {
+                if (!entries.length) {
+                    toast("Geen data om te versturen.");
+                    return;
+                }
+                const csv = exportCSV();
+                const stamp = new Date().toISOString().replace(/[:]/g, "-").replace("T", "_").split(".")[0];
+                const filename = `scans-${stamp}.csv`;
+                const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+
+                const canShareFiles = typeof navigator === "object" && typeof navigator.canShare === "function" && typeof navigator.share === "function" && typeof File === "function";
+                if (canShareFiles) {
+                    try {
+                        const file = new File([blob], filename, { type: "text/csv;charset=utf-8" });
+                        if (navigator.canShare({ files: [file] })) {
+                            await navigator.share({
+                                title: "Scans naar Excel",
+                                text: "Scans voor Prod Wilrijk.",
+                                files: [file]
+                            });
+                            toast("Deelvenster geopend.");
+                            return;
+                        }
+                    } catch (err) {
+                        if (err && err.name === "AbortError") return;
+                    }
+                }
+
+                downloadFile(filename, blob);
+                const subject = encodeURIComponent("Scans export");
+                const message = [
+                    "Beste,",
+                    "",
+                    "De CSV-export staat in de downloads map.",
+                    "",
+                    "Met vriendelijke groeten,"
+                ].join("\n");
+                const body = encodeURIComponent(message);
+                const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=prodwilrijk@foresco.eu&su=${subject}&body=${body}`;
+                window.open(gmailUrl, "_blank", "noopener");
+                toast("CSV gedownload. Gmail geopend in nieuw tabblad.");
+            }
+
+            function toast(msg) {
+                const t = document.createElement("div");
+                t.textContent = msg;
+                t.style.position = "fixed";
+                t.style.right = "16px";
+                t.style.bottom = "16px";
+                t.style.zIndex = 9999;
+                t.style.background = "rgba(0,0,0,0.7)";
+                t.style.color = "#fff";
+                t.style.padding = "10px 12px";
+                t.style.borderRadius = "10px";
+                t.style.boxShadow = "0 6px 20px rgba(0,0,0,0.35)";
+                t.setAttribute("role", "status");
+                t.setAttribute("aria-live", "polite");
+                document.body.appendChild(t);
+                setTimeout(() => t.remove(), 2200);
+            }
+
+            function undoLast() {
+                if (entries.length === 0) return;
+                const removed = entries.shift();
+                if (removed && removed.id) { syncedIds.delete(removed.id); saveSyncedIds(); }
+                saveState();
+                render();
+            }
+
+            function deleteEntry(id) {
+                const index = entries.findIndex((entry) => entry.id === id);
+                if (index === -1) return;
+                entries.splice(index, 1);
+                if (id) { syncedIds.delete(id); saveSyncedIds(); }
+                saveState();
+                render();
+            }
+
+            function clearAll() {
+                if (!confirm("Alles wissen? Dit kan niet ongedaan gemaakt worden.")) return;
+                entries = [];
+                syncedIds = new Set();
+                saveSyncedIds();
+                saveState();
+                render();
+            }
+
+            function handleRowClick(event) {
+                const button = event.target instanceof HTMLElement ? event.target.closest('button[data-action]') : null;
+                if (!button) return;
+                const action = button.dataset.action;
+                if (action === "delete") {
+                    const id = button.dataset.id;
+                    if (id) deleteEntry(id);
+                }
+            }
+
+            // Events
+            addBtn.addEventListener("click", addEntryFromInputs);
+            barcodeInput.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    addEntryFromInputs();
+                }
+            });
+            locSelect.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    addEntryFromInputs();
+                }
+            });
+            noteInput.addEventListener("keydown", (e) => {
+                if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    addEntryFromInputs();
+                }
+            });
+            rows.addEventListener("click", handleRowClick);
+            [beepToggle, focusToggle, tsToggle, bcEmployee, webEmployee].forEach((el) => el.addEventListener("change", saveSettings));
+            themeSelect.addEventListener("change", () => {
+                const mode = themeSelect.value;
+                try { localStorage.setItem(THEME_KEY, mode); } catch {}
+                applyTheme(mode);
+            });
+
+            copyTsvBtn.addEventListener("click", copyTSVToClipboard);
+            downloadCsvBtn.addEventListener("click", () => {
+                const csv = exportCSV();
+                downloadFile("scans.csv", new Blob([csv], { type: "text/csv;charset=utf-8" }));
+            });
+            emailBtn.addEventListener("click", () => { shareViaEmail(); });
+            undoBtn.addEventListener("click", undoLast);
+            clearBtn.addEventListener("click", clearAll);
+
+            // Init
+            loadState();
+            // Employees laden
+            (async function loadEmployees(){
+                try {
+                    const r = await fetch('/api/employees');
+                    if (r.ok) {
+                        const list = await r.json();
+                        const opts = ['<option value="">— Selecteer —</option>'].concat(list.map(e => `<option value="${e.id}">${e.name || e.full_name || e.username || ('#'+e.id)}</option>`)).join('');
+                        bcEmployee.innerHTML = opts;
+                        webEmployee.innerHTML = opts;
+                        // na vullen: settings toepassen
+                        try {
+                            const rawS = localStorage.getItem(SETTINGS_KEY);
+                            if (rawS) {
+                                const s = JSON.parse(rawS);
+                                if (s && s.bcEmployeeId) bcEmployee.value = String(s.bcEmployeeId);
+                                if (s && s.webEmployeeId) webEmployee.value = String(s.webEmployeeId);
+                            }
+                        } catch {}
+                    }
+                } catch {}
+            })();
+            render();
+            // Probeer te syncen bij start
+            trySync();
+            if (focusToggle.checked) {
+                setTimeout(() => barcodeInput.focus(), 50);
+                const safeRefocus = (ev) => {
+                    if (!focusToggle.checked) return;
+                    const t = ev.target;
+                    if (!(t instanceof HTMLElement)) return;
+                    const tag = t.tagName.toLowerCase();
+                    if (tag === 'input' || tag === 'textarea' || tag === 'select' || tag === 'button' || t.closest('.toolbar') || t.closest('.input-card')) return;
+                    barcodeInput.focus();
+                };
+                document.addEventListener("click", safeRefocus);
+                document.addEventListener("touchend", safeRefocus, { passive: true });
+            }
+        })();
+    </script>
+</body>
+</html>

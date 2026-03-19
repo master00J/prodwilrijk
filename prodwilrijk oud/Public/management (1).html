@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Machine Bekwaamheden Beheer</title>
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2c3e50;
+            --background-color: #ecf0f1;
+            --text-color: #34495e;
+            --border-color: #bdc3c7;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--background-color);
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1, h2, h3 {
+            color: var(--secondary-color);
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+        }
+
+        .tab-button {
+            background-color: #f1f1f1;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            padding: 10px 20px;
+            transition: 0.3s;
+            font-size: 17px;
+            border-radius: 5px 5px 0 0;
+        }
+
+        .tab-button:hover {
+            background-color: #ddd;
+        }
+
+        .tab-button.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 0 5px 5px 5px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .form {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        input[type="text"], input[type="number"], input[type="date"], select {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+        }
+
+        .submit-button, .action-button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+
+        .submit-button:hover, .action-button:hover {
+            background-color: #2980b9;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        .data-table th, .data-table td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .data-table th {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .data-table tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        .legend {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+
+        .legend h3 {
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Machine Bekwaamheden Beheer</h1>
+        <div class="tabs">
+            <button onclick="showTab('werknemers')" class="tab-button active">Werknemers</button>
+            <button onclick="showTab('machines')" class="tab-button">Machines</button>
+            <button onclick="showTab('bekwaamheden')" class="tab-button">Bekwaamheden</button>
+            <button onclick="showTab('assignments')" class="tab-button">Assign Workers</button>
+        </div>
+        <div id="werknemers" class="tab-content active">
+            <h2>Werknemers</h2>
+            <form id="werknemerForm" class="form">
+                <input type="text" id="werknemerNaam" placeholder="Werknemer Naam" required>
+                <button type="submit" class="submit-button">Voeg Werknemer Toe</button>
+            </form>
+            <table id="werknemersTable" class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Naam</th>
+                        <th>Aanwezig</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <div id="machines" class="tab-content">
+            <h2>Machines</h2>
+            <form id="machineForm" class="form">
+                <input type="text" id="machineNaam" placeholder="Machine Naam" required>
+                <button type="submit" class="submit-button">Voeg Machine Toe</button>
+            </form>
+            <input type="text" id="machineSearch" placeholder="Zoek op Machine Naam" class="search-input">
+            <table id="machinesTable" class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Naam</th>
+                        <th>Aantal Werknemers Nodig</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <form id="machineRequirementsForm" class="form">
+                <select id="machineSelectForRequirements"></select>
+                <input type="number" id="requiredWorkers" placeholder="Aantal Werknemers Nodig" required min="1">
+                <button type="submit" class="submit-button">Stel Aantal Werknemers Nodig In</button>
+            </form>
+        </div>
+        <div id="bekwaamheden" class="tab-content">
+            <h2>Bekwaamheden</h2>
+            <form id="bekwaamheidForm" class="form">
+                <select id="werknemerSelect"></select>
+                <select id="machineSelect"></select>
+                <input type="number" id="bekwaamheidsniveau" placeholder="Niveau" required min="1" max="10">
+                <button type="submit" class="submit-button">Voeg Bekwaamheid Toe</button>
+            </form>
+            <input type="text" id="bekwaamhedenSearch" placeholder="Zoek op Machine Naam of Werknemer Naam" class="search-input">
+            <table id="bekwaamhedenTable" class="data-table">
+                <thead>
+                    <tr>
+                        <th>Werknemer</th>
+                        <th>Machine</th>
+                        <th>Bekwaamheidsniveau</th>
+                        <th>Acties</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <div class="legend">
+                <h3>Legenda voor Bekwaamheidsniveau</h3>
+                <p><strong>1:</strong> Kent de machine niet goed</p>
+                <p><strong>10:</strong> Kent de machine zeer goed</p>
+            </div>
+        </div>
+        <div id="assignments" class="tab-content">
+            <h2>Assign Workers to Machines</h2>
+            <form id="assignmentForm" class="form">
+                <select id="assignWerknemerSelect"></select>
+                <select id="assignMachineSelect"></select>
+                <input type="date" id="assignmentDate" required>
+                <button type="submit" class="submit-button">Assign Worker</button>
+            </form>
+            <h2>Search Assignments</h2>
+            <form id="searchAssignmentForm" class="form">
+                <select id="searchWerknemerSelect"></select>
+                <input type="date" id="searchAssignmentDate">
+                <button type="submit" class="submit-button">Search</button>
+            </form>
+            <table id="assignmentsTable" class="data-table">
+                <thead>
+                    <tr>
+                        <th>Werknemer</th>
+                        <th>Machine</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+    <script src="/scripts/management.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</body>
+</html>

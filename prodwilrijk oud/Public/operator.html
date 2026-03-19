@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Operator Tijdregistratie</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+        select, textarea, button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        textarea {
+            height: 100px;
+        }
+        button {
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .button-group {
+            display: flex;
+            justify-content: space-between;
+        }
+        .button-group button {
+            width: 48%;
+        }
+        .status-message {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #e9f7df;
+            color: #28a745;
+            border-radius: 4px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Tijdregistratie voor Zaagmachines</h1>
+
+        <div class="form-group">
+            <label for="work_order">Werkbon:</label>
+            <select id="work_order">
+                <!-- Werkorders worden hier geladen -->
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="machine">Zaagmachine:</label>
+            <select id="machine">
+                <option value="HMD">HMD</option>
+                <option value="OPTICUT">OPTICUT</option>
+                <option value="APS">APS</option>
+            </select>
+        </div>
+
+        <div class="button-group">
+            <button id="start_fetching">Start Hout Halen</button>
+            <button id="stop_fetching">Stop Hout Halen</button>
+        </div>
+
+        <div class="button-group">
+            <button id="start_cutting">Start Zagen</button>
+            <button id="stop_cutting">Stop Zagen</button>
+        </div>
+
+        <div class="button-group">
+            <button id="pause">Pauze</button>
+            <button id="resume">Hervatten</button>
+        </div>
+
+        <div class="form-group">
+            <label for="comments">Opmerkingen:</label>
+            <textarea id="comments" placeholder="Voer eventuele opmerkingen in..."></textarea>
+        </div>
+
+        <div class="status-message" id="statusMessage">Tijd succesvol geregistreerd!</div>
+    </div>
+
+    <script>
+        let workOrderTimes = {};  // Object to track start/stop times for multiple orders
+        let pauseTimeStart = null;
+        let totalPausedTime = 0;
+
+        // Load current work orders from the server and populate dropdown
+        window.onload = () => {
+            fetch('/current_orders')
+                .then(response => response.json())
+                .then(data => {
+                    const workOrderSelect = document.getElementById('work_order');
+                    data.forEach(order => {
+                        const option = document.createElement('option');
+                        option.value = order.id;
+                        option.textContent = `Werkbon: ${order.order_number} - ${order.description} (${order.status})`;
+                        workOrderSelect.appendChild(option);
+                    });
+
+                    // If there is a previously ongoing order, mark it as in progress
+                    fetch('/operator/active_work_order')
+                        .then(response => response.json())
+                        .then(activeOrder => {
+                            if (activeOrder && activeOrder.work_order) {
+                                document.getElementById('work_order').value = activeOrder.work_order;
+                                markOrderAsInProgress(activeOrder.work_order);
+                            }
+                        })
+                        .catch(error => console.error('Error fetching active order:', error));
+                })
+                .catch(error => {
+                    console.error('Er is een probleem met het ophalen van de werkbonnen:', error);
+                });
+        };
+
+        // Function to mark work order as "in progress"
+        function markOrderAsInProgress(workOrderId) {
+            // Adjust UI to reflect that this order is already in progress
+            document.getElementById('start_fetching').disabled = true;
+            document.getElementById('stop_fetching').disabled = false;
+            document.getElementById('start_cutting').disabled = false;
+        }
+
+        // Track and register fetching process
+        document.getElementById('start_fetching').addEventListener('click', () => {
+            const workOrder = document.getElementById('work_order').value;
+            if (!workOrderTimes[workOrder]) workOrderTimes[workOrder] = {};
+            workOrderTimes[workOrder].startFetching = new Date();
+            fetch('/start_fetching', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    work_order: workOrder,
+                    machine_type: document.getElementById('machine').value,
+                    operator_name: 'Operator1',
+                    start_time: formatDateForMySQL(workOrderTimes[workOrder].startFetching.toISOString())
+                })
+            })
+            .then(response => response.text())
+            .then(data => console.log(`Fetching gestart voor Order #${workOrder}:`, data))
+            .catch(error => console.error('Error registering fetching:', error));
+        });
+
+        document.getElementById('stop_fetching').addEventListener('click', () => {
+            const workOrder = document.getElementById('work_order').value;
+            if (!workOrderTimes[workOrder] || !workOrderTimes[workOrder].startFetching) {
+                alert("Klik eerst op 'Start Hout Halen'.");
+                return;
+            }
+            const endTimeFetching = new Date();
+            const totalTimeFetching = Math.floor((endTimeFetching - workOrderTimes[workOrder].startFetching) / 60000);
+            fetch('/stop_fetching', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    work_order: workOrder,
+                    end_time: formatDateForMySQL(endTimeFetching.toISOString()),
+                    total_time: totalTimeFetching
+                })
+            })
+            .then(response => response.text())
+            .then(data => console.log(`Fetching voltooid voor Order #${workOrder}:`, data))
+            .catch(error => console.error('Error stopping fetching:', error));
+        });
+
+        // Track and register cutting process
+        document.getElementById('start_cutting').addEventListener('click', () => {
+            const workOrder = document.getElementById('work_order').value;
+            if (!workOrderTimes[workOrder]) workOrderTimes[workOrder] = {};
+            workOrderTimes[workOrder].startCutting = new Date();
+            fetch('/start_cutting', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    work_order: workOrder,
+                    machine_type: document.getElementById('machine').value,
+                    operator_name: 'Operator1',
+                    start_time: formatDateForMySQL(workOrderTimes[workOrder].startCutting.toISOString())
+                })
+            })
+            .then(response => response.text())
+            .then(data => console.log(`Zaagproces gestart voor Order #${workOrder}:`, data))
+            .catch(error => console.error('Fout bij het registreren van de zaagorder:', error));
+        });
+
+        document.getElementById('stop_cutting').addEventListener('click', () => {
+            const workOrder = document.getElementById('work_order').value;
+            if (!workOrderTimes[workOrder] || !workOrderTimes[workOrder].startCutting) {
+                alert("Klik eerst op 'Start Zagen' voor dit order.");
+                return;
+            }
+            const endTimeCutting = new Date();
+            const totalTimeCutting = Math.floor((endTimeCutting - workOrderTimes[workOrder].startCutting - totalPausedTime) / 60000);
+            fetch('/stop_cutting', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    work_order: workOrder,
+                    machine_type: document.getElementById('machine').value,
+                    operator_name: 'Operator1',
+                    start_time_cutting: formatDateForMySQL(workOrderTimes[workOrder].startCutting.toISOString()),
+                    end_time_cutting: formatDateForMySQL(endTimeCutting.toISOString()),
+                    total_time: totalTimeCutting
+                })
+            })
+            .then(response => response.text())
+            .then(data => console.log(`Zaagproces succesvol geregistreerd voor Order #${workOrder}:`, data))
+            .catch(error => console.error('Fout bij het registreren van de zaagorder:', error));
+        });
+
+        // Pause/Resume functionality
+        document.getElementById('pause').addEventListener('click', () => {
+            pauseTimeStart = new Date();
+            console.log("Pauze gestart:", pauseTimeStart);
+        });
+
+        document.getElementById('resume').addEventListener('click', () => {
+            if (!pauseTimeStart) {
+                alert("Je moet eerst pauzeren.");
+                return;
+            }
+            const pauseTimeEnd = new Date();
+            const pauseDuration = pauseTimeEnd - pauseTimeStart;
+            totalPausedTime += pauseDuration;
+            console.log("Pauze beëindigd:", pauseTimeEnd);
+            console.log("Totale pauzeduur:", Math.floor(totalPausedTime / 60000), "minuten");
+            pauseTimeStart = null;
+        });
+
+        // Format datetime to MySQL format
+        function formatDateForMySQL(isoString) {
+            const date = new Date(isoString);
+            const year = date.getFullYear();
+            const month = ('0' + (date.getMonth() + 1)).slice(-2);
+            const day = ('0' + date.getDate()).slice(-2);
+            const hours = ('0' + date.getHours()).slice(-2);
+            const minutes = ('0' + date.getMinutes()).slice(-2);
+            const seconds = ('0' + date.getSeconds()).slice(-2);
+            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        }
+
+    </script>
+</body>
+</html>

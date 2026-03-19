@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <title>Medewerkers Beheren</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+    <!-- Header -->
+    <div id="header-placeholder"></div>
+
+    <div class="container my-4">
+        <h1>Medewerkers Beheren</h1>
+        <form id="add-employee-form" class="form-inline mb-4">
+            <div class="form-group mr-2">
+                <label for="employee-name" class="sr-only">Naam:</label>
+                <input type="text" id="employee-name" class="form-control" placeholder="Naam">
+            </div>
+            <button type="submit" class="btn btn-primary">Toevoegen</button>
+        </form>
+
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Naam</th>
+                </tr>
+            </thead>
+            <tbody id="employees-table-body">
+                <!-- Medewerkers worden hier geladen -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- jQuery en JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Laad de header
+            $('#header-placeholder').load('header.html');
+
+            // Medewerkers laden
+            function loadEmployees() {
+                $.ajax({
+                    url: '/api/employees',
+                    method: 'GET',
+                    success: function(data) {
+                        const tbody = $('#employees-table-body');
+                        tbody.empty();
+                        data.forEach(employee => {
+                            tbody.append(`
+                                <tr>
+                                    <td>${employee.id}</td>
+                                    <td>${employee.name}</td>
+                                </tr>
+                            `);
+                        });
+                    },
+                    error: function(err) {
+                        console.error('Error loading employees:', err);
+                    }
+                });
+            }
+
+            loadEmployees();
+
+            // Medewerker toevoegen
+            $('#add-employee-form').submit(function(e) {
+                e.preventDefault();
+                const name = $('#employee-name').val().trim();
+                if (name) {
+                    $.ajax({
+                        url: '/api/employees',
+                        method: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({ name }),
+                        success: function() {
+                            $('#employee-name').val('');
+                            loadEmployees();
+                        },
+                        error: function(err) {
+                            console.error('Error adding employee:', err);
+                        }
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>

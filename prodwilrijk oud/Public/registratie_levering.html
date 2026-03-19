@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <title>Registratie Leveringen</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+      body { background-color: #f0f2f5; font-family: 'Segoe UI', Tahoma, sans-serif; }
+      .container { max-width: 800px; }
+      .card { border: none; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-radius: .5rem; }
+      .form-label { font-weight: 500; margin-top: .5rem; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div id="header-placeholder"></div>
+    <div class="container mt-4">
+        <!-- Autocomplete lijst voor kistnummers -->
+        <datalist id="kist-datalist"></datalist>
+        <!-- Tabbladen voor Registratie en Historiek -->
+        <ul class="nav nav-tabs" id="leveringTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tab-registratie-tab" data-bs-toggle="tab" data-bs-target="#tab-registratie" type="button" role="tab" aria-controls="tab-registratie" aria-selected="true">Registratie</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-historiek-tab" data-bs-toggle="tab" data-bs-target="#tab-historiek" type="button" role="tab" aria-controls="tab-historiek" aria-selected="false">Historiek</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-evolutie-tab" data-bs-toggle="tab" data-bs-target="#tab-evolutie" type="button" role="tab" aria-controls="tab-evolutie" aria-selected="false">Evolutie</button>
+            </li>
+        </ul>
+        <div class="tab-content pt-3" id="leveringTabsContent">
+            <div class="tab-pane fade show active" id="tab-registratie" role="tabpanel" aria-labelledby="tab-registratie-tab">
+                <h1>Registratie Levering Stagekisten</h1>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <label for="delivery-date" class="form-label">Datum van Levering</label>
+                        <input type="date" id="delivery-date" class="form-control">
+                    </div>
+                    <div class="col-md-8 d-flex align-items-end justify-content-end">
+                        <button id="add-row" class="btn btn-secondary">Nieuwe Rij</button>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col">
+                        <label class="form-label">Transport verdeling</label>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="dist-method" id="method-equal" value="equal" checked>
+                            <label class="form-check-label" for="method-equal">Gelijk per stuk</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="dist-method" id="method-weighted" value="weighted">
+                            <label class="form-check-label" for="method-weighted">Gewogen naar prijs</label>
+                        </div>
+                    </div>
+                </div>
+                <table class="table table-striped" id="delivery-table">
+                    <thead>
+                        <tr>
+                            <th>Kisttype</th>
+                            <th>Prijs per stuk (€)</th>
+                            <th>Aantal</th>
+                            <th>Waarde (€)</th>
+                            <th>Transportkost/stuk (€)</th>
+                            <th>Actie</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Dynamische rijen: gebruik autocomplete input for kisttype -->
+                    </tbody>
+                </table>
+                <div class="row g-3 mt-3">
+                    <div class="col-md-6">
+                        <label for="total-transport-cost" class="form-label">Totale Transportkost (€)</label>
+                        <input type="number" id="total-transport-cost" class="form-control" step="0.01">
+                    </div>
+                    <div class="col-md-6 d-flex align-items-end justify-content-end">
+                        <button id="save-delivery" class="btn btn-primary">Opslaan Levering</button>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="tab-historiek" role="tabpanel" aria-labelledby="tab-historiek-tab">
+                <h2>Historiek Leveringen</h2>
+                <table class="table table-hover" id="history-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Datum</th>
+                            <th>Totaalwaarde (€)</th>
+                            <th>Totaal transport (€)</th>
+                            <th>Efficiëntie (waarde/transport)</th>
+                            <th>Actie</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div class="tab-pane fade" id="tab-evolutie" role="tabpanel" aria-labelledby="tab-evolutie-tab">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h2>Evolutie Leveringen</h2>
+                    <div>
+                        <label class="me-2">Toon:</label>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input evo-toggle" type="checkbox" id="toggle-efficiency" value="efficiency" checked>
+                            <label class="form-check-label" for="toggle-efficiency">Efficiëntie</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input evo-toggle" type="checkbox" id="toggle-value" value="value" checked>
+                            <label class="form-check-label" for="toggle-value">Waarde</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input evo-toggle" type="checkbox" id="toggle-transport" value="transport" checked>
+                            <label class="form-check-label" for="toggle-transport">Transport</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input evo-toggle" type="checkbox" id="toggle-kisten" value="kisten">
+                            <label class="form-check-label" for="toggle-kisten">Aantal kisten</label>
+                        </div>
+                    </div>
+                </div>
+                <canvas id="evolutieChart" height="200"></canvas>
+                <table class="table table-striped mt-4" id="evolutie-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Datum</th>
+                            <th>Totaal kisten</th>
+                            <th>Totaalwaarde (€)</th>
+                            <th>Totaal transport (€)</th>
+                            <th>Gem. transport/stuk (€)</th>
+                            <th>Gem. waarde/stuk (€)</th>
+                            <th>Transport % van waarde</th>
+                            <th>Actie</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+        <!-- einde tabs -->
+    </div>
+    <!-- Detail modal -->
+    <div class="modal fade" id="detailModal" tabindex="-1" aria-labelledby="detailModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="detailModalLabel">Details Levering</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Sluiten"></button>
+          </div>
+          <div class="modal-body">
+            <table class="table table-striped">
+              <thead>
+                <tr>
+                  <th>Kisttype</th>
+                  <th>Aantal</th>
+                  <th>Prijs per stuk (€)</th>
+                  <th>Transportkost per stuk (€)</th>
+                  <th>Subtotaal waarde (€)</th>
+                  <th>Subtotaal transport (€)</th>
+                </tr>
+              </thead>
+              <tbody id="detailModalBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="scripts_registratie_levering.js"></script>
+</body>
+</html> 

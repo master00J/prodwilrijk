@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Narrowcast Display</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            background: #000;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        .display-container {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        .display-container.active {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+
+        .display-container.fading-out {
+            animation: fadeOut 0.5s ease-out;
+        }
+
+        /* Text Display */
+        .text-display {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4rem;
+            text-align: center;
+        }
+
+        .text-content {
+            max-width: 1400px;
+            line-height: 1.6;
+            word-wrap: break-word;
+        }
+
+        .text-content h1, .text-content h2, .text-content h3 {
+            margin-bottom: 1rem;
+        }
+
+        /* Image Display */
+        .image-display {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .image-display img {
+            max-width: 95vw;
+            max-height: 95vh;
+            object-fit: contain;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        }
+
+        /* Video Display */
+        .video-display {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+            position: relative;
+        }
+
+        .video-display video {
+            max-width: 100vw;
+            max-height: 100vh;
+            object-fit: contain;
+        }
+        
+        .unmute-hint {
+            position: absolute;
+            bottom: 2rem;
+            right: 2rem;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 0.8rem 1.2rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            opacity: 0.8;
+            cursor: pointer;
+            transition: opacity 0.3s;
+            z-index: 100;
+        }
+        
+        .unmute-hint:hover {
+            opacity: 1;
+            background: rgba(0,0,0,0.9);
+        }
+        
+        .unmute-hint i {
+            margin-right: 0.5rem;
+        }
+
+        /* URL/Iframe Display */
+        .url-display {
+            width: 100%;
+            height: 100%;
+        }
+
+        .url-display iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        /* Slideshow Display */
+        .slideshow-display {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            position: relative;
+        }
+
+        .slideshow-display img {
+            max-width: 95vw;
+            max-height: 95vh;
+            object-fit: contain;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            animation: slideIn 0.5s ease-in;
+        }
+
+        @keyframes slideIn {
+            from { 
+                opacity: 0;
+                transform: translateX(50px);
+            }
+            to { 
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .slideshow-indicator {
+            position: absolute;
+            bottom: 3rem;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            background: rgba(0,0,0,0.5);
+            padding: 10px 16px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .slideshow-indicator .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.4);
+            transition: all 0.3s;
+        }
+
+        .slideshow-indicator .dot.active {
+            background: #fff;
+            width: 30px;
+            border-radius: 6px;
+        }
+
+        /* Header Info Bar */
+        .info-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%);
+            padding: 1.5rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .info-bar.show {
+            opacity: 1;
+        }
+
+        .content-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+        }
+
+        .content-meta {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            font-size: 1rem;
+            opacity: 0.8;
+        }
+
+        .status-badge {
+            background: rgba(31, 111, 235, 0.3);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        /* Progress Bar */
+        .progress-bar-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: rgba(255,255,255,0.1);
+            z-index: 1000;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #1f6feb, #3b8cf7);
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+
+        /* Loading State */
+        .loading-state {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+            background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+            z-index: 9999;
+        }
+
+        .loading-state.hidden {
+            display: none;
+        }
+
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255,255,255,0.1);
+            border-top-color: #1f6feb;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            font-size: 1.2rem;
+            color: rgba(255,255,255,0.6);
+        }
+
+        /* No Content State */
+        .no-content-state {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+            background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .no-content-state.hidden {
+            display: none;
+        }
+
+        .no-content-icon {
+            font-size: 6rem;
+            opacity: 0.3;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 0.6; }
+        }
+
+        .no-content-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .no-content-text {
+            font-size: 1.3rem;
+            color: rgba(255,255,255,0.6);
+            max-width: 600px;
+        }
+
+        /* Connection Status */
+        .connection-status {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            z-index: 2000;
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: opacity 0.5s ease-out;
+        }
+
+        .connection-status.connected {
+            background: rgba(63, 185, 80, 0.3);
+            border: 1px solid rgba(63, 185, 80, 0.5);
+            color: #3fb950;
+        }
+
+        .connection-status.disconnected {
+            background: rgba(248, 81, 73, 0.3);
+            border: 1px solid rgba(248, 81, 73, 0.5);
+            color: #f85149;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+            animation: blink 2s ease-in-out infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .text-display {
+                padding: 2rem;
+            }
+            
+            .content-title {
+                font-size: 1.3rem;
+            }
+            
+            .info-bar {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading State -->
+    <div id="loadingState" class="loading-state">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading content...</div>
+    </div>
+
+    <!-- No Content State -->
+    <div id="noContentState" class="no-content-state hidden">
+        <div class="no-content-icon">
+            <i class="fas fa-broadcast-tower"></i>
+        </div>
+        <div class="no-content-title">No Active Content</div>
+        <div class="no-content-text">
+            There is currently no content scheduled for display.<br>
+            Please add content in the admin panel.
+        </div>
+    </div>
+
+    <!-- Connection Status -->
+    <div id="connectionStatus" class="connection-status disconnected">
+        <div class="status-dot"></div>
+        <span>Connecting...</span>
+    </div>
+
+    <!-- Info Bar (shows on hover) -->
+    <div id="infoBar" class="info-bar">
+        <div class="content-title" id="currentTitle">—</div>
+        <div class="content-meta">
+            <span class="status-badge">
+                <i class="fas fa-clock"></i> <span id="currentTime">00:00</span>
+            </span>
+            <span class="status-badge">
+                <span id="currentIndex">1</span> / <span id="totalItems">1</span>
+            </span>
+        </div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress-bar-container">
+        <div class="progress-bar" id="progressBar"></div>
+    </div>
+
+    <!-- Display Containers (dynamically created) -->
+    <div id="displayArea"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let contentItems = [];
+        let currentIndex = 0;
+        let displayTimer = null;
+        let progressTimer = null;
+        let slideshowTimer = null;
+        let currentSlideshowIndex = 0;
+        let eventSource = null;
+
+        // State tracking
+        const state = {
+            isLoading: true,
+            isConnected: false,
+            currentContent: null
+        };
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            initDisplay();
+            setupEventSource();
+            
+            // Show info bar on hover
+            document.addEventListener('mousemove', showInfoBar);
+            let hideTimer;
+            document.addEventListener('mousemove', () => {
+                clearTimeout(hideTimer);
+                hideTimer = setTimeout(hideInfoBar, 3000);
+            });
+            
+            // Clock update
+            setInterval(updateClock, 1000);
+            updateClock();
+        });
+
+        async function initDisplay() {
+            try {
+                const response = await fetch('/api/narrowcast/content/active');
+                contentItems = await response.json();
+                
+                console.log('[Display] Loaded content:', contentItems);
+                
+                // Update connection status since fetch was successful
+                if (!state.isConnected) {
+                    updateConnectionStatus(true);
+                }
+                
+                if (contentItems.length === 0) {
+                    showNoContent();
+                } else {
+                    hideLoading();
+                    startDisplay();
+                }
+            } catch (error) {
+                console.error('[Display] Error loading content:', error);
+                updateConnectionStatus(false);
+                showNoContent();
+            }
+        }
+
+        function setupEventSource() {
+            eventSource = new EventSource('/api/narrowcast/events');
+            
+            eventSource.onopen = () => {
+                console.log('[Display] SSE connected');
+                updateConnectionStatus(true);
+            };
+            
+            eventSource.onerror = (error) => {
+                console.error('[Display] SSE error:', error);
+                updateConnectionStatus(false);
+                
+                // Reconnect after 5 seconds
+                setTimeout(() => {
+                    if (eventSource.readyState === EventSource.CLOSED) {
+                        setupEventSource();
+                    }
+                }, 5000);
+            };
+            
+            eventSource.addEventListener('content_changed', (e) => {
+                console.log('[Display] Content changed:', e.data);
+                // Reload content
+                setTimeout(() => {
+                    initDisplay();
+                }, 1000);
+            });
+        }
+
+        function updateConnectionStatus(connected) {
+            state.isConnected = connected;
+            const statusEl = document.getElementById('connectionStatus');
+            
+            if (connected) {
+                statusEl.className = 'connection-status connected';
+                statusEl.querySelector('span').textContent = 'Connected';
+                
+                // Auto-hide connection status after 3 seconds when connected
+                setTimeout(() => {
+                    if (state.isConnected) {
+                        statusEl.style.opacity = '0';
+                        statusEl.style.pointerEvents = 'none';
+                    }
+                }, 3000);
+            } else {
+                statusEl.className = 'connection-status disconnected';
+                statusEl.querySelector('span').textContent = 'Disconnected';
+                statusEl.style.opacity = '1';
+                statusEl.style.pointerEvents = 'auto';
+            }
+        }
+
+        function hideLoading() {
+            state.isLoading = false;
+            document.getElementById('loadingState').classList.add('hidden');
+        }
+
+        function showNoContent() {
+            hideLoading();
+            document.getElementById('noContentState').classList.remove('hidden');
+        }
+
+        function startDisplay() {
+            if (contentItems.length === 0) {
+                showNoContent();
+                return;
+            }
+            
+            document.getElementById('noContentState').classList.add('hidden');
+            document.getElementById('totalItems').textContent = contentItems.length;
+            
+            showContent(0);
+        }
+
+        function showContent(index) {
+            if (index >= contentItems.length) {
+                index = 0;
+            }
+            
+            currentIndex = index;
+            const content = contentItems[index];
+            state.currentContent = content;
+            
+            console.log('[Display] Showing content:', content);
+            
+            // Update UI
+            document.getElementById('currentTitle').textContent = content.title;
+            document.getElementById('currentIndex').textContent = index + 1;
+            
+            // Clear display area
+            const displayArea = document.getElementById('displayArea');
+            displayArea.innerHTML = '';
+            
+            // Create display based on type
+            let container;
+            switch (content.type) {
+                case 'text':
+                    container = createTextDisplay(content);
+                    break;
+                case 'image':
+                    container = createImageDisplay(content);
+                    break;
+                case 'video':
+                    container = createVideoDisplay(content);
+                    break;
+                case 'url':
+                    container = createUrlDisplay(content);
+                    break;
+                case 'slideshow':
+                    container = createSlideshowDisplay(content);
+                    break;
+                default:
+                    console.warn('[Display] Unknown content type:', content.type);
+                    scheduleNext();
+                    return;
+            }
+            
+            displayArea.appendChild(container);
+            
+            // Activate after a brief moment
+            setTimeout(() => {
+                container.classList.add('active');
+            }, 50);
+            
+            // For videos, don't schedule next - let video.onended handle it
+            if (content.type !== 'video') {
+                // Start progress bar
+                startProgress(content.display_duration);
+                
+                // Schedule next content
+                displayTimer = setTimeout(() => {
+                    scheduleNext();
+                }, content.display_duration * 1000);
+            } else {
+                console.log('[Display] Video content - will advance when video ends');
+            }
+        }
+
+        function createTextDisplay(content) {
+            const container = document.createElement('div');
+            container.className = 'display-container text-display';
+            container.style.background = content.background_color || '#0d1117';
+            container.style.color = content.text_color || '#e6edf3';
+            
+            const textContent = document.createElement('div');
+            textContent.className = 'text-content';
+            textContent.style.fontSize = `${content.font_size || 32}px`;
+            textContent.innerHTML = content.content || '';
+            
+            container.appendChild(textContent);
+            return container;
+        }
+
+        function createImageDisplay(content) {
+            const container = document.createElement('div');
+            container.className = 'display-container image-display';
+            container.style.background = '#000';
+            
+            const img = document.createElement('img');
+            img.src = content.media_url;
+            img.alt = content.title;
+            img.onerror = () => {
+                console.error('[Display] Image load error:', content.media_url);
+                scheduleNext();
+            };
+            
+            container.appendChild(img);
+            return container;
+        }
+
+        function createVideoDisplay(content) {
+            const container = document.createElement('div');
+            container.className = 'display-container video-display';
+            
+            const video = document.createElement('video');
+            video.src = content.media_url;
+            video.autoplay = true;
+            video.muted = true;  // Muted required for autoplay in browsers
+            video.controls = false;
+            video.playsInline = true;  // For iOS support
+            video.loop = false;
+            
+            video.onerror = () => {
+                console.error('[Display] Video load error:', content.media_url);
+                scheduleNext();
+            };
+            
+            // Explicitly try to play (browsers may still block without user interaction)
+            video.onloadedmetadata = () => {
+                console.log('[Display] Video loaded, attempting to play:', content.media_url);
+                const playPromise = video.play();
+                
+                if (playPromise !== undefined) {
+                    playPromise
+                        .then(() => {
+                            console.log('[Display] Video playing successfully');
+                        })
+                        .catch(error => {
+                            console.error('[Display] Video autoplay blocked:', error);
+                            // Fallback: show controls so user can start manually
+                            video.controls = true;
+                        });
+                }
+            };
+            
+            // When video ends, go to next content
+            video.onended = () => {
+                console.log('[Display] Video ended, moving to next content');
+                scheduleNext();
+            };
+            
+            container.appendChild(video);
+            
+            // Add unmute button (optional - user can click to enable sound)
+            const unmuteHint = document.createElement('div');
+            unmuteHint.className = 'unmute-hint';
+            unmuteHint.innerHTML = '<i class="fas fa-volume-mute"></i> Click to enable sound';
+            unmuteHint.onclick = () => {
+                video.muted = !video.muted;
+                if (video.muted) {
+                    unmuteHint.innerHTML = '<i class="fas fa-volume-mute"></i> Click to enable sound';
+                } else {
+                    unmuteHint.innerHTML = '<i class="fas fa-volume-up"></i> Sound enabled';
+                    setTimeout(() => {
+                        unmuteHint.style.opacity = '0';
+                    }, 2000);
+                }
+            };
+            container.appendChild(unmuteHint);
+            
+            return container;
+        }
+
+        function createUrlDisplay(content) {
+            const container = document.createElement('div');
+            container.className = 'display-container url-display';
+            
+            const iframe = document.createElement('iframe');
+            iframe.src = content.media_url;
+            iframe.allow = 'autoplay; fullscreen';
+            iframe.sandbox = 'allow-same-origin allow-scripts allow-forms';
+            
+            container.appendChild(iframe);
+            return container;
+        }
+
+        function createSlideshowDisplay(content) {
+            const container = document.createElement('div');
+            container.className = 'display-container slideshow-display';
+            container.style.background = '#000';
+            
+            const urls = content.media_urls || [];
+            if (urls.length === 0) {
+                scheduleNext();
+                return container;
+            }
+            
+            currentSlideshowIndex = 0;
+            
+            const img = document.createElement('img');
+            img.src = urls[0];
+            img.alt = content.title;
+            container.appendChild(img);
+            
+            // Create indicators
+            if (urls.length > 1) {
+                const indicators = document.createElement('div');
+                indicators.className = 'slideshow-indicator';
+                
+                for (let i = 0; i < urls.length; i++) {
+                    const dot = document.createElement('div');
+                    dot.className = 'dot' + (i === 0 ? ' active' : '');
+                    indicators.appendChild(dot);
+                }
+                
+                container.appendChild(indicators);
+                
+                // Auto-advance slideshow
+                const slideDuration = (content.display_duration * 1000) / urls.length;
+                const advanceSlide = () => {
+                    currentSlideshowIndex = (currentSlideshowIndex + 1) % urls.length;
+                    img.src = urls[currentSlideshowIndex];
+                    
+                    // Update indicators
+                    const dots = indicators.querySelectorAll('.dot');
+                    dots.forEach((dot, idx) => {
+                        dot.classList.toggle('active', idx === currentSlideshowIndex);
+                    });
+                };
+                
+                slideshowTimer = setInterval(advanceSlide, slideDuration);
+            }
+            
+            return container;
+        }
+
+        function startProgress(duration) {
+            const progressBar = document.getElementById('progressBar');
+            progressBar.style.width = '0%';
+            
+            let elapsed = 0;
+            const interval = 100; // Update every 100ms
+            const totalMs = duration * 1000;
+            
+            clearInterval(progressTimer);
+            progressTimer = setInterval(() => {
+                elapsed += interval;
+                const progress = Math.min((elapsed / totalMs) * 100, 100);
+                progressBar.style.width = `${progress}%`;
+                
+                if (elapsed >= totalMs) {
+                    clearInterval(progressTimer);
+                }
+            }, interval);
+        }
+
+        function scheduleNext() {
+            clearTimeout(displayTimer);
+            clearInterval(progressTimer);
+            clearInterval(slideshowTimer);
+            
+            // Fade out current
+            const currentContainer = document.querySelector('.display-container.active');
+            if (currentContainer) {
+                currentContainer.classList.add('fading-out');
+                setTimeout(() => {
+                    currentContainer.remove();
+                }, 500);
+            }
+            
+            // Show next after fade
+            setTimeout(() => {
+                const nextIndex = (currentIndex + 1) % contentItems.length;
+                showContent(nextIndex);
+            }, 500);
+        }
+
+        function showInfoBar() {
+            document.getElementById('infoBar').classList.add('show');
+        }
+
+        function hideInfoBar() {
+            document.getElementById('infoBar').classList.remove('show');
+        }
+
+        function updateClock() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('nl-NL', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            document.getElementById('currentTime').textContent = timeStr;
+        }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (eventSource) {
+                eventSource.close();
+            }
+            clearTimeout(displayTimer);
+            clearInterval(progressTimer);
+            clearInterval(slideshowTimer);
+        });
+
+        // Keyboard shortcuts (for testing)
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight') {
+                scheduleNext();
+            } else if (e.key === 'r' || e.key === 'R') {
+                initDisplay();
+            }
+        });
+    </script>
+</body>
+</html>
+

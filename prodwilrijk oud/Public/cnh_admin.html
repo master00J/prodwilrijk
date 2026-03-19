@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head> ... </head>
+<body>
+<div id="header-placeholder"></div>
+<div class="container">
+  <h1>CNH Admin</h1>
+  <h2>Bodems Voorraad</h2>
+  <div id="bodemsStock"></div>
+
+  <h2>Alle Motoren</h2>
+  <div id="allMotors"></div>
+
+  <h2>Logs</h2>
+  <div id="logEntries"></div>
+</div>
+<script>
+  $(document).ready(()=>{
+    $("#header-placeholder").load("/header.html");
+
+    fetch('/api/bodems_stock')
+      .then(r=>r.json())
+      .then(data=>{ /* build table #bodemsStock */ });
+
+    fetch('/api/cnh_motors')
+      .then(r=>r.json())
+      .then(data=>{ /* build table #allMotors  state=received/packaged/loaded + created_at etc. */ });
+
+    fetch('/api/cnh_logs')
+      .then(r=>r.json())
+      .then(logs=> {/* build #logEntries */});
+  });
+</script>
+</body>
+</html>

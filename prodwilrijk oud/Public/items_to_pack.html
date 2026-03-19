@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Items to Pack</title>
+  <!-- Bootstrap CSS -->
+  <link 
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" 
+      rel="stylesheet"
+  >
+  <!-- Font Awesome -->
+  <link 
+      rel="stylesheet" 
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"
+  >
+  
+  <style>
+    /*---------------------------------------------------
+      Algemene styling
+    ---------------------------------------------------*/
+    .priority {
+      background-color: #fff3cd !important;
+    }
+    .measurement {
+      background-color: #d1ecf1 !important;
+    }
+    .priority.measurement {
+      background: linear-gradient(45deg, #fff3cd 50%, #d1ecf1 50%) !important;
+    }
+    .item-image {
+      transition: transform 0.2s;
+      max-width: 50px;
+      max-height: 50px;
+    }
+    .item-image:hover {
+      transform: scale(1.5);
+      z-index: 1000;
+    }
+    .table th,
+    .table td {
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+    .image-upload {
+      max-width: 150px;
+    }
+    .actions-bar {
+      background-color: #f8f9fa;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      border-radius: 0.25rem;
+    }
+    .btn i {
+      margin-right: 5px;
+    }
+    @media print {
+      .no-print {
+        display: none;
+      }
+      .measurement-item {
+        page-break-inside: avoid;
+      }
+    }
+
+    /*---------------------------------------------------
+      Sort indicator styling
+    ---------------------------------------------------*/
+    th[data-sort] {
+      cursor: pointer;
+      user-select: none;
+    }
+    th[data-sort]:hover {
+      background-color: rgba(0,0,0,0.05);
+    }
+    .sort-indicator {
+      display: inline-block;
+      width: 1em;
+    }
+
+    /*---------------------------------------------------
+      Stats banner styling
+    ---------------------------------------------------*/
+    .stat-number {
+      font-size: 1.75rem;
+      font-weight: bold;
+      line-height: 1;
+    }
+    
+    .stat-label {
+      font-size: 0.85rem;
+      color: #6c757d;
+    }
+    
+    .stats-banner {
+      background-color: #e9ecef;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      border-radius: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .stats-box {
+      display: flex;
+      gap: 20px;
+    }
+    
+    .stat-item {
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header placeholder -->
+  <div id="header-placeholder"></div>
+
+  <div class="container-fluid py-3">
+    <!-- Stats Banner -->
+    <div class="stats-banner">
+      <div class="stats-box">
+        <div class="stat-item">
+          <div class="stat-number" id="priority-items-count">0</div>
+          <div class="stat-label">Priority Items</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-number" id="total-quantity-count">0</div>
+          <div class="stat-label">Total Quantity</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-number" id="backlog-items-count">0</div>
+          <div class="stat-label">Achterstand (>1 dag)</div>
+        </div>
+      </div>
+      <div class="d-flex gap-2">
+        <button class="btn btn-info btn-sm" id="show-daily-report-btn">
+          <i class="fas fa-chart-bar"></i> Dagrapport
+        </button>
+        <div class="last-updated text-muted" id="last-updated">
+          Laatst bijgewerkt: Nooit
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Timers Card -->
+    <div class="card mt-3" id="active-timers-card" style="display: none;">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Actieve Tijdsregistraties</h5>
+        <button class="btn btn-danger btn-sm" id="stop-all-timers-btn">
+          <i class="fas fa-stop me-1"></i> Stop Alles
+        </button>
+      </div>
+      <div class="card-body">
+        <div id="time-logs-container">
+          <!-- Time logs will be displayed here -->
+        </div>
+      </div>
+    </div>
+    
+    <div class="row mb-3 g-3">
+      <!-- Search bar -->
+      <div class="col-md-4">
+        <div class="input-group">
+          <span class="input-group-text">🔍</span>
+          <input 
+            type="text" 
+            id="search-box" 
+            class="form-control" 
+            placeholder="Zoeken..."
+          >
+        </div>
+      </div>
+
+      <!-- Date filter -->
+      <div class="col-md-4">
+        <div class="input-group">
+          <span class="input-group-text">📅</span>
+          <input 
+            type="date" 
+            id="date-filter" 
+            class="form-control"
+          >
+          <button 
+            class="btn btn-outline-secondary" 
+            onclick="clearDateFilter()"
+          >
+            Wissen
+          </button>
+        </div>
+      </div>
+
+      <!-- Priority & Measurement toggles -->
+      <div class="col-md-4">
+        <div class="d-flex gap-2">
+          <button 
+            id="show-priority-button" 
+            class="btn btn-secondary"
+          >
+            <i class="fas fa-star me-1"></i> Prioriteiten
+          </button>
+          <button 
+            id="show-measurements-button" 
+            class="btn btn-secondary"
+          >
+            <i class="fas fa-ruler me-1"></i> Metingen
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions bar (top) -->
+    <div class="actions-bar">
+      <div class="d-flex justify-content-between align-items-center">
+        <div class="d-flex gap-3 align-items-center">
+          <div class="alert alert-info mb-0 py-2">
+            <strong>Open Items:</strong> 
+            <span id="total-items">0</span>
+          </div>
+          <button 
+            id="confirm-packed-button" 
+            class="btn btn-success"
+          >
+            <i class="fas fa-box-open me-1"></i> Verpakt
+          </button>
+          <!-- Timer Button toevoegen -->
+          <button 
+            id="start-timer-button" 
+            class="btn btn-info"
+          >
+            <i class="fas fa-clock me-1"></i> Start Tijdsregistratie
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table with items -->
+    <div class="card">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th data-sort="id">
+                  ID <span class="sort-indicator"></span>
+                </th>
+                <th data-sort="item_number">
+                  Artikelnummer <span class="sort-indicator"></span>
+                </th>
+                <th data-sort="po_number">
+                  Palletnummer <span class="sort-indicator"></span>
+                </th>
+                <th data-sort="amount">
+                  Aantal <span class="sort-indicator"></span>
+                </th>
+                <th data-sort="date_added">
+                  Ontvangstdatum <span class="sort-indicator"></span>
+                </th>
+                <th>
+                  <div class="d-flex align-items-center gap-2">
+                    <input 
+                      type="checkbox" 
+                      class="form-check-input" 
+                      id="select-all"
+                    >
+                    Verpakt
+                  </div>
+                </th>
+                <th>
+                  <div class="d-flex align-items-center gap-2">
+                    <input 
+                      type="checkbox" 
+                      class="form-check-input" 
+                      id="select-all-priority"
+                    >
+                    Prioriteit
+                  </div>
+                </th>
+                <th>
+                  <div class="d-flex align-items-center gap-2">
+                    <input 
+                      type="checkbox" 
+                      class="form-check-input" 
+                      id="select-all-measurements"
+                    >
+                    Metingen
+                  </div>
+                </th>
+                <th>Afbeelding</th>
+              </tr>
+            </thead>
+            <tbody id="items-to-pack-table-body">
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions bar (bottom) -->
+    <div class="d-flex gap-2 mt-3">
+      <button 
+        id="set-priority-button" 
+        class="btn btn-warning"
+      >
+        <i class="fas fa-star me-1"></i> Prioriteit Instellen
+      </button>
+      <button 
+        id="set-measurements-button" 
+        class="btn btn-info"
+      >
+        <i class="fas fa-ruler me-1"></i> Metingen Instellen
+      </button>
+      <button 
+        id="print-measurements-button" 
+        class="btn btn-primary"
+      >
+        <i class="fas fa-print me-1"></i> Metingen Afdrukken
+      </button>
+    </div>
+
+    <!-- Daily Report Modal -->
+    <div class="modal fade" id="dailyReportModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Dagelijkse Verpakkingsrapportage</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label class="form-label">Rapportage Datum</label>
+                <input type="date" class="form-control" id="report-date" />
+              </div>
+              <div class="col-md-4 d-flex align-items-end">
+                <button class="btn btn-primary" id="generate-report-btn">
+                  <i class="fas fa-sync"></i> Genereer Rapport
+                </button>
+              </div>
+              <div class="col-md-4 d-flex align-items-end">
+                <button class="btn btn-success" id="show-excel-export-btn">
+                  <i class="fas fa-file-excel"></i> Excel Export
+                </button>
+              </div>
+            </div>
+            
+            <!-- Excel Export Section (initially hidden) -->
+            <div id="excel-export-section" class="card mb-3" style="display: none;">
+              <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-file-excel me-2"></i>Excel Export - Meerdere Dagen</h6>
+              </div>
+              <div class="card-body">
+                <div class="row mb-3">
+                  <div class="col-md-4">
+                    <label class="form-label">Van Datum</label>
+                    <input type="date" class="form-control" id="excel-date-from" />
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label">Tot Datum</label>
+                    <input type="date" class="form-control" id="excel-date-to" />
+                  </div>
+                  <div class="col-md-4 d-flex align-items-end">
+                    <button class="btn btn-success" id="generate-excel-btn">
+                      <i class="fas fa-download"></i> Download Excel
+                    </button>
+                  </div>
+                </div>
+                <div class="alert alert-info mb-0">
+                  <small>
+                    <i class="fas fa-info-circle me-1"></i>
+                    Excel bestand bevat: dagelijkse samenvattingen, gedetailleerde verpakte items, en huidige status
+                  </small>
+                </div>
+              </div>
+            </div>
+            
+            <div id="report-content">
+              <!-- Report content will be loaded here -->
+            </div>
+            
+            <div class="mt-3">
+              <button class="btn btn-success" id="email-report-btn" style="display: none;">
+                <i class="fas fa-envelope"></i> Verstuur per Email
+              </button>
+              <button class="btn btn-secondary" id="print-report-btn" style="display: none;">
+                <i class="fas fa-print"></i> Print Rapport
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Time Registration Modal -->
+    <div class="modal fade" id="timeRegistrationModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Tijdsregistratie Starten</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label for="employee-select" class="form-label">Selecteer Werknemers</label>
+              <select class="form-select" id="employee-select" multiple size="6">
+                <!-- Options will be added dynamically -->
+              </select>
+              <div class="form-text">Houd CTRL ingedrukt om meerdere werknemers te selecteren.</div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+            <button type="button" class="btn btn-primary" id="confirm-start-timer-btn">Start Timer</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap Bundle with Popper -->
+  <script 
+    src="https://code.jquery.com/jquery-3.6.0.min.js">
+  </script>
+  <script 
+    src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js">
+  </script>
+  <!-- SheetJS library for Excel export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- Custom JavaScript -->
+  <script src="scripts_items_to_pack.js"></script>
+</body>
+</html>

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>XML Generator voor ERP</title>
+  <!-- Bootstrap CSS via CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background-color: #f8f9fa;
+    }
+    .form-container {
+      max-width: 600px;
+      margin: 50px auto;
+    }
+    .card {
+      border: none;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .card-header {
+      background-color: #007bff;
+      color: #fff;
+      border-top-left-radius: 10px;
+      border-top-right-radius: 10px;
+    }
+    .btn-primary {
+      background-color: #007bff;
+      border-color: #007bff;
+    }
+  </style>
+</head>
+<body>
+  <div class="container form-container">
+    <div class="card">
+      <div class="card-header text-center">
+        <h2>XML Generator voor ERP</h2>
+        <p class="mb-0">Vul onderstaande velden in om de XML te genereren</p>
+      </div>
+      <div class="card-body">
+        <form id="xmlForm">
+          <div class="mb-3">
+            <label for="poNumber" class="form-label">Purchase Order Number</label>
+            <input type="text" class="form-control" id="poNumber" name="PurchaseOrderNumber" placeholder="Bijv. 451301763710" required>
+          </div>
+          <div class="mb-3">
+            <label for="vendorCode" class="form-label">Vendor Code</label>
+            <input type="text" class="form-control" id="vendorCode" name="VendorCode" placeholder="Bijv. 3300009627" required>
+          </div>
+          <div class="mb-3">
+            <label for="itemNumber" class="form-label">Item Number</label>
+            <input type="text" class="form-control" id="itemNumber" name="ItemNumber" placeholder="Bijv. 1604246501" required>
+          </div>
+          <div class="mb-3">
+            <label for="quantity" class="form-label">Quantity</label>
+            <input type="number" class="form-control" id="quantity" name="Quantity" placeholder="Bijv. 1" min="1" required>
+          </div>
+          <div class="mb-3">
+            <label for="deliveryDate" class="form-label">Delivery Date</label>
+            <input type="text" class="form-control" id="deliveryDate" name="DeliveryDate" readonly>
+          </div>
+          <div class="mb-3">
+            <label for="dueDate" class="form-label">Due Date</label>
+            <input type="text" class="form-control" id="dueDate" name="DueDate" readonly>
+          </div>
+          <div class="d-grid">
+            <button type="submit" class="btn btn-primary">Generate XML</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap Bundle met Popper via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Helperfunctie om een datum te formatteren als yyyy-mm-dd
+    function formatDate(date) {
+      const year = date.getFullYear();
+      const month = ('0' + (date.getMonth() + 1)).slice(-2);
+      const day = ('0' + date.getDate()).slice(-2);
+      return `${year}-${month}-${day}`;
+    }
+
+    // Vul automatisch de datums in zodra de pagina geladen is
+    document.addEventListener("DOMContentLoaded", function() {
+      const today = new Date();
+      document.getElementById("deliveryDate").value = formatDate(today);
+
+      const dueDate = new Date(today);
+      dueDate.setDate(today.getDate() + 3);
+      document.getElementById("dueDate").value = formatDate(dueDate);
+    });
+
+    // Bij submit wordt de XML gegenereerd en gedownload
+    document.getElementById("xmlForm").addEventListener("submit", function(e) {
+      e.preventDefault();
+
+      // Haal de ingevulde velden op
+      const poNumber = document.getElementById("poNumber").value;
+      const vendorCode = document.getElementById("vendorCode").value;
+      const itemNumber = document.getElementById("itemNumber").value;
+      const quantity = document.getElementById("quantity").value;
+      const deliveryDate = document.getElementById("deliveryDate").value;
+      const dueDate = document.getElementById("dueDate").value;
+
+      // Vaststaande velden
+      const Division = "3960";
+      const UnitOf = "PC  ";      // Let op de spaties indien nodig
+      const Location = "FPTD";
+      const DeliveryTimeFrameCode = "00   ";
+      const DueTimeFrameCode = "00   ";
+      const PrepackVendorCode = "3301011799";
+      const ActionDateTime = new Date().toISOString();
+
+      // Bouw de XML-string op
+      const xml = `<?xml version="1.0" encoding="utf-8"?>
+<BE2NET_PO_PREPACK_START>
+  <PurchaseOrderNumber>${poNumber}</PurchaseOrderNumber>
+  <Division>${Division}</Division>
+  <VendorCode>${vendorCode}</VendorCode>
+  <ItemNumber>${itemNumber}</ItemNumber>
+  <Quantity>${quantity}</Quantity>
+  <UnitOf>${UnitOf}</UnitOf>
+  <Location>${Location}</Location>
+  <DeliveryDate>${deliveryDate}</DeliveryDate>
+  <DeliveryTimeFrame>
+    <Code>${DeliveryTimeFrameCode}</Code>
+    <From />
+    <To />
+  </DeliveryTimeFrame>
+  <DueDate>${dueDate}</DueDate>
+  <DueTimeFrame>
+    <Code>${DueTimeFrameCode}</Code>
+    <From />
+    <To />
+  </DueTimeFrame>
+  <PrepackVendorCode>${PrepackVendorCode}</PrepackVendorCode>
+  <ActionDateTime>${ActionDateTime}</ActionDateTime>
+</BE2NET_PO_PREPACK_START>`;
+
+      // Bouw de bestandsnaam volgens het gewenste patroon:
+      // PRP_3960_1638186386_{ItemNumber}84353005_Z013778145.xml
+      const fileName = `PRP_3960_1638186386_${itemNumber}84353005_Z013778145.xml`;
+
+      // Maak een Blob van de XML-string en creëer een downloadlink
+      const blob = new Blob([xml], { type: "text/xml" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,3763 @@
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CNH Dashboard</title>
+
+  <!-- Bootstrap CSS -->
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+  <!-- Font Awesome -->
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+  />
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <style>
+    body {
+      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .container {
+      margin-top: 2rem;
+      max-width: 1200px;
+      padding-bottom: 2rem;
+    }
+    h1 {
+      text-align: center;
+      color: #2c3e50;
+      margin-bottom: 2rem;
+      position: relative;
+      padding-bottom: 10px;
+    }
+    h1:after {
+      content: "";
+      position: absolute;
+      width: 70px;
+      height: 4px;
+      background: linear-gradient(to right, #3498db, #2ecc71);
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      border-radius: 2px;
+    }
+    .card {
+      margin-bottom: 1.5rem;
+      border-radius: 10px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+    .card-header {
+      background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+      border-radius: 10px 10px 0 0 !important;
+      font-weight: bold;
+      color: #2c3e50;
+      padding: 1rem;
+    }
+    .table th,
+    .table td {
+      vertical-align: middle;
+      padding: 0.75rem;
+    }
+    .motors-list {
+      list-style: none;
+      padding-left: 1.5rem;
+      margin-bottom: 0;
+    }
+    .motors-list li::before {
+      content: "• ";
+      color: #555;
+      margin-right: 0.25rem;
+    }
+    .toggle-icon {
+      cursor: pointer;
+      color: #0d6efd;
+      text-decoration: underline;
+      margin-bottom: 4px;
+      display: inline-block;
+    }
+    .toggle-icon i {
+      margin-right: 6px;
+    }
+    .alert {
+      margin: 1rem 0;
+    }
+    #allMotorsFilters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      align-items: center;
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 8px;
+    }
+    #allMotorsFilters .form-control, 
+    #allMotorsFilters .form-select {
+      min-width: 200px;
+    }
+    
+    /* Responsive table container */
+    .table-responsive {
+      border-radius: 0 0 10px 10px;
+    }
+    
+    /* Tab Navigation Styling */
+    .nav-tabs {
+      border-bottom: 2px solid #dee2e6;
+      margin-bottom: 1.5rem;
+    }
+    .nav-tabs .nav-link {
+      border: none;
+      border-bottom: 3px solid transparent;
+      border-radius: 0;
+      font-weight: 600;
+      color: #6c757d;
+      padding: 0.75rem 1.5rem;
+    }
+    .nav-tabs .nav-link:hover {
+      border-color: transparent;
+      color: #495057;
+    }
+    .nav-tabs .nav-link.active {
+      color: #3498db;
+      background-color: transparent;
+      border-color: transparent;
+      border-bottom: 3px solid #3498db;
+    }
+    
+    /* Dashboard stats cards */
+    .stats-cards {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .stat-card {
+      flex: 1;
+      min-width: 200px;
+      background: white;
+      border-radius: 10px;
+      padding: 1rem;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+    .stat-card h3 {
+      font-size: 2rem;
+      margin: 0;
+      color: #3498db;
+    }
+    .stat-card p {
+      margin: 0;
+      color: #6c757d;
+      font-weight: 500;
+    }
+    
+    /* Action buttons */
+    .action-btn {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.875rem;
+    }
+    
+    /* Status badges */
+    .status-badge {
+      padding: 0.4rem 0.8rem;
+      border-radius: 50px;
+      font-weight: 600;
+      font-size: 0.75rem;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .status-received {
+      background-color: #e3f2fd;
+      color: #1976d2;
+    }
+    .status-packaged {
+      background-color: #e8f5e9;
+      color: #2e7d32;
+    }
+    .status-loaded {
+      background-color: #fff8e1;
+      color: #f57f17;
+    }
+    
+    /* Search highlight */
+    .highlight {
+      background-color: #fff59d;
+      padding: 0 3px;
+      border-radius: 3px;
+    }
+    
+    /* Template management */
+    .templates-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    
+    /* Export tools */
+    .export-tools {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    
+    /* Template Card */
+    .template-card {
+      border: 1px solid #e9ecef;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      background-color: white;
+    }
+    .template-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid #f8f9fa;
+    }
+    .template-card-body {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.75rem;
+    }
+    .template-field {
+      display: flex;
+      flex-direction: column;
+    }
+    .template-field-label {
+      font-size: 0.75rem;
+      color: #6c757d;
+    }
+    .template-field-value {
+      font-weight: 500;
+    }
+    
+    /* Quick Actions Panel */
+    .quick-actions {
+      padding: 1rem;
+      background-color: #f8f9fa;
+      border-radius: 8px;
+      margin-bottom: 1.5rem;
+    }
+    .quick-actions-title {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+    }
+    .quick-actions-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    
+    /* Motor Detail Modal */
+    .modal-header {
+      background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    }
+    .detail-row {
+      display: flex;
+      margin-bottom: 0.75rem;
+    }
+    .detail-label {
+      font-weight: 500;
+      width: 150px;
+      color: #495057;
+    }
+    .detail-value {
+      flex: 1;
+    }
+    
+    /* Pagination */
+    .pagination-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 1rem;
+    }
+    .pagination {
+      margin-bottom: 0;
+    }
+    .page-size-selector {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="header-placeholder"></div>
+
+  <div class="container">
+    <h1>CNH Dashboard</h1>
+
+    <div id="dashboard-messages"></div>
+    
+    <!-- Quick Stats Overview -->
+    <div class="stats-cards">
+      <div class="stat-card">
+        <h3 id="statsReceived">0</h3>
+        <p>Ontvangen Motoren</p>
+      </div>
+      <div class="stat-card">
+        <h3 id="statsPackaged">0</h3>
+        <p>Verpakte Motoren</p>
+      </div>
+      <div class="stat-card">
+        <h3 id="statsLoaded">0</h3>
+        <p>Geladen Motoren</p>
+      </div>
+      <div class="stat-card">
+        <h3 id="statsTotal">0</h3>
+        <p>Totaal Motoren</p>
+      </div>
+    </div>
+    
+    <!-- Quick Actions Panel -->
+    <div class="quick-actions">
+      <div class="quick-actions-title">Snelle acties</div>
+      <div class="quick-actions-buttons">
+        <button id="btnCreateLoadTemplate" class="btn btn-primary">
+          <i class="fa fa-plus-circle"></i> Nieuwe Laad Template
+        </button>
+        <button id="btnEmailReceivedPackaged" class="btn btn-outline-primary">
+          <i class="fa fa-envelope"></i> Mail Overzicht (Motoren bij Foresco)
+        </button>
+        <button id="btnExportData" class="btn btn-outline-secondary">
+          <i class="fa fa-file-export"></i> Exporteer data
+        </button>
+      </div>
+    </div>
+    
+    <!-- Quick Load Setup Panel -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <i class="fa fa-truck-loading"></i> Laad Voorbereiding
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-4">
+            <div class="mb-3">
+              <label for="dashLoadReference" class="form-label">Laadreferentie</label>
+              <input type="text" id="dashLoadReference" class="form-control" placeholder="bv: LOADREF123">
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="mb-3">
+              <label for="dashTruckPlate" class="form-label">Nummerplaat</label>
+              <input type="text" id="dashTruckPlate" class="form-control" placeholder="bv: 1-ABC-123">
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="mb-3">
+              <label for="dashLoadLocation" class="form-label">Laad-locatie</label>
+              <select id="dashLoadLocation" class="form-select">
+                <option value="">Selecteer locatie...</option>
+                <option value="China">China</option>
+                <option value="Amerika">Amerika</option>
+                <option value="UZB">UZB</option>
+                <option value="Other">Anders</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="d-flex justify-content-end">
+          <button id="saveQuickLoadSettings" class="btn btn-primary">
+            <i class="fa fa-save"></i> Opslaan voor Workflow
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <ul class="nav nav-tabs" id="dashboardTabs" role="tablist">
+      <li class="nav-item">
+        <button
+          class="nav-link active"
+          id="verpakking-tab"
+          data-bs-toggle="tab"
+          data-bs-target="#verpakking"
+          type="button"
+          role="tab"
+        >
+          <i class="fa fa-box-open"></i> Verpakking
+        </button>
+      </li>
+      <li class="nav-item">
+        <button
+          class="nav-link"
+          id="lading-tab"
+          data-bs-toggle="tab"
+          data-bs-target="#lading"
+          type="button"
+          role="tab"
+        >
+          <i class="fa fa-truck-moving"></i> Lading
+        </button>
+      </li>
+      <li class="nav-item">
+        <button
+          class="nav-link"
+          id="allmotors-tab"
+          data-bs-toggle="tab"
+          data-bs-target="#allmotors"
+          type="button"
+          role="tab"
+        >
+          <i class="fa fa-database"></i> Alle Motoren
+        </button>
+      </li>
+      <li class="nav-item">
+        <button
+          class="nav-link"
+          id="templates-tab"
+          data-bs-toggle="tab"
+          data-bs-target="#templates"
+          type="button"
+          role="tab"
+        >
+          <i class="fa fa-save"></i> Templates
+        </button>
+      </li>
+      <li class="nav-item">
+        <button
+          class="nav-link"
+          id="bodems-tab"
+          data-bs-toggle="tab"
+          data-bs-target="#bodems"
+          type="button"
+          role="tab"
+        >
+          <i class="fa fa-layer-group"></i> Bodems Beheer
+        </button>
+      </li>
+    </ul>
+
+    <div class="tab-content mt-3">
+      <!-- TAB 1: Verpakking -->
+      <div class="tab-pane fade show active" id="verpakking" role="tabpanel">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="fa fa-box-open"></i> Verpakkingssessies</span>
+            <button id="btnExportCombinedExcel" class="btn btn-outline-success btn-sm">
+              <i class="fa fa-file-excel"></i> Exporteer Excel (verpakking + lading)
+            </button>
+          </div>
+          <div class="table-responsive">
+            <div id="packSessionsTable"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: Lading -->
+      <div class="tab-pane fade" id="lading" role="tabpanel">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="fa fa-truck-moving"></i> Lading-sessies</span>
+          </div>
+          <div class="table-responsive">
+            <div id="loadSessionsTable"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: Alle Motoren -->
+      <div class="tab-pane fade" id="allmotors" role="tabpanel">
+        <div class="card">
+          <div class="card-header">
+            <i class="fa fa-database"></i> Overzicht van Alle Motoren
+          </div>
+          <div class="card-body">
+            <div class="export-tools">
+              <button id="btnPrintMotors" class="btn btn-outline-secondary btn-sm">
+                <i class="fa fa-print"></i> Print
+              </button>
+              <button id="btnExportCSV" class="btn btn-outline-secondary btn-sm">
+                <i class="fa fa-file-csv"></i> Exporteer CSV
+              </button>
+            </div>
+            
+            <!-- Filters -->
+            <div id="allMotorsFilters">
+              <div>
+                <label for="allMotorsState" class="form-label">State:</label>
+                <select id="allMotorsState" class="form-select">
+                  <option value="">(Alles)</option>
+                  <option value="received">received</option>
+                  <option value="packaged">packaged</option>
+                  <option value="loaded">loaded</option>
+                </select>
+              </div>
+              <div>
+                <label for="allMotorsLocation" class="form-label">Locatie:</label>
+                <select id="allMotorsLocation" class="form-select">
+                  <option value="">(Alles)</option>
+                  <option value="China">China</option>
+                  <option value="Amerika">Amerika</option>
+                  <option value="UZB">UZB</option>
+                </select>
+              </div>
+              <div>
+                <label for="allMotorsSearch" class="form-label">Zoekterm:</label>
+                <input
+                  type="text"
+                  id="allMotorsSearch"
+                  class="form-control"
+                  placeholder="Zoek in motornr of verzendnota..."
+                />
+              </div>
+              <button id="allMotorsFilterBtn" class="btn btn-primary">
+                <i class="fa fa-search"></i> Filter
+              </button>
+              <button id="allMotorsClearBtn" class="btn btn-outline-secondary">
+                <i class="fa fa-times"></i> Wissen
+              </button>
+            </div>
+            
+            <div class="mt-3" id="totalFilteredInfo">Toont alle motoren</div>
+
+            <div id="allMotorsTableWrap" class="table-responsive mt-3"></div>
+            
+            <!-- Pagination -->
+            <div class="pagination-container">
+              <div class="page-size-selector">
+                <span>Toon</span>
+                <select id="pageSize" class="form-select form-select-sm">
+                  <option value="10">10</option>
+                  <option value="25" selected>25</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+                <span>per pagina</span>
+              </div>
+              
+              <ul class="pagination pagination-sm" id="motorsPagination">
+                <!-- Pagination will be generated here -->
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- TAB 4: Templates -->
+      <div class="tab-pane fade" id="templates" role="tabpanel">
+        <div class="card">
+          <div class="card-header templates-header">
+            <span><i class="fa fa-save"></i> Laad Templates</span>
+            <button id="btnAddTemplate" class="btn btn-sm btn-primary">
+              <i class="fa fa-plus"></i> Nieuwe Template
+            </button>
+          </div>
+          <div class="card-body">
+            <div id="templatesContainer">
+              <!-- Templates will be dynamically added here -->
+              <div class="text-center text-muted py-5">
+                <i class="fa fa-folder-open fa-3x mb-3"></i>
+                <p>Geen templates gevonden. Maak een nieuwe template aan.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- TAB 5: Bodems -->
+      <div class="tab-pane fade" id="bodems" role="tabpanel">
+        <div class="row mb-3">
+          <div class="col-12">
+            <div class="card">
+              <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                  <i class="fas fa-cogs me-2"></i> Instellingen
+                </h5>
+                <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#settingsCollapse" aria-expanded="false">
+                  <i class="fas fa-chevron-down"></i>
+                </button>
+              </div>
+              <div class="collapse" id="settingsCollapse">
+                <div class="card-body">
+                  <form id="stockSettingsForm">
+                    <div class="row g-3">
+                      <div class="col-md-6">
+                        <label for="minStockHigh" class="form-label">Minimale voorraad Hoge Bodems</label>
+                        <div class="input-group">
+                          <input type="number" class="form-control" id="minStockHigh" min="1" value="10">
+                          <span class="input-group-text">stuks</span>
+                        </div>
+                        <div class="form-text">Waarschuwing wanneer de voorraad lager is dan deze waarde</div>
+                      </div>
+                      <div class="col-md-6">
+                        <label for="minStockLow" class="form-label">Minimale voorraad Lage Bodems</label>
+                        <div class="input-group">
+                          <input type="number" class="form-control" id="minStockLow" min="1" value="10">
+                          <span class="input-group-text">stuks</span>
+                        </div>
+                        <div class="form-text">Waarschuwing wanneer de voorraad lager is dan deze waarde</div>
+                      </div>
+                      <div class="col-12 mt-3">
+                        <button type="button" id="saveStockSettings" class="btn btn-primary">
+                          <i class="fas fa-save me-1"></i> Instellingen Opslaan
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Bestaande Bodem Voorraad sectie blijft hier -->
+        <div class="row">
+          <!-- Bodem Voorraad -->
+          <div class="col-md-6 mb-4">
+            <div class="card h-100">
+              <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                  <i class="fas fa-cube me-2"></i> Bodem Voorraad
+                </h5>
+              </div>
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table class="table table-striped table-hover">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Type</th>
+                        <th>Voorraad</th>
+                        <th>Acties</th>
+                      </tr>
+                    </thead>
+                    <tbody id="bodemStockTable">
+                      <tr>
+                        <td colspan="3" class="text-center">Laden...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Nieuwe sectie: Bestellingen bij andere vestigingen -->
+          <div class="col-md-6 mb-4">
+            <div class="card h-100">
+              <div class="card-header bg-info text-white">
+                <h5 class="mb-0">
+                  <i class="fas fa-truck-loading me-2"></i> Bestellingen bij Vestigingen
+                </h5>
+              </div>
+              <div class="card-body">
+                <!-- Formulier voor het toevoegen van een nieuwe bestelling -->
+                <div class="mb-3">
+                  <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#newOrderForm" aria-expanded="false">
+                    <i class="fas fa-plus-circle me-1"></i> Nieuwe Bestelling
+                  </button>
+                  
+                  <div class="collapse mt-3" id="newOrderForm">
+                    <div class="card card-body bg-light">
+                      <form id="addBestellingForm">
+                        <div class="row g-2">
+                          <div class="col-md-6">
+                            <label for="bestelVestiging" class="form-label">Vestiging</label>
+                            <input type="text" class="form-control" id="bestelVestiging" required placeholder="Naam vestiging">
+                          </div>
+                          <div class="col-md-6">
+                            <label for="bestelType" class="form-label">Type Bodem</label>
+                            <select class="form-select" id="bestelType" required>
+                              <option value="">Kies type...</option>
+                              <option value="hoog">Hoog</option>
+                              <option value="laag">Laag</option>
+                            </select>
+                          </div>
+                          <div class="col-md-6">
+                            <label for="bestelAantal" class="form-label">Aantal</label>
+                            <input type="number" class="form-control" id="bestelAantal" min="1" required>
+                          </div>
+                          <div class="col-md-6">
+                            <label for="bestelDatum" class="form-label">Besteldatum</label>
+                            <input type="date" class="form-control" id="bestelDatum" required>
+                          </div>
+                          <div class="col-12">
+                            <label for="bestelLeverdatum" class="form-label">Verwachte leverdatum (optioneel)</label>
+                            <input type="date" class="form-control" id="bestelLeverdatum">
+                          </div>
+                          <div class="col-12">
+                            <label for="bestelOpmerking" class="form-label">Opmerking (optioneel)</label>
+                            <textarea class="form-control" id="bestelOpmerking" rows="2"></textarea>
+                          </div>
+                          <div class="col-12 mt-3">
+                            <button type="submit" class="btn btn-success">
+                              <i class="fas fa-save me-1"></i> Bestelling Toevoegen
+                            </button>
+                          </div>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Tabel met lopende bestellingen -->
+                <div class="table-responsive">
+                  <table class="table table-striped table-hover">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Vestiging</th>
+                        <th>Type</th>
+                        <th>Aantal</th>
+                        <th>Status</th>
+                        <th>Acties</th>
+                      </tr>
+                    </thead>
+                    <tbody id="bodemBestellingenTable">
+                      <tr>
+                        <td colspan="5" class="text-center">Laden...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Toekomstige Vrachten Sectie -->
+        <div class="row">
+          <div class="col-md-12">
+            <div class="card">
+              <div class="card-header bg-success text-white">
+                <h5 class="mb-0">
+                  <i class="fas fa-truck me-2"></i> Toekomstige Vrachten
+                </h5>
+              </div>
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-md-6">
+                    <div class="card mb-3">
+                      <div class="card-header bg-light">Geplande Vrachten</div>
+                      <div class="card-body">
+                        <div class="table-responsive">
+                          <table class="table table-striped table-hover">
+                            <thead class="table-light">
+                              <tr>
+                                <th>Datum</th>
+                                <th>Hoge Bodems</th>
+                                <th>Lage Bodems</th>
+                                <th>Opmerking</th>
+                                <th>Acties</th>
+                              </tr>
+                            </thead>
+                            <tbody id="toekomstigeVrachtenTable">
+                              <tr>
+                                <td colspan="5" class="text-center">Laden...</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                        <div class="mt-3">
+                          <div class="card bg-light">
+                            <div class="card-body">
+                              <h5 class="card-title">Samenvatting Benodigde Bodems</h5>
+                              <div class="row">
+                                <div class="col-6">
+                                  <p class="mb-1">Totaal Hoge Bodems:</p>
+                                  <h4 id="totalHighBottoms">0</h4>
+                                </div>
+                                <div class="col-6">
+                                  <p class="mb-1">Totaal Lage Bodems:</p>
+                                  <h4 id="totalLowBottoms">0</h4>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="card">
+                      <div class="card-header bg-light">Nieuwe Vracht Toevoegen</div>
+                      <div class="card-body">
+                        <form id="addToekomstigeVrachtForm">
+                          <div class="mb-3">
+                            <label for="vrachtDatum" class="form-label">Datum</label>
+                            <input type="date" class="form-control" id="vrachtDatum" required>
+                          </div>
+                          <div class="mb-3">
+                            <label for="aantalHogeBodems" class="form-label">Aantal Hoge Bodems</label>
+                            <input type="number" class="form-control" id="aantalHogeBodems" min="0" value="0" required>
+                          </div>
+                          <div class="mb-3">
+                            <label for="aantalLageBodems" class="form-label">Aantal Lage Bodems</label>
+                            <input type="number" class="form-control" id="aantalLageBodems" min="0" value="0" required>
+                          </div>
+                          <div class="mb-3">
+                            <label for="vrachtOpmerking" class="form-label">Opmerking</label>
+                            <textarea class="form-control" id="vrachtOpmerking" rows="2"></textarea>
+                          </div>
+                          <button type="submit" class="btn btn-primary">Toevoegen</button>
+                        </form>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Motor Detail Modal -->
+  <div class="modal fade" id="motorDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Motor Details</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="motorDetailContent">
+          <!-- Motor details will be loaded here -->
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Sluiten</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Template Form Modal -->
+  <div class="modal fade" id="templateFormModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="templateFormTitle">Nieuwe Laad Template</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <form id="templateForm">
+            <input type="hidden" id="templateId" value="">
+            <div class="mb-3">
+              <label for="templateFormName" class="form-label">Template Naam</label>
+              <input type="text" class="form-control" id="templateFormName" required>
+            </div>
+            
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label for="templateFormLocation" class="form-label">Locatie</label>
+                  <input type="text" class="form-control" id="templateFormLocation">
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label for="templateFormContainerNo" class="form-label">Container Voorvoegsel</label>
+                  <input type="text" class="form-control" id="templateFormContainerNo">
+                </div>
+              </div>
+            </div>
+            
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label for="templateFormLoadRef" class="form-label">Laadreferentie</label>
+                  <input type="text" class="form-control" id="templateFormLoadRef">
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label for="templateFormTruckPlate" class="form-label">Nummerplaat</label>
+                  <input type="text" class="form-control" id="templateFormTruckPlate">
+                </div>
+              </div>
+            </div>
+            
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label for="templateFormBookingRef" class="form-label">Booking Ref</label>
+                  <input type="text" class="form-control" id="templateFormBookingRef">
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label for="templateFormYourRef" class="form-label">Your Ref</label>
+                  <input type="text" class="form-control" id="templateFormYourRef">
+                </div>
+              </div>
+            </div>
+            
+            <div class="mb-3">
+              <label for="templateFormContainerTarra" class="form-label">Container Tarra (kg)</label>
+              <input type="number" step="0.01" class="form-control" id="templateFormContainerTarra">
+            </div>
+            
+            <div class="mb-3">
+              <label for="templateFormNotes" class="form-label">Notities</label>
+              <textarea class="form-control" id="templateFormNotes" rows="3"></textarea>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+          <button type="button" class="btn btn-primary" id="saveTemplateBtn">Opslaan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let allSessions = [];
+    let allMotors = [];
+    let loadTemplates = [];
+    let currentPage = 1;
+    let pageSize = 25;
+    let filteredMotors = [];
+    let motorDetailModal;
+    let templateFormModal;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // Initialize Bootstrap components
+      motorDetailModal = new bootstrap.Modal(document.getElementById('motorDetailModal'));
+      templateFormModal = new bootstrap.Modal(document.getElementById('templateFormModal'));
+      
+      // Load any saved quick settings
+      loadQuickSettings();
+      
+      $("#header-placeholder").load("/header.html", function() {
+        loadSessionsData();
+        loadAllMotorsData();
+        loadTemplatesData();
+      });
+
+      // Filterknoppen
+      document.getElementById('allMotorsFilterBtn').addEventListener('click', applyAllMotorsFilters);
+      document.getElementById('allMotorsClearBtn').addEventListener('click', clearAllMotorsFilters);
+      
+      document.getElementById('allMotorsSearch').addEventListener('keypress', (e) => {
+        if(e.key === 'Enter') applyAllMotorsFilters();
+      });
+
+      // Template management
+      document.getElementById('btnAddTemplate').addEventListener('click', showAddTemplateForm);
+      document.getElementById('saveTemplateBtn').addEventListener('click', saveTemplate);
+      document.getElementById('btnCreateLoadTemplate').addEventListener('click', showAddTemplateForm);
+
+      // Pagination and page size
+      document.getElementById('pageSize').addEventListener('change', function() {
+        pageSize = parseInt(this.value);
+        currentPage = 1;
+        applyAllMotorsFilters();
+      });
+      
+      // Export buttons
+      document.getElementById('btnExportCSV').addEventListener('click', exportMotorsToCSV);
+      document.getElementById('btnPrintMotors').addEventListener('click', printMotorsTable);
+      document.getElementById('btnExportData').addEventListener('click', exportAllData);
+
+      // Email button
+      document.getElementById('btnEmailReceivedPackaged').addEventListener('click', mailReceivedPackagedOverview);
+      
+      // Quick load settings
+      document.getElementById('saveQuickLoadSettings').addEventListener('click', saveQuickLoadSettings);
+      document.getElementById('btnExportCombinedExcel').addEventListener('click', exportCombinedExcel);
+    });
+    
+    /******************************************************
+     * Helper Functions - Status Messages
+     ******************************************************/
+    function showStatus(message, type = 'info') {
+      const statusArea = document.getElementById('dashboard-messages');
+      const alertDiv = document.createElement('div');
+      alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+      alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      `;
+      statusArea.appendChild(alertDiv);
+      
+      // Auto remove after 5 seconds
+      setTimeout(() => {
+        alertDiv.classList.remove('show');
+        setTimeout(() => alertDiv.remove(), 5000);
+      }, 5000);
+    }
+
+    /******************************************************
+     * 1) Ophalen en tonen van sessions (verpakking + lading)
+     ******************************************************/
+    async function loadSessionsData(){
+      try{
+        const resp = await fetch('/api/cnh_sessions');
+        if(!resp.ok) throw new Error(`Fout bij ophalen sessies (status=${resp.status})`);
+        allSessions = await resp.json();
+
+        // Verpakking
+        const packData = allSessions.filter(s =>
+          (Number(s.packaging_minutes||0) > 0 || Number(s.packaging_count||0) > 0)
+        );
+        renderPackagingTable(packData);
+
+        // Lading
+        const loadData = allSessions.filter(s =>
+          (Number(s.loading_minutes||0) > 0 || Number(s.loading_count||0) > 0
+            || (s.load_reference && s.load_reference.trim() !== ''))
+        );
+        renderLoadingTable(loadData);
+
+      } catch(e){
+        console.error('loadSessionsData error:', e);
+        showStatus(`Fout bij ophalen sessiedata: ${e.message}`, 'danger');
+      }
+    }
+
+    function renderPackagingTable(sessions){
+      const c = document.getElementById('packSessionsTable');
+      if(!sessions || !sessions.length){
+        c.innerHTML = `<div class="p-4 text-center text-muted">Geen verpakkings-sessies gevonden.</div>`;
+        return;
+      }
+      let html = `
+        <table class="table table-striped table-hover">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Locatie</th>
+              <th>Duurtijd</th>
+              <th>Motoren</th>
+              <th>Personen</th>
+              <th>Datum</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+      sessions.forEach(s => {
+        const created = formatDateTime(s.created_at);
+        const dur = formatDuration(s.packaging_minutes||0);
+        const loc = s.location||'N/A';
+        const cc = s.packaging_count||0;
+        const pp = s.packaging_persons||1;
+
+        let motorsHTML = `<span class="text-muted">Geen</span>`;
+        if(s.motors && s.motors.length > 0){
+          motorsHTML = `
+            <div class="toggle-icon" onclick="toggleMotors('pack', ${s.id})">
+              <i class="fa fa-chevron-down" id="packToggleIcon${s.id}"></i> 
+              <span class="badge bg-secondary">${s.motors.length}</span>
+            </div>
+            <ul class="motors-list" id="packMotorList${s.id}" style="display:none;">
+          `;
+          s.motors.forEach(m => {
+            motorsHTML += `
+              <li>
+                <a href="#" onclick="showMotorDetail(${m.id}); return false;">${m.motor_nr||'??'}</a>
+                <small style="color:gray">
+                  (Nota: ${m.shipping_note||''})
+                </small>
+              </li>
+            `;
+          });
+          motorsHTML += `</ul>`;
+        }
+
+        html += `
+          <tr>
+            <td>${s.id}</td>
+            <td>${loc}</td>
+            <td>${dur}</td>
+            <td>${cc}</td>
+            <td>${pp}</td>
+            <td>${created}</td>
+            <td>${motorsHTML}</td>
+          </tr>
+        `;
+      });
+      html += `</tbody></table>`;
+      c.innerHTML = html;
+    }
+
+    function renderLoadingTable(sessions){
+      const container = document.getElementById('loadSessionsTable');
+      if(!sessions || !sessions.length){
+        container.innerHTML = `<div class="p-4 text-center text-muted">Geen lading-sessies gevonden.</div>`;
+        return;
+      }
+
+      let html = `
+        <table class="table table-striped table-hover">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Locatie</th>
+              <th>LaadRef</th>
+              <th>Container</th>
+              <th>Laadtijd</th>
+              <th>Motoren</th>
+              <th>Pers.</th>
+              <th>Datum</th>
+              <th>Acties</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+      sessions.forEach(s => {
+        const created = formatDateTime(s.created_at);
+        const loadDur = formatDuration(s.loading_minutes || 0);
+        const locStr = s.location || 'N/A';
+        const loadRef = s.load_reference || '-';
+        const contNo = s.container_no || '-';
+
+        let motorsDisplay = `<span class="text-muted">Geen</span>`;
+        if(s.motors && s.motors.length > 0){
+          motorsDisplay = `
+            <div class="toggle-icon" onclick="toggleMotors('load', ${s.id})">
+              <i class="fa fa-chevron-down" id="loadToggleIcon${s.id}"></i> 
+              <span class="badge bg-secondary">${s.motors.length}</span>
+            </div>
+            <ul class="motors-list" id="loadMotorList${s.id}" style="display:none;">
+          `;
+          s.motors.forEach(m => {
+            motorsDisplay += `
+              <li>
+                <a href="#" onclick="showMotorDetail(${m.id}); return false;">${m.motor_nr||'??'}</a>
+                <small style="color:gray">
+                  (Nota: ${m.shipping_note||''})
+                </small>
+              </li>
+            `;
+          });
+          motorsDisplay += `</ul>`;
+        }
+
+        const actionButtons = `
+          <div class="btn-group btn-group-sm">
+            <button class="btn btn-outline-secondary action-btn" onclick="viewLoadDetail(${s.id})">
+              <i class="fa fa-eye"></i>
+            </button>
+            <button class="btn btn-outline-primary action-btn" onclick="mailLoadOverview(${s.id})">
+              <i class="fa fa-envelope"></i>
+            </button>
+            <button class="btn btn-outline-success action-btn" onclick="createTemplateFromLoad(${s.id})">
+              <i class="fa fa-save"></i>
+            </button>
+          </div>
+        `;
+
+        html += `
+          <tr>
+            <td>${s.id}</td>
+            <td>${locStr}</td>
+            <td title="${loadRef}">${truncateText(loadRef, 10)}</td>
+            <td title="${contNo}">${truncateText(contNo, 10)}</td>
+            <td>${loadDur}</td>
+            <td>${s.loading_count||0}</td>
+            <td>${s.loading_persons||1}</td>
+            <td>${created}</td>
+            <td>${actionButtons}</td>
+          </tr>
+        `;
+      });
+      html += `</tbody></table>`;
+      container.innerHTML = html;
+    }
+
+    function toggleMotors(prefix, sessionId){
+      const ul = document.getElementById(prefix+'MotorList'+sessionId);
+      const icon = document.getElementById(prefix+'ToggleIcon'+sessionId);
+      if(!ul) return;
+      
+      if(ul.style.display==='none') {
+        ul.style.display = 'block';
+        icon.classList.replace('fa-chevron-down', 'fa-chevron-up');
+      } else {
+        ul.style.display = 'none';
+        icon.classList.replace('fa-chevron-up', 'fa-chevron-down');
+      }
+    }
+    
+    function viewLoadDetail(sessionId) {
+      const session = allSessions.find(s => s.id === sessionId);
+      if (!session) {
+        showStatus('Sessie niet gevonden', 'warning');
+        return;
+      }
+      
+      let detailHTML = `
+        <div class="detail-row">
+          <div class="detail-label">ID:</div>
+          <div class="detail-value">${session.id}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Locatie:</div>
+          <div class="detail-value">${session.location || 'N/A'}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Laadreferentie:</div>
+          <div class="detail-value">${session.load_reference || 'N/A'}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Containernummer:</div>
+          <div class="detail-value">${session.container_no || 'N/A'}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Truck nummerplaat:</div>
+          <div class="detail-value">${session.truck_plate || 'N/A'}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Booking Ref:</div>
+          <div class="detail-value">${session.booking_ref || 'N/A'}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Your Ref:</div>
+          <div class="detail-value">${session.your_ref || 'N/A'}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Container Tarra:</div>
+          <div class="detail-value">${session.container_tarra || 'N/A'} kg</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Laadtijd:</div>
+          <div class="detail-value">${formatDuration(session.loading_minutes || 0)}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Aantal motoren:</div>
+          <div class="detail-value">${session.loading_count || 0}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Aantal personen:</div>
+          <div class="detail-value">${session.loading_persons || 1}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Datum:</div>
+          <div class="detail-value">${formatDateTime(session.created_at)}</div>
+        </div>
+      `;
+      
+      // Check if motors are available
+      if (session.motors && session.motors.length > 0) {
+        detailHTML += `
+          <hr>
+          <h6>Motoren (${session.motors.length}):</h6>
+          <ul class="list-group">
+        `;
+        session.motors.forEach(m => {
+          detailHTML += `
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              ${m.motor_nr || 'N/A'}
+              <span class="badge bg-primary rounded-pill">${m.location || 'N/A'}</span>
+            </li>
+          `;
+        });
+        detailHTML += `</ul>`;
+      }
+      
+      document.getElementById('motorDetailContent').innerHTML = detailHTML;
+      document.querySelector('#motorDetailModal .modal-title').textContent = `Laadsessie #${sessionId} Details`;
+      motorDetailModal.show();
+    }
+    
+    function createTemplateFromLoad(sessionId) {
+      const session = allSessions.find(s => s.id === sessionId);
+      if (!session) {
+        showStatus('Sessie niet gevonden', 'warning');
+        return;
+      }
+      
+      // Populate template form with session data
+      document.getElementById('templateFormTitle').textContent = 'Template maken van laadsessie';
+      document.getElementById('templateId').value = '';
+      document.getElementById('templateFormName').value = `${session.location || ''} - ${session.load_reference || 'Template'}`;
+      document.getElementById('templateFormLocation').value = session.location || '';
+      document.getElementById('templateFormContainerNo').value = session.container_no ? session.container_no.split(/\d/)[0] : '';
+      document.getElementById('templateFormLoadRef').value = session.load_reference || '';
+      document.getElementById('templateFormTruckPlate').value = session.truck_plate || '';
+      document.getElementById('templateFormBookingRef').value = session.booking_ref || '';
+      document.getElementById('templateFormYourRef').value = session.your_ref || '';
+      document.getElementById('templateFormContainerTarra').value = session.container_tarra || '';
+      document.getElementById('templateFormNotes').value = `Template aangemaakt van laadsessie #${session.id} - ${formatDateTime(session.created_at)}`;
+      
+      templateFormModal.show();
+    }
+    
+    // De ontbrekende loadTemplatesData functie
+    async function loadTemplatesData() {
+      try {
+        // Fetch templates van de server
+        const response = await fetch('/api/cnh_templates');
+        if (!response.ok) {
+          throw new Error(`Server error: ${response.status}`);
+        }
+        
+        loadTemplates = await response.json();
+        console.log(`Loaded ${loadTemplates.length} templates from server`);
+        
+        // Render templates in de UI
+        renderTemplates();
+        
+        // Ook opslaan in localStorage als backup
+        localStorage.setItem('cnh_load_templates_cache', JSON.stringify(loadTemplates));
+      } catch (e) {
+        console.error('Error loading templates from server:', e);
+        showStatus('Fout bij laden templates van server. Probeer offline versie...', 'warning');
+        
+        // Probeer te laden uit lokale cache als server niet beschikbaar is
+        const cachedTemplates = localStorage.getItem('cnh_load_templates_cache');
+        if (cachedTemplates) {
+          try {
+            loadTemplates = JSON.parse(cachedTemplates);
+            console.log(`Loaded ${loadTemplates.length} templates from cache`);
+            renderTemplates();
+            showStatus('Templates geladen uit offline cache', 'info');
+          } catch (cacheErr) {
+            console.error('Error parsing cached templates:', cacheErr);
+            loadTemplates = [];
+            renderTemplates();
+          }
+        } else {
+          loadTemplates = [];
+          renderTemplates();
+        }
+      }
+    }
+    
+    // Render templates in de Templates tab
+    function renderTemplates() {
+      const container = document.getElementById('templatesContainer');
+      
+      if (!loadTemplates || loadTemplates.length === 0) {
+        container.innerHTML = `
+          <div class="text-center text-muted py-5">
+            <i class="fa fa-folder-open fa-3x mb-3"></i>
+            <p>Geen templates gevonden. Maak een nieuwe template aan.</p>
+          </div>
+        `;
+        return;
+      }
+      
+      let html = '';
+      
+      loadTemplates.forEach((template) => {
+        const templateId = template.id;
+        
+        html += `
+          <div class="template-card">
+            <div class="template-card-header">
+              <h5>${template.name || 'Onbenoemd'}</h5>
+              <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-primary" onclick="showEditTemplateForm('${templateId}')">
+                  <i class="fa fa-edit"></i>
+                </button>
+                <button class="btn btn-outline-success" onclick="applyTemplateToWorkflow('${templateId}')">
+                  <i class="fa fa-check"></i> Toepassen
+                </button>
+                <button class="btn btn-outline-danger" onclick="deleteTemplate('${templateId}')">
+                  <i class="fa fa-trash"></i>
+                </button>
+              </div>
+            </div>
+            <div class="template-card-body">
+              <div class="template-field">
+                <div class="template-field-label">Locatie</div>
+                <div class="template-field-value">${template.loadLocation || '-'}</div>
+              </div>
+              <div class="template-field">
+                <div class="template-field-label">Laadreferentie</div>
+                <div class="template-field-value">${template.loadReference || '-'}</div>
+              </div>
+              <div class="template-field">
+                <div class="template-field-label">Container</div>
+                <div class="template-field-value">${template.containerNumber || '-'}</div>
+              </div>
+              <div class="template-field">
+                <div class="template-field-label">Nummerplaat</div>
+                <div class="template-field-value">${template.truckPlate || '-'}</div>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      
+      container.innerHTML = html;
+    }
+    
+    // Form weergeven voor een bestaande template
+    function showEditTemplateForm(templateId) {
+      // Template zoeken via ID
+      const template = loadTemplates.find(t => t.id === templateId);
+      
+      if (!template) {
+        showStatus('Template niet gevonden', 'warning');
+        return;
+      }
+      
+      // Form title instellen
+      document.getElementById('templateFormTitle').textContent = 'Template Bewerken';
+      
+      // Form fields invullen
+      document.getElementById('templateId').value = templateId;
+      document.getElementById('templateFormName').value = template.name || '';
+      document.getElementById('templateFormLocation').value = template.loadLocation || '';
+      document.getElementById('templateFormContainerNo').value = template.containerNumber || '';
+      document.getElementById('templateFormLoadRef').value = template.loadReference || '';
+      document.getElementById('templateFormTruckPlate').value = template.truckPlate || '';
+      document.getElementById('templateFormBookingRef').value = template.bookingRef || '';
+      document.getElementById('templateFormYourRef').value = template.yourRef || '';
+      document.getElementById('templateFormContainerTarra').value = template.containerTarra || '';
+      document.getElementById('templateFormNotes').value = template.notes || '';
+      
+      // Modal tonen
+      templateFormModal.show();
+    }
+    
+    // Form weergeven voor een nieuwe template
+    function showAddTemplateForm() {
+      // Form resetten
+      document.getElementById('templateFormTitle').textContent = 'Nieuwe Laad Template';
+      document.getElementById('templateId').value = '';
+      document.getElementById('templateFormName').value = '';
+      document.getElementById('templateFormLocation').value = '';
+      document.getElementById('templateFormContainerNo').value = '';
+      document.getElementById('templateFormLoadRef').value = '';
+      document.getElementById('templateFormTruckPlate').value = '';
+      document.getElementById('templateFormBookingRef').value = '';
+      document.getElementById('templateFormYourRef').value = '';
+      document.getElementById('templateFormContainerTarra').value = '';
+      document.getElementById('templateFormNotes').value = '';
+      
+      // Modal tonen
+      templateFormModal.show();
+    }
+    
+    // Template opslaan (nieuw of bewerkt)
+    function saveTemplate() {
+      const templateId = document.getElementById('templateId').value;
+      const name = document.getElementById('templateFormName').value.trim();
+      
+      if (!name) {
+        showStatus('Template naam is verplicht', 'warning');
+        return;
+      }
+      
+      const template = {
+        name: name,
+        loadLocation: document.getElementById('templateFormLocation').value.trim(),
+        containerNumber: document.getElementById('templateFormContainerNo').value.trim(),
+        loadReference: document.getElementById('templateFormLoadRef').value.trim(),
+        truckPlate: document.getElementById('templateFormTruckPlate').value.trim(),
+        bookingRef: document.getElementById('templateFormBookingRef').value.trim(),
+        yourRef: document.getElementById('templateFormYourRef').value.trim(),
+        containerTarra: document.getElementById('templateFormContainerTarra').value,
+        notes: document.getElementById('templateFormNotes').value.trim()
+      };
+      
+      // Controleren of het een nieuwe template is of een bewerking
+      if (templateId === '') {
+        // Nieuwe template
+        saveTemplateToServer(template);
+      } else {
+        // Bestaande template bijwerken
+        updateTemplateOnServer(templateId, template);
+      }
+      
+      // Modal sluiten
+      templateFormModal.hide();
+    }
+    
+    // Nieuwe template opslaan naar de server
+    async function saveTemplateToServer(template) {
+      try {
+        const response = await fetch('/api/cnh_templates', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(template)
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Server error: ${response.status}`);
+        }
+        
+        const savedTemplate = await response.json();
+        
+        // Toevoegen aan templates array
+        loadTemplates.push(savedTemplate);
+        
+        // UI bijwerken
+        renderTemplates();
+        
+        showStatus(`Template "${template.name}" opgeslagen`, 'success');
+      } catch (error) {
+        console.error('Error saving template:', error);
+        
+        // Fallback naar localStorage als server niet beschikbaar is
+        if (!loadTemplates) loadTemplates = [];
+        loadTemplates.push({...template, id: Date.now()}); // Genereer ID
+        localStorage.setItem('cnh_load_templates_cache', JSON.stringify(loadTemplates));
+        
+        renderTemplates();
+        showStatus(`Template opgeslagen in lokale opslag (server niet beschikbaar)`, 'warning');
+      }
+    }
+    
+    // Bestaande template bijwerken op de server
+    async function updateTemplateOnServer(templateId, template) {
+      try {
+        const response = await fetch(`/api/cnh_templates/${templateId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(template)
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Server error: ${response.status}`);
+        }
+        
+        const updatedTemplate = await response.json();
+        
+        // Bijwerken in array
+        const index = loadTemplates.findIndex(t => t.id === parseInt(templateId));
+        if (index !== -1) {
+          loadTemplates[index] = updatedTemplate;
+        }
+        
+        // UI bijwerken
+        renderTemplates();
+        
+        showStatus(`Template "${template.name}" bijgewerkt`, 'success');
+      } catch (error) {
+        console.error('Error updating template:', error);
+        
+        // Fallback naar localStorage
+        const index = loadTemplates.findIndex(t => t.id === parseInt(templateId));
+        if (index !== -1) {
+          loadTemplates[index] = {...template, id: parseInt(templateId)};
+          localStorage.setItem('cnh_load_templates_cache', JSON.stringify(loadTemplates));
+        }
+        
+        renderTemplates();
+        showStatus(`Template bijgewerkt in lokale opslag (server niet beschikbaar)`, 'warning');
+      }
+    }
+    
+    // Template verwijderen
+    async function deleteTemplate(templateId) {
+      try {
+        // Zorg ervoor dat templateId als string wordt vergeleken
+        const templateIdStr = String(templateId);
+        console.log(`Zoeken naar template met ID: "${templateIdStr}" (type: ${typeof templateIdStr})`);
+        
+        // Vind template met string vergelijking
+        const template = loadTemplates.find(t => String(t.id) === templateIdStr);
+        
+        if (!template) {
+          console.error(`Template met ID "${templateIdStr}" niet gevonden in loadTemplates array:`, loadTemplates);
+          showStatus('Template niet gevonden', 'warning');
+          return;
+        }
+        
+        // Voor debugging
+        console.log(`========== DELETE TEMPLATE DEBUG ==========`);
+        console.log(`Verwijderen van template ID: "${templateIdStr}"`);
+        console.log(`Template naam: "${template.name}"`);
+        console.log(`Alle templates met ID types:`, loadTemplates.map(t => ({id: t.id, name: t.name, idType: typeof t.id})));
+        console.log(`==========================================`);
+        
+        const confirmDelete = confirm(`Weet je zeker dat je de template "${template.name}" wilt verwijderen?`);
+        if (!confirmDelete) return;
+        
+        showStatus(`Bezig met verwijderen van template "${template.name}"...`, 'info');
+        
+        // Gebruik een timestamp om caching te vermijden
+        const timestamp = new Date().getTime();
+        const response = await fetch(`/api/cnh_templates/${templateId}?nocache=${timestamp}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          }
+        });
+        
+        console.log('DELETE response status:', response.status);
+        
+        if (!response.ok) {
+          throw new Error(`Server error: ${response.status}`);
+        }
+        
+        // Lees eerst de ruwe response tekst
+        const responseText = await response.text();
+        console.log('DELETE response tekst:', responseText);
+        
+        // Probeer de response te parsen als JSON
+        let result;
+        try {
+          if (responseText.trim()) {
+            result = JSON.parse(responseText);
+            console.log('Geparseerde DELETE response:', result);
+          } else {
+            console.log('Lege response van server, aangenomen dat het gelukt is');
+            result = { success: true };
+          }
+        } catch (e) {
+          console.error('Fout bij parsen van server response:', e);
+          console.log('Ruwe response was:', responseText);
+          // Als we de response niet kunnen parsen, nemen we aan dat het gelukt is
+          result = { success: true };
+        }
+        
+        if (result && result.success) {
+          console.log(`Template ${templateIdStr} succesvol verwijderd van server`);
+          
+          // Update lokale arrays en caches met string vergelijking
+          loadTemplates = loadTemplates.filter(t => String(t.id) !== templateIdStr);
+          
+          // Verwijder alle caches om zeker te zijn dat we bij volgende laad de juiste data krijgen
+          localStorage.removeItem('cnh_load_templates_cache');
+          
+          // Update UI
+          renderTemplates();
+          
+          showStatus(`Template "${template.name}" is succesvol verwijderd`, 'success');
+          
+          // Forceer een pagina-reload na een korte pauze voor betere synchronisatie
+          setTimeout(() => {
+            console.log('Herladen van pagina om synchronisatie te verzekeren');
+            window.location.reload();
+          }, 1500);
+        } else {
+          throw new Error('Server antwoordde zonder succes indicator');
+        }
+      } catch (e) {
+        console.error('Fout bij verwijderen van template:', e);
+        showStatus(`Fout bij verwijderen van template: ${e.message}. Vernieuw de pagina handmatig.`, 'danger');
+      }
+    }
+    
+    // Template toepassen op workflow
+    function applyTemplateToWorkflow(templateId) {
+      // Zorg ervoor dat templateId als string wordt vergeleken
+      const templateIdStr = String(templateId);
+      
+      // Vind template met string vergelijking
+      const template = loadTemplates.find(t => String(t.id) === templateIdStr);
+      
+      if (!template) {
+        console.error(`Template met ID "${templateIdStr}" niet gevonden.`, loadTemplates);
+        showStatus('Template niet gevonden', 'warning');
+        return;
+      }
+      
+      console.log(`Template gevonden en wordt toegepast: "${template.name}" (ID: ${templateIdStr})`);
+      
+      // Opslaan in localStorage voor gebruik door workflow pagina
+      localStorage.setItem('cnh_load_active_template', JSON.stringify(template));
+      
+      // Redirect naar workflow pagina
+      window.location.href = '/workflow.html';
+    }
+
+    /******************************************************
+     * 2) Ophalen en tonen van alle motoren
+     ******************************************************/
+    async function loadAllMotorsData(){
+      try{
+        const resp = await fetch('/api/cnh_motors');
+        if(!resp.ok) throw new Error('Fout bij ophalen cnh_motors, status='+resp.status);
+        allMotors = await resp.json();
+        filteredMotors = [...allMotors];
+        renderAllMotorsTable(filteredMotors);
+        updateMotorStats();
+      } catch(e){
+        console.error(e);
+        showStatus(`Fout bij ophalen motordata: ${e.message}`, 'danger');
+      }
+    }
+    
+    function updateMotorStats() {
+      const received = allMotors.filter(m => m.state === 'received').length;
+      const packaged = allMotors.filter(m => m.state === 'packaged').length;
+      const loaded = allMotors.filter(m => m.state === 'loaded').length;
+      const total = allMotors.length;
+      
+      document.getElementById('statsReceived').textContent = received;
+      document.getElementById('statsPackaged').textContent = packaged;
+      document.getElementById('statsLoaded').textContent = loaded;
+      document.getElementById('statsTotal').textContent = total;
+    }
+
+    function applyAllMotorsFilters(){
+      const st = document.getElementById('allMotorsState').value.trim().toLowerCase();
+      const loc = document.getElementById('allMotorsLocation').value.trim();
+      const sr = document.getElementById('allMotorsSearch').value.trim().toLowerCase();
+      
+      filteredMotors = [...allMotors];
+      
+      if(st){
+        filteredMotors = filteredMotors.filter(m => (m.state||'').toLowerCase() === st);
+      }
+      
+      if(loc){
+        filteredMotors = filteredMotors.filter(m => (m.location||'') === loc);
+      }
+      
+      if(sr){
+        filteredMotors = filteredMotors.filter(m => {
+          const nr = (m.motor_nr||'').toLowerCase();
+          const note = (m.shipping_note||'').toLowerCase();
+          return nr.includes(sr) || note.includes(sr);
+        });
+      }
+      
+      // Reset to first page when filters change
+      currentPage = 1;
+      
+      // Update filtered count text
+      updateFilteredCountText();
+      
+      renderAllMotorsTable(filteredMotors);
+    }
+    
+    function clearAllMotorsFilters() {
+      document.getElementById('allMotorsState').value = '';
+      document.getElementById('allMotorsLocation').value = '';
+      document.getElementById('allMotorsSearch').value = '';
+      
+      filteredMotors = [...allMotors];
+      currentPage = 1;
+      
+      updateFilteredCountText();
+      renderAllMotorsTable(filteredMotors);
+    }
+    
+    function updateFilteredCountText() {
+      const totalCount = allMotors.length;
+      const filteredCount = filteredMotors.length;
+      
+      let statusText = '';
+      if (filteredCount === totalCount) {
+        statusText = `Toont alle ${totalCount} motoren`;
+      } else {
+        statusText = `Toont ${filteredCount} van ${totalCount} motoren`;
+      }
+      
+      document.getElementById('totalFilteredInfo').textContent = statusText;
+    }
+
+    function renderAllMotorsTable(motors){
+      const w = document.getElementById('allMotorsTableWrap');
+      if(!motors || !motors.length){
+        w.innerHTML = `<div class="p-4 text-center text-muted">Geen motoren gevonden die aan de criteria voldoen.</div>`;
+        document.getElementById('motorsPagination').innerHTML = '';
+        return;
+      }
+      
+      // Pagination
+      const totalPages = Math.ceil(motors.length / pageSize);
+      const startIndex = (currentPage - 1) * pageSize;
+      const endIndex = Math.min(startIndex + pageSize, motors.length);
+      const currentPageMotors = motors.slice(startIndex, endIndex);
+      
+      let html = `
+        <table class="table table-striped table-hover">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>MotorNr</th>
+              <th>Locatie</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th>Packed</th>
+              <th>Loaded</th>
+              <th>Verzendnota</th>
+              <th>Acties</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+      
+      currentPageMotors.forEach(m => {
+        const cAt = formatDateTime(m.created_at);
+        const pAt = m.packed_at ? formatDateTime(m.packed_at) : '-';
+        const lAt = m.loaded_at ? formatDateTime(m.loaded_at) : '-';
+        
+        // Create status badge
+        let statusBadge = '';
+        if (m.state === 'received') {
+          statusBadge = `<span class="status-badge status-received">ontvangen</span>`;
+        } else if (m.state === 'packaged') {
+          statusBadge = `<span class="status-badge status-packaged">verpakt</span>`;
+        } else if (m.state === 'loaded') {
+          statusBadge = `<span class="status-badge status-loaded">geladen</span>`;
+        } else {
+          statusBadge = `<span class="badge bg-secondary">${m.state||''}</span>`;
+        }
+        
+        // Highlight search term if present
+        let motorNr = m.motor_nr || '';
+        let shippingNote = m.shipping_note || '';
+        const searchTerm = document.getElementById('allMotorsSearch').value.trim();
+        
+        if (searchTerm) {
+          motorNr = highlightText(motorNr, searchTerm);
+          shippingNote = highlightText(shippingNote, searchTerm);
+        }
+        
+        html += `
+          <tr>
+            <td>${m.id}</td>
+            <td>${motorNr}</td>
+            <td>${m.location||''}</td>
+            <td>${statusBadge}</td>
+            <td>${cAt}</td>
+            <td>${pAt}</td>
+            <td>${lAt}</td>
+            <td>${shippingNote}</td>
+            <td>
+              <button class="btn btn-sm btn-outline-primary" onclick="showMotorDetail(${m.id})">
+                <i class="fa fa-info-circle"></i>
+              </button>
+            </td>
+          </tr>
+        `;
+      });
+      html += `</tbody></table>`;
+      w.innerHTML = html;
+      
+      // Render pagination
+      renderPagination(totalPages);
+    }
+    
+    function renderPagination(totalPages) {
+      const pagination = document.getElementById('motorsPagination');
+      let paginationHtml = '';
+      
+      // Previous button
+      paginationHtml += `
+        <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+          <a class="page-link" href="#" onclick="changePage(${currentPage - 1}); return false;">
+            <i class="fa fa-chevron-left"></i>
+          </a>
+        </li>
+      `;
+      
+      // Page numbers
+      const maxVisiblePages = 5;
+      let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+      let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+      
+      // Adjust if we're near the end
+      if (endPage - startPage + 1 < maxVisiblePages && startPage > 1) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+      }
+      
+      // First page link if needed
+      if (startPage > 1) {
+        paginationHtml += `
+          <li class="page-item">
+            <a class="page-link" href="#" onclick="changePage(1); return false;">1</a>
+          </li>
+        `;
+        
+        if (startPage > 2) {
+          paginationHtml += `
+            <li class="page-item disabled">
+              <a class="page-link" href="#">...</a>
+            </li>
+          `;
+        }
+      }
+      
+      // Page numbers
+      for (let i = startPage; i <= endPage; i++) {
+        paginationHtml += `
+          <li class="page-item ${i === currentPage ? 'active' : ''}">
+            <a class="page-link" href="#" onclick="changePage(${i}); return false;">${i}</a>
+          </li>
+        `;
+      }
+      
+      // Last page link if needed
+      if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+          paginationHtml += `
+            <li class="page-item disabled">
+              <a class="page-link" href="#">...</a>
+            </li>
+          `;
+        }
+        
+        paginationHtml += `
+          <li class="page-item">
+            <a class="page-link" href="#" onclick="changePage(${totalPages}); return false;">${totalPages}</a>
+          </li>
+        `;
+      }
+      
+      // Next button
+      paginationHtml += `
+        <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+          <a class="page-link" href="#" onclick="changePage(${currentPage + 1}); return false;">
+            <i class="fa fa-chevron-right"></i>
+          </a>
+        </li>
+      `;
+      
+      pagination.innerHTML = paginationHtml;
+    }
+    
+    function changePage(page) {
+      const totalPages = Math.ceil(filteredMotors.length / pageSize);
+      if (page < 1 || page > totalPages) return;
+      
+      currentPage = page;
+      renderAllMotorsTable(filteredMotors);
+      
+      // Scroll to top of table
+      document.getElementById('allMotorsTableWrap').scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    function showMotorDetail(motorId) {
+      const motor = allMotors.find(m => m.id === motorId);
+      if (!motor) {
+        showStatus('Motor niet gevonden', 'warning');
+        return;
+      }
+      
+      let statusBadge = '';
+      if (motor.state === 'received') {
+        statusBadge = `<span class="status-badge status-received">ontvangen</span>`;
+      } else if (motor.state === 'packaged') {
+        statusBadge = `<span class="status-badge status-packaged">verpakt</span>`;
+      } else if (motor.state === 'loaded') {
+        statusBadge = `<span class="status-badge status-loaded">geladen</span>`;
+      } else {
+        statusBadge = `<span class="badge bg-secondary">${motor.state||''}</span>`;
+      }
+      
+      let detailHTML = `
+        <div class="detail-row">
+          <div class="detail-label">ID:</div>
+          <div class="detail-value">${motor.id}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Motornummer:</div>
+          <div class="detail-value">${motor.motor_nr || 'N/A'}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Locatie:</div>
+          <div class="detail-value">${motor.location || 'N/A'}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Status:</div>
+          <div class="detail-value">${statusBadge}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Verzendnota:</div>
+          <div class="detail-value">${motor.shipping_note || 'N/A'}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Aangemaakt:</div>
+          <div class="detail-value">${formatDateTime(motor.created_at)}</div>
+        </div>
+      `;
+      
+      if (motor.packed_at) {
+        detailHTML += `
+          <div class="detail-row">
+            <div class="detail-label">Verpakt op:</div>
+            <div class="detail-value">${formatDateTime(motor.packed_at)}</div>
+          </div>
+        `;
+      }
+      
+      if (motor.loaded_at) {
+        detailHTML += `
+          <div class="detail-row">
+            <div class="detail-label">Geladen op:</div>
+            <div class="detail-value">${formatDateTime(motor.loaded_at)}</div>
+          </div>
+        `;
+      }
+      
+      if (motor.bodem_low || motor.bodem_high) {
+        detailHTML += `
+          <div class="detail-row">
+            <div class="detail-label">Bodems (L/H):</div>
+            <div class="detail-value">${motor.bodem_low || 0} / ${motor.bodem_high || 0}</div>
+          </div>
+        `;
+      }
+      
+      if (motor.load_reference || motor.container_no || motor.truck_plate) {
+        detailHTML += `<hr><h6>Laad-informatie:</h6>`;
+        
+        if (motor.load_reference) {
+          detailHTML += `
+            <div class="detail-row">
+              <div class="detail-label">Laadreferentie:</div>
+              <div class="detail-value">${motor.load_reference}</div>
+            </div>
+          `;
+        }
+        
+        if (motor.container_no) {
+          detailHTML += `
+            <div class="detail-row">
+              <div class="detail-label">Containernummer:</div>
+              <div class="detail-value">${motor.container_no}</div>
+            </div>
+          `;
+        }
+        
+        if (motor.truck_plate) {
+          detailHTML += `
+            <div class="detail-row">
+              <div class="detail-label">Nummerplaat:</div>
+              <div class="detail-value">${motor.truck_plate}</div>
+            </div>
+          `;
+        }
+      }
+      
+      document.getElementById('motorDetailContent').innerHTML = detailHTML;
+      document.querySelector('#motorDetailModal .modal-title').textContent = `Motor #${motorId} Details`;
+      motorDetailModal.show();
+    }
+
+    /******************************************************
+     * 3) Template Management
+     ******************************************************/
+    /***********************************************
+ * SERVER-BASED TEMPLATE MANAGEMENT
+ ***********************************************/
+async function loadSavedTemplates() {
+  try {
+    // Fetch templates from server with cache prevention
+    const timestamp = new Date().getTime();
+    const response = await fetch(`/api/cnh_templates?nocache=${timestamp}`, {
+      method: 'GET',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status}`);
+    }
+    
+    // Zorg ervoor dat alle template IDs consistent als strings worden behandeld
+    const rawTemplates = await response.json();
+    loadTemplates = rawTemplates.map(template => ({
+      ...template,
+      id: String(template.id) // Converteer alle IDs naar strings voor consistentie
+    }));
+    
+    console.log(`Loaded ${loadTemplates.length} templates from server:`, loadTemplates);
+    console.log(`Template IDs (voor vergelijking):`, loadTemplates.map(t => ({
+      id: t.id, 
+      idType: typeof t.id,
+      name: t.name
+    })));
+    
+    // Update the dropdown with loaded templates
+    updateTemplateDropdown();
+    
+    // Also cache templates in localStorage for offline use
+    localStorage.setItem('cnh_load_templates_cache', JSON.stringify(loadTemplates));
+  } catch (e) {
+    console.error('Error loading templates from server:', e);
+    showStatus('Fout bij laden templates van server. Probeer offline versie...', 'warning');
+    
+    // Try to load from local cache if server is unavailable
+    const cachedTemplates = localStorage.getItem('cnh_load_templates_cache');
+    if (cachedTemplates) {
+      try {
+        loadTemplates = JSON.parse(cachedTemplates);
+        console.log(`Loaded ${loadTemplates.length} templates from cache`);
+        updateTemplateDropdown();
+        showStatus('Templates geladen uit offline cache', 'info');
+      } catch (cacheErr) {
+        console.error('Error parsing cached templates:', cacheErr);
+        loadTemplates = [];
+      }
+    } else {
+      loadTemplates = [];
+    }
+  }
+}
+
+function loadLastUsedLoadValues() {
+  // This can stay in localStorage as it's per device/user preference
+  const lastUsed = localStorage.getItem('cnh_load_last_used');
+  if (lastUsed) {
+    try {
+      // Just check if it can be parsed
+      JSON.parse(lastUsed);
+    } catch (e) {
+      console.error('Error loading last used values:', e);
+    }
+  }
+}
+
+function updateTemplateDropdown() {
+  const select = document.getElementById('loadTemplateSelect');
+  if (!select) {
+    console.error('loadTemplateSelect element not found');
+    return;
+  }
+  
+  // Clear existing options except the first one
+  while (select.options.length > 1) {
+    select.remove(1);
+  }
+  
+  // Add templates
+  if (loadTemplates && loadTemplates.length > 0) {
+    loadTemplates.forEach((template, index) => {
+      const option = document.createElement('option');
+      option.value = template.id || index; // Use server-provided ID if available
+      option.textContent = template.name || 'Template ' + (index + 1);
+      select.appendChild(option);
+    });
+  }
+}
+
+function applyLoadTemplate() {
+  const select = document.getElementById('loadTemplateSelect');
+  if (!select) return;
+  
+  const templateId = select.value;
+  if (!templateId || !loadTemplates || loadTemplates.length === 0) return;
+  
+  // Find the template by ID
+  const template = loadTemplates.find(t => String(t.id) === String(templateId));
+  
+  if (!template) {
+    console.error(`Template with ID ${templateId} not found`);
+    return;
+  }
+  
+  fillLoadFormFromTemplate(template);
+}
+
+function loadSavedQuickSettings() {
+  // Check for quick settings from dashboard
+  const savedSettings = localStorage.getItem('cnh_quick_load_settings');
+  if (savedSettings) {
+    try {
+      const settings = JSON.parse(savedSettings);
+      if (settings.loadReference) document.getElementById('loadReference').value = settings.loadReference;
+      if (settings.truckPlate) document.getElementById('truckPlate').value = settings.truckPlate;
+      if (settings.loadLocation) document.getElementById('loadLocation').value = settings.loadLocation;
+      
+      showStatus('Laad instellingen geladen van dashboard', 'info');
+    } catch (e) {
+      console.error('Error loading quick settings:', e);
+    }
+  }
+  
+  // Also check for active template
+  const activeTemplate = localStorage.getItem('cnh_load_active_template');
+  if (activeTemplate) {
+    try {
+      const template = JSON.parse(activeTemplate);
+      fillLoadFormFromTemplate(template);
+      
+      // Clear the active template so it's only used once
+      localStorage.removeItem('cnh_load_active_template');
+    } catch (e) {
+      console.error('Error loading active template:', e);
+    }
+  }
+}
+
+function fillLoadFormFromTemplate(template) {
+  if (!template) return;
+  
+  // Fill in form fields
+  const loadLocationEl = document.getElementById('loadLocation');
+  const loadReferenceEl = document.getElementById('loadReference');
+  const truckPlateEl = document.getElementById('truckPlate');
+  const containerNumberEl = document.getElementById('containerNumber');
+  const bookingRefEl = document.getElementById('bookingRef');
+  const yourRefEl = document.getElementById('yourRef');
+  const containerTarraEl = document.getElementById('containerTarra');
+  
+  if (loadLocationEl && template.loadLocation) loadLocationEl.value = template.loadLocation;
+  if (loadReferenceEl && template.loadReference) loadReferenceEl.value = template.loadReference;
+  if (truckPlateEl && template.truckPlate) truckPlateEl.value = template.truckPlate;
+  if (containerNumberEl && template.containerNumber) containerNumberEl.value = template.containerNumber;
+  if (bookingRefEl && template.bookingRef) bookingRefEl.value = template.bookingRef;
+  if (yourRefEl && template.yourRef) yourRefEl.value = template.yourRef;
+  if (containerTarraEl && template.containerTarra !== undefined) containerTarraEl.value = template.containerTarra;
+  
+  showStatus(`Template "${template.name || 'Onbekend'}" toegepast`, 'success');
+}
+
+function showSaveTemplateModal() {
+  const templateNameEl = document.getElementById('templateName');
+  if (templateNameEl) templateNameEl.value = '';
+  
+  if (saveTemplateModal) {
+    saveTemplateModal.show();
+  } else {
+    console.error('saveTemplateModal is not initialized');
+  }
+}
+
+// The missing loadTemplatesData function
+async function loadTemplatesData() {
+  try {
+    // Fetch templates from the server
+    const response = await fetch('/api/cnh_templates');
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status}`);
+    }
+    
+    loadTemplates = await response.json();
+    console.log(`Loaded ${loadTemplates.length} templates from server`);
+    
+    // Render templates in the UI
+    renderTemplates();
+    
+    // Also save in localStorage as backup
+    localStorage.setItem('cnh_load_templates_cache', JSON.stringify(loadTemplates));
+  } catch (e) {
+    console.error('Error loading templates from server:', e);
+    showStatus('Error loading templates from server. Trying offline version...', 'warning');
+    
+    // Try to load from local cache if server is unavailable
+    const cachedTemplates = localStorage.getItem('cnh_load_templates_cache');
+    if (cachedTemplates) {
+      try {
+        loadTemplates = JSON.parse(cachedTemplates);
+        console.log(`Loaded ${loadTemplates.length} templates from cache`);
+        renderTemplates();
+        showStatus('Templates loaded from offline cache', 'info');
+      } catch (cacheErr) {
+        console.error('Error parsing cached templates:', cacheErr);
+        loadTemplates = [];
+        renderTemplates();
+      }
+    } else {
+      loadTemplates = [];
+      renderTemplates();
+    }
+  }
+}
+
+// Update the saveTemplate function
+async function saveTemplate() {
+  const templateId = document.getElementById('templateId').value;
+  const name = document.getElementById('templateFormName').value.trim();
+  
+  if (!name) {
+    showStatus('Template name is required', 'warning');
+    return;
+  }
+  
+  const template = {
+    name: name,
+    loadLocation: document.getElementById('templateFormLocation').value.trim(),
+    containerNumber: document.getElementById('templateFormContainerNo').value.trim(),
+    loadReference: document.getElementById('templateFormLoadRef').value.trim(),
+    truckPlate: document.getElementById('templateFormTruckPlate').value.trim(),
+    bookingRef: document.getElementById('templateFormBookingRef').value.trim(),
+    yourRef: document.getElementById('templateFormYourRef').value.trim(),
+    containerTarra: document.getElementById('templateFormContainerTarra').value,
+    notes: document.getElementById('templateFormNotes').value.trim()
+  };
+  
+  // Check if it's a new template or an update
+  if (templateId === '') {
+    // New template
+    await saveTemplateToServer(template);
+  } else {
+    // Update existing template
+    await updateTemplateOnServer(templateId, template);
+  }
+  
+  // Close modal
+  templateFormModal.hide();
+}
+
+// New template to server
+async function saveTemplateToServer(template) {
+  try {
+    const response = await fetch('/api/cnh_templates', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(template)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status}`);
+    }
+    
+    const savedTemplate = await response.json();
+    
+    // Add to templates array
+    loadTemplates.push(savedTemplate);
+    
+    // Update UI
+    renderTemplates();
+    
+    showStatus(`Template "${template.name}" saved`, 'success');
+  } catch (error) {
+    console.error('Error saving template:', error);
+    
+    // Fallback to localStorage if server unavailable
+    if (!loadTemplates) loadTemplates = [];
+    loadTemplates.push({...template, id: Date.now()}); // Generate ID
+    localStorage.setItem('cnh_load_templates_cache', JSON.stringify(loadTemplates));
+    
+    renderTemplates();
+    showStatus(`Template saved in local storage (server unavailable)`, 'warning');
+  }
+}
+
+// Update existing template on server
+async function updateTemplateOnServer(templateId, template) {
+  try {
+    const response = await fetch(`/api/cnh_templates/${templateId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(template)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status}`);
+    }
+    
+    const updatedTemplate = await response.json();
+    
+    // Update in array
+    const index = loadTemplates.findIndex(t => t.id === parseInt(templateId));
+    if (index !== -1) {
+      loadTemplates[index] = updatedTemplate;
+    }
+    
+    // Update UI
+    renderTemplates();
+    
+    showStatus(`Template "${template.name}" updated`, 'success');
+  } catch (error) {
+    console.error('Error updating template:', error);
+    
+    // Fallback to localStorage
+    const index = loadTemplates.findIndex(t => t.id === parseInt(templateId));
+    if (index !== -1) {
+      loadTemplates[index] = {...template, id: parseInt(templateId)};
+      localStorage.setItem('cnh_load_templates_cache', JSON.stringify(loadTemplates));
+    }
+    
+    renderTemplates();
+    showStatus(`Template updated in local storage (server unavailable)`, 'warning');
+  }
+}
+
+// Template deletion
+async function deleteTemplate(templateId) {
+  try {
+    // Zorg ervoor dat templateId als string wordt vergeleken
+    const templateIdStr = String(templateId);
+    console.log(`Zoeken naar template met ID: "${templateIdStr}" (type: ${typeof templateIdStr})`);
+    
+    // Vind template met string vergelijking
+    const template = loadTemplates.find(t => String(t.id) === templateIdStr);
+    
+    if (!template) {
+      console.error(`Template met ID "${templateIdStr}" niet gevonden in loadTemplates array:`, loadTemplates);
+      showStatus('Template niet gevonden', 'warning');
+      return;
+    }
+    
+    // Voor debugging
+    console.log(`========== DELETE TEMPLATE DEBUG ==========`);
+    console.log(`Verwijderen van template ID: "${templateIdStr}"`);
+    console.log(`Template naam: "${template.name}"`);
+    console.log(`Alle templates met ID types:`, loadTemplates.map(t => ({id: t.id, name: t.name, idType: typeof t.id})));
+    console.log(`==========================================`);
+    
+    const confirmDelete = confirm(`Weet je zeker dat je de template "${template.name}" wilt verwijderen?`);
+    if (!confirmDelete) return;
+    
+    showStatus(`Bezig met verwijderen van template "${template.name}"...`, 'info');
+    
+    // Gebruik een timestamp om caching te vermijden
+    const timestamp = new Date().getTime();
+    const response = await fetch(`/api/cnh_templates/${templateId}?nocache=${timestamp}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    });
+    
+    console.log('DELETE response status:', response.status);
+    
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status}`);
+    }
+    
+    // Lees eerst de ruwe response tekst
+    const responseText = await response.text();
+    console.log('DELETE response tekst:', responseText);
+    
+    // Probeer de response te parsen als JSON
+    let result;
+    try {
+      if (responseText.trim()) {
+        result = JSON.parse(responseText);
+        console.log('Geparseerde DELETE response:', result);
+      } else {
+        console.log('Lege response van server, aangenomen dat het gelukt is');
+        result = { success: true };
+      }
+    } catch (e) {
+      console.error('Fout bij parsen van server response:', e);
+      console.log('Ruwe response was:', responseText);
+      // Als we de response niet kunnen parsen, nemen we aan dat het gelukt is
+      result = { success: true };
+    }
+    
+    if (result && result.success) {
+      console.log(`Template ${templateId} succesvol verwijderd van server`);
+      
+      // Update lokale arrays en caches
+      loadTemplates = loadTemplates.filter(t => t.id !== templateId);
+      
+      // Verwijder alle caches om zeker te zijn dat we bij volgende laad de juiste data krijgen
+      localStorage.removeItem('cnh_load_templates_cache');
+      
+      // Update UI
+      renderTemplates();
+      
+      showStatus(`Template "${template.name}" is succesvol verwijderd`, 'success');
+      
+      // Forceer een pagina-reload na een korte pauze voor betere synchronisatie
+      setTimeout(() => {
+        console.log('Herladen van pagina om synchronisatie te verzekeren');
+        window.location.reload();
+      }, 1500);
+    } else {
+      throw new Error('Server antwoordde zonder succes indicator');
+    }
+  } catch (e) {
+    console.error('Fout bij verwijderen van template:', e);
+    showStatus(`Fout bij verwijderen van template: ${e.message}. Vernieuw de pagina handmatig.`, 'danger');
+  }
+}
+
+function applyQuickSelect(target) {
+  if (target === 'Laatste') {
+    const lastUsed = localStorage.getItem('cnh_load_last_used');
+    if (lastUsed) {
+      try {
+        fillLoadFormFromTemplate(JSON.parse(lastUsed));
+      } catch (e) {
+        console.error('Error parsing last used values:', e);
+        showStatus('Fout bij laden laatste waarden', 'warning');
+      }
+    } else {
+      showStatus('Geen laatst gebruikte waarden beschikbaar', 'info');
+    }
+    return;
+  }
+  
+  // Find template for location
+  const locationTemplate = loadTemplates && loadTemplates.length > 0 ? 
+    loadTemplates.find(t => t.loadLocation === target) : null;
+    
+  if (locationTemplate) {
+    fillLoadFormFromTemplate(locationTemplate);
+  } else {
+    // Just set the location
+    const loadLocationEl = document.getElementById('loadLocation');
+    if (loadLocationEl) {
+      loadLocationEl.value = target;
+      showStatus(`Locatie ingesteld op "${target}"`, 'info');
+    }
+  }
+}
+
+function saveLastUsedLoadValues() {
+  const loadLocationEl = document.getElementById('loadLocation');
+  const loadReferenceEl = document.getElementById('loadReference');
+  const containerNumberEl = document.getElementById('containerNumber');
+  const truckPlateEl = document.getElementById('truckPlate');
+  const bookingRefEl = document.getElementById('bookingRef');
+  const yourRefEl = document.getElementById('yourRef');
+  const containerTarraEl = document.getElementById('containerTarra');
+  
+  const lastUsed = {
+    name: 'Laatst gebruikt',
+    loadLocation: loadLocationEl ? loadLocationEl.value.trim() : '',
+    loadReference: loadReferenceEl ? loadReferenceEl.value.trim() : '',
+    containerNumber: containerNumberEl ? containerNumberEl.value.trim() : '',
+    truckPlate: truckPlateEl ? truckPlateEl.value.trim() : '',
+    bookingRef: bookingRefEl ? bookingRefEl.value.trim() : '',
+    yourRef: yourRefEl ? yourRefEl.value.trim() : '',
+    containerTarra: containerTarraEl ? containerTarraEl.value : ''
+  };
+  
+  try {
+    localStorage.setItem('cnh_load_last_used', JSON.stringify(lastUsed));
+  } catch (e) {
+    console.error('Error saving last used values:', e);
+  }
+}
+    
+    function deleteTemplate(index) {
+      if (index < 0 || index >= loadTemplates.length) {
+        showStatus('Template niet gevonden', 'warning');
+        return;
+      }
+      
+      const templateName = loadTemplates[index].name;
+      const confirmDelete = confirm(`Weet je zeker dat je de template "${templateName}" wilt verwijderen?`);
+      
+      if (confirmDelete) {
+        loadTemplates.splice(index, 1);
+        localStorage.setItem('cnh_load_templates', JSON.stringify(loadTemplates));
+        renderTemplates();
+        showStatus(`Template "${templateName}" verwijderd`, 'success');
+      }
+    }
+    
+    function applyTemplateToWorkflow(index) {
+      // Deze functie kan templates op basis van hun array index laden,
+      // maar we prefereren de versie die op basis van ID werkt voor consistentie
+      
+      // Check eerst of index een string ID is
+      if (typeof index === 'string') {
+        // Delegeer naar de eerste implementatie die beter met ID's omgaat
+        return applyTemplateToWorkflow(index);
+      }
+      
+      // Anders, behandel als een array index
+      if (index < 0 || index >= loadTemplates.length) {
+        showStatus('Template niet gevonden', 'warning');
+        return;
+      }
+      
+      const template = loadTemplates[index];
+      const templateId = template.id;
+      
+      console.log(`Template op index ${index} wordt toegepast via ID ${templateId}`);
+      
+      // Roep de versie aan die met template ID's werkt
+      return applyTemplateToWorkflow(templateId);
+    }
+
+    /******************************************************
+     * 4) Mail-functies
+     ******************************************************/
+    async function mailLoadOverview(sessionId){
+      const toEmail = prompt("Geef het e-mail adres op:");
+      if(!toEmail) return;
+
+      try{
+        const resp = await fetch('/api/cnh_sessions/email_load_overview', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ sessionId, toEmail })
+        });
+        const data = await resp.json();
+        if(!resp.ok || !data.success){
+          throw new Error(data.error || 'Fout bij mailLoadOverview');
+        }
+        showStatus('E‑mail met overzicht verzonden!', 'success');
+      } catch(e){
+        console.error('mailLoadOverview error:', e);
+        showStatus('Fout: '+ e.message, 'danger');
+      }
+    }
+
+    async function mailReceivedPackagedOverview(){
+      const toEmail = prompt("Geef het e-mail adres op:");
+      if(!toEmail) return;
+
+      try{
+        const resp = await fetch('/api/cnh_motors/email_received_packaged', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ toEmail })
+        });
+        const data = await resp.json();
+        if(!resp.ok || !data.success){
+          throw new Error(data.error || 'Fout bij mailReceivedPackagedOverview');
+        }
+        showStatus('E‑mail met overzicht verzonden!', 'success');
+      } catch(e){
+        console.error('mailReceivedPackagedOverview error:', e);
+        showStatus('Fout: '+ e.message, 'danger');
+      }
+    }
+    
+    /******************************************************
+     * 5) Quick Load Settings
+     ******************************************************/
+    function saveQuickLoadSettings() {
+      const loadReference = document.getElementById('dashLoadReference').value.trim();
+      const truckPlate = document.getElementById('dashTruckPlate').value.trim();
+      const loadLocation = document.getElementById('dashLoadLocation').value;
+      
+      const settings = {
+        loadReference,
+        truckPlate,
+        loadLocation
+      };
+      
+      localStorage.setItem('cnh_quick_load_settings', JSON.stringify(settings));
+      showStatus('Laad instellingen opgeslagen voor gebruik in workflow', 'success');
+    }
+    
+    /******************************************************
+     * 6) Export Functions
+     ******************************************************/
+    function exportMotorsToCSV() {
+      if (!filteredMotors || filteredMotors.length === 0) {
+        showStatus('Geen motoren om te exporteren', 'warning');
+        return;
+      }
+      
+      // Get headers from the first motor
+      const headers = [
+        'ID', 'MotorNr', 'Locatie', 'Status', 
+        'Aangemaakt', 'Verpakt', 'Geladen', 'Verzendnota',
+        'Laadreferentie', 'Containernr', 'Truck plaat',
+        'Bodem Low', 'Bodem High'
+      ];
+      
+      let csvContent = headers.join(',') + '\n';
+      
+      filteredMotors.forEach(motor => {
+        const row = [
+          motor.id,
+          `"${motor.motor_nr || ''}"`,
+          `"${motor.location || ''}"`,
+          `"${motor.state || ''}"`,
+          `"${formatDateTime(motor.created_at) || ''}"`,
+          `"${motor.packed_at ? formatDateTime(motor.packed_at) : ''}"`,
+          `"${motor.loaded_at ? formatDateTime(motor.loaded_at) : ''}"`,
+          `"${motor.shipping_note || ''}"`,
+          `"${motor.load_reference || ''}"`,
+          `"${motor.container_no || ''}"`,
+          `"${motor.truck_plate || ''}"`,
+          motor.bodem_low || 0,
+          motor.bodem_high || 0
+        ];
+        
+        csvContent += row.join(',') + '\n';
+      });
+      
+      // Create download link
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `cnh_motors_export_${formatDateForFilename(new Date())}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      showStatus('CSV geëxporteerd', 'success');
+    }
+    
+    function printMotorsTable() {
+      if (!filteredMotors || filteredMotors.length === 0) {
+        showStatus('Geen motoren om te printen', 'warning');
+        return;
+      }
+      
+      // Create a printable version of the table
+      let printWindow = window.open('', '_blank');
+      printWindow.document.write(`
+        <html>
+        <head>
+          <title>CNH Motoren - ${formatDateForFilename(new Date())}</title>
+          <style>
+            body { font-family: Arial, sans-serif; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+            th, td { padding: 8px; text-align: left; border: 1px solid #ddd; }
+            th { background-color: #f2f2f2; }
+            .title { text-align: center; margin-bottom: 20px; }
+            .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
+            @media print {
+              .no-print { display: none; }
+              body { margin: 0; padding: 15px; }
+              table { page-break-inside: auto; }
+              tr { page-break-inside: avoid; page-break-after: auto; }
+              thead { display: table-header-group; }
+            }
+            .status-badge {
+              padding: 3px 8px;
+              border-radius: 4px;
+              font-size: 12px;
+              font-weight: bold;
+            }
+            .status-received { background-color: #e3f2fd; color: #1976d2; }
+            .status-packaged { background-color: #e8f5e9; color: #2e7d32; }
+            .status-loaded { background-color: #fff8e1; color: #f57f17; }
+          </style>
+        </head>
+        <body>
+          <div class="no-print" style="text-align: right; margin-bottom: 10px;">
+            <button onclick="window.print()">Print</button>
+            <button onclick="window.close()">Sluiten</button>
+          </div>
+          <h1 class="title">CNH Motoren Overzicht</h1>
+          <p>Gegenereerd op: ${formatDateTime(new Date())}</p>
+      `);
+      
+      // Create table
+      printWindow.document.write(`
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>MotorNr</th>
+              <th>Locatie</th>
+              <th>Status</th>
+              <th>Aangemaakt</th>
+              <th>Verpakt</th>
+              <th>Geladen</th>
+              <th>Verzendnota</th>
+            </tr>
+          </thead>
+          <tbody>
+      `);
+      
+      filteredMotors.forEach(m => {
+        const cAt = formatDateTime(m.created_at);
+        const pAt = m.packed_at ? formatDateTime(m.packed_at) : '-';
+        const lAt = m.loaded_at ? formatDateTime(m.loaded_at) : '-';
+        
+        // Create status badge
+        let statusBadge = '';
+        if (m.state === 'received') {
+          statusBadge = `<span class="status-badge status-received">ontvangen</span>`;
+        } else if (m.state === 'packaged') {
+          statusBadge = `<span class="status-badge status-packaged">verpakt</span>`;
+        } else if (m.state === 'loaded') {
+          statusBadge = `<span class="status-badge status-loaded">geladen</span>`;
+        } else {
+          statusBadge = `<span class="status-badge">${m.state||''}</span>`;
+        }
+        
+        printWindow.document.write(`
+          <tr>
+            <td>${m.id}</td>
+            <td>${m.motor_nr || ''}</td>
+            <td>${m.location || ''}</td>
+            <td>${statusBadge}</td>
+            <td>${cAt}</td>
+            <td>${pAt}</td>
+            <td>${lAt}</td>
+            <td>${m.shipping_note || ''}</td>
+          </tr>
+        `);
+      });
+      
+      printWindow.document.write(`
+          </tbody>
+        </table>
+        <div class="footer">
+          <p>CNH Motoren Systeem - Foresco</p>
+        </div>
+        </body>
+        </html>
+      `);
+      
+      printWindow.document.close();
+    }
+    
+    function exportAllData() {
+      // Prepare data object with all relevant information
+      const exportData = {
+        motors: allMotors,
+        sessions: allSessions,
+        templates: loadTemplates,
+        exportDate: new Date().toISOString(),
+        stats: {
+          totalMotors: allMotors.length,
+          receivedMotors: allMotors.filter(m => m.state === 'received').length,
+          packagedMotors: allMotors.filter(m => m.state === 'packaged').length,
+          loadedMotors: allMotors.filter(m => m.state === 'loaded').length,
+          packSessions: allSessions.filter(s => Number(s.packaging_minutes||0) > 0 || Number(s.packaging_count||0) > 0).length,
+          loadSessions: allSessions.filter(s => Number(s.loading_minutes||0) > 0 || Number(s.loading_count||0) > 0).length
+        }
+      };
+      
+      // Convert to JSON
+      const jsonString = JSON.stringify(exportData, null, 2);
+      
+      // Create download link
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `cnh_data_export_${formatDateForFilename(new Date())}.json`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      showStatus('Volledige data geëxporteerd naar JSON bestand', 'success');
+    }
+
+    function loadQuickSettings() {
+      const savedSettings = localStorage.getItem('cnh_quick_load_settings');
+      if (savedSettings) {
+        try {
+          const settings = JSON.parse(savedSettings);
+          if (settings.loadReference) document.getElementById('dashLoadReference').value = settings.loadReference;
+          if (settings.truckPlate) document.getElementById('dashTruckPlate').value = settings.truckPlate;
+          if (settings.loadLocation) document.getElementById('dashLoadLocation').value = settings.loadLocation;
+        } catch (e) {
+          console.error('Error loading quick settings:', e);
+        }
+      }
+    }
+    
+    /******************************************************
+     * 7) Hulp-functies (datum, tijd, etc.)
+     ******************************************************/
+    function formatDateTime(str){
+      if(!str) return '';
+      const d = new Date(str);
+      if(isNaN(d.getTime())) return str;
+      const dp = d.toLocaleDateString('nl-BE');
+      const tp = d.toLocaleTimeString('nl-BE', { hour:'2-digit', minute:'2-digit' });
+      return dp + ' ' + tp;
+    }
+    
+    function formatDuration(min){
+      if(!min || isNaN(min)) min = 0;
+      const h = Math.floor(min / 60);
+      const m = min % 60;
+      return `${h}:${String(m).padStart(2,'0')}`;
+    }
+    
+    function formatDateForFilename(date) {
+      return date.toISOString().split('T')[0].replace(/-/g, '');
+    }
+    
+    function truncateText(text, maxLength) {
+      if (!text) return '';
+      return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+    }
+    
+    function highlightText(text, searchTerm) {
+      if (!text || !searchTerm) return text;
+      const regex = new RegExp(`(${searchTerm})`, 'gi');
+      return text.replace(regex, '<span class="highlight">$1</span>');
+    }
+
+    // Bodem voorraad en toekomstige vrachten functionaliteit
+    function loadBodemStock() {
+      fetch('/api/bodems_stock')
+        .then(response => response.json())
+        .then(data => {
+          const tableBody = document.getElementById('bodemStockTable');
+          if (!data || data.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="3" class="text-center">Geen voorraad gevonden</td></tr>';
+            return;
+          }
+          
+          let html = '';
+          let hasLowStock = false;
+          
+          // Gebruik de instellingen uit stockSettings object
+          const MIN_STOCK_HIGH = stockSettings.minStockHigh;
+          const MIN_STOCK_LOW = stockSettings.minStockLow;
+          
+          data.forEach(item => {
+            const typeLabel = item.bodem_type === 'hoog' ? 'Hoog' : 'Laag';
+            const isLowStock = 
+              (item.bodem_type === 'hoog' && item.quantity < MIN_STOCK_HIGH) || 
+              (item.bodem_type === 'laag' && item.quantity < MIN_STOCK_LOW);
+            
+            if (isLowStock) {
+              hasLowStock = true;
+            }
+            
+            html += `
+              <tr${isLowStock ? ' class="table-danger"' : ''}>
+                <td>${typeLabel}</td>
+                <td>
+                  ${item.quantity}
+                  ${isLowStock ? '<i class="fas fa-exclamation-triangle text-danger ms-2" title="Voorraad laag!"></i>' : ''}
+                </td>
+                <td>
+                  <button class="btn btn-sm btn-outline-primary me-1 add-stock-btn" data-type="${item.bodem_type}" data-amount="1">
+                    <i class="fas fa-plus"></i> +1
+                  </button>
+                  <button class="btn btn-sm btn-outline-danger subtract-stock-btn" data-type="${item.bodem_type}" data-amount="1">
+                    <i class="fas fa-minus"></i> -1
+                  </button>
+                </td>
+              </tr>
+            `;
+          });
+          tableBody.innerHTML = html;
+          
+          // Toon waarschuwing als voorraad laag is
+          if (hasLowStock) {
+            showStockWarning();
+          }
+          
+          // Event listeners voor snelle acties
+          document.querySelectorAll('.add-stock-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+              const type = this.getAttribute('data-type');
+              const amount = parseInt(this.getAttribute('data-amount'), 10);
+              updateBodemStock(type, amount, 'add');
+            });
+          });
+          
+          document.querySelectorAll('.subtract-stock-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+              const type = this.getAttribute('data-type');
+              const amount = parseInt(this.getAttribute('data-amount'), 10);
+              updateBodemStock(type, amount, 'subtract');
+            });
+          });
+        })
+        .catch(error => {
+          console.error('Error loading bodem stock:', error);
+          showMessage('Fout bij het laden van de bodem voorraad', 'danger');
+        });
+    }
+    
+    // Functie om een duidelijke waarschuwing te tonen voor lage voorraad
+    function showStockWarning() {
+      const warningDiv = document.createElement('div');
+      warningDiv.className = 'alert alert-warning alert-dismissible fade show mt-3';
+      warningDiv.setAttribute('id', 'stock-warning-alert');
+      warningDiv.innerHTML = `
+        <strong><i class="fas fa-exclamation-triangle me-2"></i>Waarschuwing!</strong> 
+        De voorraad van sommige bodems is laag. Er moeten dringend bodems bijgemaakt worden.
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      `;
+      
+      // Verwijder eerst eventuele bestaande waarschuwingen
+      const existingWarning = document.getElementById('stock-warning-alert');
+      if (existingWarning) {
+        existingWarning.remove();
+      }
+      
+      // Voeg de waarschuwing toe aan de bovenste kaart in de bodems sectie
+      const bodemCard = document.querySelector('#bodems .card');
+      if (bodemCard) {
+        bodemCard.insertAdjacentElement('afterend', warningDiv);
+      }
+    }
+    
+    function updateBodemStock(type, quantity, operation) {
+      fetch('/api/update_bodem_stock', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ type, quantity, operation })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          showMessage('Voorraad succesvol bijgewerkt', 'success');
+          loadBodemStock();
+        } else {
+          showMessage(data.error || 'Fout bij het bijwerken van de voorraad', 'danger');
+        }
+      })
+      .catch(error => {
+        console.error('Error updating bodem stock:', error);
+        showMessage('Fout bij het bijwerken van de voorraad', 'danger');
+      });
+    }
+    
+    // Event listeners voor bodem voorraad
+    document.addEventListener('DOMContentLoaded', function() {
+      // Laad initiële data
+      loadBodemStock();
+      loadToekomstigeVrachten();
+      
+      // Refresh knoppen
+      const refreshBodemStockBtn = document.getElementById('refreshBodemStock');
+      if (refreshBodemStockBtn) {
+        refreshBodemStockBtn.addEventListener('click', loadBodemStock);
+      }
+      
+      const refreshToekomstigeVrachtenBtn = document.getElementById('refreshToekomstigeVrachten');
+      if (refreshToekomstigeVrachtenBtn) {
+        refreshToekomstigeVrachtenBtn.addEventListener('click', loadToekomstigeVrachten);
+      }
+      
+      // Formulier voor het bijwerken van bodem voorraad
+      const updateBodemStockForm = document.getElementById('updateBodemStockForm');
+      if (updateBodemStockForm) {
+        updateBodemStockForm.addEventListener('submit', function(e) {
+          e.preventDefault();
+          const type = document.getElementById('bodemType').value;
+          const quantity = parseInt(document.getElementById('bodemQuantity').value, 10);
+          const operation = document.getElementById('bodemOperation').value;
+          
+          if (!type || isNaN(quantity) || quantity < 0 || !operation) {
+            showMessage('Vul alle velden correct in', 'warning');
+            return;
+          }
+          
+          updateBodemStock(type, quantity, operation);
+          this.reset();
+        });
+      }
+      
+      // Formulier voor het toevoegen van toekomstige vracht
+      document.getElementById('addToekomstigeVrachtForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const datum = document.getElementById('vrachtDatum').value;
+        const aantalHogeBodems = parseInt(document.getElementById('aantalHogeBodems').value, 10) || 0;
+        const aantalLageBodems = parseInt(document.getElementById('aantalLageBodems').value, 10) || 0;
+        const opmerking = document.getElementById('vrachtOpmerking').value;
+        
+        if (!datum || (aantalHogeBodems === 0 && aantalLageBodems === 0)) {
+          showMessage('Vul een datum in en minstens één bodem aantal', 'warning');
+          return;
+        }
+        
+        addToekomstigeVracht(datum, aantalHogeBodems, aantalLageBodems, opmerking);
+      });
+    });
+    
+    // Toekomstige vrachten functionaliteit
+    function loadToekomstigeVrachten() {
+      fetch('/api/toekomstige_vrachten')
+        .then(response => response.json())
+        .then(data => {
+          const tableBody = document.getElementById('toekomstigeVrachtenTable');
+          if (!data || data.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="5" class="text-center">Geen toekomstige vrachten gevonden</td></tr>';
+            document.getElementById('totalHighBottoms').textContent = '0';
+            document.getElementById('totalLowBottoms').textContent = '0';
+            return;
+          }
+          
+          let html = '';
+          let totalHigh = 0;
+          let totalLow = 0;
+          
+          data.forEach(item => {
+            const formattedDate = new Date(item.datum).toLocaleDateString('nl-BE');
+            totalHigh += parseInt(item.aantal_hoge_bodems, 10) || 0;
+            totalLow += parseInt(item.aantal_lage_bodems, 10) || 0;
+            
+            html += `
+              <tr>
+                <td>${formattedDate}</td>
+                <td>${item.aantal_hoge_bodems}</td>
+                <td>${item.aantal_lage_bodems}</td>
+                <td>${item.opmerking || '-'}</td>
+                <td>
+                  <button class="btn btn-sm btn-danger delete-vracht-btn" data-id="${item.id}">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </td>
+              </tr>
+            `;
+          });
+          
+          tableBody.innerHTML = html;
+          document.getElementById('totalHighBottoms').textContent = totalHigh;
+          document.getElementById('totalLowBottoms').textContent = totalLow;
+          
+          // Event listeners voor verwijderen
+          document.querySelectorAll('.delete-vracht-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+              const id = this.getAttribute('data-id');
+              deleteToekomstigeVracht(id);
+            });
+          });
+        })
+        .catch(error => {
+          console.error('Error loading toekomstige vrachten:', error);
+          showMessage('Fout bij het laden van toekomstige vrachten', 'danger');
+        });
+    }
+    
+    function addToekomstigeVracht(datum, aantalHogeBodems, aantalLageBodems, opmerking) {
+      fetch('/api/toekomstige_vracht', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          datum,
+          aantal_hoge_bodems: aantalHogeBodems,
+          aantal_lage_bodems: aantalLageBodems,
+          opmerking
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          showMessage('Toekomstige vracht succesvol toegevoegd', 'success');
+          document.getElementById('addToekomstigeVrachtForm').reset();
+          loadToekomstigeVrachten();
+        } else {
+          showMessage(data.error || 'Fout bij het toevoegen van toekomstige vracht', 'danger');
+        }
+      })
+      .catch(error => {
+        console.error('Error adding toekomstige vracht:', error);
+        showMessage('Fout bij het toevoegen van toekomstige vracht', 'danger');
+      });
+    }
+    
+    function deleteToekomstigeVracht(id) {
+      if (!confirm('Weet u zeker dat u deze toekomstige vracht wilt verwijderen?')) {
+        return;
+      }
+      
+      fetch(`/api/toekomstige_vracht/${id}`, {
+        method: 'DELETE'
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          showMessage('Toekomstige vracht succesvol verwijderd', 'success');
+          loadToekomstigeVrachten();
+        } else {
+          showMessage(data.error || 'Fout bij het verwijderen van toekomstige vracht', 'danger');
+        }
+      })
+      .catch(error => {
+        console.error('Error deleting toekomstige vracht:', error);
+        showMessage('Fout bij het verwijderen van toekomstige vracht', 'danger');
+      });
+    }
+    
+    // Helper functie voor het tonen van berichten
+    function showMessage(message, type = 'info') {
+      const messagesContainer = document.getElementById('dashboard-messages');
+      const alertDiv = document.createElement('div');
+      alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+      alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      `;
+      messagesContainer.appendChild(alertDiv);
+      
+      // Automatisch verwijderen na 5 seconden
+      setTimeout(() => {
+        alertDiv.classList.remove('show');
+        setTimeout(() => alertDiv.remove(), 1500);
+      }, 5000);
+    }
+
+    // Stock settings beheer
+    let stockSettings = {
+      minStockHigh: 10,
+      minStockLow: 10
+    };
+    
+    // Laad opgeslagen instellingen bij het starten
+    function loadStockSettings() {
+      const savedSettings = localStorage.getItem('bodemStockSettings');
+      if (savedSettings) {
+        stockSettings = JSON.parse(savedSettings);
+        
+        // Vul de formuliervelden met opgeslagen waarden
+        document.getElementById('minStockHigh').value = stockSettings.minStockHigh;
+        document.getElementById('minStockLow').value = stockSettings.minStockLow;
+      }
+    }
+    
+    // Sla nieuwe instellingen op
+    function saveStockSettings() {
+      stockSettings.minStockHigh = parseInt(document.getElementById('minStockHigh').value, 10) || 10;
+      stockSettings.minStockLow = parseInt(document.getElementById('minStockLow').value, 10) || 10;
+      
+      localStorage.setItem('bodemStockSettings', JSON.stringify(stockSettings));
+      showMessage('Voorraad instellingen zijn opgeslagen', 'success');
+      
+      // Herlaad de voorraad om de nieuwe drempelwaarden toe te passen
+      loadBodemStock();
+    }
+    
+    // Event listener voor de opslaan knop
+    document.addEventListener('DOMContentLoaded', function() {
+      loadStockSettings();
+      
+      const saveBtn = document.getElementById('saveStockSettings');
+      if (saveBtn) {
+        saveBtn.addEventListener('click', saveStockSettings);
+      }
+    });
+
+    // Voeg JavaScript code toe voor het beheren van bestellingen
+    // Functie om bestellingen te laden
+    function loadBodemBestellingen() {
+      const tableBody = document.getElementById('bodemBestellingenTable');
+      if (!tableBody) {
+        console.error('Element bodemBestellingenTable niet gevonden');
+        return;
+      }
+      
+      // Toon loading indicator
+      tableBody.innerHTML = '<tr><td colspan="5" class="text-center"><div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div> Bestellingen laden...</td></tr>';
+      
+      fetch('/api/bodems_bestellingen')
+        .then(response => {
+          if (!response.ok) {
+            // Probeer de foutmelding uit de response te halen
+            return response.text().then(text => {
+              let errorMsg = `Server error (${response.status})`;
+              
+              // Controleer of de response HTML is
+              if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+                console.error('Server returned HTML instead of JSON:', text.substring(0, 100) + '...');
+                if (response.status === 500) {
+                  errorMsg = 'Server error: mogelijk is de tabel "bodems_bestellingen" nog niet aangemaakt in de database';
+                } else {
+                  errorMsg = `HTTP error: ${response.status} - De server retourneerde een HTML-pagina in plaats van JSON`;
+                }
+              } else {
+                // Probeer te zien of het JSON is
+                try {
+                  const data = JSON.parse(text);
+                  if (data.error) {
+                    errorMsg = data.error;
+                  }
+                } catch (e) {
+                  // Als het geen JSON is, log een stukje van de response
+                  console.error('Non-JSON response:', text.substring(0, 100) + '...');
+                }
+              }
+              
+              throw new Error(errorMsg);
+            });
+          }
+          return response.json();
+        })
+        .then(data => {
+          if (!data || data.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="5" class="text-center">Geen bestellingen gevonden</td></tr>';
+            return;
+          }
+          
+          let html = '';
+          data.forEach(item => {
+            const typeLabel = item.bodem_type === 'hoog' ? 'Hoog' : 'Laag';
+            
+            // Bepaal status kleur
+            let statusClass = '';
+            switch(item.status.toLowerCase()) {
+              case 'besteld':
+                statusClass = 'bg-warning text-dark';
+                break;
+              case 'ontvangen':
+                statusClass = 'bg-success text-white';
+                break;
+              default:
+                statusClass = 'bg-secondary text-white';
+            }
+            
+            html += `
+              <tr>
+                <td>${item.vestiging}</td>
+                <td>${typeLabel}</td>
+                <td>${item.aantal}</td>
+                <td><span class="badge ${statusClass}">${item.status}</span></td>
+                <td>
+                  <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-success mark-received-btn" data-id="${item.id}" data-toggle="modal" data-target="#ontvangstModal" ${item.status === 'ontvangen' ? 'disabled' : ''}>
+                      <i class="fas fa-check"></i>
+                    </button>
+                    <button class="btn btn-outline-danger delete-order-btn" data-id="${item.id}">
+                      <i class="fas fa-trash-alt"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            `;
+          });
+          tableBody.innerHTML = html;
+          
+          // Event listeners voor knoppen
+          document.querySelectorAll('.mark-received-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+              const id = this.getAttribute('data-id');
+              // Open modal voor gedeeltelijke ontvangst
+              openOntvangstModal(id);
+            });
+          });
+          
+          document.querySelectorAll('.delete-order-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+              const id = this.getAttribute('data-id');
+              deleteBodemBestelling(id);
+            });
+          });
+        })
+        .catch(error => {
+          console.error('Error loading bodem bestellingen:', error);
+          
+          // Toon een duidelijk foutbericht in de tabel
+          tableBody.innerHTML = `
+            <tr>
+              <td colspan="5" class="text-center">
+                <div class="alert alert-danger mb-0">
+                  <strong><i class="fas fa-exclamation-circle me-2"></i>Fout bij het laden van bestellingen:</strong><br>
+                  ${error.message}<br><br>
+                  <small>Tip: Controleer of de database tabel 'bodems_bestellingen' correct is aangemaakt met het SQL-script.</small>
+                </div>
+              </td>
+            </tr>
+          `;
+          
+          showMessage('Fout bij het laden van de bestellingen: ' + error.message, 'danger');
+        });
+    }
+    
+    // Functie om een nieuwe bestelling toe te voegen
+    function addBodemBestelling(vestiging, bodemType, aantal, besteldatum, verwachteLeverdatum, opmerking) {
+      fetch('/api/bodems_bestellingen', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          vestiging: vestiging,
+          bodem_type: bodemType,
+          aantal: aantal,
+          besteldatum: besteldatum,
+          verwachte_leverdatum: verwachteLeverdatum || null,
+          opmerking: opmerking || null
+        })
+      })
+      .then(response => {
+        // Controleer eerst of de response OK is
+        if (!response.ok) {
+          // Probeer de foutmelding uit de response te halen
+          return response.text().then(text => {
+            let errorMsg = `Serverfout (${response.status})`;
+            
+            // Controleer of de response HTML is (bevat <!DOCTYPE of <html>)
+            if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+              errorMsg = `Serverfout (${response.status}): De server retourneerde een HTML-pagina in plaats van JSON. Controleer de serverlogs.`;
+              console.error('Server returned HTML instead of JSON:', text.substring(0, 100) + '...');
+            } else {
+              // Probeer te zien of het JSON is
+              try {
+                const data = JSON.parse(text);
+                if (data.error) {
+                  errorMsg = data.error;
+                }
+              } catch (e) {
+                // Als het geen JSON is, toon de eerste 100 karakters van de fout
+                console.error('Non-JSON response:', text.substring(0, 100) + '...');
+              }
+            }
+            
+            throw new Error(errorMsg);
+          });
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.success) {
+          showMessage('Bestelling succesvol toegevoegd', 'success');
+          document.getElementById('addBestellingForm').reset();
+          // Sluit formulier na toevoegen
+          const formCollapse = bootstrap.Collapse.getInstance(document.getElementById('newOrderForm'));
+          if (formCollapse) {
+            formCollapse.hide();
+          }
+          loadBodemBestellingen();
+        } else {
+          showMessage(data.error || 'Fout bij het toevoegen van bestelling', 'danger');
+        }
+      })
+      .catch(error => {
+        console.error('Error adding bodem bestelling:', error);
+        showMessage('Fout bij het toevoegen van bestelling: ' + error.message, 'danger');
+      });
+    }
+    
+    // Functie om status van bestelling bij te werken
+    function updateBestellingStatus(id, status) {
+      fetch(`/api/bodems_bestellingen/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: status
+        })
+      })
+      .then(response => {
+        if (!response.ok) {
+          return response.text().then(text => {
+            let errorMsg = `Serverfout (${response.status})`;
+            
+            if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+              errorMsg = `Serverfout (${response.status}): De server retourneerde een HTML-pagina in plaats van JSON.`;
+              console.error('Server returned HTML instead of JSON:', text.substring(0, 100) + '...');
+            } else {
+              try {
+                const data = JSON.parse(text);
+                if (data.error) {
+                  errorMsg = data.error;
+                }
+              } catch (e) {
+                console.error('Non-JSON response:', text.substring(0, 100) + '...');
+              }
+            }
+            
+            throw new Error(errorMsg);
+          });
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.success) {
+          showMessage(`Bestelling gemarkeerd als ${status}`, 'success');
+          loadBodemBestellingen();
+        } else {
+          showMessage(data.error || 'Fout bij het bijwerken van bestelling', 'danger');
+        }
+      })
+      .catch(error => {
+        console.error('Error updating bodem bestelling:', error);
+        showMessage('Fout bij het bijwerken van bestelling: ' + error.message, 'danger');
+      });
+    }
+    
+    // Functie om bestelling als ontvangen te markeren
+    function markBestellingReceived(id, aantalOntvangen = null) {
+      if (!confirm(aantalOntvangen ? 
+        `Weet u zeker dat u ${aantalOntvangen} items van deze bestelling als ontvangen wilt markeren? De voorraad wordt automatisch bijgewerkt.` : 
+        'Weet u zeker dat u deze volledige bestelling als ontvangen wilt markeren? De voorraad wordt automatisch bijgewerkt.'
+      )) {
+        return;
+      }
+      
+      const requestBody = aantalOntvangen ? { aantal_ontvangen: aantalOntvangen } : {};
+      
+      fetch(`/api/bodems_bestellingen/${id}/ontvangen`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      })
+      .then(response => {
+        if (!response.ok) {
+          return response.text().then(text => {
+            let errorMsg = `Serverfout (${response.status})`;
+            
+            if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+              errorMsg = `Serverfout (${response.status}): De server retourneerde een HTML-pagina in plaats van JSON.`;
+              console.error('Server returned HTML instead of JSON:', text.substring(0, 100) + '...');
+            } else {
+              try {
+                const data = JSON.parse(text);
+                if (data.error) {
+                  errorMsg = data.error;
+                }
+              } catch (e) {
+                console.error('Non-JSON response:', text.substring(0, 100) + '...');
+              }
+            }
+            
+            throw new Error(errorMsg);
+          });
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.success) {
+          showMessage(data.message || 'Bestelling ontvangen en voorraad bijgewerkt', 'success');
+          loadBodemBestellingen();
+          loadBodemStock(); // Ververs de voorraad
+        } else {
+          showMessage(data.error || 'Fout bij het ontvangen van bestelling', 'danger');
+        }
+      })
+      .catch(error => {
+        console.error('Error marking bodem bestelling as received:', error);
+        showMessage('Fout bij het ontvangen van bestelling: ' + error.message, 'danger');
+      });
+    }
+    
+    // Functie om bestelling te verwijderen
+    function deleteBodemBestelling(id) {
+      if (!confirm('Weet u zeker dat u deze bestelling wilt verwijderen?')) {
+        return;
+      }
+      
+      fetch(`/api/bodems_bestellingen/${id}`, {
+        method: 'DELETE'
+      })
+      .then(response => {
+        if (!response.ok) {
+          return response.text().then(text => {
+            let errorMsg = `Serverfout (${response.status})`;
+            
+            if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+              errorMsg = `Serverfout (${response.status}): De server retourneerde een HTML-pagina in plaats van JSON.`;
+              console.error('Server returned HTML instead of JSON:', text.substring(0, 100) + '...');
+            } else {
+              try {
+                const data = JSON.parse(text);
+                if (data.error) {
+                  errorMsg = data.error;
+                }
+              } catch (e) {
+                console.error('Non-JSON response:', text.substring(0, 100) + '...');
+              }
+            }
+            
+            throw new Error(errorMsg);
+          });
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.success) {
+          showMessage('Bestelling succesvol verwijderd', 'success');
+          loadBodemBestellingen();
+        } else {
+          showMessage(data.error || 'Fout bij het verwijderen van bestelling', 'danger');
+        }
+      })
+      .catch(error => {
+        console.error('Error deleting bodem bestelling:', error);
+        showMessage('Fout bij het verwijderen van bestelling: ' + error.message, 'danger');
+      });
+    }
+    
+    // Event listener voor het formulier om een bestelling toe te voegen
+    document.addEventListener('DOMContentLoaded', function() {
+      const bestellingForm = document.getElementById('addBestellingForm');
+      if (bestellingForm) {
+        bestellingForm.addEventListener('submit', function(e) {
+          e.preventDefault();
+          
+          const vestiging = document.getElementById('bestelVestiging').value;
+          const bodemType = document.getElementById('bestelType').value;
+          const aantal = document.getElementById('bestelAantal').value;
+          const besteldatum = document.getElementById('bestelDatum').value;
+          const verwachteLeverdatum = document.getElementById('bestelLeverdatum').value;
+          const opmerking = document.getElementById('bestelOpmerking').value;
+          
+          addBodemBestelling(vestiging, bodemType, aantal, besteldatum, verwachteLeverdatum, opmerking);
+        });
+      }
+      
+      // Ontvangst formulier
+      const ontvangstForm = document.getElementById('ontvangstForm');
+      if (ontvangstForm) {
+        ontvangstForm.addEventListener('submit', function(e) {
+          e.preventDefault();
+          const id = document.getElementById('ontvangstOrderId').value;
+          const aantal = document.getElementById('ontvangstAantal').value;
+          
+          $('#ontvangstModal').modal('hide'); // Sluit modal
+          markBestellingReceived(id, aantal);
+        });
+      }
+      
+      // Laad bestellingen bij het openen van de pagina
+      loadBodemBestellingen();
+    });
+    
+    // Functie om ontvangst modal te openen
+    function openOntvangstModal(id) {
+      // Haal bestelgegevens op
+      fetch(`/api/bodems_bestellingen`)
+        .then(response => response.ok ? response.json() : [])
+        .then(data => {
+          const bestelling = data.find(b => b.id == id);
+          if (bestelling) {
+            // Vul modal met bestelgegevens
+            document.getElementById('ontvangstOrderId').value = id;
+            document.getElementById('ontvangstAantal').value = bestelling.aantal;
+            document.getElementById('ontvangstAantal').max = bestelling.aantal;
+            document.getElementById('ontvangstMaxAantal').textContent = bestelling.aantal;
+            
+            // Toon modal
+            $('#ontvangstModal').modal('show');
+          } else {
+            showMessage('Bestelling niet gevonden', 'danger');
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching order details:', error);
+          showMessage('Fout bij het ophalen van bestelgegevens', 'danger');
+        });
+    }
+
+    // Hernoem de functie op regel 2433
+    function deleteLocalTemplate(index) {
+      if (index < 0 || index >= loadTemplates.length) {
+        showStatus('Template niet gevonden', 'warning');
+        return;
+      }
+      
+      const templateName = loadTemplates[index].name;
+      const confirmDelete = confirm(`Weet je zeker dat je de template "${templateName}" wilt verwijderen?`);
+      
+      if (confirmDelete) {
+        loadTemplates.splice(index, 1);
+        localStorage.setItem('cnh_load_templates', JSON.stringify(loadTemplates));
+        renderTemplates();
+        showStatus(`Template "${templateName}" verwijderd`, 'success');
+      }
+    }
+
+    // Export naar Excel-functies voor verpakking en lading sessies
+    function exportPackagingToExcel() {
+      const data = allSessions.filter(s => Number(s.packaging_minutes || 0) > 0 || Number(s.packaging_count || 0) > 0);
+      const ws_data = [ ['ID','Locatie','Duurtijd','Aantal motoren','Personen','Datum','Motoren'] ];
+      data.forEach(s => {
+        ws_data.push([
+          s.id,
+          s.location || '',
+          formatDuration(s.packaging_minutes || 0),
+          s.packaging_count || 0,
+          s.packaging_persons || 1,
+          formatDateTime(s.created_at),
+          s.motors && s.motors.length > 0 ? s.motors.map(m => m.motor_nr || '').join(', ') : ''
+        ]);
+      });
+      const ws = XLSX.utils.aoa_to_sheet(ws_data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Verpakkingssessies');
+      XLSX.writeFile(wb, `verpakking_sessions_${formatDateForFilename(new Date())}.xlsx`);
+      showStatus('Verpakkingssessies geëxporteerd naar Excel', 'success');
+    }
+    function exportLoadingToExcel() {
+      const data = allSessions.filter(s => Number(s.loading_minutes || 0) > 0 || Number(s.loading_count || 0) > 0 || (s.load_reference && s.load_reference.trim() !== ''));
+      const ws_data = [ ['ID','Locatie','Laadref','Container','Laadtijd','Aantal motoren','Personen','Datum','Motoren'] ];
+      data.forEach(s => {
+        ws_data.push([
+          s.id,
+          s.location || '',
+          s.load_reference || '',
+          s.container_no || '',
+          formatDuration(s.loading_minutes || 0),
+          s.loading_count || 0,
+          s.loading_persons || 1,
+          formatDateTime(s.created_at),
+          s.motors && s.motors.length > 0 ? s.motors.map(m => m.motor_nr || '').join(', ') : ''
+        ]);
+      });
+      const ws = XLSX.utils.aoa_to_sheet(ws_data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Lading-sessies');
+      XLSX.writeFile(wb, `lading_sessions_${formatDateForFilename(new Date())}.xlsx`);
+      showStatus('Lading-sessies geëxporteerd naar Excel', 'success');
+    }
+
+    // Gecombineerde export per load-sessie, één regel per lading (inclusief geaggregeerde verpakkingsgegevens)
+    function exportCombinedExcel() {
+      // Haal ook alle verpakkingssessies op
+      const packSessions = allSessions.filter(s => Number(s.packaging_minutes || 0) > 0 || Number(s.packaging_count || 0) > 0);
+      // Haal alleen load-sessies op
+      const loadSessions = allSessions.filter(s =>
+        Number(s.loading_minutes || 0) > 0 ||
+        Number(s.loading_count || 0) > 0 ||
+        (s.load_reference && s.load_reference.trim() !== '')
+      );
+      // Header voor Excel, inclusief verpakkingskolommen
+      const ws_data = [
+        ['LaadID','Locatie','LaadRef','Container','Laadtijd(min)','AantalMotoren','Personen','Datum','TotalePackMin','AantalPack','GemPackMin/motor']
+      ];
+      loadSessions.forEach(ls => {
+        // Aggregatie van verpakkingssessies die betrokken zijn bij deze laadsessie
+        const relatedPackSessions = packSessions.filter(ps =>
+          (ps.motors || []).some(pm => (ls.motors || []).some(lm => lm.id === pm.id))
+        );
+        let totalPackMinutes = 0;
+        let totalPackCount = 0;
+        relatedPackSessions.forEach(ps => {
+          totalPackMinutes += Number(ps.packaging_minutes || 0);
+          totalPackCount += Number(ps.packaging_count || 0);
+        });
+        const avgPack = totalPackCount > 0 ? (totalPackMinutes / totalPackCount).toFixed(2) : '';
+        ws_data.push([
+          ls.id,
+          ls.location || '',
+          ls.load_reference || '',
+          ls.container_no || '',
+          Number(ls.loading_minutes || 0),
+          ls.loading_count || (ls.motors ? ls.motors.length : 0),
+          ls.loading_persons || '',
+          formatDateTime(ls.created_at),
+          totalPackMinutes,
+          totalPackCount,
+          avgPack
+        ]);
+      });
+    
+     // Genereer en download Excel
+      const ws = XLSX.utils.aoa_to_sheet(ws_data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Verpakking_Lading');
+      XLSX.writeFile(wb, `lading_export_${formatDateForFilename(new Date())}.xlsx`);
+      showStatus('Gecombineerde sessies per lading geëxporteerd naar Excel', 'success');
+    }
+  </script>
+  
+  <!-- Modal voor gedeeltelijke ontvangst -->
+  <div class="modal fade" id="ontvangstModal" tabindex="-1" role="dialog" aria-labelledby="ontvangstModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="ontvangstModalLabel">Bestelling Ontvangen</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <form id="ontvangstForm">
+            <input type="hidden" id="ontvangstOrderId">
+            <div class="form-group">
+              <label for="ontvangstAantal">Aantal ontvangen</label>
+              <input type="number" class="form-control" id="ontvangstAantal" min="1" required>
+              <small class="form-text text-muted">Max aantal: <span id="ontvangstMaxAantal">0</span></small>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Annuleren</button>
+          <button type="submit" form="ontvangstForm" class="btn btn-success">Ontvangen</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

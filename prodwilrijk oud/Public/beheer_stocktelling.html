@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beheer Stocktelling Artikelen</title>
+</head>
+<body>
+    <h2>Beheer Artikelen voor Stocktelling</h2>
+    <form id="beheerForm">
+        <div id="itemsList">
+            <!-- De lijst met artikelen wordt hier geladen -->
+        </div>
+        <button type="submit">Opslaan</button>
+    </form>
+
+    <script>
+    // Functie om artikelen op te halen en weer te geven
+    async function loadItems() {
+        try {
+            const response = await fetch('/api/get_all_items');
+            const items = await response.json();
+            
+            console.log('Artikelen ontvangen:', items); // Log de ontvangen items om te controleren of ze worden opgehaald
+            
+            const itemsList = document.getElementById('itemsList');
+            itemsList.innerHTML = ''; // Leeg de lijst eerst
+
+            if (items.length === 0) {
+                itemsList.innerHTML = '<p>Geen artikelen beschikbaar voor telling.</p>';
+                return;
+            }
+
+            items.forEach(item => {
+                const itemContainer = document.createElement('div');
+                itemContainer.innerHTML = `
+                    <label>
+                        <input type="checkbox" name="item_${item.item_number}" ${item.active ? 'checked' : ''}>
+                        ${item.description} (${item.item_number})
+                    </label>
+                `;
+                itemsList.appendChild(itemContainer);
+            });
+        } catch (error) {
+            console.error('Error loading items:', error);
+            document.getElementById('itemsList').innerHTML = '<p>Er is een fout opgetreden bij het laden van de artikelen.</p>';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadItems);
+
+    // Verzenden van het formulier
+    document.getElementById('beheerForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const formData = new FormData(event.target);
+        const itemsToCount = [];
+
+        for (let [key, value] of formData.entries()) {
+            if (key.startsWith('item_')) {
+                const item_number = key.split('_')[1];
+                itemsToCount.push({ item_number, active: value === 'on' });
+            }
+        }
+
+        try {
+            const response = await fetch('/api/update_count_items', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ items: itemsToCount })
+            });
+            const result = await response.json();
+            alert(result.message || 'Artikelen bijgewerkt voor de telling.');
+            loadItems(); // Herlaad de lijst
+        } catch (error) {
+            console.error('Error updating items:', error);
+        }
+    });
+</script>
+
+</body>
+</html>
