@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   ComposedChart,
@@ -138,6 +138,8 @@ export default function PrepackMonitorPage() {
   } = api
 
   const grossMargin = totals ? totals.totalRevenue - totals.totalMaterialCost : null
+
+  const [hourlyRate, setHourlyRate] = useState<number>(47)
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -731,6 +733,24 @@ export default function PrepackMonitorPage() {
           isCollapsed={collapsedSections.people}
           onToggle={() => toggleSection('people')}
         >
+        {/* Uurloon instelling */}
+        <div className="flex items-center gap-3 mb-5 pb-4 border-b border-gray-100">
+          <label className="text-sm font-medium text-gray-600 whitespace-nowrap">Uurloonkost:</label>
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm text-gray-500">€</span>
+            <input
+              type="number"
+              min={0}
+              step={0.5}
+              value={hourlyRate}
+              onChange={e => setHourlyRate(Math.max(0, Number(e.target.value)))}
+              className="w-20 px-2 py-1 text-sm border border-gray-200 rounded-lg text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-300"
+            />
+            <span className="text-sm text-gray-500">/uur</span>
+          </div>
+          <span className="text-xs text-gray-400">(geldt voor alle medewerkers)</span>
+        </div>
+
         {loading ? (
           <div className="animate-pulse space-y-3 py-4">
             {[1,2,3,4].map(i => (
@@ -754,12 +774,14 @@ export default function PrepackMonitorPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100">
-                      <th className="text-left py-2 pr-4 font-semibold text-gray-500 w-8">#</th>
-                      <th className="text-left py-2 pr-4 font-semibold text-gray-500">Naam</th>
-                      <th className="text-right py-2 pr-4 font-semibold text-gray-500 whitespace-nowrap">Items ingepakt</th>
-                      <th className="text-right py-2 pr-4 font-semibold text-gray-500 whitespace-nowrap">Manuren</th>
-                      <th className="text-right py-2 pr-4 font-semibold text-gray-500 whitespace-nowrap">Items/uur</th>
-                      <th className="text-right py-2 font-semibold text-gray-500 whitespace-nowrap">Omzet/uur</th>
+                      <th className="text-left py-2 pr-3 font-semibold text-gray-500 w-8">#</th>
+                      <th className="text-left py-2 pr-3 font-semibold text-gray-500">Naam</th>
+                      <th className="text-right py-2 pr-3 font-semibold text-gray-500 whitespace-nowrap">Items</th>
+                      <th className="text-right py-2 pr-3 font-semibold text-gray-500 whitespace-nowrap">Manuren</th>
+                      <th className="text-right py-2 pr-3 font-semibold text-gray-500 whitespace-nowrap">Items/uur</th>
+                      <th className="text-right py-2 pr-3 font-semibold text-gray-500 whitespace-nowrap">Omzet/uur</th>
+                      <th className="text-right py-2 pr-3 font-semibold text-gray-500 whitespace-nowrap">Loonkost</th>
+                      <th className="text-right py-2 font-semibold text-gray-500 whitespace-nowrap">Netto marge/uur</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -767,24 +789,23 @@ export default function PrepackMonitorPage() {
                       const hasHours = stat.manHours > 0
                       const isTop = idx === 0 && hasHours && stat.itemsPerHour > 0
                       const pct = maxItemsPerHour > 0 && hasHours ? (stat.itemsPerHour / maxItemsPerHour) * 100 : 0
+                      const laborCost = stat.manHours * hourlyRate
+                      const netMarginPerHour = hasHours ? stat.revenuePerHour - hourlyRate : null
+                      const isPositiveMargin = netMarginPerHour !== null && netMarginPerHour >= 0
                       return (
                         <tr key={stat.name} className={`border-b border-gray-50 ${isTop ? 'bg-emerald-50' : ''}`}>
-                          <td className="py-2.5 pr-4 tabular-nums text-gray-400 font-medium">
-                            {isTop ? (
-                              <span className="text-emerald-600 font-bold">★</span>
-                            ) : (
-                              idx + 1
-                            )}
+                          <td className="py-2.5 pr-3 tabular-nums text-gray-400 font-medium">
+                            {isTop ? <span className="text-emerald-600 font-bold">★</span> : idx + 1}
                           </td>
-                          <td className="py-2.5 pr-4 font-medium text-gray-800">{stat.name}</td>
-                          <td className="py-2.5 pr-4 tabular-nums text-right text-gray-700">
+                          <td className="py-2.5 pr-3 font-medium text-gray-800">{stat.name}</td>
+                          <td className="py-2.5 pr-3 tabular-nums text-right text-gray-700">
                             {Number.isInteger(stat.itemsPacked) ? stat.itemsPacked : stat.itemsPacked.toFixed(2)}
                           </td>
-                          <td className="py-2.5 pr-4 tabular-nums text-right text-gray-700">{stat.manHours.toFixed(2)} u</td>
-                          <td className="py-2.5 pr-4 text-right">
+                          <td className="py-2.5 pr-3 tabular-nums text-right text-gray-700">{stat.manHours.toFixed(2)} u</td>
+                          <td className="py-2.5 pr-3 text-right">
                             {hasHours ? (
                               <div className="flex items-center justify-end gap-2">
-                                <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden hidden sm:block">
+                                <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden hidden sm:block">
                                   <div
                                     className={`h-full rounded-full transition-all duration-500 ${isTop ? 'bg-emerald-500' : 'bg-blue-400'}`}
                                     style={{ width: `${pct}%` }}
@@ -798,10 +819,22 @@ export default function PrepackMonitorPage() {
                               <span className="text-gray-300 text-xs">—</span>
                             )}
                           </td>
-                          <td className="py-2.5 text-right tabular-nums text-gray-700">
+                          <td className="py-2.5 pr-3 text-right tabular-nums text-gray-700">
                             {hasHours ? (
                               <span className={isTop ? 'font-semibold text-emerald-700' : ''}>
                                 €{stat.revenuePerHour.toFixed(2)}
+                              </span>
+                            ) : (
+                              <span className="text-gray-300 text-xs">—</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 pr-3 text-right tabular-nums text-rose-600">
+                            −€{laborCost.toFixed(2)}
+                          </td>
+                          <td className="py-2.5 text-right tabular-nums font-semibold">
+                            {netMarginPerHour !== null ? (
+                              <span className={isPositiveMargin ? 'text-emerald-700' : 'text-rose-600'}>
+                                {isPositiveMargin ? '+' : ''}€{netMarginPerHour.toFixed(2)}
                               </span>
                             ) : (
                               <span className="text-gray-300 text-xs">—</span>
@@ -811,10 +844,37 @@ export default function PrepackMonitorPage() {
                       )
                     })}
                   </tbody>
+                  {/* Totaalrij */}
+                  {(() => {
+                    const totalItems = sorted.reduce((s, p) => s + p.itemsPacked, 0)
+                    const totalHours = sorted.reduce((s, p) => s + p.manHours, 0)
+                    const totalRevenue = sorted.reduce((s, p) => s + p.revenue, 0)
+                    const totalLaborCost = totalHours * hourlyRate
+                    const totalNetMargin = totalRevenue - totalLaborCost
+                    return (
+                      <tfoot>
+                        <tr className="border-t-2 border-gray-200 bg-gray-50 font-semibold text-sm">
+                          <td className="py-2.5 pr-3" colSpan={2}>Totaal</td>
+                          <td className="py-2.5 pr-3 text-right tabular-nums text-gray-800">
+                            {Number.isInteger(totalItems) ? totalItems : totalItems.toFixed(2)}
+                          </td>
+                          <td className="py-2.5 pr-3 text-right tabular-nums text-gray-800">{totalHours.toFixed(2)} u</td>
+                          <td className="py-2.5 pr-3" />
+                          <td className="py-2.5 pr-3 text-right tabular-nums text-gray-800">
+                            €{totalHours > 0 ? (totalRevenue / totalHours).toFixed(2) : '—'}
+                          </td>
+                          <td className="py-2.5 pr-3 text-right tabular-nums text-rose-600">−€{totalLaborCost.toFixed(2)}</td>
+                          <td className={`py-2.5 text-right tabular-nums ${totalNetMargin >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                            {totalNetMargin >= 0 ? '+' : ''}€{totalNetMargin.toFixed(2)}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    )
+                  })()}
                 </table>
               </div>
               <p className="mt-3 text-xs text-gray-400">
-                Items/uur en omzet/uur zijn alleen berekend voor medewerkers die ook uren geregistreerd hebben via de timer.
+                Loonkost = manuren × uurloonkost. Netto marge/uur = omzet/uur − uurloonkost. Enkel berekend voor medewerkers met geregistreerde uren.
               </p>
             </div>
           )
