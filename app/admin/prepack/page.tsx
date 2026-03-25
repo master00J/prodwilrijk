@@ -141,6 +141,11 @@ export default function PrepackMonitorPage() {
 
   const [hourlyRate, setHourlyRate] = useState<number>(47)
 
+  const totalLaborCost = totals ? totals.totalManHours * hourlyRate : null
+  const netMarginAfterLabor = grossMargin != null && totalLaborCost != null
+    ? grossMargin - totalLaborCost
+    : null
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
       {/* Header */}
@@ -324,7 +329,7 @@ export default function PrepackMonitorPage() {
             </button>
           </div>
 
-          <div className="mb-4 rounded-lg border border-gray-200 px-4 py-3 bg-gray-50">
+          <div className="mb-4 flex flex-wrap gap-4 items-center rounded-lg border border-gray-200 px-4 py-3 bg-gray-50">
             <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
               <input
                 type="checkbox"
@@ -334,6 +339,19 @@ export default function PrepackMonitorPage() {
               />
               Toon enkel items zonder prijs of materiaalkost
             </label>
+            <div className="flex items-center gap-2 ml-auto">
+              <label className="text-sm font-medium text-gray-600 whitespace-nowrap">Uurloonkost:</label>
+              <span className="text-sm text-gray-500">€</span>
+              <input
+                type="number"
+                min={0}
+                step={0.5}
+                value={hourlyRate}
+                onChange={e => setHourlyRate(Math.max(0, Number(e.target.value)))}
+                className="w-20 px-2 py-1 text-sm border border-gray-300 rounded-lg text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+              />
+              <span className="text-sm text-gray-500">/uur</span>
+            </div>
           </div>
 
           <div className="mb-6 rounded-xl border border-gray-200 p-4 bg-white">
@@ -540,6 +558,20 @@ export default function PrepackMonitorPage() {
               accent="border-teal-500"
             />
             <KpiCard
+              label="Totale loonkost"
+              value={totalLaborCost != null ? formatCurrency(totalLaborCost) : '—'}
+              sub={totals ? `${totals.totalManHours.toFixed(2)} u × €${hourlyRate}/u` : undefined}
+              icon={<Users className="w-5 h-5 text-rose-500" />}
+              accent="border-rose-400"
+            />
+            <KpiCard
+              label="Netto marge"
+              value={netMarginAfterLabor != null ? formatCurrency(netMarginAfterLabor) : '—'}
+              sub={netMarginAfterLabor != null && totals && totals.totalRevenue > 0 ? `${((netMarginAfterLabor / totals.totalRevenue) * 100).toFixed(1)}% van omzet` : undefined}
+              icon={netMarginAfterLabor != null && netMarginAfterLabor >= 0 ? <TrendingUp className="w-5 h-5 text-emerald-600" /> : <TrendingDown className="w-5 h-5 text-red-500" />}
+              accent={netMarginAfterLabor != null && netMarginAfterLabor >= 0 ? 'border-emerald-500' : 'border-red-400'}
+            />
+            <KpiCard
               label="Binnen vs verpakt"
               value={totals && totals.incomingVsPackedRatio != null ? `${totals.incomingVsPackedRatio.toFixed(2)}×` : '—'}
               icon={<ArrowUpRight className="w-5 h-5 text-slate-400" />}
@@ -733,24 +765,6 @@ export default function PrepackMonitorPage() {
           isCollapsed={collapsedSections.people}
           onToggle={() => toggleSection('people')}
         >
-        {/* Uurloon instelling */}
-        <div className="flex items-center gap-3 mb-5 pb-4 border-b border-gray-100">
-          <label className="text-sm font-medium text-gray-600 whitespace-nowrap">Uurloonkost:</label>
-          <div className="flex items-center gap-1.5">
-            <span className="text-sm text-gray-500">€</span>
-            <input
-              type="number"
-              min={0}
-              step={0.5}
-              value={hourlyRate}
-              onChange={e => setHourlyRate(Math.max(0, Number(e.target.value)))}
-              className="w-20 px-2 py-1 text-sm border border-gray-200 rounded-lg text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-300"
-            />
-            <span className="text-sm text-gray-500">/uur</span>
-          </div>
-          <span className="text-xs text-gray-400">(geldt voor alle medewerkers)</span>
-        </div>
-
         {loading ? (
           <div className="animate-pulse space-y-3 py-4">
             {[1,2,3,4].map(i => (
@@ -1098,15 +1112,17 @@ export default function PrepackMonitorPage() {
                     <th className="px-4 py-3 text-right font-semibold">Items/FTE</th>
                     <th className="px-4 py-3 text-right font-semibold">Omzet</th>
                     <th className="px-4 py-3 text-right font-semibold">Materiaal</th>
-                    <th className="px-4 py-3 text-right font-semibold">Marge</th>
+                    <th className="px-4 py-3 text-right font-semibold">Loonkost</th>
+                    <th className="px-4 py-3 text-right font-semibold">Netto marge</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {dailyStats.map((stat) => {
                     const isTop = stat.revenue === maxRevenue && maxRevenue > 0
                     const isAboveAvg = stat.revenue > avgRevenue
-                    const margin = stat.revenue - stat.materialCost
-                    const marginPct = stat.revenue > 0 ? (margin / stat.revenue) * 100 : null
+                    const dailyLaborCost = stat.manHours * hourlyRate
+                    const netMargin = stat.revenue - stat.materialCost - dailyLaborCost
+                    const netMarginPct = stat.revenue > 0 ? (netMargin / stat.revenue) * 100 : null
                     return (
                       <tr
                         key={stat.date}
@@ -1128,8 +1144,13 @@ export default function PrepackMonitorPage() {
                         <td className="px-4 py-2.5 text-right text-rose-600 tabular-nums">
                           €{stat.materialCost.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
-                        <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${marginPct != null && marginPct < 0 ? 'text-red-600' : 'text-teal-600'}`}>
-                          {marginPct != null ? `${marginPct.toFixed(1)}%` : '-'}
+                        <td className="px-4 py-2.5 text-right text-rose-500 tabular-nums">
+                          −€{dailyLaborCost.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className={`px-4 py-2.5 text-right tabular-nums font-semibold ${netMargin < 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+                          {netMarginPct != null
+                            ? `${netMargin >= 0 ? '+' : ''}${netMarginPct.toFixed(1)}%`
+                            : stat.manHours > 0 ? `${netMargin >= 0 ? '+' : ''}€${netMargin.toFixed(2)}` : '—'}
                         </td>
                       </tr>
                     )
