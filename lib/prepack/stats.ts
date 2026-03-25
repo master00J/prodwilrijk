@@ -40,6 +40,7 @@ export interface PersonStats {
 export interface DetailedItem {
   id: number
   item_number: string
+  description?: string | null
   po_number: string
   amount: number
   price: number
@@ -300,6 +301,7 @@ export async function fetchPrepackStats({
   }
 
   let materialCostMap: Record<string, number> = {}
+  const itemDescriptionMap: Record<string, string> = {}
   if (uniqueItemNumbers.length > 0) {
     const lines = await fetchAllWithBatchedIn<any>(
       uniqueItemNumbers,
@@ -529,6 +531,27 @@ export async function fetchPrepackStats({
         acc[key] = latestCosts[key].cost
         return acc
       }, {})
+
+      // Build description map: item_number → volledige beschrijving zonder haakjes-suffix
+      allLines.forEach((line: any) => {
+        if (!line.description) return
+        const rawDesc: string = String(line.description)
+        // Verwijder het itemnummer tussen haakjes aan het einde (bv. " (1604952087)")
+        const cleanDesc = rawDesc.replace(/\s*\([^)]+\)\s*$/, '').trim()
+        if (!cleanDesc) return
+
+        const norm = normalizeItemNumber(line.item_number)
+        if (norm && !(norm in itemDescriptionMap)) {
+          itemDescriptionMap[norm] = cleanDesc
+        }
+        const ext = extractItemNumberFromDescription(rawDesc)
+        if (ext) {
+          const extNorm = normalizeItemNumber(ext)
+          if (extNorm && !(extNorm in itemDescriptionMap)) {
+            itemDescriptionMap[extNorm] = cleanDesc
+          }
+        }
+      })
     }
   }
 
@@ -757,6 +780,7 @@ export async function fetchPrepackStats({
           return {
             id: item.id,
             item_number: item.item_number,
+            description: itemDescriptionMap[normalizeItemNumber(item.item_number)] ?? null,
             po_number: item.po_number,
             amount,
             price: Number(price.toFixed(2)),

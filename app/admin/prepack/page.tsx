@@ -893,6 +893,7 @@ export default function PrepackMonitorPage() {
                                         <tr className="bg-gray-100 text-gray-500">
                                           <th className="px-3 py-2 text-left font-semibold">Datum verpakt</th>
                                           <th className="px-3 py-2 text-left font-semibold">Itemnummer</th>
+                                          <th className="px-3 py-2 text-left font-semibold">Beschrijving</th>
                                           <th className="px-3 py-2 text-left font-semibold">PO Nummer</th>
                                           <th className="px-3 py-2 text-right font-semibold">Aantal</th>
                                           <th className="px-3 py-2 text-right font-semibold">Prijs</th>
@@ -922,6 +923,11 @@ export default function PrepackMonitorPage() {
                                                 {new Date(item.date_packed).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                                               </td>
                                               <td className="px-3 py-2 font-medium text-gray-800">{item.item_number}</td>
+                                              <td className="px-3 py-2 text-gray-600 max-w-[180px]">
+                                                {item.description
+                                                  ? <span title={item.description} className="truncate block text-xs">{item.description}</span>
+                                                  : <span className="text-gray-300">—</span>}
+                                              </td>
                                               <td className="px-3 py-2 text-gray-600">{item.po_number}</td>
                                               <td className="px-3 py-2 text-right tabular-nums text-gray-700">
                                                 {share < 1
@@ -1054,6 +1060,7 @@ export default function PrepackMonitorPage() {
                     { key: 'date_packed',       label: 'Datum Verpakt',     align: 'left'  },
                     { key: 'item_number',        label: 'Itemnummer',        align: 'left'  },
                     { key: 'po_number',          label: 'PO Nummer',         align: 'left'  },
+                    { key: 'description' as any, label: 'Beschrijving',      align: 'left'  },
                     { key: 'amount',             label: 'Aantal',            align: 'right' },
                     { key: 'price',              label: 'Prijs',             align: 'right' },
                     { key: 'revenue',            label: 'Omzet',             align: 'right' },
@@ -1087,6 +1094,11 @@ export default function PrepackMonitorPage() {
                     </td>
                     <td className="px-4 py-3 font-medium text-gray-900">{item.item_number}</td>
                     <td className="px-4 py-3 text-gray-900">{item.po_number || '-'}</td>
+                    <td className="px-4 py-3 text-gray-600 max-w-xs">
+                      {item.description
+                        ? <span title={item.description} className="truncate block">{item.description}</span>
+                        : <span className="text-gray-300 text-xs">—</span>}
+                    </td>
                     <td className="px-4 py-3 text-gray-900 text-right tabular-nums">{item.amount}</td>
                     <td className="px-4 py-3 text-right tabular-nums">
                       {!item.priceFound ? (

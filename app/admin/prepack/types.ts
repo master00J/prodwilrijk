@@ -37,6 +37,7 @@ export interface PersonStats {
 export interface DetailedItem {
   id: number
   item_number: string
+  description?: string | null
   po_number: string
   amount: number
   price: number
