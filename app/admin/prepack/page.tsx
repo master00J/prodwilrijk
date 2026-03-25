@@ -777,7 +777,9 @@ export default function PrepackMonitorPage() {
                             )}
                           </td>
                           <td className="py-2.5 pr-4 font-medium text-gray-800">{stat.name}</td>
-                          <td className="py-2.5 pr-4 tabular-nums text-right text-gray-700">{stat.itemsPacked}</td>
+                          <td className="py-2.5 pr-4 tabular-nums text-right text-gray-700">
+                            {Number.isInteger(stat.itemsPacked) ? stat.itemsPacked : stat.itemsPacked.toFixed(2)}
+                          </td>
                           <td className="py-2.5 pr-4 tabular-nums text-right text-gray-700">{stat.manHours.toFixed(2)} u</td>
                           <td className="py-2.5 pr-4 text-right">
                             {hasHours ? (
