@@ -207,7 +207,7 @@ export default function ItemsToPackPage() {
     setShowEmployeePickerModal(true)
   }
 
-  const handleEmployeeConfirm = async (employeeId: number, employeeName: string) => {
+  const handleEmployeeConfirm = async (employeeIds: number[], employeeNames: string[]) => {
     setShowEmployeePickerModal(false)
     try {
       const response = await fetch('/api/items-to-pack', {
@@ -215,8 +215,8 @@ export default function ItemsToPackPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ids: pendingPackIds,
-          employeeId,
-          employeeName,
+          employeeId: employeeIds[0] ?? null,
+          employeeName: employeeNames.join(', '),
         }),
       })
 

@@ -702,17 +702,21 @@ export async function fetchPrepackStats({
   })
 
   // Aggregate items packed and revenue per employee from packed_items
+  // packed_by_name can contain multiple names separated by ', '
   items.forEach((item: any) => {
-    const personName: string | null = item.packed_by_name ?? null
-    if (!personName) return
+    const packedByName: string | null = item.packed_by_name ?? null
+    if (!packedByName) return
+    const names = packedByName.split(',').map((n: string) => n.trim()).filter(Boolean)
     const amount = item.amount || 0
     const price = pricesMap[normalizeItemNumber(item.item_number)] || 0
 
-    if (!personStatsMap[personName]) {
-      personStatsMap[personName] = { name: personName, manHours: 0, itemsPacked: 0, revenue: 0 }
-    }
-    personStatsMap[personName].itemsPacked += amount
-    personStatsMap[personName].revenue += price * amount
+    names.forEach((personName: string) => {
+      if (!personStatsMap[personName]) {
+        personStatsMap[personName] = { name: personName, manHours: 0, itemsPacked: 0, revenue: 0 }
+      }
+      personStatsMap[personName].itemsPacked += amount
+      personStatsMap[personName].revenue += price * amount
+    })
   })
 
   const personStatsArray = Object.values(personStatsMap)
