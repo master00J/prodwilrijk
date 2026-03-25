@@ -32,6 +32,7 @@ export interface PersonStats {
   manHours: number
   itemsPacked: number
   revenue: number
+  materialCost: number
   itemsPerHour: number
   revenuePerHour: number
 }
@@ -684,7 +685,7 @@ export async function fetchPrepackStats({
   const avgFtePerDay = totalDaysPacked > 0 ? Number((totalFte / totalDaysPacked).toFixed(2)) : 0
   const averageItemsPerFte = totalFte > 0 ? Number((totalItemsPacked / totalFte).toFixed(2)) : 0
 
-  const personStatsMap: Record<string, { name: string; manHours: number; itemsPacked: number; revenue: number }> = {}
+  const personStatsMap: Record<string, { name: string; manHours: number; itemsPacked: number; revenue: number; materialCost: number }> = {}
 
   // Aggregate man-hours per employee from time_logs
   logs.forEach((log: any) => {
@@ -695,7 +696,7 @@ export async function fetchPrepackStats({
       const personName = log.employees.name
 
       if (!personStatsMap[personName]) {
-        personStatsMap[personName] = { name: personName, manHours: 0, itemsPacked: 0, revenue: 0 }
+        personStatsMap[personName] = { name: personName, manHours: 0, itemsPacked: 0, revenue: 0, materialCost: 0 }
       }
       personStatsMap[personName].manHours += hours
     }
@@ -713,12 +714,14 @@ export async function fetchPrepackStats({
     const price = pricesMap[normalizeItemNumber(item.item_number)] || 0
     const share = 1 / names.length
 
+    const materialUnitCost = materialCostMap[normalizeItemNumber(item.item_number)] || 0
     names.forEach((personName: string) => {
       if (!personStatsMap[personName]) {
-        personStatsMap[personName] = { name: personName, manHours: 0, itemsPacked: 0, revenue: 0 }
+        personStatsMap[personName] = { name: personName, manHours: 0, itemsPacked: 0, revenue: 0, materialCost: 0 }
       }
       personStatsMap[personName].itemsPacked += amount * share
       personStatsMap[personName].revenue += price * amount * share
+      personStatsMap[personName].materialCost += materialUnitCost * amount * share
     })
   })
 
@@ -731,6 +734,7 @@ export async function fetchPrepackStats({
         manHours: Number(stat.manHours.toFixed(2)),
         itemsPacked: Number(stat.itemsPacked.toFixed(2)),
         revenue: Number(stat.revenue.toFixed(2)),
+        materialCost: Number(stat.materialCost.toFixed(2)),
         itemsPerHour,
         revenuePerHour,
       }

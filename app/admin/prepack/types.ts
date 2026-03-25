@@ -29,6 +29,7 @@ export interface PersonStats {
   manHours: number
   itemsPacked: number
   revenue: number
+  materialCost: number
   itemsPerHour: number
   revenuePerHour: number
 }

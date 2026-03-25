@@ -794,6 +794,7 @@ export default function PrepackMonitorPage() {
                       <th className="text-right py-2 pr-3 font-semibold text-gray-500 whitespace-nowrap">Manuren</th>
                       <th className="text-right py-2 pr-3 font-semibold text-gray-500 whitespace-nowrap">Items/uur</th>
                       <th className="text-right py-2 pr-3 font-semibold text-gray-500 whitespace-nowrap">Omzet/uur</th>
+                      <th className="text-right py-2 pr-3 font-semibold text-gray-500 whitespace-nowrap">Materiaal</th>
                       <th className="text-right py-2 pr-3 font-semibold text-gray-500 whitespace-nowrap">Loonkost</th>
                       <th className="text-right py-2 font-semibold text-gray-500 whitespace-nowrap">Netto marge/uur</th>
                     </tr>
@@ -804,7 +805,10 @@ export default function PrepackMonitorPage() {
                       const isTop = idx === 0 && hasHours && stat.itemsPerHour > 0
                       const pct = maxItemsPerHour > 0 && hasHours ? (stat.itemsPerHour / maxItemsPerHour) * 100 : 0
                       const laborCost = stat.manHours * hourlyRate
-                      const netMarginPerHour = hasHours ? stat.revenuePerHour - hourlyRate : null
+                      const materialCostPerHour = hasHours ? stat.materialCost / stat.manHours : null
+                      const netMarginPerHour = hasHours
+                        ? stat.revenuePerHour - (materialCostPerHour ?? 0) - hourlyRate
+                        : null
                       const isPositiveMargin = netMarginPerHour !== null && netMarginPerHour >= 0
                       return (
                         <tr key={stat.name} className={`border-b border-gray-50 ${isTop ? 'bg-emerald-50' : ''}`}>
@@ -842,6 +846,9 @@ export default function PrepackMonitorPage() {
                               <span className="text-gray-300 text-xs">—</span>
                             )}
                           </td>
+                          <td className="py-2.5 pr-3 text-right tabular-nums text-rose-400">
+                            −€{stat.materialCost.toFixed(2)}
+                          </td>
                           <td className="py-2.5 pr-3 text-right tabular-nums text-rose-600">
                             −€{laborCost.toFixed(2)}
                           </td>
@@ -863,8 +870,9 @@ export default function PrepackMonitorPage() {
                     const totalItems = sorted.reduce((s, p) => s + p.itemsPacked, 0)
                     const totalHours = sorted.reduce((s, p) => s + p.manHours, 0)
                     const totalRevenue = sorted.reduce((s, p) => s + p.revenue, 0)
+                    const totalMaterial = sorted.reduce((s, p) => s + p.materialCost, 0)
                     const totalLaborCost = totalHours * hourlyRate
-                    const totalNetMargin = totalRevenue - totalLaborCost
+                    const totalNetMargin = totalRevenue - totalMaterial - totalLaborCost
                     return (
                       <tfoot>
                         <tr className="border-t-2 border-gray-200 bg-gray-50 font-semibold text-sm">
@@ -877,6 +885,7 @@ export default function PrepackMonitorPage() {
                           <td className="py-2.5 pr-3 text-right tabular-nums text-gray-800">
                             €{totalHours > 0 ? (totalRevenue / totalHours).toFixed(2) : '—'}
                           </td>
+                          <td className="py-2.5 pr-3 text-right tabular-nums text-rose-400">−€{totalMaterial.toFixed(2)}</td>
                           <td className="py-2.5 pr-3 text-right tabular-nums text-rose-600">−€{totalLaborCost.toFixed(2)}</td>
                           <td className={`py-2.5 text-right tabular-nums ${totalNetMargin >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
                             {totalNetMargin >= 0 ? '+' : ''}€{totalNetMargin.toFixed(2)}
@@ -888,7 +897,7 @@ export default function PrepackMonitorPage() {
                 </table>
               </div>
               <p className="mt-3 text-xs text-gray-400">
-                Loonkost = manuren × uurloonkost. Netto marge/uur = omzet/uur − uurloonkost. Enkel berekend voor medewerkers met geregistreerde uren.
+                Netto marge/uur = omzet/uur − materiaal/uur − uurloonkost. Enkel berekend voor medewerkers met geregistreerde uren.
               </p>
             </div>
           )
