@@ -46,6 +46,7 @@ export interface DetailedItem {
   materialCostTotal: number
   date_packed: string
   date_added: string
+  packed_by_name?: string | null
 }
 
 export type DetailSortColumn = keyof Pick<DetailedItem,

@@ -49,6 +49,7 @@ export interface DetailedItem {
   materialCostTotal: number
   date_packed: string
   date_added: string
+  packed_by_name?: string | null
 }
 
 export interface PrepackStatsResult {
@@ -765,6 +766,7 @@ export async function fetchPrepackStats({
             materialCostTotal: Number(materialCostTotal.toFixed(2)),
             date_packed: item.date_packed,
             date_added: item.date_added,
+            packed_by_name: item.packed_by_name ?? null,
           }
         })
         .sort((a, b) => new Date(b.date_packed).getTime() - new Date(a.date_packed).getTime())

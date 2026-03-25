@@ -28,6 +28,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   ListOrdered,
+  ChevronDown,
 } from 'lucide-react'
 import CollapsibleCard from '@/components/admin/prepack/CollapsibleCard'
 import { usePrepackStats } from './usePrepackStats'
@@ -140,6 +141,7 @@ export default function PrepackMonitorPage() {
   const grossMargin = totals ? totals.totalRevenue - totals.totalMaterialCost : null
 
   const [hourlyRate, setHourlyRate] = useState<number>(47)
+  const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null)
 
   const totalLaborCost = totals ? totals.totalManHours * hourlyRate : null
   const netMarginAfterLabor = grossMargin != null && totalLaborCost != null
@@ -810,58 +812,175 @@ export default function PrepackMonitorPage() {
                         ? stat.revenuePerHour - (materialCostPerHour ?? 0) - hourlyRate
                         : null
                       const isPositiveMargin = netMarginPerHour !== null && netMarginPerHour >= 0
+                      const isExpanded = expandedEmployee === stat.name
+                      const personItems = filteredDetailedItems.filter(item => {
+                        if (!item.packed_by_name) return false
+                        return item.packed_by_name.split(',').map((n: string) => n.trim()).includes(stat.name)
+                      })
                       return (
-                        <tr key={stat.name} className={`border-b border-gray-50 ${isTop ? 'bg-emerald-50' : ''}`}>
-                          <td className="py-2.5 pr-3 tabular-nums text-gray-400 font-medium">
-                            {isTop ? <span className="text-emerald-600 font-bold">★</span> : idx + 1}
-                          </td>
-                          <td className="py-2.5 pr-3 font-medium text-gray-800">{stat.name}</td>
-                          <td className="py-2.5 pr-3 tabular-nums text-right text-gray-700">
-                            {Number.isInteger(stat.itemsPacked) ? stat.itemsPacked : stat.itemsPacked.toFixed(2)}
-                          </td>
-                          <td className="py-2.5 pr-3 tabular-nums text-right text-gray-700">{stat.manHours.toFixed(2)} u</td>
-                          <td className="py-2.5 pr-3 text-right">
-                            {hasHours ? (
-                              <div className="flex items-center justify-end gap-2">
-                                <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden hidden sm:block">
-                                  <div
-                                    className={`h-full rounded-full transition-all duration-500 ${isTop ? 'bg-emerald-500' : 'bg-blue-400'}`}
-                                    style={{ width: `${pct}%` }}
-                                  />
-                                </div>
-                                <span className={`tabular-nums font-semibold ${isTop ? 'text-emerald-700' : 'text-gray-700'}`}>
-                                  {stat.itemsPerHour.toFixed(2)}
-                                </span>
+                        <>
+                          <tr
+                            key={stat.name}
+                            onClick={() => setExpandedEmployee(isExpanded ? null : stat.name)}
+                            className={`border-b border-gray-50 cursor-pointer select-none transition-colors ${isTop ? 'bg-emerald-50 hover:bg-emerald-100' : 'hover:bg-blue-50'}`}
+                          >
+                            <td className="py-2.5 pr-3 tabular-nums text-gray-400 font-medium">
+                              {isTop ? <span className="text-emerald-600 font-bold">★</span> : idx + 1}
+                            </td>
+                            <td className="py-2.5 pr-3 font-medium text-gray-800">
+                              <div className="flex items-center gap-1.5">
+                                <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                                {stat.name}
                               </div>
-                            ) : (
-                              <span className="text-gray-300 text-xs">—</span>
-                            )}
-                          </td>
-                          <td className="py-2.5 pr-3 text-right tabular-nums text-gray-700">
-                            {hasHours ? (
-                              <span className={isTop ? 'font-semibold text-emerald-700' : ''}>
-                                €{stat.revenuePerHour.toFixed(2)}
-                              </span>
-                            ) : (
-                              <span className="text-gray-300 text-xs">—</span>
-                            )}
-                          </td>
-                          <td className="py-2.5 pr-3 text-right tabular-nums text-rose-400">
-                            −€{stat.materialCost.toFixed(2)}
-                          </td>
-                          <td className="py-2.5 pr-3 text-right tabular-nums text-rose-600">
-                            −€{laborCost.toFixed(2)}
-                          </td>
-                          <td className="py-2.5 text-right tabular-nums font-semibold">
-                            {netMarginPerHour !== null ? (
-                              <span className={isPositiveMargin ? 'text-emerald-700' : 'text-rose-600'}>
-                                {isPositiveMargin ? '+' : ''}€{netMarginPerHour.toFixed(2)}
-                              </span>
-                            ) : (
-                              <span className="text-gray-300 text-xs">—</span>
-                            )}
-                          </td>
-                        </tr>
+                            </td>
+                            <td className="py-2.5 pr-3 tabular-nums text-right text-gray-700">
+                              {Number.isInteger(stat.itemsPacked) ? stat.itemsPacked : stat.itemsPacked.toFixed(2)}
+                            </td>
+                            <td className="py-2.5 pr-3 tabular-nums text-right text-gray-700">{stat.manHours.toFixed(2)} u</td>
+                            <td className="py-2.5 pr-3 text-right">
+                              {hasHours ? (
+                                <div className="flex items-center justify-end gap-2">
+                                  <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden hidden sm:block">
+                                    <div
+                                      className={`h-full rounded-full transition-all duration-500 ${isTop ? 'bg-emerald-500' : 'bg-blue-400'}`}
+                                      style={{ width: `${pct}%` }}
+                                    />
+                                  </div>
+                                  <span className={`tabular-nums font-semibold ${isTop ? 'text-emerald-700' : 'text-gray-700'}`}>
+                                    {stat.itemsPerHour.toFixed(2)}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-300 text-xs">—</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 pr-3 text-right tabular-nums text-gray-700">
+                              {hasHours ? (
+                                <span className={isTop ? 'font-semibold text-emerald-700' : ''}>
+                                  €{stat.revenuePerHour.toFixed(2)}
+                                </span>
+                              ) : (
+                                <span className="text-gray-300 text-xs">—</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 pr-3 text-right tabular-nums text-rose-400">
+                              −€{stat.materialCost.toFixed(2)}
+                            </td>
+                            <td className="py-2.5 pr-3 text-right tabular-nums text-rose-600">
+                              −€{laborCost.toFixed(2)}
+                            </td>
+                            <td className="py-2.5 text-right tabular-nums font-semibold">
+                              {netMarginPerHour !== null ? (
+                                <span className={isPositiveMargin ? 'text-emerald-700' : 'text-rose-600'}>
+                                  {isPositiveMargin ? '+' : ''}€{netMarginPerHour.toFixed(2)}
+                                </span>
+                              ) : (
+                                <span className="text-gray-300 text-xs">—</span>
+                              )}
+                            </td>
+                          </tr>
+                          {isExpanded && (
+                            <tr key={`${stat.name}-detail`} className="bg-gray-50">
+                              <td colSpan={9} className="px-4 py-3">
+                                {personItems.length === 0 ? (
+                                  <p className="text-xs text-gray-400 py-2">
+                                    Geen gedetailleerde items gevonden. Controleer of de geselecteerde periode lang genoeg is voor detaildata.
+                                  </p>
+                                ) : (
+                                  <div className="rounded-lg border border-gray-200 overflow-hidden">
+                                    <table className="w-full text-xs">
+                                      <thead>
+                                        <tr className="bg-gray-100 text-gray-500">
+                                          <th className="px-3 py-2 text-left font-semibold">Datum verpakt</th>
+                                          <th className="px-3 py-2 text-left font-semibold">Itemnummer</th>
+                                          <th className="px-3 py-2 text-left font-semibold">PO Nummer</th>
+                                          <th className="px-3 py-2 text-right font-semibold">Aantal</th>
+                                          <th className="px-3 py-2 text-right font-semibold">Prijs</th>
+                                          <th className="px-3 py-2 text-right font-semibold">Omzet</th>
+                                          <th className="px-3 py-2 text-right font-semibold">Materiaal</th>
+                                          {(() => {
+                                            const hasShared = personItems.some(i =>
+                                              i.packed_by_name && i.packed_by_name.includes(',')
+                                            )
+                                            return hasShared ? (
+                                              <th className="px-3 py-2 text-left font-semibold">Samen met</th>
+                                            ) : null
+                                          })()}
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-gray-100 bg-white">
+                                        {personItems.map(item => {
+                                          const names = (item.packed_by_name ?? '').split(',').map((n: string) => n.trim()).filter(Boolean)
+                                          const share = names.length > 0 ? 1 / names.length : 1
+                                          const others = names.filter((n: string) => n !== stat.name)
+                                          const hasShared = personItems.some(i =>
+                                            i.packed_by_name && i.packed_by_name.includes(',')
+                                          )
+                                          return (
+                                            <tr key={item.id} className="hover:bg-blue-50 transition-colors">
+                                              <td className="px-3 py-2 text-gray-600 whitespace-nowrap">
+                                                {new Date(item.date_packed).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                              </td>
+                                              <td className="px-3 py-2 font-medium text-gray-800">{item.item_number}</td>
+                                              <td className="px-3 py-2 text-gray-600">{item.po_number}</td>
+                                              <td className="px-3 py-2 text-right tabular-nums text-gray-700">
+                                                {share < 1
+                                                  ? `${(item.amount * share % 1 === 0 ? item.amount * share : (item.amount * share).toFixed(2))}`
+                                                  : item.amount}
+                                              </td>
+                                              <td className="px-3 py-2 text-right tabular-nums text-gray-600">
+                                                {item.priceFound ? `€${item.price.toFixed(2)}` : <span className="text-gray-300">—</span>}
+                                              </td>
+                                              <td className="px-3 py-2 text-right tabular-nums text-amber-700 font-medium">
+                                                €{(item.revenue * share).toFixed(2)}
+                                              </td>
+                                              <td className="px-3 py-2 text-right tabular-nums text-rose-400">
+                                                €{(item.materialCostTotal * share).toFixed(2)}
+                                              </td>
+                                              {hasShared && (
+                                                <td className="px-3 py-2 text-gray-400">
+                                                  {others.length > 0 ? others.join(', ') : '—'}
+                                                </td>
+                                              )}
+                                            </tr>
+                                          )
+                                        })}
+                                      </tbody>
+                                      <tfoot>
+                                        <tr className="bg-gray-50 font-semibold text-xs border-t border-gray-200">
+                                          <td className="px-3 py-2 text-gray-600" colSpan={3}>Subtotaal</td>
+                                          <td className="px-3 py-2 text-right tabular-nums text-gray-800">
+                                            {(() => {
+                                              const t = personItems.reduce((s, i) => {
+                                                const names = (i.packed_by_name ?? '').split(',').map((n: string) => n.trim()).filter(Boolean)
+                                                return s + i.amount * (names.length > 0 ? 1 / names.length : 1)
+                                              }, 0)
+                                              return t % 1 === 0 ? t : t.toFixed(2)
+                                            })()}
+                                          </td>
+                                          <td className="px-3 py-2" />
+                                          <td className="px-3 py-2 text-right tabular-nums text-amber-700">
+                                            €{personItems.reduce((s, i) => {
+                                              const names = (i.packed_by_name ?? '').split(',').map((n: string) => n.trim()).filter(Boolean)
+                                              return s + i.revenue * (names.length > 0 ? 1 / names.length : 1)
+                                            }, 0).toFixed(2)}
+                                          </td>
+                                          <td className="px-3 py-2 text-right tabular-nums text-rose-400">
+                                            €{personItems.reduce((s, i) => {
+                                              const names = (i.packed_by_name ?? '').split(',').map((n: string) => n.trim()).filter(Boolean)
+                                              return s + i.materialCostTotal * (names.length > 0 ? 1 / names.length : 1)
+                                            }, 0).toFixed(2)}
+                                          </td>
+                                          <td className="px-3 py-2" />
+                                        </tr>
+                                      </tfoot>
+                                    </table>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          )}
+                        </>
                       )
                     })}
                   </tbody>
