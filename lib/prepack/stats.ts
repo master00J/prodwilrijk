@@ -30,6 +30,10 @@ export interface Totals {
 export interface PersonStats {
   name: string
   manHours: number
+  itemsPacked: number
+  revenue: number
+  itemsPerHour: number
+  revenuePerHour: number
 }
 
 export interface DetailedItem {
@@ -680,7 +684,9 @@ export async function fetchPrepackStats({
   const avgFtePerDay = totalDaysPacked > 0 ? Number((totalFte / totalDaysPacked).toFixed(2)) : 0
   const averageItemsPerFte = totalFte > 0 ? Number((totalItemsPacked / totalFte).toFixed(2)) : 0
 
-  const personStatsMap: Record<string, { name: string; manHours: number }> = {}
+  const personStatsMap: Record<string, { name: string; manHours: number; itemsPacked: number; revenue: number }> = {}
+
+  // Aggregate man-hours per employee from time_logs
   logs.forEach((log: any) => {
     if (log.start_time && log.end_time && log.employees?.name) {
       const startTime = new Date(log.start_time)
@@ -689,21 +695,40 @@ export async function fetchPrepackStats({
       const personName = log.employees.name
 
       if (!personStatsMap[personName]) {
-        personStatsMap[personName] = {
-          name: personName,
-          manHours: 0,
-        }
+        personStatsMap[personName] = { name: personName, manHours: 0, itemsPacked: 0, revenue: 0 }
       }
       personStatsMap[personName].manHours += hours
     }
   })
 
+  // Aggregate items packed and revenue per employee from packed_items
+  items.forEach((item: any) => {
+    const personName: string | null = item.packed_by_name ?? null
+    if (!personName) return
+    const amount = item.amount || 0
+    const price = pricesMap[normalizeItemNumber(item.item_number)] || 0
+
+    if (!personStatsMap[personName]) {
+      personStatsMap[personName] = { name: personName, manHours: 0, itemsPacked: 0, revenue: 0 }
+    }
+    personStatsMap[personName].itemsPacked += amount
+    personStatsMap[personName].revenue += price * amount
+  })
+
   const personStatsArray = Object.values(personStatsMap)
-    .map((stat) => ({
-      name: stat.name,
-      manHours: Number(stat.manHours.toFixed(2)),
-    }))
-    .sort((a, b) => b.manHours - a.manHours)
+    .map((stat) => {
+      const itemsPerHour = stat.manHours > 0 ? Number((stat.itemsPacked / stat.manHours).toFixed(2)) : 0
+      const revenuePerHour = stat.manHours > 0 ? Number((stat.revenue / stat.manHours).toFixed(2)) : 0
+      return {
+        name: stat.name,
+        manHours: Number(stat.manHours.toFixed(2)),
+        itemsPacked: stat.itemsPacked,
+        revenue: Number(stat.revenue.toFixed(2)),
+        itemsPerHour,
+        revenuePerHour,
+      }
+    })
+    .sort((a, b) => b.itemsPerHour - a.itemsPerHour || b.manHours - a.manHours)
 
   const detailedItems: DetailedItem[] = skipDetails
     ? []

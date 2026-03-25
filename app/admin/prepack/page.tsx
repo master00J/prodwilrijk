@@ -727,7 +727,7 @@ export default function PrepackMonitorPage() {
         <CollapsibleCard
           id="people"
           title="Medewerkers"
-          subtitle="Manuren per persoon in de geselecteerde periode"
+          subtitle="Rendabiliteit per medewerker in de geselecteerde periode"
           isCollapsed={collapsedSections.people}
           onToggle={() => toggleSection('people')}
         >
@@ -746,29 +746,74 @@ export default function PrepackMonitorPage() {
             Geen data gevonden voor de geselecteerde periode
           </div>
         ) : (() => {
-          const maxHours = Math.max(...personStats.map(s => s.manHours))
+          const sorted = personStats.slice().sort((a, b) => b.itemsPerHour - a.itemsPerHour || b.manHours - a.manHours)
+          const maxItemsPerHour = Math.max(...sorted.map(s => s.itemsPerHour))
           return (
-            <div className="space-y-2.5">
-              {personStats
-                .slice()
-                .sort((a, b) => b.manHours - a.manHours)
-                .map((stat) => {
-                  const pct = maxHours > 0 ? (stat.manHours / maxHours) * 100 : 0
-                  return (
-                    <div key={stat.name} className="flex items-center gap-3 group">
-                      <div className="w-36 shrink-0 text-sm font-medium text-gray-800 truncate">{stat.name}</div>
-                      <div className="flex-1 h-5 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                      <div className="w-20 text-right text-sm tabular-nums text-gray-700 font-medium">
-                        {stat.manHours.toFixed(2)} u
-                      </div>
-                    </div>
-                  )
-                })}
+            <div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="text-left py-2 pr-4 font-semibold text-gray-500 w-8">#</th>
+                      <th className="text-left py-2 pr-4 font-semibold text-gray-500">Naam</th>
+                      <th className="text-right py-2 pr-4 font-semibold text-gray-500 whitespace-nowrap">Items ingepakt</th>
+                      <th className="text-right py-2 pr-4 font-semibold text-gray-500 whitespace-nowrap">Manuren</th>
+                      <th className="text-right py-2 pr-4 font-semibold text-gray-500 whitespace-nowrap">Items/uur</th>
+                      <th className="text-right py-2 font-semibold text-gray-500 whitespace-nowrap">Omzet/uur</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sorted.map((stat, idx) => {
+                      const hasHours = stat.manHours > 0
+                      const isTop = idx === 0 && hasHours && stat.itemsPerHour > 0
+                      const pct = maxItemsPerHour > 0 && hasHours ? (stat.itemsPerHour / maxItemsPerHour) * 100 : 0
+                      return (
+                        <tr key={stat.name} className={`border-b border-gray-50 ${isTop ? 'bg-emerald-50' : ''}`}>
+                          <td className="py-2.5 pr-4 tabular-nums text-gray-400 font-medium">
+                            {isTop ? (
+                              <span className="text-emerald-600 font-bold">★</span>
+                            ) : (
+                              idx + 1
+                            )}
+                          </td>
+                          <td className="py-2.5 pr-4 font-medium text-gray-800">{stat.name}</td>
+                          <td className="py-2.5 pr-4 tabular-nums text-right text-gray-700">{stat.itemsPacked}</td>
+                          <td className="py-2.5 pr-4 tabular-nums text-right text-gray-700">{stat.manHours.toFixed(2)} u</td>
+                          <td className="py-2.5 pr-4 text-right">
+                            {hasHours ? (
+                              <div className="flex items-center justify-end gap-2">
+                                <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden hidden sm:block">
+                                  <div
+                                    className={`h-full rounded-full transition-all duration-500 ${isTop ? 'bg-emerald-500' : 'bg-blue-400'}`}
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                                <span className={`tabular-nums font-semibold ${isTop ? 'text-emerald-700' : 'text-gray-700'}`}>
+                                  {stat.itemsPerHour.toFixed(2)}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-gray-300 text-xs">—</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 text-right tabular-nums text-gray-700">
+                            {hasHours ? (
+                              <span className={isTop ? 'font-semibold text-emerald-700' : ''}>
+                                €{stat.revenuePerHour.toFixed(2)}
+                              </span>
+                            ) : (
+                              <span className="text-gray-300 text-xs">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-3 text-xs text-gray-400">
+                Items/uur en omzet/uur zijn alleen berekend voor medewerkers die ook uren geregistreerd hebben via de timer.
+              </p>
             </div>
           )
         })()}

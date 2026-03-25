@@ -271,6 +271,8 @@ export interface PackedItem {
   date_packed: string
   original_id: number
   created_at?: string
+  packed_by_employee_id?: number | null
+  packed_by_name?: string | null
 }
 
 export interface DailyReport {

@@ -27,6 +27,10 @@ export interface Totals {
 export interface PersonStats {
   name: string
   manHours: number
+  itemsPacked: number
+  revenue: number
+  itemsPerHour: number
+  revenuePerHour: number
 }
 
 export interface DetailedItem {

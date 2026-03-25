@@ -134,7 +134,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { ids } = body
+    const { ids, employeeId, employeeName } = body
 
     if (!Array.isArray(ids) || ids.length === 0) {
       return NextResponse.json(
@@ -156,13 +156,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Insert into packed_items
+    // Insert into packed_items (including employee tracking)
     const packedItems = items.map(item => ({
       item_number: item.item_number,
       po_number: item.po_number,
       amount: item.amount,
       date_added: item.date_added,
       original_id: item.id,
+      packed_by_employee_id: employeeId ?? null,
+      packed_by_name: employeeName ?? null,
     }))
 
     const { error: insertError } = await supabaseAdmin

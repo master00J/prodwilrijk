@@ -15,6 +15,7 @@ import ActiveTimersCard from '@/components/items-to-pack/ActiveTimersCard'
 import ProblemCommentModal from '@/components/items-to-pack/ProblemCommentModal'
 import MarkProblemModal from '@/components/items-to-pack/MarkProblemModal'
 import MeasurementModal from '@/components/items-to-pack/MeasurementModal'
+import EmployeePickerModal from '@/components/items-to-pack/EmployeePickerModal'
 
 interface ItemsResponse {
   items: ItemToPack[]
@@ -47,6 +48,8 @@ export default function ItemsToPackPage() {
   const [showProblemCommentModal, setShowProblemCommentModal] = useState(false)
   const [showMarkProblemModal, setShowMarkProblemModal] = useState(false)
   const [showMeasurementModal, setShowMeasurementModal] = useState(false)
+  const [showEmployeePickerModal, setShowEmployeePickerModal] = useState(false)
+  const [pendingPackIds, setPendingPackIds] = useState<number[]>([])
   const [activeTimeLogs, setActiveTimeLogs] = useState<any[]>([])
   const [selectedItemForAction, setSelectedItemForAction] = useState<number | null>(null)
   const [sortColumn, setSortColumn] = useState<keyof ItemToPack | null>(null)
@@ -200,21 +203,28 @@ export default function ItemsToPackPage() {
       return
     }
 
-    if (!confirm(`Mark ${selectedItems.size} item(s) as packed?`)) {
-      return
-    }
+    setPendingPackIds(Array.from(selectedItems))
+    setShowEmployeePickerModal(true)
+  }
 
+  const handleEmployeeConfirm = async (employeeId: number, employeeName: string) => {
+    setShowEmployeePickerModal(false)
     try {
       const response = await fetch('/api/items-to-pack', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: Array.from(selectedItems) }),
+        body: JSON.stringify({
+          ids: pendingPackIds,
+          employeeId,
+          employeeName,
+        }),
       })
 
       if (!response.ok) throw new Error('Failed to mark items as packed')
 
       await fetchItems()
       setSelectedItems(new Set())
+      setPendingPackIds([])
       alert('Items marked as packed successfully')
     } catch (error) {
       console.error('Error marking items as packed:', error)
@@ -819,6 +829,17 @@ export default function ItemsToPackPage() {
             setSelectedItemForAction(null)
           }}
           onSave={fetchItems}
+        />
+      )}
+
+      {showEmployeePickerModal && (
+        <EmployeePickerModal
+          itemCount={pendingPackIds.length}
+          onConfirm={handleEmployeeConfirm}
+          onCancel={() => {
+            setShowEmployeePickerModal(false)
+            setPendingPackIds([])
+          }}
         />
       )}
     </div>
