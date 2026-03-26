@@ -35,6 +35,7 @@ export function usePrepackStats(
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [loading, setLoading] = useState(false)
+  const [silentRefreshing, setSilentRefreshing] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const [dailyStats, setDailyStats] = useState<DailyStat[]>([])
@@ -293,6 +294,22 @@ export function usePrepackStats(
     }
   }, [])
 
+  // Stille refresh: alleen data ophalen zonder loading-indicator
+  const silentRefresh = useCallback(async () => {
+    const fromValue = dateFromInputRef.current?.value ?? dateFrom
+    const toValue = dateToInputRef.current?.value ?? dateTo
+    if (!fromValue || !toValue) return
+    setSilentRefreshing(true)
+    try {
+      const data = await fetchStatsData({ from: fromValue, to: toValue })
+      applyMainStats(data)
+    } catch {
+      // stil falen — geen melding tonen bij achtergrond-refresh
+    } finally {
+      setSilentRefreshing(false)
+    }
+  }, [dateFrom, dateTo, dateFromInputRef, dateToInputRef, fetchStatsData, applyMainStats])
+
   useEffect(() => {
     if (initialLoadDone.current) return
     initialLoadDone.current = true
@@ -308,6 +325,19 @@ export function usePrepackStats(
     void handleRefresh({ from: fromValue, to: toValue })
     void fetchQueueStats()
   }, [dateFromInputRef, dateToInputRef, handleRefresh, fetchQueueStats])
+
+  // Auto-refresh elke 60s als de geselecteerde periode vandaag bevat
+  useEffect(() => {
+    const todayStr = new Date().toISOString().split('T')[0]
+    const rangeIncludesToday = dateTo >= todayStr
+    if (!rangeIncludesToday || !dateTo) return
+
+    const interval = setInterval(() => {
+      void silentRefresh()
+    }, 60_000)
+
+    return () => clearInterval(interval)
+  }, [dateTo, silentRefresh])
 
   const toggleSection = useCallback((key: keyof typeof collapsedSections) => {
     setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] }))
@@ -513,6 +543,7 @@ export function usePrepackStats(
     dateFrom,
     dateTo,
     loading,
+    silentRefreshing,
     exporting,
     lastUpdated,
     dailyStats,

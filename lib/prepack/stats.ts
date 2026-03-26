@@ -251,7 +251,6 @@ export async function fetchPrepackStats({
       `
       )
       .eq('type', 'items_to_pack')
-      .not('end_time', 'is', null)
       .range(from, to)
     if (fromValue) {
       query = query.gte('start_time', fromValue)
@@ -268,21 +267,27 @@ export async function fetchPrepackStats({
       .from('time_logs')
       .select('id, employee_id, start_time, end_time')
       .eq('type', 'items_to_pack_airtec')
-      .not('end_time', 'is', null)
       .range(from, to)
     if (fromValue) query = query.gte('start_time', fromValue)
     if (toValue) query = query.lte('start_time', toValue)
     return await query
   })
 
+  // Actieve timers (end_time = null) krijgen de huidige tijd als virtuele eindtijd
+  const nowIso = new Date().toISOString()
+  const normalizeLog = (l: any) => ({
+    ...l,
+    end_time: l.end_time ?? nowIso,
+  })
+
   // Groepeer ALLE logs (prepack + airtec) per medewerker voor overlap-berekening
   const allLogsByEmployee = groupLogsByEmployee([
-    ...(timeLogs || []).map((l: any) => ({ employee_id: l.employee_id, start_time: l.start_time, end_time: l.end_time })),
-    ...(airtecTimeLogs || []).map((l: any) => ({ employee_id: l.employee_id, start_time: l.start_time, end_time: l.end_time })),
+    ...(timeLogs || []).map((l: any) => ({ employee_id: l.employee_id, start_time: l.start_time, end_time: l.end_time ?? nowIso })),
+    ...(airtecTimeLogs || []).map((l: any) => ({ employee_id: l.employee_id, start_time: l.start_time, end_time: l.end_time ?? nowIso })),
   ])
 
   const items = packedItems || []
-  const logs = timeLogs || []
+  const logs = (timeLogs || []).map(normalizeLog)
   const incoming = [...(incomingItems || []), ...(incomingPackedItems || [])]
 
   const rawItemNumbers = items
@@ -612,7 +617,7 @@ export async function fetchPrepackStats({
   })
 
   logs.forEach((log: any) => {
-    if (log.start_time && log.end_time) {
+    if (log.start_time) {
       const startTime = new Date(log.start_time)
       const endTime = new Date(log.end_time)
       const date = startTime.toISOString().split('T')[0]
@@ -684,7 +689,7 @@ export async function fetchPrepackStats({
 
   const totalItemsPacked = items.reduce((sum, item: any) => sum + (item.amount || 0), 0)
   const totalManHours = logs.reduce((sum, log: any) => {
-    if (log.start_time && log.end_time) {
+    if (log.start_time) {
       const startTime = new Date(log.start_time)
       const endTime = new Date(log.end_time)
       const rawSeconds = calculateWorkedSeconds(startTime, endTime)
@@ -743,7 +748,7 @@ export async function fetchPrepackStats({
 
   // Aggregate man-hours per employee from time_logs (met proportionele overlap-correctie)
   logs.forEach((log: any) => {
-    if (log.start_time && log.end_time && log.employees?.name) {
+    if (log.start_time && log.employees?.name) {
       const startTime = new Date(log.start_time)
       const endTime = new Date(log.end_time)
       const rawSeconds = calculateWorkedSeconds(startTime, endTime)

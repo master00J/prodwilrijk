@@ -208,7 +208,6 @@ export async function fetchAirtecStats({
       `
       )
       .eq('type', 'items_to_pack_airtec')
-      .not('end_time', 'is', null)
       .range(from, to)
 
     if (dateFrom) {
@@ -232,7 +231,6 @@ export async function fetchAirtecStats({
       .from('time_logs')
       .select('id, employee_id, start_time, end_time')
       .eq('type', 'items_to_pack')
-      .not('end_time', 'is', null)
       .range(from, to)
     if (dateFrom) {
       const fromDate = new Date(dateFrom)
@@ -247,14 +245,18 @@ export async function fetchAirtecStats({
     return await query
   })
 
+  // Actieve timers (end_time = null) krijgen de huidige tijd als virtuele eindtijd
+  const nowIso = new Date().toISOString()
+  const normalizeLog = (l: any) => ({ ...l, end_time: l.end_time ?? nowIso })
+
   // Groepeer ALLE logs (airtec + prepack) per medewerker voor overlap-berekening
   const allLogsByEmployee = groupLogsByEmployee([
-    ...(timeLogs || []).map((l: any) => ({ employee_id: l.employee_id, start_time: l.start_time, end_time: l.end_time })),
-    ...(prepackTimeLogs || []).map((l: any) => ({ employee_id: l.employee_id, start_time: l.start_time, end_time: l.end_time })),
+    ...(timeLogs || []).map((l: any) => ({ employee_id: l.employee_id, start_time: l.start_time, end_time: l.end_time ?? nowIso })),
+    ...(prepackTimeLogs || []).map((l: any) => ({ employee_id: l.employee_id, start_time: l.start_time, end_time: l.end_time ?? nowIso })),
   ])
 
   const items = packedItems || []
-  const logs = timeLogs || []
+  const logs = (timeLogs || []).map(normalizeLog)
   const incoming = incomingItems || []
 
   const uniqueKistnummers = [
@@ -321,7 +323,7 @@ export async function fetchAirtecStats({
   })
 
   logs.forEach((log: any) => {
-    if (log.start_time && log.end_time) {
+    if (log.start_time) {
       const startTime = new Date(log.start_time)
       const endTime = new Date(log.end_time)
       if (!Number.isFinite(startTime.getTime()) || !Number.isFinite(endTime.getTime())) {
@@ -395,7 +397,7 @@ export async function fetchAirtecStats({
 
   const totalItemsPacked = items.reduce((sum, item: any) => sum + (item.quantity || 0), 0)
   const totalManHours = logs.reduce((sum, log: any) => {
-    if (log.start_time && log.end_time) {
+    if (log.start_time) {
       const startTime = new Date(log.start_time)
       const endTime = new Date(log.end_time)
       const rawSeconds = calculateWorkedSeconds(startTime, endTime)
@@ -447,7 +449,7 @@ export async function fetchAirtecStats({
 
   const personStatsMap: Record<string, { name: string; manHours: number }> = {}
   logs.forEach((log: any) => {
-    if (log.start_time && log.end_time && log.employees?.name) {
+    if (log.start_time && log.employees?.name) {
       const startTime = new Date(log.start_time)
       const endTime = new Date(log.end_time)
       const rawSeconds = calculateWorkedSeconds(startTime, endTime)

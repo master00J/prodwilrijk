@@ -89,6 +89,7 @@ export default function PrepackMonitorPage() {
     dateFrom,
     dateTo,
     loading,
+    silentRefreshing,
     exporting,
     lastUpdated,
     dailyStats,
@@ -162,8 +163,8 @@ export default function PrepackMonitorPage() {
           </div>
           {lastUpdated && (
             <span className="inline-flex items-center gap-1.5 text-xs text-gray-400 bg-gray-50 border border-gray-200 rounded-full px-3 py-1">
-              <RefreshCw className="w-3 h-3" />
-              {formatDateTime(lastUpdated)}
+              <RefreshCw className={`w-3 h-3 ${silentRefreshing ? 'animate-spin text-blue-400' : ''}`} />
+              {silentRefreshing ? 'Refreshing...' : formatDateTime(lastUpdated)}
             </span>
           )}
         </div>
