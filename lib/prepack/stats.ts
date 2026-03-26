@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { calculateWorkedSeconds } from '@/lib/utils/time'
+import { calculateProportionFactor, groupLogsByEmployee } from '@/lib/utils/overlap-time'
 
 export interface DailyStat {
   date: string
@@ -260,6 +261,25 @@ export async function fetchPrepackStats({
     }
     return await query
   })
+
+  // Haal ook airtec-logs op voor overlapping-detectie (zelfde periode, afgesloten logs)
+  const airtecTimeLogs = await fetchAllRows<any>(async (from, to) => {
+    let query = supabaseAdmin
+      .from('time_logs')
+      .select('id, employee_id, start_time, end_time')
+      .eq('type', 'items_to_pack_airtec')
+      .not('end_time', 'is', null)
+      .range(from, to)
+    if (fromValue) query = query.gte('start_time', fromValue)
+    if (toValue) query = query.lte('start_time', toValue)
+    return await query
+  })
+
+  // Groepeer ALLE logs (prepack + airtec) per medewerker voor overlap-berekening
+  const allLogsByEmployee = groupLogsByEmployee([
+    ...(timeLogs || []).map((l: any) => ({ employee_id: l.employee_id, start_time: l.start_time, end_time: l.end_time })),
+    ...(airtecTimeLogs || []).map((l: any) => ({ employee_id: l.employee_id, start_time: l.start_time, end_time: l.end_time })),
+  ])
 
   const items = packedItems || []
   const logs = timeLogs || []
@@ -597,7 +617,12 @@ export async function fetchPrepackStats({
       const endTime = new Date(log.end_time)
       const date = startTime.toISOString().split('T')[0]
 
-      const hours = calculateWorkedSeconds(startTime, endTime) / 3600
+      const rawSeconds = calculateWorkedSeconds(startTime, endTime)
+      const factor = calculateProportionFactor(
+        { start_time: log.start_time, end_time: log.end_time },
+        allLogsByEmployee.get(log.employee_id) || [{ start_time: log.start_time, end_time: log.end_time }]
+      )
+      const hours = (rawSeconds * factor) / 3600
 
       if (!dailyStats[date]) {
         dailyStats[date] = {
@@ -662,7 +687,12 @@ export async function fetchPrepackStats({
     if (log.start_time && log.end_time) {
       const startTime = new Date(log.start_time)
       const endTime = new Date(log.end_time)
-      return sum + calculateWorkedSeconds(startTime, endTime) / 3600
+      const rawSeconds = calculateWorkedSeconds(startTime, endTime)
+      const factor = calculateProportionFactor(
+        { start_time: log.start_time, end_time: log.end_time },
+        allLogsByEmployee.get(log.employee_id) || [{ start_time: log.start_time, end_time: log.end_time }]
+      )
+      return sum + (rawSeconds * factor) / 3600
     }
     return sum
   }, 0)
@@ -711,12 +741,17 @@ export async function fetchPrepackStats({
 
   const personStatsMap: Record<string, { name: string; manHours: number; itemsPacked: number; revenue: number; materialCost: number }> = {}
 
-  // Aggregate man-hours per employee from time_logs
+  // Aggregate man-hours per employee from time_logs (met proportionele overlap-correctie)
   logs.forEach((log: any) => {
     if (log.start_time && log.end_time && log.employees?.name) {
       const startTime = new Date(log.start_time)
       const endTime = new Date(log.end_time)
-      const hours = calculateWorkedSeconds(startTime, endTime) / 3600
+      const rawSeconds = calculateWorkedSeconds(startTime, endTime)
+      const factor = calculateProportionFactor(
+        { start_time: log.start_time, end_time: log.end_time },
+        allLogsByEmployee.get(log.employee_id) || [{ start_time: log.start_time, end_time: log.end_time }]
+      )
+      const hours = (rawSeconds * factor) / 3600
       const personName = log.employees.name
 
       if (!personStatsMap[personName]) {
