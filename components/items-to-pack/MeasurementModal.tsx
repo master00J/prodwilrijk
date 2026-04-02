@@ -17,6 +17,24 @@ interface MeasurementData {
   special_instructions: string
 }
 
+function fieldRowClass(filled: boolean) {
+  return filled
+    ? 'rounded-lg border-2 border-emerald-400 bg-emerald-50/90 p-3 shadow-sm shadow-emerald-900/5'
+    : 'rounded-lg border-2 border-dashed border-gray-200 bg-white p-3'
+}
+
+function labelClass(filled: boolean) {
+  return filled ? 'text-emerald-900' : 'text-gray-700'
+}
+
+function inputClass(filled: boolean) {
+  const base =
+    'w-full px-4 py-2 border rounded-lg focus:ring-2 focus:outline-none transition-colors'
+  return filled
+    ? `${base} border-emerald-300 bg-white focus:ring-emerald-500 focus:border-emerald-500`
+    : `${base} border-gray-300 bg-white focus:ring-blue-500 focus:border-blue-500`
+}
+
 export default function MeasurementModal({
   item,
   isOpen,
@@ -106,6 +124,11 @@ export default function MeasurementModal({
 
   if (!isOpen || !item) return null
 
+  const hasPackaging = formData.packaging_method.trim().length > 0
+  const hasDimensions = formData.dimensions.trim().length > 0
+  const hasWeight = formData.net_weight.trim().length > 0
+  const hasSpecial = formData.special_instructions.trim().length > 0
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -142,12 +165,15 @@ export default function MeasurementModal({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
+          <div className={fieldRowClass(hasPackaging)}>
             <label
               htmlFor="packaging_method"
-              className="block text-sm font-medium text-gray-700 mb-2"
+              className={`block text-sm font-medium mb-2 ${labelClass(hasPackaging)}`}
             >
               Verpakkingsmethode <span className="text-red-500">*</span>
+              {hasPackaging && (
+                <span className="ml-2 text-xs font-normal text-emerald-700">ingevuld</span>
+              )}
             </label>
             <input
               type="text"
@@ -156,18 +182,21 @@ export default function MeasurementModal({
               onChange={(e) =>
                 setFormData({ ...formData, packaging_method: e.target.value })
               }
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className={inputClass(hasPackaging)}
               placeholder="Bijv. Kartonnen doos, Houten kist, Pallet, etc."
               required
             />
           </div>
 
-          <div>
+          <div className={fieldRowClass(hasDimensions)}>
             <label
               htmlFor="dimensions"
-              className="block text-sm font-medium text-gray-700 mb-2"
+              className={`block text-sm font-medium mb-2 ${labelClass(hasDimensions)}`}
             >
               Afmetingen <span className="text-red-500">*</span>
+              {hasDimensions && (
+                <span className="ml-2 text-xs font-normal text-emerald-700">ingevuld</span>
+              )}
             </label>
             <input
               type="text"
@@ -176,18 +205,21 @@ export default function MeasurementModal({
               onChange={(e) =>
                 setFormData({ ...formData, dimensions: e.target.value })
               }
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className={inputClass(hasDimensions)}
               placeholder="Bijv. 50x30x20 cm of LxBxH in cm"
               required
             />
           </div>
 
-          <div>
+          <div className={fieldRowClass(hasWeight)}>
             <label
               htmlFor="net_weight"
-              className="block text-sm font-medium text-gray-700 mb-2"
+              className={`block text-sm font-medium mb-2 ${labelClass(hasWeight)}`}
             >
               Netto gewicht (kg) <span className="text-red-500">*</span>
+              {hasWeight && (
+                <span className="ml-2 text-xs font-normal text-emerald-700">ingevuld</span>
+              )}
             </label>
             <input
               type="number"
@@ -198,18 +230,21 @@ export default function MeasurementModal({
               onChange={(e) =>
                 setFormData({ ...formData, net_weight: e.target.value })
               }
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className={inputClass(hasWeight)}
               placeholder="Bijv. 12.5"
               required
             />
           </div>
 
-          <div>
+          <div className={fieldRowClass(hasSpecial)}>
             <label
               htmlFor="special_instructions"
-              className="block text-sm font-medium text-gray-700 mb-2"
+              className={`block text-sm font-medium mb-2 ${labelClass(hasSpecial)}`}
             >
               Speciale instructies
+              {hasSpecial && (
+                <span className="ml-2 text-xs font-normal text-emerald-700">ingevuld</span>
+              )}
             </label>
             <textarea
               id="special_instructions"
@@ -218,7 +253,7 @@ export default function MeasurementModal({
                 setFormData({ ...formData, special_instructions: e.target.value })
               }
               rows={4}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className={inputClass(hasSpecial)}
               placeholder="Voeg hier eventuele speciale instructies toe voor het verpakken van dit item..."
             />
           </div>
