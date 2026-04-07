@@ -396,7 +396,9 @@ function calculateTerm(caseType: string): number {
     const numberStr = s.substring(1).trim()
     const number = parseInt(numberStr, 10)
     if (!isNaN(number)) {
-      if (number >= 100 && number <= 998) {
+      if ([791, 792, 794, 795, 796].includes(number)) {
+        return 10 // C791/C792/C794/C795/C796: 10 werkdagen
+      } else if (number >= 100 && number <= 998) {
         return 1 // C kisten 100-998: 1 dag
       } else if (number === 999) {
         return 10 // C kisten 999: 10 dagen
