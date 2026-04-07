@@ -285,23 +285,49 @@ async function fetchOverdueKisten(location: 'Genk' | 'Wilrijk'): Promise<any[]> 
 
     const caseLabels = cases.map((c: any) => c.case_label).filter(Boolean)
 
-    const { data: changes } = await supabaseAdmin
+    // Alle forecast-wijzigingen voor deze case labels (added + date_change)
+    const { data: allChanges } = await supabaseAdmin
       .from('grote_inpak_forecast_changes')
-      .select('case_label, changed_at')
-      .eq('change_type', 'added')
+      .select('case_label, change_type, changed_at, new_arrival_date')
       .in('case_label', caseLabels)
+      .in('change_type', ['added', 'date_change'])
       .order('changed_at', { ascending: true })
 
+    // Huidige forecast datum per case label
+    const { data: forecastRows } = await supabaseAdmin
+      .from('grote_inpak_forecast')
+      .select('case_label, arrival_date')
+      .in('case_label', caseLabels)
+
     const earliestForecast = new Map<string, string>()
-    ;(changes || []).forEach((ch: any) => {
-      if (ch.case_label && !earliestForecast.has(ch.case_label)) {
-        earliestForecast.set(ch.case_label, ch.changed_at)
+    const eersteGeplandeDatum = new Map<string, string>()
+    const aantalVerschuivingen = new Map<string, number>()
+    const huidigeForecastDatum = new Map<string, string>()
+
+    ;(allChanges || []).forEach((ch: any) => {
+      const label = ch.case_label
+      if (!label) return
+      if (ch.change_type === 'added') {
+        if (!earliestForecast.has(label)) {
+          earliestForecast.set(label, ch.changed_at)
+          if (ch.new_arrival_date) eersteGeplandeDatum.set(label, ch.new_arrival_date)
+        }
       }
+      if (ch.change_type === 'date_change') {
+        aantalVerschuivingen.set(label, (aantalVerschuivingen.get(label) || 0) + 1)
+      }
+    })
+
+    ;(forecastRows || []).forEach((f: any) => {
+      if (f.case_label && f.arrival_date) huidigeForecastDatum.set(f.case_label, f.arrival_date)
     })
 
     return cases.map((c: any) => ({
       ...c,
       eerste_keer_op_forecast: earliestForecast.get(c.case_label) || null,
+      eerste_geplande_datum: eersteGeplandeDatum.get(c.case_label) || null,
+      huidige_forecast_datum: huidigeForecastDatum.get(c.case_label) || null,
+      aantal_verschuivingen: aantalVerschuivingen.get(c.case_label) || 0,
     }))
   } catch (err) {
     console.error('fetchOverdueKisten:', err)
