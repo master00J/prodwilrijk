@@ -272,6 +272,43 @@ async function fetchKKistenForExcel(
   }
 }
 
+async function fetchOverdueKisten(location: 'Genk' | 'Wilrijk'): Promise<any[]> {
+  try {
+    const { data: cases } = await supabaseAdmin
+      .from('grote_inpak_cases')
+      .select('case_label, case_type, arrival_date, deadline, dagen_te_laat, productielocatie')
+      .eq('productielocatie', location)
+      .gt('dagen_te_laat', 0)
+      .order('dagen_te_laat', { ascending: false })
+
+    if (!cases || cases.length === 0) return []
+
+    const caseLabels = cases.map((c: any) => c.case_label).filter(Boolean)
+
+    const { data: changes } = await supabaseAdmin
+      .from('grote_inpak_forecast_changes')
+      .select('case_label, changed_at')
+      .eq('change_type', 'added')
+      .in('case_label', caseLabels)
+      .order('changed_at', { ascending: true })
+
+    const earliestForecast = new Map<string, string>()
+    ;(changes || []).forEach((ch: any) => {
+      if (ch.case_label && !earliestForecast.has(ch.case_label)) {
+        earliestForecast.set(ch.case_label, ch.changed_at)
+      }
+    })
+
+    return cases.map((c: any) => ({
+      ...c,
+      eerste_keer_op_forecast: earliestForecast.get(c.case_label) || null,
+    }))
+  } catch (err) {
+    console.error('fetchOverdueKisten:', err)
+    return []
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -328,8 +365,9 @@ export async function POST(request: NextRequest) {
     const dateStr = new Date().toISOString().split('T')[0]
 
     const kKisten = await fetchKKistenForExcel(location, productieAndereLoc)
+    const overdueKisten = await fetchOverdueKisten(location)
 
-    const wb = buildDailyOrderWorkbook(location, renumbered, today, { kKisten })
+    const wb = buildDailyOrderWorkbook(location, renumbered, today, { kKisten, overdueKisten })
     const buffer = await wb.xlsx.writeBuffer() as ArrayBuffer
     const filename = `Daily_order_${location}_${dateStr}.xlsx`
 

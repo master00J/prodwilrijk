@@ -127,11 +127,78 @@ function addDailyOrderSheet(
   })
 }
 
+function addOverdueSheet(
+  wb: ExcelJS.Workbook,
+  sheetTitle: string,
+  titleLabel: string,
+  data: any[],
+  today: string
+) {
+  const headers = ['Case Label', 'Kisttype', 'Prod. locatie', 'PILS aankomst', 'Deadline', 'Dagen te laat', 'Eerste keer op forecast']
+  const numCols = headers.length
+
+  const ws = wb.addWorksheet(sheetTitle)
+  ws.columns = [
+    { width: 22 }, { width: 12 }, { width: 14 }, { width: 16 }, { width: 14 }, { width: 14 }, { width: 24 },
+  ]
+
+  const titleRow = ws.addRow([`${titleLabel} — ${today}`])
+  ws.mergeCells(1, 1, 1, numCols)
+  titleRow.getCell(1).font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } }
+  titleRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF7B1414' } }
+  titleRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' }
+  titleRow.height = 28
+  ws.addRow([])
+
+  const hRow = ws.addRow(headers)
+  hRow.eachCell(cell => {
+    cell.style = {
+      font: { bold: true, color: { argb: 'FFFFFFFF' } },
+      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCC0000' } },
+      alignment: { horizontal: 'center', vertical: 'middle' },
+      border,
+    }
+  })
+  hRow.height = 18
+
+  const fmtDate = (val: string | null | undefined) => {
+    if (!val) return '—'
+    const d = new Date(val)
+    return isNaN(d.getTime()) ? String(val) : d.toLocaleDateString('nl-NL')
+  }
+
+  data.forEach((row: any, i: number) => {
+    const fgColor = i % 2 === 0 ? 'FFFFFFFF' : 'FFFDE8E8'
+    const days = row.dagen_te_laat ?? 0
+    const dRow = ws.addRow([
+      row.case_label || '—',
+      row.case_type || '—',
+      row.productielocatie || '—',
+      fmtDate(row.arrival_date),
+      fmtDate(row.deadline),
+      days,
+      fmtDate(row.eerste_keer_op_forecast),
+    ])
+    dRow.eachCell((cell, col) => {
+      cell.style = {
+        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: fgColor } },
+        border,
+        alignment: { horizontal: col <= 3 ? 'left' : 'center', vertical: 'middle' },
+      }
+      if (col === 6) {
+        const bgColor = days >= 5 ? 'FFFF0000' : days >= 2 ? 'FFFF6600' : 'FFFFFF00'
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } }
+        cell.font = { bold: true, color: { argb: days >= 5 ? 'FFFFFFFF' : 'FF000000' } }
+      }
+    })
+  })
+}
+
 export function buildDailyOrderWorkbook(
   locatieLabel: string,
   data: any[],
   today: string,
-  options?: { kKisten?: any[] }
+  options?: { kKisten?: any[]; overdueKisten?: any[] }
 ) {
   const wb = new ExcelJS.Workbook()
   addDailyOrderSheet(
@@ -149,6 +216,15 @@ export function buildDailyOrderWorkbook(
       options.kKisten,
       today,
       'k'
+    )
+  }
+  if (options?.overdueKisten && options.overdueKisten.length > 0) {
+    addOverdueSheet(
+      wb,
+      `Te laat ${locatieLabel}`,
+      `Te laat kisten ${locatieLabel}`,
+      options.overdueKisten,
+      today
     )
   }
   return wb
