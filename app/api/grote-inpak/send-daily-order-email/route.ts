@@ -285,7 +285,28 @@ async function fetchOverdueKisten(location: 'Genk' | 'Wilrijk'): Promise<any[]> 
 
     const caseLabels = cases.map((c: any) => c.case_label).filter(Boolean)
 
-    // Alle forecast-wijzigingen voor deze case labels (added + date_change)
+    // Stock per case_type ophalen om gedekte kisten uit te filteren
+    const caseTypes = [...new Set(cases.map((c: any) => normalizeKistnummer(c.case_type || '')))]
+    const { data: stockRaw } = await supabaseAdmin
+      .from('grote_inpak_stock')
+      .select('kistnummer, quantity')
+    const stockByCaseType = new Map<string, number>()
+    ;(stockRaw || []).forEach((s: any) => {
+      if (!s.kistnummer) return
+      const kt = normalizeKistnummer(s.kistnummer)
+      if (caseTypes.includes(kt)) {
+        stockByCaseType.set(kt, (stockByCaseType.get(kt) || 0) + Math.max(0, Number(s.quantity || 0)))
+      }
+    })
+
+    // Overdue-count per case_type
+    const overdueCountByCaseType = new Map<string, number>()
+    cases.forEach((c: any) => {
+      const kt = normalizeKistnummer(c.case_type || '')
+      overdueCountByCaseType.set(kt, (overdueCountByCaseType.get(kt) || 0) + 1)
+    })
+
+    // Alle forecast-wijzigingen voor deze case labels (date_change voor verschuivingen)
     const { data: allChanges } = await supabaseAdmin
       .from('grote_inpak_forecast_changes')
       .select('case_label, change_type, changed_at, new_arrival_date')
@@ -299,7 +320,6 @@ async function fetchOverdueKisten(location: 'Genk' | 'Wilrijk'): Promise<any[]> 
       .select('case_label, arrival_date')
       .in('case_label', caseLabels)
 
-    const earliestForecast = new Map<string, string>()
     const eersteGeplandeDatum = new Map<string, string>()
     const aantalVerschuivingen = new Map<string, number>()
     const huidigeForecastDatum = new Map<string, string>()
@@ -307,11 +327,8 @@ async function fetchOverdueKisten(location: 'Genk' | 'Wilrijk'): Promise<any[]> 
     ;(allChanges || []).forEach((ch: any) => {
       const label = ch.case_label
       if (!label) return
-      if (ch.change_type === 'added') {
-        if (!earliestForecast.has(label)) {
-          earliestForecast.set(label, ch.changed_at)
-          if (ch.new_arrival_date) eersteGeplandeDatum.set(label, ch.new_arrival_date)
-        }
+      if (ch.change_type === 'added' && !eersteGeplandeDatum.has(label)) {
+        if (ch.new_arrival_date) eersteGeplandeDatum.set(label, ch.new_arrival_date)
       }
       if (ch.change_type === 'date_change') {
         aantalVerschuivingen.set(label, (aantalVerschuivingen.get(label) || 0) + 1)
@@ -322,9 +339,16 @@ async function fetchOverdueKisten(location: 'Genk' | 'Wilrijk'): Promise<any[]> 
       if (f.case_label && f.arrival_date) huidigeForecastDatum.set(f.case_label, f.arrival_date)
     })
 
-    return cases.map((c: any) => ({
+    // Filter kisten die gedekt zijn door stock (stock >= overdue count voor dat type)
+    const filtered = cases.filter((c: any) => {
+      const kt = normalizeKistnummer(c.case_type || '')
+      const stock = stockByCaseType.get(kt) || 0
+      const overdue = overdueCountByCaseType.get(kt) || 1
+      return stock < overdue
+    })
+
+    return filtered.map((c: any) => ({
       ...c,
-      eerste_keer_op_forecast: earliestForecast.get(c.case_label) || null,
       eerste_geplande_datum: eersteGeplandeDatum.get(c.case_label) || null,
       huidige_forecast_datum: huidigeForecastDatum.get(c.case_label) || null,
       aantal_verschuivingen: aantalVerschuivingen.get(c.case_label) || 0,

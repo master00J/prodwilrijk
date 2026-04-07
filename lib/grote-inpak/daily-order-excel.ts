@@ -137,7 +137,7 @@ function addOverdueSheet(
   const headers = [
     'Case Label', 'Kisttype', 'Prod. locatie',
     'PILS aankomst', 'Deadline', 'Dagen te laat',
-    'Eerste keer op forecast', 'Eerst geplande datum', 'Huidige forecast datum', '# Verschuivingen',
+    'Eerst geplande datum', 'Huidige forecast datum', '# Verschuivingen',
   ]
   const numCols = headers.length
 
@@ -145,7 +145,7 @@ function addOverdueSheet(
   ws.columns = [
     { width: 22 }, { width: 12 }, { width: 14 },
     { width: 16 }, { width: 14 }, { width: 14 },
-    { width: 24 }, { width: 22 }, { width: 22 }, { width: 14 },
+    { width: 22 }, { width: 22 }, { width: 14 },
   ]
 
   const titleRow = ws.addRow([`${titleLabel} — ${today}`])
@@ -192,7 +192,6 @@ function addOverdueSheet(
       fmtDate(row.arrival_date),
       fmtDate(row.deadline),
       days,
-      fmtDate(row.eerste_keer_op_forecast),
       fmtDate(row.eerste_geplande_datum),
       fmtDate(row.huidige_forecast_datum),
       verschuivingen,
@@ -209,13 +208,13 @@ function addOverdueSheet(
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } }
         cell.font = { bold: true, color: { argb: days >= 5 ? 'FFFFFFFF' : 'FF000000' } }
       }
-      // Huidige forecast datum: oranje als later dan eerst geplande datum
-      if (col === 9 && verschuivingDagen !== null && verschuivingDagen > 0) {
+      // Huidige forecast datum: oranje/geel als later dan eerst geplande datum
+      if (col === 8 && verschuivingDagen !== null && verschuivingDagen > 0) {
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: verschuivingDagen >= 14 ? 'FFFF6600' : 'FFFFFF00' } }
         cell.font = { bold: true, color: { argb: 'FF000000' } }
       }
       // # Verschuivingen: rood als veel
-      if (col === 10 && verschuivingen >= 2) {
+      if (col === 9 && verschuivingen >= 2) {
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFC7CE' } }
         cell.font = { bold: true, color: { argb: 'FF9C0006' } }
       }
