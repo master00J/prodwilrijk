@@ -8,6 +8,9 @@ export const dynamic = 'force-dynamic'
 
 const TO_EMAIL = 'prodwilrijk@foresco.eu'
 
+// Speciale C-kisten die op het K-tabblad verschijnen (geen standaard voorraadkisten)
+const SPECIALE_C_KISTEN = ['C791', 'C792', 'C794', 'C795', 'C796']
+
 /** Haalt stock op voor C-kisten vanuit de database (zelfde logica als kanban-besteladvies) */
 async function fetchStockForCKisten(caseTypes: string[]): Promise<Map<string, { genk: number; willebroek: number; wilrijk: number }>> {
   const stockByKist = new Map<string, { genk: number; willebroek: number; wilrijk: number }>()
@@ -92,10 +95,11 @@ async function fetchKKistenForExcel(
   productieAndereLocByKist: Map<string, number>
 ): Promise<any[]> {
   try {
+    const specialeFilter = SPECIALE_C_KISTEN.map(ct => `case_type.eq.${ct}`).join(',')
     const { data: cases } = await supabaseAdmin
       .from('grote_inpak_cases')
       .select('case_label, case_type, arrival_date, erp_code, stapel, dagen_te_laat')
-      .or('case_type.ilike.K%,case_type.ilike.V%')
+      .or(`case_type.ilike.K%,case_type.ilike.V%,${specialeFilter}`)
       .eq('productielocatie', location)
 
     if (!cases || cases.length === 0) return []
@@ -376,7 +380,10 @@ export async function POST(request: NextRequest) {
     }
 
     const keyword = location.toLowerCase()
-    const isCKist = (r: any) => String(r.case_type || '').trim().toUpperCase().startsWith('C')
+    const isCKist = (r: any) => {
+      const ct = String(r.case_type || '').trim().toUpperCase()
+      return ct.startsWith('C') && !SPECIALE_C_KISTEN.includes(ct)
+    }
     const toExport = alleenBestellen
       ? rows.filter((r: any) => r.bestel_aantal > 0)
       : rows
