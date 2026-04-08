@@ -487,20 +487,23 @@ function formatDate(dateString: string): string {
 
 function addBusinessDays(startDate: string, days: number): string {
   if (!startDate) return ''
-  
-  const date = new Date(startDate)
+
+  // Gebruik alleen de datumcomponent (YYYY-MM-DD) en parse als UTC midnight
+  // zodat lokale tijdzone het resultaat niet beïnvloedt
+  const datePart = startDate.split('T')[0]
+  const date = new Date(datePart + 'T00:00:00Z')
   if (isNaN(date.getTime())) return ''
-  
+
+  // Aanmeldingsdatum telt NIET mee: begin te tellen vanaf de dag erna
   let count = 0
-  
   while (count < days) {
-    date.setDate(date.getDate() + 1)
-    // Monday = 1, Friday = 5
-    if (date.getDay() >= 1 && date.getDay() <= 5) {
+    date.setUTCDate(date.getUTCDate() + 1)
+    const day = date.getUTCDay() // 0=zo, 1=ma, ..., 5=vr, 6=za
+    if (day >= 1 && day <= 5) {
       count++
     }
   }
-  
+
   return date.toISOString().split('T')[0]
 }
 
