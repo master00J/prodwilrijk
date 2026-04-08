@@ -411,7 +411,7 @@ function calculateTerm(caseType: string): number {
       if (number >= 1 && number <= 99) {
         return 10 // K kisten 1-99: 10 dagen
       } else if (number >= 100 && number <= 999) {
-        return 3 // K kisten 100-999: 3 dagen
+        return 4 // K kisten 100-999: 4 dagen
       }
     }
   }
