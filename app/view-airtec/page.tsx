@@ -140,6 +140,21 @@ export default function ViewAirtecPage() {
     }
   }
 
+  const handleUpdate = async (id: number, field: keyof IncomingGoodAirtec, value: any) => {
+    try {
+      const response = await fetch(`/api/incoming-goods-airtec/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [field]: value }),
+      })
+      if (!response.ok) throw new Error('Failed to update item')
+      setItems(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item))
+    } catch (error) {
+      console.error('Error updating item:', error)
+      alert('Opslaan mislukt')
+    }
+  }
+
   const handleDelete = async (id: number) => {
     if (!confirm('Are you sure you want to delete this item?')) {
       return
@@ -215,6 +230,7 @@ export default function ViewAirtecPage() {
         sortDirection={sortDirection}
         onSort={handleSort}
         onDelete={handleDelete}
+        onUpdate={handleUpdate}
         loading={loading}
       />
 

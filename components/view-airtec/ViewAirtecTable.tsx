@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useRef, useEffect } from 'react'
 import { IncomingGoodAirtec } from '@/types/database'
 
 interface ViewAirtecTableProps {
@@ -11,8 +12,15 @@ interface ViewAirtecTableProps {
   sortDirection: 'asc' | 'desc'
   onSort: (column: keyof IncomingGoodAirtec) => void
   onDelete: (id: number) => void
+  onUpdate: (id: number, field: keyof IncomingGoodAirtec, value: any) => Promise<void>
   loading: boolean
 }
+
+type EditingCell = { id: number; field: keyof IncomingGoodAirtec } | null
+
+const EDITABLE_FIELDS: (keyof IncomingGoodAirtec)[] = [
+  'beschrijving', 'item_number', 'lot_number', 'datum_opgestuurd', 'kistnummer', 'divisie', 'quantity',
+]
 
 export default function ViewAirtecTable({
   items,
@@ -23,10 +31,102 @@ export default function ViewAirtecTable({
   sortDirection,
   onSort,
   onDelete,
+  onUpdate,
   loading,
 }: ViewAirtecTableProps) {
   const allSelected = items.length > 0 && items.every(item => selectedItems.has(item.id))
   const someSelected = items.some(item => selectedItems.has(item.id))
+  const [editingCell, setEditingCell] = useState<EditingCell>(null)
+  const [editValue, setEditValue] = useState<string>('')
+  const [saving, setSaving] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (editingCell && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [editingCell])
+
+  const startEdit = (item: IncomingGoodAirtec, field: keyof IncomingGoodAirtec) => {
+    if (!EDITABLE_FIELDS.includes(field)) return
+    const raw = item[field]
+    let display = ''
+    if (field === 'datum_opgestuurd' && raw) {
+      display = String(raw).split('T')[0]
+    } else if (raw !== null && raw !== undefined) {
+      display = String(raw)
+    }
+    setEditingCell({ id: item.id, field })
+    setEditValue(display)
+  }
+
+  const cancelEdit = () => {
+    setEditingCell(null)
+    setEditValue('')
+  }
+
+  const commitEdit = async () => {
+    if (!editingCell || saving) return
+    setSaving(true)
+    try {
+      let parsed: any = editValue
+      if (editingCell.field === 'quantity') parsed = Number(editValue) || 0
+      if (editingCell.field === 'datum_opgestuurd') parsed = editValue || null
+      await onUpdate(editingCell.id, editingCell.field, parsed)
+    } finally {
+      setSaving(false)
+      setEditingCell(null)
+      setEditValue('')
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') { e.preventDefault(); commitEdit() }
+    if (e.key === 'Escape') cancelEdit()
+  }
+
+  const renderCell = (item: IncomingGoodAirtec, field: keyof IncomingGoodAirtec, displayValue: string) => {
+    const isEditing = editingCell?.id === item.id && editingCell?.field === field
+    const isEditable = EDITABLE_FIELDS.includes(field)
+
+    if (isEditing) {
+      return (
+        <input
+          ref={inputRef}
+          type={field === 'quantity' ? 'number' : field === 'datum_opgestuurd' ? 'date' : 'text'}
+          value={editValue}
+          onChange={e => setEditValue(e.target.value)}
+          onBlur={commitEdit}
+          onKeyDown={handleKeyDown}
+          disabled={saving}
+          className="w-full px-1 py-0.5 border border-blue-400 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 min-w-[80px]"
+        />
+      )
+    }
+
+    return (
+      <span
+        onClick={() => isEditable && startEdit(item, field)}
+        className={isEditable ? 'cursor-pointer hover:bg-blue-50 rounded px-1 -mx-1 group relative' : ''}
+        title={isEditable ? 'Klik om te bewerken' : undefined}
+      >
+        {displayValue || <span className="text-gray-300">—</span>}
+        {isEditable && (
+          <span className="hidden group-hover:inline-block ml-1 text-blue-400 text-xs">✏️</span>
+        )}
+      </span>
+    )
+  }
+
+  const SortHeader = ({ col, label }: { col: keyof IncomingGoodAirtec; label: string }) => (
+    <th
+      className="px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100 select-none"
+      onClick={() => onSort(col)}
+    >
+      {label} {sortColumn === col && (sortDirection === 'asc' ? '↑' : '↓')}
+    </th>
+  )
 
   if (loading) {
     return (
@@ -38,6 +138,9 @@ export default function ViewAirtecTable({
 
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="px-4 py-2 bg-blue-50 border-b border-blue-100 text-xs text-blue-600">
+        💡 Klik op een celwaarde om die te bewerken. Bevestig met Enter, annuleer met Escape.
+      </div>
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -53,68 +156,28 @@ export default function ViewAirtecTable({
                   className="w-5 h-5 cursor-pointer"
                 />
               </th>
-              <th
-                className="px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
-                onClick={() => onSort('id')}
-              >
-                ID {sortColumn === 'id' && (sortDirection === 'asc' ? '↑' : '↓')}
-              </th>
-              <th
-                className="px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
-                onClick={() => onSort('beschrijving')}
-              >
-                Description {sortColumn === 'beschrijving' && (sortDirection === 'asc' ? '↑' : '↓')}
-              </th>
-              <th
-                className="px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
-                onClick={() => onSort('item_number')}
-              >
-                Item Number {sortColumn === 'item_number' && (sortDirection === 'asc' ? '↑' : '↓')}
-              </th>
-              <th
-                className="px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
-                onClick={() => onSort('lot_number')}
-              >
-                Lot Number {sortColumn === 'lot_number' && (sortDirection === 'asc' ? '↑' : '↓')}
-              </th>
-              <th
-                className="px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
-                onClick={() => onSort('datum_opgestuurd')}
-              >
-                Date Sent {sortColumn === 'datum_opgestuurd' && (sortDirection === 'asc' ? '↑' : '↓')}
-              </th>
-              <th
-                className="px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
-                onClick={() => onSort('kistnummer')}
-              >
-                Box Number {sortColumn === 'kistnummer' && (sortDirection === 'asc' ? '↑' : '↓')}
-              </th>
-              <th
-                className="px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
-                onClick={() => onSort('divisie')}
-              >
-                Division {sortColumn === 'divisie' && (sortDirection === 'asc' ? '↑' : '↓')}
-              </th>
-              <th
-                className="px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
-                onClick={() => onSort('quantity')}
-              >
-                Quantity {sortColumn === 'quantity' && (sortDirection === 'asc' ? '↑' : '↓')}
-              </th>
-              <th className="px-4 py-4 text-left text-sm font-medium text-gray-700">Actions</th>
+              <SortHeader col="id" label="ID" />
+              <SortHeader col="beschrijving" label="Beschrijving" />
+              <SortHeader col="item_number" label="Item Number" />
+              <SortHeader col="lot_number" label="Lot Number" />
+              <SortHeader col="datum_opgestuurd" label="Date Sent" />
+              <SortHeader col="kistnummer" label="Box Number" />
+              <SortHeader col="divisie" label="Divisie" />
+              <SortHeader col="quantity" label="Quantity" />
+              <th className="px-4 py-4 text-left text-sm font-medium text-gray-700">Acties</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {items.length === 0 ? (
               <tr>
                 <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
-                  No items found
+                  Geen items gevonden
                 </td>
               </tr>
             ) : (
               items.map((item) => (
-                <tr key={item.id}>
-                  <td className="px-4 py-4">
+                <tr key={item.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3">
                     <input
                       type="checkbox"
                       checked={selectedItems.has(item.id)}
@@ -122,19 +185,33 @@ export default function ViewAirtecTable({
                       className="w-5 h-5 cursor-pointer"
                     />
                   </td>
-                  <td className="px-4 py-4 text-sm text-gray-900">{item.id}</td>
-                  <td className="px-4 py-4 text-sm text-gray-900">{item.beschrijving || '-'}</td>
-                  <td className="px-4 py-4 text-sm font-medium text-gray-900">
-                    {item.item_number || '-'}
+                  <td className="px-4 py-3 text-sm text-gray-500">{item.id}</td>
+                  <td className="px-4 py-3 text-sm text-gray-900">
+                    {renderCell(item, 'beschrijving', item.beschrijving || '')}
                   </td>
-                  <td className="px-4 py-4 text-sm text-gray-900">{item.lot_number || '-'}</td>
-                  <td className="px-4 py-4 text-sm text-gray-900">
-                    {item.datum_opgestuurd ? new Date(item.datum_opgestuurd).toLocaleDateString() : '-'}
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                    {renderCell(item, 'item_number', item.item_number || '')}
                   </td>
-                  <td className="px-4 py-4 text-sm text-gray-900">{item.kistnummer || '-'}</td>
-                  <td className="px-4 py-4 text-sm text-gray-900">{item.divisie || '-'}</td>
-                  <td className="px-4 py-4 text-sm text-gray-900">{item.quantity}</td>
-                  <td className="px-4 py-4">
+                  <td className="px-4 py-3 text-sm text-gray-900">
+                    {renderCell(item, 'lot_number', item.lot_number || '')}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-900">
+                    {renderCell(
+                      item,
+                      'datum_opgestuurd',
+                      item.datum_opgestuurd ? new Date(item.datum_opgestuurd).toLocaleDateString('nl-NL') : ''
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-900">
+                    {renderCell(item, 'kistnummer', item.kistnummer || '')}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-900">
+                    {renderCell(item, 'divisie', item.divisie || '')}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-900">
+                    {renderCell(item, 'quantity', String(item.quantity ?? ''))}
+                  </td>
+                  <td className="px-4 py-3">
                     <button
                       onClick={() => onDelete(item.id)}
                       className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm font-medium"
@@ -151,4 +228,3 @@ export default function ViewAirtecTable({
     </div>
   )
 }
-
