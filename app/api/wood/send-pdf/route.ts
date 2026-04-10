@@ -226,6 +226,8 @@ async function generateOrderPDF(orderList: any[], columnOrder: string[], columnH
       } else if (item[col] !== null && item[col] !== undefined) {
         value = item[col].toString()
       }
+      // WinAnsi kan geen newlines/tabs verwerken — vervang door spatie
+      value = value.replace(/[\r\n\t]/g, ' ').trim()
       
       // Cell background
       page.drawRectangle({
