@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from('employee_daily_status')
-    .select('id, employee_id, date, status, assigned_machine_id, notes')
+    .select('id, employee_id, date, status, shift, assigned_machine_id, notes')
     .eq('date', date)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

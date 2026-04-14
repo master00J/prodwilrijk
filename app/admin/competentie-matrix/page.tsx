@@ -201,13 +201,32 @@ export default function CompetentieMatrixPage() {
     setLoadingPlanning(true)
     try {
       const res = await fetch(`/api/dagplanning?date=${date}`)
-      if (res.ok) setDailyStatuses(await res.json())
-      else setFetchError('Fout bij laden van dagplanning.')
+      if (!res.ok) { setFetchError('Fout bij laden van dagplanning.'); return }
+      const statuses: DailyStatus[] = await res.json()
+      setDailyStatuses(statuses)
     } catch {
       setFetchError('Netwerkfout bij laden van dagplanning.')
     } finally {
       setLoadingPlanning(false)
     }
+  }, [])
+
+  const initPlanning = useCallback(async (date: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
+
+      const res = await fetch('/api/dagplanning/init', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ date }),
+      })
+      if (res.ok) {
+        const all: DailyStatus[] = await res.json()
+        setDailyStatuses(all)
+      }
+    } catch { /* silent — init is best-effort */ }
   }, [])
 
   const fetchHistory = useCallback(async (employeeId: number, machineId: number) => {
@@ -232,6 +251,11 @@ export default function CompetentieMatrixPage() {
 
   useEffect(() => { void fetchBase() }, [fetchBase])
   useEffect(() => { void fetchPlanning(selectedDate) }, [fetchPlanning, selectedDate])
+  useEffect(() => {
+    if (tab === 'dagplanning' && employees.length > 0) {
+      void initPlanning(selectedDate)
+    }
+  }, [tab, selectedDate, employees.length, initPlanning])
   useEffect(() => { if (tab === 'opleiding') void fetchTrainingPlans() }, [tab, fetchTrainingPlans])
 
   // ── Derived data ───────────────────────────────────────────────────────────
@@ -1142,9 +1166,14 @@ export default function CompetentieMatrixPage() {
                 </div>
               )
             })}
-            <div className="inline-flex items-center gap-2 rounded-full bg-gray-50 border border-gray-100 px-4 py-1.5 text-sm text-gray-500">
-              {visibleEmployees.filter((e) => !getDailyStatus(e.id)).length} niet ingevuld
-            </div>
+            {(() => {
+              const notFilledCount = visibleEmployees.filter((e) => !getDailyStatus(e.id)).length
+              return notFilledCount > 0 ? (
+                <div className="inline-flex items-center gap-2 rounded-full bg-gray-50 border border-gray-100 px-4 py-1.5 text-sm text-gray-500">
+                  {notFilledCount} niet ingevuld
+                </div>
+              ) : null
+            })()}
           </div>
 
           {/* Split layout: employees left, machine overview right */}
@@ -1160,7 +1189,7 @@ export default function CompetentieMatrixPage() {
                   const assignedMachineId = ds?.assigned_machine_id ?? null
                   const isSaving = saving === `status-${emp.id}`
                   const isPresent = !status || status === 'aanwezig' || status === 'thuiswerk'
-                  const borderColor = !ds ? 'border-gray-200' : status === 'aanwezig' ? 'border-emerald-300' : status === 'thuiswerk' ? 'border-purple-300' : status === 'verlof' ? 'border-blue-300' : status === 'ziek' ? 'border-orange-300' : 'border-red-300'
+                  const borderColor = !ds || status === 'aanwezig' ? 'border-emerald-300' : status === 'thuiswerk' ? 'border-purple-300' : status === 'verlof' ? 'border-blue-300' : status === 'ziek' ? 'border-orange-300' : 'border-red-300'
                   const shiftObj = SHIFTS.find(s => s.value === shift) ?? SHIFTS[0]
 
                   return (
