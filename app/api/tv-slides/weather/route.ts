@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,wind_speed_10m,weather_code&hourly=temperature_2m,weather_code&timezone=Europe%2FBrussels&forecast_days=1`
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,wind_speed_10m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_sum,wind_speed_10m_max&timezone=Europe%2FBrussels&forecast_days=7`
 
     const res = await fetch(url, { next: { revalidate: 0 } })
     if (!res.ok) throw new Error(`Open-Meteo responded ${res.status}`)
@@ -58,35 +58,32 @@ export async function GET(request: NextRequest) {
     const current = json.current || {}
     const wmo = getWmo(current.weather_code ?? 0)
 
-    const hourly = json.hourly || {}
-    const times: string[] = hourly.time || []
-    const temps: number[] = hourly.temperature_2m || []
-    const codes: number[] = hourly.weather_code || []
+    const daily = json.daily || {}
+    const dates: string[] = daily.time || []
+    const maxTemps: number[] = daily.temperature_2m_max || []
+    const minTemps: number[] = daily.temperature_2m_min || []
+    const dayCodes: number[] = daily.weather_code || []
+    const precipitation: number[] = daily.precipitation_sum || []
+    const windMax: number[] = daily.wind_speed_10m_max || []
 
-    const slots = [
-      { hour: 8, label: 'Ochtend' },
-      { hour: 12, label: 'Middag' },
-      { hour: 17, label: 'Avond' },
-      { hour: 21, label: 'Nacht' },
-    ]
+    const DAY_NAMES = ['Zo', 'Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za']
 
-    const forecast = slots
-      .map((slot) => {
-        const idx = times.findIndex((t: string) => {
-          const h = new Date(t).getHours()
-          return h === slot.hour
-        })
-        if (idx === -1) return null
-        const slotWmo = getWmo(codes[idx] ?? 0)
-        return {
-          time: times[idx],
-          label: slot.label,
-          temp: temps[idx] ?? 0,
-          code: codes[idx] ?? 0,
-          icon: slotWmo.icon,
-        }
-      })
-      .filter(Boolean)
+    const weekForecast = dates.map((dateStr: string, i: number) => {
+      const d = new Date(dateStr + 'T12:00:00')
+      const dayWmo = getWmo(dayCodes[i] ?? 0)
+      const isToday = dateStr === new Date().toISOString().split('T')[0]
+      return {
+        date: dateStr,
+        dayName: isToday ? 'Vandaag' : DAY_NAMES[d.getDay()],
+        tempMax: maxTemps[i] ?? 0,
+        tempMin: minTemps[i] ?? 0,
+        code: dayCodes[i] ?? 0,
+        icon: dayWmo.icon,
+        label: dayWmo.label,
+        precipitation: precipitation[i] ?? 0,
+        windMax: windMax[i] ?? 0,
+      }
+    })
 
     const result = {
       _key: cacheKey,
@@ -95,7 +92,7 @@ export async function GET(request: NextRequest) {
       weatherCode: current.weather_code ?? 0,
       weatherLabel: wmo.label,
       weatherIcon: wmo.icon,
-      forecast,
+      weekForecast,
     }
 
     cachedData = result

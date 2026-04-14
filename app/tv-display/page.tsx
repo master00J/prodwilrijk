@@ -73,19 +73,25 @@ interface DagplanningEntry {
   notes: string | null
 }
 
+interface WeatherDayForecast {
+  date: string
+  dayName: string
+  tempMax: number
+  tempMin: number
+  code: number
+  icon: string
+  label: string
+  precipitation: number
+  windMax: number
+}
+
 interface WeatherData {
   temperature: number
   windSpeed: number
   weatherCode: number
   weatherLabel: string
   weatherIcon: string
-  forecast: Array<{
-    time: string
-    label: string
-    temp: number
-    code: number
-    icon: string
-  }>
+  weekForecast: WeatherDayForecast[]
 }
 
 const DEFAULT_SLIDE_DURATION = 15
@@ -814,28 +820,57 @@ function WeerSlide({ data, title }: { data: WeatherData | null; title: string | 
     )
   }
 
-  return (
-    <div className="w-full h-full flex flex-col items-center justify-center px-16 gap-8">
-      {title && <h2 className="text-3xl font-bold" style={{ color: '#4ade80' }}>{title}</h2>}
+  const today = data.weekForecast[0]
+  const restOfWeek = data.weekForecast.slice(1)
 
-      <div className="flex items-center gap-10">
-        <div className="text-center">
-          <div className="text-[120px] leading-none">{data.weatherIcon}</div>
+  return (
+    <div className="w-full h-full flex flex-col px-10 py-6 overflow-hidden">
+      <div className="flex items-center justify-between shrink-0 mb-6">
+        <h2 className="text-3xl font-bold text-white">{title || 'Weer'}</h2>
+        <span className="text-sm" style={{ color: TV_MUTED }}>7-daagse voorspelling</span>
+      </div>
+
+      {/* Vandaag groot */}
+      <div className="flex items-center gap-8 shrink-0 mb-6 rounded-2xl px-8 py-6" style={{ backgroundColor: 'rgba(74, 222, 128, 0.08)', border: '1px solid #22c55e40' }}>
+        <div className="text-[100px] leading-none">{data.weatherIcon}</div>
+        <div>
+          <div className="text-lg font-medium mb-1" style={{ color: TV_MUTED }}>Nu</div>
+          <div className="text-7xl font-bold text-white tabular-nums">{Math.round(data.temperature)}°C</div>
+          <div className="text-xl mt-1" style={{ color: TV_MUTED }}>{data.weatherLabel}</div>
         </div>
-        <div className="text-center">
-          <div className="text-8xl font-bold text-white tabular-nums">{Math.round(data.temperature)}°</div>
-          <div className="text-xl mt-2" style={{ color: TV_MUTED }}>{data.weatherLabel}</div>
-          <div className="text-lg mt-1" style={{ color: TV_TICK }}>Wind: {data.windSpeed} km/u</div>
+        <div className="ml-auto text-right">
+          <div className="text-lg" style={{ color: TV_TICK }}>Wind: {Math.round(data.windSpeed)} km/u</div>
+          {today && (
+            <>
+              <div className="text-lg mt-1" style={{ color: TV_TICK }}>Max: {Math.round(today.tempMax)}° / Min: {Math.round(today.tempMin)}°</div>
+              {today.precipitation > 0 && (
+                <div className="text-lg mt-1" style={{ color: '#38bdf8' }}>Neerslag: {today.precipitation.toFixed(1)} mm</div>
+              )}
+            </>
+          )}
         </div>
       </div>
 
-      {data.forecast.length > 0 && (
-        <div className="flex gap-6 mt-4">
-          {data.forecast.map((slot, i) => (
-            <div key={i} className="text-center rounded-xl px-6 py-4" style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid #1a5c47' }}>
-              <div className="text-sm font-medium mb-2" style={{ color: TV_MUTED }}>{slot.label}</div>
-              <div className="text-4xl mb-2">{slot.icon}</div>
-              <div className="text-2xl font-bold text-white tabular-nums">{Math.round(slot.temp)}°</div>
+      {/* Weekoverzicht */}
+      {restOfWeek.length > 0 && (
+        <div className="grid grid-cols-6 gap-3 flex-1 min-h-0">
+          {restOfWeek.map((day) => (
+            <div
+              key={day.date}
+              className="rounded-xl flex flex-col items-center justify-center py-4 px-3"
+              style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid #1a5c47' }}
+            >
+              <div className="text-sm font-bold mb-2 uppercase tracking-wide" style={{ color: TV_MUTED }}>{day.dayName}</div>
+              <div className="text-5xl mb-3">{day.icon}</div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-bold text-white tabular-nums">{Math.round(day.tempMax)}°</span>
+                <span className="text-lg" style={{ color: TV_TICK }}>/</span>
+                <span className="text-lg tabular-nums" style={{ color: TV_TICK }}>{Math.round(day.tempMin)}°</span>
+              </div>
+              {day.precipitation > 0 && (
+                <div className="text-xs mt-2" style={{ color: '#38bdf8' }}>{day.precipitation.toFixed(1)} mm</div>
+              )}
+              <div className="text-xs mt-1" style={{ color: TV_TICK }}>{Math.round(day.windMax)} km/u</div>
             </div>
           ))}
         </div>
