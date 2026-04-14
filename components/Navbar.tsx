@@ -48,6 +48,9 @@ function UserInfo({ user, signOut, mobile }: { user: User; signOut: () => Promis
 export default function Navbar() {
   const pathname = usePathname()
   const { user, signOut, isAdmin } = useAuth()
+
+  if (pathname === '/tv-display') return null
+
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isPrepackOpen, setIsPrepackOpen] = useState(false)
   const [isAirtecOpen, setIsAirtecOpen] = useState(false)
@@ -722,6 +725,15 @@ export default function Navbar() {
                       Airtec Prices & ERP Codes
                     </Link>
                     <Link
+                      href="/tv-admin"
+                      onClick={() => setIsAdminOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/tv-admin') ? 'bg-purple-50 text-purple-600 font-medium border-l-4 border-purple-500' : 'text-gray-700'
+                      }`}
+                    >
+                      TV Dashboard Beheer
+                    </Link>
+                    <Link
                       href="/admin/prepack-airtec"
                       onClick={() => setIsAdminOpen(false)}
                       className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
@@ -972,6 +984,7 @@ export default function Navbar() {
                       <Link href="/admin/competentie-matrix" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Competentie Matrix</Link>
                       <Link href="/admin/wms-projecten-import" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">WMS Project import</Link>
                       <Link href="/admin/production-order-upload" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Productieorder upload</Link>
+                      <Link href="/tv-admin" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">TV Dashboard Beheer</Link>
                     </div>
                   </details>
                 )}
