@@ -244,34 +244,40 @@ export default function TvDisplayPage() {
     return () => clearInterval(interval)
   }, [hasWeatherSlide, fetchWeather])
 
-  const hasPrioritiesSlide = slides.some(s => s.type === 'priorities')
+  // Priorities: altijd pollen zodat de slide automatisch kan activeren/deactiveren
   useEffect(() => {
-    if (!hasPrioritiesSlide) return
     fetchPriorities()
     const interval = setInterval(fetchPriorities, PRIORITIES_POLL_INTERVAL)
     return () => clearInterval(interval)
-  }, [hasPrioritiesSlide, fetchPriorities])
+  }, [fetchPriorities])
+
+  // Priorities slide automatisch tonen/verbergen op basis van prio items
+  const hasPrioItems = (priorities?.prepack?.length ?? 0) + (priorities?.airtec?.length ?? 0) > 0
+  const visibleSlides = slides.filter(s => {
+    if (s.type === 'priorities') return hasPrioItems
+    return true
+  })
 
   // Auto-rotatie met dynamische duur per slide
-  const slideDuration = slides.length > 0
-    ? (slides[currentIndex]?.duration ?? DEFAULT_SLIDE_DURATION) * 1000
+  const slideDuration = visibleSlides.length > 0
+    ? (visibleSlides[currentIndex]?.duration ?? DEFAULT_SLIDE_DURATION) * 1000
     : DEFAULT_SLIDE_DURATION * 1000
 
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
-    if (slides.length > 1) {
+    if (visibleSlides.length > 1) {
       timerRef.current = setTimeout(() => {
-        setCurrentIndex(prev => (prev + 1) % slides.length)
+        setCurrentIndex(prev => (prev + 1) % visibleSlides.length)
       }, slideDuration)
     } else {
       setCurrentIndex(0)
     }
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
-  }, [slides.length, currentIndex, slideDuration])
+  }, [visibleSlides.length, currentIndex, slideDuration])
 
   useEffect(() => {
-    if (currentIndex >= slides.length) setCurrentIndex(0)
-  }, [slides.length, currentIndex])
+    if (currentIndex >= visibleSlides.length) setCurrentIndex(0)
+  }, [visibleSlides.length, currentIndex])
 
   // Klok
   useEffect(() => {
@@ -285,7 +291,7 @@ export default function TvDisplayPage() {
     return () => clearInterval(interval)
   }, [])
 
-  const currentSlide = slides[currentIndex] || null
+  const currentSlide = visibleSlides[currentIndex] || null
 
   return (
     <div className="fixed inset-0 flex flex-col overflow-hidden select-none" style={{ backgroundColor: '#003d2e' }}>
@@ -295,9 +301,9 @@ export default function TvDisplayPage() {
           <span className="text-xl font-bold tracking-widest text-white">FORESCO</span>
           <span className="text-sm font-medium tracking-wide" style={{ color: '#80bfaa' }}>PRODUCTIE DISPLAY</span>
         </div>
-        {slides.length > 1 && (
+        {visibleSlides.length > 1 && (
           <div className="flex gap-2">
-            {slides.map((_, i) => (
+            {visibleSlides.map((_, i) => (
               <div key={i} className="w-3 h-3 rounded-full transition-colors" style={{ backgroundColor: i === currentIndex ? '#4ade80' : '#1a5c47' }} />
             ))}
           </div>
@@ -309,7 +315,7 @@ export default function TvDisplayPage() {
       </div>
 
       {/* Progress bar */}
-      {slides.length > 1 && currentSlide && (
+      {visibleSlides.length > 1 && currentSlide && (
         <div className="h-1 shrink-0" style={{ backgroundColor: '#1a5c47' }}>
           <div
             key={`progress-${currentIndex}-${currentSlide.id}`}

@@ -515,9 +515,10 @@ function SlideEditor({
       )}
 
       {slide.type === 'priorities' && (
-        <InfoBox color="yellow" icon="⭐" title="Prioriteiten">
-          Toont live alle items met priority-vlag uit zowel <strong>Prepack</strong> als <strong>Airtec</strong> inpak.
-          Inclusief totaal open items en prio-tellingen. Vernieuwt elke 30 seconden.
+        <InfoBox color="yellow" icon="⭐" title="Automatische prioriteiten">
+          Toont live alle items met priority-vlag uit zowel <strong>Prepack</strong> als <strong>Airtec</strong>.
+          <strong>Activeert automatisch</strong> wanneer er prio items zijn en verdwijnt weer uit de rotatie zodra alles is afgehandeld.
+          Vernieuwt elke 30 seconden.
         </InfoBox>
       )}
 
