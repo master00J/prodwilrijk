@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 
-type SlideType = 'werkorders' | 'tekst' | 'afbeelding' | 'productieorders' | 'inpakstatistiek' | 'dagplanning' | 'countdown' | 'weer'
+type SlideType = 'werkorders' | 'tekst' | 'afbeelding' | 'productieorders' | 'inpakstatistiek' | 'dagplanning' | 'countdown' | 'weer' | 'priorities'
 
 interface TvSlide {
   id: string
@@ -32,6 +32,7 @@ const SLIDE_TYPES: Array<{
   { value: 'dagplanning', label: 'Dagplanning', icon: '📅', description: 'Wie doet wat vandaag', color: 'text-orange-800', bgColor: 'bg-orange-50' },
   { value: 'countdown', label: 'Countdown', icon: '⏳', description: 'Aftellen naar deadline', color: 'text-rose-700', bgColor: 'bg-rose-50' },
   { value: 'weer', label: 'Weer', icon: '🌤️', description: '7-daags weeroverzicht', color: 'text-sky-700', bgColor: 'bg-sky-50' },
+  { value: 'priorities', label: 'Prioriteiten', icon: '⭐', description: 'Prio items Prepack + Airtec', color: 'text-yellow-700', bgColor: 'bg-yellow-50' },
 ]
 
 function getSlideConfig(type: SlideType) {
@@ -59,6 +60,8 @@ function getSlidePreview(slide: TvSlide): string {
     }
     case 'weer':
       return `Locatie: ${slide.content?.latitude?.toFixed(2) ?? '51.16'}, ${slide.content?.longitude?.toFixed(2) ?? '4.39'}`
+    case 'priorities':
+      return 'Live prio items uit inpak'
     default:
       return 'Automatisch'
   }
@@ -100,7 +103,7 @@ export default function TvAdminPage() {
         ? { manualEntries: [] }
         : type === 'weer'
         ? { latitude: 51.16, longitude: 4.39 }
-        : type === 'productieorders' || type === 'inpakstatistiek'
+        : type === 'productieorders' || type === 'inpakstatistiek' || type === 'priorities'
         ? {}
         : { url: '' }
 
@@ -511,6 +514,13 @@ function SlideEditor({
         </InfoBox>
       )}
 
+      {slide.type === 'priorities' && (
+        <InfoBox color="yellow" icon="⭐" title="Prioriteiten">
+          Toont live alle items met priority-vlag uit zowel <strong>Prepack</strong> als <strong>Airtec</strong> inpak.
+          Inclusief totaal open items en prio-tellingen. Vernieuwt elke 30 seconden.
+        </InfoBox>
+      )}
+
       {slide.type === 'dagplanning' && (
         <div className="space-y-3">
           <InfoBox color="orange" icon="📅" title="Dagplanning">
@@ -644,6 +654,7 @@ function InfoBox({ color, icon, title, children }: { color: string; icon: string
     teal: 'bg-teal-50 border-teal-200 text-teal-800',
     orange: 'bg-orange-50 border-orange-200 text-orange-800',
     sky: 'bg-sky-50 border-sky-200 text-sky-800',
+    yellow: 'bg-yellow-50 border-yellow-200 text-yellow-800',
   }
   return (
     <div className={`border rounded-lg p-3 text-sm ${colorMap[color] || colorMap.green}`}>

@@ -14,7 +14,7 @@ import {
   YAxis,
 } from 'recharts'
 
-type SlideType = 'werkorders' | 'tekst' | 'afbeelding' | 'productieorders' | 'inpakstatistiek' | 'dagplanning' | 'countdown' | 'weer'
+type SlideType = 'werkorders' | 'tekst' | 'afbeelding' | 'productieorders' | 'inpakstatistiek' | 'dagplanning' | 'countdown' | 'weer' | 'priorities'
 
 interface TvSlide {
   id: string
@@ -94,11 +94,29 @@ interface WeatherData {
   weekForecast: WeatherDayForecast[]
 }
 
+interface PriorityItem {
+  source: 'prepack' | 'airtec'
+  id: number
+  label: string
+  subLabel: string | null
+  quantity: number
+  date: string
+  problem: boolean
+  measurement: boolean
+}
+
+interface PrioritiesData {
+  prepack: PriorityItem[]
+  airtec: PriorityItem[]
+  stats: { prepackTotal: number; airtecTotal: number; prepackPrio: number; airtecPrio: number }
+}
+
 const DEFAULT_SLIDE_DURATION = 15
 const PRODUCTION_POLL_INTERVAL = 15000
 const PACKING_STATS_POLL_INTERVAL = 60 * 1000
 const DAGPLANNING_POLL_INTERVAL = 60 * 1000
 const WEATHER_POLL_INTERVAL = 15 * 60 * 1000
+const PRIORITIES_POLL_INTERVAL = 30 * 1000
 
 export default function TvDisplayPage() {
   const [slides, setSlides] = useState<TvSlide[]>([])
@@ -109,6 +127,7 @@ export default function TvDisplayPage() {
   const [packingStats, setPackingStats] = useState<PackingStatsResponse | null>(null)
   const [dagplanning, setDagplanning] = useState<DagplanningEntry[]>([])
   const [weather, setWeather] = useState<WeatherData | null>(null)
+  const [priorities, setPriorities] = useState<PrioritiesData | null>(null)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
   const fetchSlides = useCallback(async () => {
@@ -168,6 +187,17 @@ export default function TvDisplayPage() {
     }
   }, [])
 
+  const fetchPriorities = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tv-slides/priorities')
+      if (!res.ok) throw new Error('priorities failed')
+      const json = await res.json()
+      setPriorities(json)
+    } catch (e) {
+      console.error('Fout bij laden prioriteiten:', e)
+    }
+  }, [])
+
   useEffect(() => { fetchSlides() }, [fetchSlides])
 
   // Supabase Realtime voor handmatige slides
@@ -213,6 +243,14 @@ export default function TvDisplayPage() {
     const interval = setInterval(fetchWeather, WEATHER_POLL_INTERVAL)
     return () => clearInterval(interval)
   }, [hasWeatherSlide, fetchWeather])
+
+  const hasPrioritiesSlide = slides.some(s => s.type === 'priorities')
+  useEffect(() => {
+    if (!hasPrioritiesSlide) return
+    fetchPriorities()
+    const interval = setInterval(fetchPriorities, PRIORITIES_POLL_INTERVAL)
+    return () => clearInterval(interval)
+  }, [hasPrioritiesSlide, fetchPriorities])
 
   // Auto-rotatie met dynamische duur per slide
   const slideDuration = slides.length > 0
@@ -303,6 +341,8 @@ export default function TvDisplayPage() {
           <CountdownSlide slide={currentSlide} />
         ) : currentSlide.type === 'weer' ? (
           <WeerSlide data={weather} title={currentSlide.title} />
+        ) : currentSlide.type === 'priorities' ? (
+          <PrioriteitenSlide data={priorities} title={currentSlide.title} />
         ) : null}
       </div>
 
@@ -946,6 +986,134 @@ function WeerSlide({ data, title }: { data: WeatherData | null; title: string | 
               <div className="text-xs mt-1" style={{ color: TV_TICK }}>{Math.round(day.windMax)} km/u</div>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ---------- Prioriteiten ---------- */
+
+function PrioriteitenSlide({ data, title }: { data: PrioritiesData | null; title: string | null }) {
+  if (!data) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4">
+        <div className="text-3xl font-bold text-white">{title || 'Prioriteiten'}</div>
+        <div className="text-xl" style={{ color: TV_MUTED }}>Prioriteiten laden…</div>
+      </div>
+    )
+  }
+
+  const { prepack, airtec, stats } = data
+  const allItems = [...prepack, ...airtec]
+  const totalPrio = stats.prepackPrio + stats.airtecPrio
+
+  const cols = allItems.length > 16 ? 4 : allItems.length > 8 ? 3 : 2
+  const isCompact = allItems.length > 12
+
+  const formatDate = (d: string) => {
+    try {
+      return new Date(d).toLocaleDateString('nl-BE', { day: 'numeric', month: 'short' })
+    } catch { return '' }
+  }
+
+  return (
+    <div className="w-full h-full flex flex-col px-10 py-5 overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between shrink-0 mb-4">
+        <h2 className="text-3xl font-bold text-white">{title || '⭐ Prioriteiten'}</h2>
+        <div className="flex items-center gap-5">
+          <div className="flex items-center gap-4">
+            <span className="flex items-center gap-2 rounded-full px-3 py-1" style={{ backgroundColor: 'rgba(250, 204, 21, 0.12)', border: '1px solid #ca8a0440' }}>
+              <span className="text-lg font-bold text-white">{totalPrio}</span>
+              <span className="text-xs" style={{ color: '#facc15' }}>prio items</span>
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#60a5fa' }} />
+              <span className="text-sm text-white font-semibold">{stats.prepackPrio}</span>
+              <span className="text-xs" style={{ color: TV_MUTED }}>Prepack</span>
+              <span className="text-[10px]" style={{ color: TV_MUTED }}>({stats.prepackTotal} open)</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#c084fc' }} />
+              <span className="text-sm text-white font-semibold">{stats.airtecPrio}</span>
+              <span className="text-xs" style={{ color: TV_MUTED }}>Airtec</span>
+              <span className="text-[10px]" style={{ color: TV_MUTED }}>({stats.airtecTotal} open)</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      {allItems.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center gap-3">
+          <div className="text-6xl">✅</div>
+          <div className="text-2xl font-semibold text-white">Geen prioriteiten</div>
+          <div className="text-lg" style={{ color: TV_MUTED }}>
+            {stats.prepackTotal + stats.airtecTotal} items open · geen met prio-vlag
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 min-h-0">
+          <div
+            className="grid gap-2 h-full"
+            style={{ gridTemplateColumns: `repeat(${cols}, 1fr)`, gridAutoRows: '1fr' }}
+          >
+            {allItems.map((item) => {
+              const isPrepack = item.source === 'prepack'
+              const accentColor = isPrepack ? '#60a5fa' : '#c084fc'
+              return (
+                <div
+                  key={`${item.source}-${item.id}`}
+                  className="rounded-lg flex items-center gap-3 min-h-0"
+                  style={{
+                    backgroundColor: item.problem ? 'rgba(251, 113, 133, 0.10)' : 'rgba(250, 204, 21, 0.06)',
+                    border: `1px solid ${item.problem ? '#fb718530' : '#facc1520'}`,
+                    padding: isCompact ? '0.35rem 0.75rem' : '0.5rem 1rem',
+                  }}
+                >
+                  {/* Source indicator */}
+                  <div
+                    className="shrink-0 w-1 self-stretch rounded-full"
+                    style={{ backgroundColor: accentColor }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="font-semibold text-white truncate"
+                        style={{ fontSize: isCompact ? '0.85rem' : '1.05rem' }}
+                      >
+                        {item.label}
+                      </span>
+                      {item.problem && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: '#fb718520', color: '#fb7185' }}>!</span>
+                      )}
+                      {item.measurement && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: '#38bdf820', color: '#38bdf8' }}>📏</span>
+                      )}
+                    </div>
+                    {item.subLabel && (
+                      <div className="truncate" style={{ color: TV_TICK, fontSize: isCompact ? '0.65rem' : '0.75rem' }}>
+                        {item.subLabel}
+                      </div>
+                    )}
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="text-sm font-bold text-white tabular-nums">{item.quantity}×</div>
+                    <div className="text-[10px]" style={{ color: TV_MUTED }}>{formatDate(item.date)}</div>
+                  </div>
+                  <span
+                    className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                    style={{ backgroundColor: `${accentColor}20`, color: accentColor }}
+                  >
+                    {isPrepack ? 'PP' : 'AT'}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
     </div>
