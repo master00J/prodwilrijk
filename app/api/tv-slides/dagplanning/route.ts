@@ -32,8 +32,16 @@ export async function GET() {
     }))
 
     entries.sort((a: any, b: any) => {
-      const order: Record<string, number> = { aanwezig: 0, thuiswerk: 1, verlof: 2, ziek: 3, afwezig: 4 }
-      return (order[a.status] ?? 5) - (order[b.status] ?? 5)
+      const statusOrder: Record<string, number> = { aanwezig: 0, thuiswerk: 1, verlof: 2, ziek: 3, afwezig: 4 }
+      const sa = statusOrder[a.status] ?? 5
+      const sb = statusOrder[b.status] ?? 5
+      if (sa !== sb) return sa - sb
+      const ma = a.machine || ''
+      const mb = b.machine || ''
+      if (ma && !mb) return -1
+      if (!ma && mb) return 1
+      if (ma !== mb) return ma.localeCompare(mb)
+      return a.employeeName.localeCompare(b.employeeName)
     })
 
     const response = NextResponse.json({ date: today, entries })
