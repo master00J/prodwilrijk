@@ -1020,30 +1020,33 @@ function PrioriteitenSlide({ data, title }: { data: PrioritiesData | null; title
     } catch { return '' }
   }
 
-  const useTwoCols = allItems.length > 10
+  const rowCount = allItems.length
+  const fontSize = rowCount <= 5 ? 'text-xl' : rowCount <= 10 ? 'text-base' : rowCount <= 20 ? 'text-sm' : 'text-xs'
+  const subFontSize = rowCount <= 5 ? 'text-sm' : rowCount <= 10 ? 'text-xs' : 'text-[10px]'
+  const badgeSize = rowCount <= 10 ? 'text-xs px-2.5 py-1' : 'text-[10px] px-2 py-0.5'
+  const qtySize = rowCount <= 5 ? 'text-xl' : rowCount <= 10 ? 'text-base' : rowCount <= 20 ? 'text-sm' : 'text-xs'
+  const headerSize = rowCount <= 10 ? 'text-xs' : 'text-[10px]'
 
   return (
     <div className="w-full h-full flex flex-col px-10 py-5 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between shrink-0 mb-3">
+      <div className="flex items-center justify-between shrink-0 mb-2">
         <h2 className="text-3xl font-bold text-white">{title || '⭐ Prioriteiten'}</h2>
         <div className="flex items-center gap-5">
           <span className="flex items-center gap-2 rounded-full px-3 py-1" style={{ backgroundColor: 'rgba(250, 204, 21, 0.12)', border: '1px solid #ca8a0440' }}>
             <span className="text-lg font-bold text-white">{totalPrio}</span>
-            <span className="text-xs" style={{ color: '#facc15' }}>prio items</span>
+            <span className="text-xs" style={{ color: '#facc15' }}>prio</span>
           </span>
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#60a5fa' }} />
+              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: '#60a5fa' }} />
               <span className="text-sm text-white font-semibold">{stats.prepackPrio}</span>
-              <span className="text-xs" style={{ color: TV_MUTED }}>Prepack</span>
-              <span className="text-[10px]" style={{ color: TV_MUTED }}>({stats.prepackTotal} open)</span>
+              <span className="text-xs" style={{ color: TV_MUTED }}>Prepack ({stats.prepackTotal} open)</span>
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#c084fc' }} />
+              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: '#c084fc' }} />
               <span className="text-sm text-white font-semibold">{stats.airtecPrio}</span>
-              <span className="text-xs" style={{ color: TV_MUTED }}>Airtec</span>
-              <span className="text-[10px]" style={{ color: TV_MUTED }}>({stats.airtecTotal} open)</span>
+              <span className="text-xs" style={{ color: TV_MUTED }}>Airtec ({stats.airtecTotal} open)</span>
             </span>
           </div>
         </div>
@@ -1060,67 +1063,89 @@ function PrioriteitenSlide({ data, title }: { data: PrioritiesData | null; title
         </div>
       ) : (
         <div className="flex-1 min-h-0 flex flex-col">
-          {/* Column headers */}
-          <div
-            className="shrink-0 grid gap-x-6 text-[10px] font-semibold uppercase tracking-wider pb-2 mb-1"
-            style={{ color: TV_MUTED, borderBottom: '1px solid #1a5c47', gridTemplateColumns: useTwoCols ? '1fr 1fr' : '1fr' }}
-          >
-            {(useTwoCols ? [0, 1] : [0]).map(c => (
-              <div key={c} className="grid items-center" style={{ gridTemplateColumns: '2.5rem 1fr 6rem 3.5rem 2.5rem' }}>
-                <span>Bron</span>
-                <span>Item</span>
-                <span>Info</span>
-                <span className="text-right">Aantal</span>
-                <span className="text-right">Datum</span>
-              </div>
-            ))}
-          </div>
+          {/* Table */}
+          <table className="w-full" style={{ tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: '4%' }} />
+              <col style={{ width: '6%' }} />
+              <col />
+              <col style={{ width: '22%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '10%' }} />
+            </colgroup>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #1a5c47' }}>
+                <th className={`text-left font-semibold uppercase tracking-wider pb-2 ${headerSize}`} style={{ color: TV_MUTED }}>#</th>
+                <th className={`text-left font-semibold uppercase tracking-wider pb-2 ${headerSize}`} style={{ color: TV_MUTED }}>Bron</th>
+                <th className={`text-left font-semibold uppercase tracking-wider pb-2 ${headerSize}`} style={{ color: TV_MUTED }}>Item</th>
+                <th className={`text-left font-semibold uppercase tracking-wider pb-2 ${headerSize}`} style={{ color: TV_MUTED }}>Info</th>
+                <th className={`text-right font-semibold uppercase tracking-wider pb-2 ${headerSize}`} style={{ color: TV_MUTED }}>Aantal</th>
+                <th className={`text-right font-semibold uppercase tracking-wider pb-2 ${headerSize}`} style={{ color: TV_MUTED }}>Datum</th>
+              </tr>
+            </thead>
+          </table>
 
-          {/* Rows */}
-          <div
-            className="flex-1 min-h-0 grid gap-x-6 auto-rows-min"
-            style={{
-              gridTemplateColumns: useTwoCols ? '1fr 1fr' : '1fr',
-              gridAutoFlow: useTwoCols ? 'column' : 'row',
-              gridTemplateRows: useTwoCols ? `repeat(${Math.ceil(allItems.length / 2)}, auto)` : undefined,
-            }}
-          >
-            {allItems.map((item) => {
-              const isPrepack = item.source === 'prepack'
-              const accentColor = isPrepack ? '#60a5fa' : '#c084fc'
-              return (
-                <div
-                  key={`${item.source}-${item.id}`}
-                  className="grid items-center py-1.5"
-                  style={{
-                    gridTemplateColumns: '2.5rem 1fr 6rem 3.5rem 2.5rem',
-                    borderBottom: '1px solid #1a5c4740',
-                    backgroundColor: item.problem ? 'rgba(251, 113, 133, 0.06)' : 'transparent',
-                  }}
-                >
-                  <span
-                    className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-center"
-                    style={{ backgroundColor: `${accentColor}20`, color: accentColor }}
-                  >
-                    {isPrepack ? 'PP' : 'AT'}
-                  </span>
-                  <span className="flex items-center gap-1.5 min-w-0">
-                    <span className="font-semibold text-white truncate text-sm">{item.label}</span>
-                    {item.problem && (
-                      <span className="text-[9px] font-bold px-1 rounded" style={{ backgroundColor: '#fb718520', color: '#fb7185' }}>!</span>
-                    )}
-                    {item.measurement && (
-                      <span className="text-[9px] px-1 rounded" style={{ backgroundColor: '#38bdf820', color: '#38bdf8' }}>📏</span>
-                    )}
-                  </span>
-                  <span className="text-xs truncate" style={{ color: TV_TICK }}>
-                    {item.subLabel || '—'}
-                  </span>
-                  <span className="text-sm font-bold text-white tabular-nums text-right">{item.quantity}×</span>
-                  <span className="text-[10px] text-right tabular-nums" style={{ color: TV_MUTED }}>{formatDate(item.date)}</span>
-                </div>
-              )
-            })}
+          {/* Scrollable body fills remaining space */}
+          <div className="flex-1 min-h-0">
+            <table className="w-full h-full" style={{ tableLayout: 'fixed' }}>
+              <colgroup>
+                <col style={{ width: '4%' }} />
+                <col style={{ width: '6%' }} />
+                <col />
+                <col style={{ width: '22%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '10%' }} />
+              </colgroup>
+              <tbody>
+                {allItems.map((item, idx) => {
+                  const isPrepack = item.source === 'prepack'
+                  const accentColor = isPrepack ? '#60a5fa' : '#c084fc'
+                  const rowHeight = `${100 / rowCount}%`
+                  return (
+                    <tr
+                      key={`${item.source}-${item.id}`}
+                      style={{
+                        height: rowHeight,
+                        borderBottom: '1px solid #1a5c4750',
+                        backgroundColor: item.problem ? 'rgba(251, 113, 133, 0.06)' : idx % 2 === 1 ? 'rgba(255,255,255,0.02)' : 'transparent',
+                      }}
+                    >
+                      <td className={`${subFontSize} tabular-nums font-medium`} style={{ color: TV_MUTED }}>
+                        {idx + 1}
+                      </td>
+                      <td>
+                        <span
+                          className={`${badgeSize} font-bold rounded-full inline-block text-center`}
+                          style={{ backgroundColor: `${accentColor}20`, color: accentColor, minWidth: '2rem' }}
+                        >
+                          {isPrepack ? 'PP' : 'AT'}
+                        </span>
+                      </td>
+                      <td className="pr-4">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`${fontSize} font-semibold text-white truncate`}>{item.label}</span>
+                          {item.problem && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0" style={{ backgroundColor: '#fb718520', color: '#fb7185' }}>PROBLEEM</span>
+                          )}
+                          {item.measurement && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0" style={{ backgroundColor: '#38bdf820', color: '#38bdf8' }}>METING</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className={`${subFontSize} truncate`} style={{ color: TV_TICK }}>
+                        {item.subLabel || '—'}
+                      </td>
+                      <td className={`${qtySize} font-bold text-white tabular-nums text-right`}>
+                        {item.quantity}×
+                      </td>
+                      <td className={`${subFontSize} text-right tabular-nums`} style={{ color: TV_MUTED }}>
+                        {formatDate(item.date)}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
