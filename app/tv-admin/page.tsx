@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 
 interface TvSlide {
   id: string
-  type: 'werkorders' | 'tekst' | 'afbeelding'
+  type: 'werkorders' | 'tekst' | 'afbeelding' | 'productieorders'
   title: string | null
   content: any
   sort_order: number
@@ -17,6 +17,7 @@ const SLIDE_TYPE_LABELS: Record<string, string> = {
   werkorders: 'Werkorders',
   tekst: 'Tekst / Bericht',
   afbeelding: 'Afbeelding',
+  productieorders: 'Productieorders (live)',
 }
 
 export default function TvAdminPage() {
@@ -24,7 +25,7 @@ export default function TvAdminPage() {
   const [loading, setLoading] = useState(true)
   const [editingSlide, setEditingSlide] = useState<TvSlide | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
-  const [newType, setNewType] = useState<'werkorders' | 'tekst' | 'afbeelding'>('werkorders')
+  const [newType, setNewType] = useState<'werkorders' | 'tekst' | 'afbeelding' | 'productieorders'>('werkorders')
   const [saving, setSaving] = useState(false)
 
   const fetchSlides = useCallback(async () => {
@@ -49,6 +50,8 @@ export default function TvAdminPage() {
         ? { lines: [''] }
         : newType === 'tekst'
         ? { text: '' }
+        : newType === 'productieorders'
+        ? {}
         : { url: '' }
 
       const res = await fetch('/api/tv-slides', {
@@ -166,6 +169,7 @@ export default function TvAdminPage() {
                 <option value="werkorders">Werkorders</option>
                 <option value="tekst">Tekst / Bericht</option>
                 <option value="afbeelding">Afbeelding</option>
+                <option value="productieorders">Productieorders (live)</option>
               </select>
             </div>
             <button
@@ -208,6 +212,7 @@ export default function TvAdminPage() {
               <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                 slide.type === 'werkorders' ? 'bg-blue-100 text-blue-700' :
                 slide.type === 'tekst' ? 'bg-purple-100 text-purple-700' :
+                slide.type === 'productieorders' ? 'bg-green-100 text-green-700' :
                 'bg-amber-100 text-amber-700'
               }`}>
                 {SLIDE_TYPE_LABELS[slide.type]}
@@ -321,6 +326,21 @@ function SlideEditor({
               <option value="xlarge">Extra Groot</option>
             </select>
           </div>
+        </div>
+      )}
+
+      {slide.type === 'productieorders' && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-800">
+          <p className="font-medium mb-1">Automatische slide</p>
+          <p>
+            Deze slide toont live de actieve productieorders en hun status. Zodra iemand een order start
+            of klaarmeld via <strong>/production-order-time</strong>, wordt dit automatisch bijgewerkt op het display.
+          </p>
+          <ul className="list-disc list-inside mt-2 space-y-1">
+            <li><strong>ACTIEF</strong> — er loopt een timer op dit order (groen gemarkeerd)</li>
+            <li><strong>WACHTEND</strong> — order is geüpload maar nog niet gestart</li>
+          </ul>
+          <p className="mt-2 text-xs text-green-600">Pollt elke 15 seconden voor updates.</p>
         </div>
       )}
 
