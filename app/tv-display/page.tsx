@@ -270,22 +270,13 @@ function PackingStatsSlide({
       </div>
 
       {/* KPI cards */}
-      <div className="grid grid-cols-4 gap-4 shrink-0 mb-5">
+      <div className="grid grid-cols-5 gap-3 shrink-0 mb-5">
+        {/* Gecombineerd */}
         <div className="rounded-xl px-5 py-4" style={{ backgroundColor: 'rgba(74, 222, 128, 0.12)', border: '1px solid #22c55e' }}>
           <div className="text-xs uppercase tracking-widest mb-1" style={{ color: TV_MUTED }}>Totaal verpakt</div>
           <div className="text-4xl font-bold text-white tabular-nums">{totals.itemsPacked.toLocaleString('nl-NL')}</div>
-          <div className="flex gap-3 mt-2 text-xs" style={{ color: TV_TICK }}>
-            <span>Prepack: {totals.itemsPrepack.toLocaleString('nl-NL')}</span>
-            <span>Airtec: {totals.itemsAirtec.toLocaleString('nl-NL')}</span>
-          </div>
-        </div>
-
-        <div className="rounded-xl px-5 py-4" style={{ backgroundColor: 'rgba(56, 189, 248, 0.1)', border: '1px solid #38bdf8' }}>
-          <div className="text-xs uppercase tracking-widest mb-1" style={{ color: TV_MUTED }}>Totaal manuren</div>
-          <div className="text-4xl font-bold text-white tabular-nums">{totals.manHours.toLocaleString('nl-NL', { maximumFractionDigits: 1 })}</div>
-          <div className="flex gap-3 mt-2 text-xs" style={{ color: TV_TICK }}>
-            <span>Prepack: {totals.manHoursPrepack.toFixed(1)} u</span>
-            <span>Airtec: {totals.manHoursAirtec.toFixed(1)} u</span>
+          <div className="mt-2 text-xs" style={{ color: TV_TICK }}>
+            {totals.manHours.toLocaleString('nl-NL', { maximumFractionDigits: 1 })} manuren
           </div>
         </div>
 
@@ -295,14 +286,27 @@ function PackingStatsSlide({
           <div className="mt-2 text-xs" style={{ color: TV_TICK }}>stuks / werkdag</div>
         </div>
 
-        <div className="rounded-xl px-5 py-4" style={{ backgroundColor: 'rgba(168, 85, 247, 0.1)', border: '1px solid #a855f7' }}>
-          <div className="text-xs uppercase tracking-widest mb-1" style={{ color: TV_MUTED }}>Stuks / manuur</div>
-          <div className="text-4xl font-bold text-white tabular-nums">
-            {totals.manHours > 0
-              ? (totals.itemsPacked / totals.manHours).toFixed(1)
-              : '-'}
+        {/* Separator */}
+        <div className="flex items-center justify-center">
+          <div className="w-px h-3/4 rounded" style={{ backgroundColor: TV_GRID }} />
+        </div>
+
+        {/* Prepack apart */}
+        <div className="rounded-xl px-5 py-4" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', border: '1px solid #3b82f6' }}>
+          <div className="text-xs uppercase tracking-widest mb-1" style={{ color: '#93c5fd' }}>Prepack</div>
+          <div className="text-4xl font-bold text-white tabular-nums">{totals.itemsPrepack.toLocaleString('nl-NL')}</div>
+          <div className="mt-2 text-xs" style={{ color: TV_TICK }}>
+            {totals.manHoursPrepack.toFixed(1)} manuren
           </div>
-          <div className="mt-2 text-xs" style={{ color: TV_TICK }}>efficiëntie</div>
+        </div>
+
+        {/* Airtec apart */}
+        <div className="rounded-xl px-5 py-4" style={{ backgroundColor: 'rgba(168, 85, 247, 0.1)', border: '1px solid #a855f7' }}>
+          <div className="text-xs uppercase tracking-widest mb-1" style={{ color: '#c4b5fd' }}>Airtec</div>
+          <div className="text-4xl font-bold text-white tabular-nums">{totals.itemsAirtec.toLocaleString('nl-NL')}</div>
+          <div className="mt-2 text-xs" style={{ color: TV_TICK }}>
+            {totals.manHoursAirtec.toFixed(1)} manuren
+          </div>
         </div>
       </div>
 
