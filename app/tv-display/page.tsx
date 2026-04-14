@@ -36,7 +36,6 @@ export default function TvDisplayPage() {
 
   useEffect(() => { fetchSlides() }, [fetchSlides])
 
-  // Supabase Realtime
   useEffect(() => {
     const channel = supabase
       .channel('tv-slides-realtime')
@@ -48,7 +47,6 @@ export default function TvDisplayPage() {
     return () => { supabase.removeChannel(channel) }
   }, [fetchSlides])
 
-  // Auto-rotatie
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current)
     if (slides.length > 1) {
@@ -61,12 +59,10 @@ export default function TvDisplayPage() {
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
   }, [slides.length])
 
-  // Reset index als slides veranderen
   useEffect(() => {
     if (currentIndex >= slides.length) setCurrentIndex(0)
   }, [slides.length, currentIndex])
 
-  // Klok
   useEffect(() => {
     const updateClock = () => {
       const now = new Date()
@@ -81,35 +77,35 @@ export default function TvDisplayPage() {
   const currentSlide = slides[currentIndex] || null
 
   return (
-    <div className="fixed inset-0 bg-gray-950 text-white flex flex-col overflow-hidden select-none">
-      {/* Header */}
-      <div className="flex items-center justify-between px-8 py-4 bg-gray-900/80 border-b border-gray-800 shrink-0">
+    <div className="fixed inset-0 flex flex-col overflow-hidden select-none" style={{ backgroundColor: '#003d2e' }}>
+      {/* Header bar */}
+      <div className="flex items-center justify-between px-8 py-3 shrink-0" style={{ backgroundColor: '#002b20', borderBottom: '2px solid #00664d' }}>
         <div className="flex items-center gap-4">
-          <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
-          <span className="text-lg font-semibold tracking-wide text-gray-300">PRODUCTIE DISPLAY</span>
+          <div className="w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: '#4ade80' }} />
+          <span className="text-xl font-bold tracking-widest text-white">FORESCO</span>
+          <span className="text-sm font-medium tracking-wide" style={{ color: '#80bfaa' }}>PRODUCTIE DISPLAY</span>
         </div>
         {slides.length > 1 && (
-          <div className="flex gap-1.5">
+          <div className="flex gap-2">
             {slides.map((_, i) => (
               <div
                 key={i}
-                className={`w-2.5 h-2.5 rounded-full transition-colors ${
-                  i === currentIndex ? 'bg-blue-400' : 'bg-gray-700'
-                }`}
+                className="w-3 h-3 rounded-full transition-colors"
+                style={{ backgroundColor: i === currentIndex ? '#4ade80' : '#1a5c47' }}
               />
             ))}
           </div>
         )}
         <div className="text-right">
-          <div className="text-3xl font-bold tabular-nums">{clock}</div>
-          <div className="text-sm text-gray-400 capitalize">{date}</div>
+          <div className="text-3xl font-bold tabular-nums text-white">{clock}</div>
+          <div className="text-sm capitalize" style={{ color: '#80bfaa' }}>{date}</div>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 flex items-center justify-center p-8 min-h-0">
+      {/* Content — volledig fullscreen */}
+      <div className="flex-1 flex items-center justify-center min-h-0">
         {!currentSlide ? (
-          <div className="text-gray-600 text-2xl">Geen actieve slides</div>
+          <div className="text-2xl" style={{ color: '#4a8a74' }}>Geen actieve slides</div>
         ) : currentSlide.type === 'werkorders' ? (
           <WerkordersSlide slide={currentSlide} />
         ) : currentSlide.type === 'tekst' ? (
@@ -118,13 +114,6 @@ export default function TvDisplayPage() {
           <AfbeeldingSlide slide={currentSlide} />
         ) : null}
       </div>
-
-      {/* Slide title bar */}
-      {currentSlide?.title && (
-        <div className="shrink-0 px-8 py-3 bg-gray-900/60 border-t border-gray-800 text-center text-gray-400 text-sm font-medium">
-          {currentSlide.title}
-        </div>
-      )}
     </div>
   )
 }
@@ -133,32 +122,40 @@ function WerkordersSlide({ slide }: { slide: TvSlide }) {
   const lines: string[] = (slide.content?.lines || []).filter((l: string) => l.trim())
 
   if (lines.length === 0) {
-    return <div className="text-gray-500 text-xl">Geen werkorders ingevoerd</div>
+    return <div className="text-xl" style={{ color: '#4a8a74' }}>Geen werkorders ingevoerd</div>
   }
 
   return (
-    <div className="w-full max-w-4xl">
+    <div className="w-full h-full flex flex-col px-10 py-6">
       {slide.title && (
-        <h2 className="text-3xl font-bold text-center mb-6 text-white">{slide.title}</h2>
+        <h2 className="text-4xl font-bold text-center mb-6 text-white">{slide.title}</h2>
       )}
-      <table className="w-full">
-        <thead>
-          <tr className="border-b-2 border-gray-700">
-            <th className="text-left py-3 px-4 text-blue-400 text-lg font-semibold w-16">#</th>
-            <th className="text-left py-3 px-4 text-blue-400 text-lg font-semibold">Werkorder</th>
-          </tr>
-        </thead>
-        <tbody>
-          {lines.map((line, i) => (
-            <tr key={i} className={`border-b border-gray-800 ${i === 0 ? 'bg-blue-950/40' : ''}`}>
-              <td className="py-4 px-4 text-gray-500 text-xl font-mono">{i + 1}</td>
-              <td className={`py-4 px-4 text-xl ${i === 0 ? 'text-blue-300 font-bold text-2xl' : 'text-gray-200'}`}>
-                {line}
-              </td>
+      <div className="flex-1 overflow-auto">
+        <table className="w-full">
+          <thead>
+            <tr style={{ borderBottom: '3px solid #00664d' }}>
+              <th className="text-left py-4 px-6 text-xl font-bold w-20" style={{ color: '#4ade80' }}>#</th>
+              <th className="text-left py-4 px-6 text-xl font-bold" style={{ color: '#4ade80' }}>Werkorder</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {lines.map((line, i) => (
+              <tr
+                key={i}
+                style={{
+                  borderBottom: '1px solid #1a5c47',
+                  backgroundColor: i === 0 ? 'rgba(74, 222, 128, 0.1)' : 'transparent',
+                }}
+              >
+                <td className="py-5 px-6 font-mono text-2xl" style={{ color: '#4a8a74' }}>{i + 1}</td>
+                <td className={`py-5 px-6 ${i === 0 ? 'text-3xl font-bold' : 'text-2xl'}`} style={{ color: i === 0 ? '#4ade80' : '#e0f0ea' }}>
+                  {line}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
@@ -168,17 +165,17 @@ function TekstSlide({ slide }: { slide: TvSlide }) {
   const fontSize = slide.content?.fontSize || 'large'
 
   const sizeClass =
-    fontSize === 'xlarge' ? 'text-6xl' :
-    fontSize === 'large' ? 'text-4xl' :
-    'text-2xl'
+    fontSize === 'xlarge' ? 'text-8xl' :
+    fontSize === 'large' ? 'text-6xl' :
+    'text-4xl'
 
   return (
-    <div className="max-w-4xl text-center px-8">
+    <div className="w-full h-full flex flex-col items-center justify-center px-16">
       {slide.title && (
-        <h2 className="text-3xl font-bold mb-8 text-blue-400">{slide.title}</h2>
+        <h2 className="text-4xl font-bold mb-10" style={{ color: '#4ade80' }}>{slide.title}</h2>
       )}
-      <p className={`${sizeClass} font-medium leading-relaxed whitespace-pre-wrap`}>
-        {text || <span className="text-gray-600">Geen tekst</span>}
+      <p className={`${sizeClass} font-bold leading-snug whitespace-pre-wrap text-center text-white`}>
+        {text || <span style={{ color: '#4a8a74' }}>Geen tekst</span>}
       </p>
     </div>
   )
@@ -188,15 +185,16 @@ function AfbeeldingSlide({ slide }: { slide: TvSlide }) {
   const url = slide.content?.url
 
   if (!url) {
-    return <div className="text-gray-500 text-xl">Geen afbeelding</div>
+    return <div className="text-xl" style={{ color: '#4a8a74' }}>Geen afbeelding</div>
   }
 
   return (
-    <div className="w-full h-full flex items-center justify-center">
+    <div className="w-full h-full flex items-center justify-center p-4">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={url}
         alt={slide.title || 'TV Slide'}
-        className="max-w-full max-h-full object-contain rounded-lg"
+        className="max-w-full max-h-full object-contain"
       />
     </div>
   )
