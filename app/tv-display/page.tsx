@@ -219,6 +219,16 @@ function formatElapsed(seconds: number): string {
   return `${m}m`
 }
 
+function BarLabel(props: any) {
+  const { x, y, width, value, fill, fontSize } = props
+  if (!value || value === 0) return null
+  return (
+    <text x={x + width / 2} y={y - 4} fill={fill} fontSize={fontSize} textAnchor="middle">
+      {value}
+    </text>
+  )
+}
+
 const TV_MUTED = '#80bfaa'
 const TV_GRID = '#1a5c47'
 const TV_TICK = '#a0c4b8'
@@ -375,6 +385,7 @@ function PackingStatsSlide({
                 fill="#3b82f6"
                 radius={[3, 3, 0, 0]}
                 barSize={daily.length > 10 ? 14 : 20}
+                label={<BarLabel fill="#93c5fd" fontSize={daily.length > 10 ? 8 : 10} />}
               />
               <Bar
                 yAxisId="items"
@@ -383,6 +394,7 @@ function PackingStatsSlide({
                 fill="#a855f7"
                 radius={[3, 3, 0, 0]}
                 barSize={daily.length > 10 ? 14 : 20}
+                label={<BarLabel fill="#c4b5fd" fontSize={daily.length > 10 ? 8 : 10} />}
               />
               <Line
                 yAxisId="uur"
