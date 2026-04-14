@@ -384,8 +384,7 @@ function PackingStatsSlide({
                 name="Prepack"
                 fill="#3b82f6"
                 radius={[3, 3, 0, 0]}
-                barSize={daily.length > 10 ? 14 : 20}
-                label={<BarLabel fill="#93c5fd" fontSize={daily.length > 10 ? 8 : 10} />}
+                label={<BarLabel fill="#93c5fd" fontSize={daily.length > 10 ? 11 : 14} />}
               />
               <Bar
                 yAxisId="items"
@@ -393,8 +392,7 @@ function PackingStatsSlide({
                 name="Airtec"
                 fill="#a855f7"
                 radius={[3, 3, 0, 0]}
-                barSize={daily.length > 10 ? 14 : 20}
-                label={<BarLabel fill="#c4b5fd" fontSize={daily.length > 10 ? 8 : 10} />}
+                label={<BarLabel fill="#c4b5fd" fontSize={daily.length > 10 ? 11 : 14} />}
               />
               <Line
                 yAxisId="uur"
