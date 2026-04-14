@@ -1014,27 +1014,24 @@ function PrioriteitenSlide({ data, title }: { data: PrioritiesData | null; title
   const allItems = [...prepack, ...airtec]
   const totalPrio = stats.prepackPrio + stats.airtecPrio
 
-  const cols = allItems.length > 16 ? 4 : allItems.length > 8 ? 3 : 2
-  const isCompact = allItems.length > 12
-
   const formatDate = (d: string) => {
     try {
       return new Date(d).toLocaleDateString('nl-BE', { day: 'numeric', month: 'short' })
     } catch { return '' }
   }
 
+  const useTwoCols = allItems.length > 10
+
   return (
     <div className="w-full h-full flex flex-col px-10 py-5 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between shrink-0 mb-4">
+      <div className="flex items-center justify-between shrink-0 mb-3">
         <h2 className="text-3xl font-bold text-white">{title || '⭐ Prioriteiten'}</h2>
         <div className="flex items-center gap-5">
-          <div className="flex items-center gap-4">
-            <span className="flex items-center gap-2 rounded-full px-3 py-1" style={{ backgroundColor: 'rgba(250, 204, 21, 0.12)', border: '1px solid #ca8a0440' }}>
-              <span className="text-lg font-bold text-white">{totalPrio}</span>
-              <span className="text-xs" style={{ color: '#facc15' }}>prio items</span>
-            </span>
-          </div>
+          <span className="flex items-center gap-2 rounded-full px-3 py-1" style={{ backgroundColor: 'rgba(250, 204, 21, 0.12)', border: '1px solid #ca8a0440' }}>
+            <span className="text-lg font-bold text-white">{totalPrio}</span>
+            <span className="text-xs" style={{ color: '#facc15' }}>prio items</span>
+          </span>
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#60a5fa' }} />
@@ -1062,10 +1059,31 @@ function PrioriteitenSlide({ data, title }: { data: PrioritiesData | null; title
           </div>
         </div>
       ) : (
-        <div className="flex-1 min-h-0">
+        <div className="flex-1 min-h-0 flex flex-col">
+          {/* Column headers */}
           <div
-            className="grid gap-2 h-full"
-            style={{ gridTemplateColumns: `repeat(${cols}, 1fr)`, gridAutoRows: '1fr' }}
+            className="shrink-0 grid gap-x-6 text-[10px] font-semibold uppercase tracking-wider pb-2 mb-1"
+            style={{ color: TV_MUTED, borderBottom: '1px solid #1a5c47', gridTemplateColumns: useTwoCols ? '1fr 1fr' : '1fr' }}
+          >
+            {(useTwoCols ? [0, 1] : [0]).map(c => (
+              <div key={c} className="grid items-center" style={{ gridTemplateColumns: '2.5rem 1fr 6rem 3.5rem 2.5rem' }}>
+                <span>Bron</span>
+                <span>Item</span>
+                <span>Info</span>
+                <span className="text-right">Aantal</span>
+                <span className="text-right">Datum</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Rows */}
+          <div
+            className="flex-1 min-h-0 grid gap-x-6 auto-rows-min"
+            style={{
+              gridTemplateColumns: useTwoCols ? '1fr 1fr' : '1fr',
+              gridAutoFlow: useTwoCols ? 'column' : 'row',
+              gridTemplateRows: useTwoCols ? `repeat(${Math.ceil(allItems.length / 2)}, auto)` : undefined,
+            }}
           >
             {allItems.map((item) => {
               const isPrepack = item.source === 'prepack'
@@ -1073,49 +1091,33 @@ function PrioriteitenSlide({ data, title }: { data: PrioritiesData | null; title
               return (
                 <div
                   key={`${item.source}-${item.id}`}
-                  className="rounded-lg flex items-center gap-3 min-h-0"
+                  className="grid items-center py-1.5"
                   style={{
-                    backgroundColor: item.problem ? 'rgba(251, 113, 133, 0.10)' : 'rgba(250, 204, 21, 0.06)',
-                    border: `1px solid ${item.problem ? '#fb718530' : '#facc1520'}`,
-                    padding: isCompact ? '0.35rem 0.75rem' : '0.5rem 1rem',
+                    gridTemplateColumns: '2.5rem 1fr 6rem 3.5rem 2.5rem',
+                    borderBottom: '1px solid #1a5c4740',
+                    backgroundColor: item.problem ? 'rgba(251, 113, 133, 0.06)' : 'transparent',
                   }}
                 >
-                  {/* Source indicator */}
-                  <div
-                    className="shrink-0 w-1 self-stretch rounded-full"
-                    style={{ backgroundColor: accentColor }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="font-semibold text-white truncate"
-                        style={{ fontSize: isCompact ? '0.85rem' : '1.05rem' }}
-                      >
-                        {item.label}
-                      </span>
-                      {item.problem && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: '#fb718520', color: '#fb7185' }}>!</span>
-                      )}
-                      {item.measurement && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: '#38bdf820', color: '#38bdf8' }}>📏</span>
-                      )}
-                    </div>
-                    {item.subLabel && (
-                      <div className="truncate" style={{ color: TV_TICK, fontSize: isCompact ? '0.65rem' : '0.75rem' }}>
-                        {item.subLabel}
-                      </div>
-                    )}
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <div className="text-sm font-bold text-white tabular-nums">{item.quantity}×</div>
-                    <div className="text-[10px]" style={{ color: TV_MUTED }}>{formatDate(item.date)}</div>
-                  </div>
                   <span
-                    className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                    className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-center"
                     style={{ backgroundColor: `${accentColor}20`, color: accentColor }}
                   >
                     {isPrepack ? 'PP' : 'AT'}
                   </span>
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <span className="font-semibold text-white truncate text-sm">{item.label}</span>
+                    {item.problem && (
+                      <span className="text-[9px] font-bold px-1 rounded" style={{ backgroundColor: '#fb718520', color: '#fb7185' }}>!</span>
+                    )}
+                    {item.measurement && (
+                      <span className="text-[9px] px-1 rounded" style={{ backgroundColor: '#38bdf820', color: '#38bdf8' }}>📏</span>
+                    )}
+                  </span>
+                  <span className="text-xs truncate" style={{ color: TV_TICK }}>
+                    {item.subLabel || '—'}
+                  </span>
+                  <span className="text-sm font-bold text-white tabular-nums text-right">{item.quantity}×</span>
+                  <span className="text-[10px] text-right tabular-nums" style={{ color: TV_MUTED }}>{formatDate(item.date)}</span>
                 </div>
               )
             })}
