@@ -160,7 +160,15 @@ function formatElapsed(seconds: number): string {
 
 function ProductieordersSlide({ orders, title }: { orders: ProductionOrder[]; title: string | null }) {
   if (orders.length === 0) {
-    return <div className="text-2xl" style={{ color: '#4a8a74' }}>Geen actieve productieorders</div>
+    return (
+      <div className="flex flex-col items-center justify-center gap-4">
+        <div className="text-5xl font-bold text-white">{title || 'Productieorders'}</div>
+        <div className="text-2xl" style={{ color: '#80bfaa' }}>Momenteel geen openstaande productieorders</div>
+        <div className="text-sm mt-2" style={{ color: '#4a8a74' }}>
+          Upload een order via /admin/production-order-upload om hier te verschijnen
+        </div>
+      </div>
+    )
   }
 
   return (
