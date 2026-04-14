@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { type, title, content, sort_order, active } = body
 
-    if (!type || !['werkorders', 'tekst', 'afbeelding', 'productieorders', 'inpakstatistiek'].includes(type)) {
+    if (!type || !['werkorders', 'tekst', 'afbeelding', 'productieorders', 'inpakstatistiek', 'dagplanning', 'countdown', 'weer'].includes(type)) {
       return NextResponse.json({ error: 'Ongeldig type' }, { status: 400 })
     }
 

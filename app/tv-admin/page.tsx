@@ -2,13 +2,16 @@
 
 import { useState, useEffect, useCallback } from 'react'
 
+type SlideType = 'werkorders' | 'tekst' | 'afbeelding' | 'productieorders' | 'inpakstatistiek' | 'dagplanning' | 'countdown' | 'weer'
+
 interface TvSlide {
   id: string
-  type: 'werkorders' | 'tekst' | 'afbeelding' | 'productieorders' | 'inpakstatistiek'
+  type: SlideType
   title: string | null
   content: any
   sort_order: number
   active: boolean
+  duration: number | null
   created_at: string
   updated_at: string
 }
@@ -19,6 +22,9 @@ const SLIDE_TYPE_LABELS: Record<string, string> = {
   afbeelding: 'Afbeelding',
   productieorders: 'Productieorders (live)',
   inpakstatistiek: 'Prepack + Airtec (statistiek)',
+  dagplanning: 'Dagplanning (live)',
+  countdown: 'Countdown / Deadline',
+  weer: 'Weer (live)',
 }
 
 export default function TvAdminPage() {
@@ -26,9 +32,7 @@ export default function TvAdminPage() {
   const [loading, setLoading] = useState(true)
   const [editingSlide, setEditingSlide] = useState<TvSlide | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
-  const [newType, setNewType] = useState<
-    'werkorders' | 'tekst' | 'afbeelding' | 'productieorders' | 'inpakstatistiek'
-  >('werkorders')
+  const [newType, setNewType] = useState<SlideType>('werkorders')
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
@@ -54,6 +58,12 @@ export default function TvAdminPage() {
         ? { lines: [''] }
         : newType === 'tekst'
         ? { text: '' }
+        : newType === 'countdown'
+        ? { targetDate: '', description: '' }
+        : newType === 'dagplanning'
+        ? { manualEntries: [] }
+        : newType === 'weer'
+        ? { latitude: 51.16, longitude: 4.39 }
         : newType === 'productieorders' || newType === 'inpakstatistiek'
         ? {}
         : { url: '' }
@@ -184,7 +194,10 @@ export default function TvAdminPage() {
                 <option value="tekst">Tekst / Bericht</option>
                 <option value="afbeelding">Afbeelding</option>
                 <option value="productieorders">Productieorders (live)</option>
-                <option value="inpakstatistiek">Prepack + Airtec (statistiek, ~14 dagen)</option>
+                <option value="inpakstatistiek">Prepack + Airtec (statistiek)</option>
+                <option value="dagplanning">Dagplanning (live)</option>
+                <option value="countdown">Countdown / Deadline</option>
+                <option value="weer">Weer (live)</option>
               </select>
             </div>
             <button
@@ -237,6 +250,9 @@ export default function TvAdminPage() {
                 slide.type === 'tekst' ? 'bg-purple-100 text-purple-700' :
                 slide.type === 'productieorders' ? 'bg-green-100 text-green-700' :
                 slide.type === 'inpakstatistiek' ? 'bg-teal-100 text-teal-800' :
+                slide.type === 'dagplanning' ? 'bg-orange-100 text-orange-800' :
+                slide.type === 'countdown' ? 'bg-rose-100 text-rose-700' :
+                slide.type === 'weer' ? 'bg-sky-100 text-sky-700' :
                 'bg-amber-100 text-amber-700'
               }`}>
                 {SLIDE_TYPE_LABELS[slide.type]}
@@ -302,15 +318,30 @@ function SlideEditor({
 
   return (
     <div className="px-4 pb-4 pt-2 border-t border-gray-100 space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Titel</label>
-        <input
-          type="text"
-          value={slide.title || ''}
-          onChange={e => update({ title: e.target.value })}
-          placeholder="Optionele titel (wordt bovenaan de slide getoond)"
-          className="w-full border rounded-lg px-3 py-2 text-sm"
-        />
+      <div className="flex gap-4">
+        <div className="flex-1">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Titel</label>
+          <input
+            type="text"
+            value={slide.title || ''}
+            onChange={e => update({ title: e.target.value })}
+            placeholder="Optionele titel (wordt bovenaan de slide getoond)"
+            className="w-full border rounded-lg px-3 py-2 text-sm"
+          />
+        </div>
+        <div className="w-32">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Duur (sec)</label>
+          <input
+            type="number"
+            min={5}
+            max={300}
+            value={slide.duration ?? ''}
+            onChange={e => update({ duration: e.target.value ? parseInt(e.target.value, 10) : null })}
+            placeholder="15"
+            className="w-full border rounded-lg px-3 py-2 text-sm"
+          />
+          <span className="text-xs text-gray-400">Leeg = 15s</span>
+        </div>
       </div>
 
       {slide.type === 'werkorders' && (
@@ -375,6 +406,85 @@ function SlideEditor({
             Toont hetzelfde datateam als <strong>/admin/prepack-airtec</strong>: aantal verpakt (Prepack en Airtec
             opgestapeld) en manuren per flow. Standaard periode: <strong>14 dagen</strong>. Vernieuwt ongeveer elke 5 minuten.
           </p>
+        </div>
+      )}
+
+      {slide.type === 'dagplanning' && (
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 text-sm text-orange-900">
+          <p className="font-medium mb-1">Dagplanning (automatisch + handmatig)</p>
+          <p>
+            Toont automatisch de dagplanning uit het systeem (wie is aanwezig, afwezig, welke machine).
+            Vernieuwt elke 5 minuten.
+          </p>
+          <div className="mt-3">
+            <label className="block text-sm font-medium text-orange-800 mb-1">
+              Handmatige regels (optioneel, overschrijft automatische data)
+            </label>
+            <textarea
+              value={(slide.content?.manualEntries || []).join('\n')}
+              onChange={e => updateContent({ manualEntries: e.target.value.split('\n').filter((l: string) => l.trim()) })}
+              rows={6}
+              className="w-full border border-orange-200 rounded-lg px-3 py-2 text-sm font-mono"
+              placeholder={"Jan — Prepack\nPiet — Airtec — Machine 3\nKarel — Afwezig (verlof)"}
+            />
+            <p className="text-xs text-orange-600 mt-1">Laat leeg om automatische data te gebruiken.</p>
+          </div>
+        </div>
+      )}
+
+      {slide.type === 'countdown' && (
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Doeldatum en -tijd</label>
+            <input
+              type="datetime-local"
+              value={slide.content?.targetDate || ''}
+              onChange={e => updateContent({ targetDate: e.target.value })}
+              className="border rounded-lg px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Beschrijving (optioneel)</label>
+            <input
+              type="text"
+              value={slide.content?.description || ''}
+              onChange={e => updateContent({ description: e.target.value })}
+              placeholder="Bijv. Levering Klant X, Audit, etc."
+              className="w-full border rounded-lg px-3 py-2 text-sm"
+            />
+          </div>
+        </div>
+      )}
+
+      {slide.type === 'weer' && (
+        <div className="bg-sky-50 border border-sky-200 rounded-lg p-4 text-sm text-sky-900">
+          <p className="font-medium mb-1">Weer (Open-Meteo, geen API-key nodig)</p>
+          <p>
+            Toont huidige temperatuur, windsnelheid en een mini-forecast. Vernieuwt elke 15 minuten.
+          </p>
+          <div className="mt-3 flex gap-4">
+            <div>
+              <label className="block text-xs font-medium text-sky-700 mb-1">Breedtegraad</label>
+              <input
+                type="number"
+                step="0.01"
+                value={slide.content?.latitude ?? 51.16}
+                onChange={e => updateContent({ latitude: parseFloat(e.target.value) || 51.16 })}
+                className="border border-sky-200 rounded-lg px-3 py-2 text-sm w-28"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-sky-700 mb-1">Lengtegraad</label>
+              <input
+                type="number"
+                step="0.01"
+                value={slide.content?.longitude ?? 4.39}
+                onChange={e => updateContent({ longitude: parseFloat(e.target.value) || 4.39 })}
+                className="border border-sky-200 rounded-lg px-3 py-2 text-sm w-28"
+              />
+            </div>
+          </div>
+          <p className="text-xs text-sky-600 mt-2">Standaard: Wilrijk (51.16, 4.39)</p>
         </div>
       )}
 

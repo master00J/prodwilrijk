@@ -14,13 +14,16 @@ import {
   YAxis,
 } from 'recharts'
 
+type SlideType = 'werkorders' | 'tekst' | 'afbeelding' | 'productieorders' | 'inpakstatistiek' | 'dagplanning' | 'countdown' | 'weer'
+
 interface TvSlide {
   id: string
-  type: 'werkorders' | 'tekst' | 'afbeelding' | 'productieorders' | 'inpakstatistiek'
+  type: SlideType
   title: string | null
   content: any
   sort_order: number
   active: boolean
+  duration: number | null
 }
 
 interface ProductionOrder {
@@ -63,9 +66,33 @@ interface PackingStatsResponse {
   }
 }
 
-const ROTATION_INTERVAL = 15000
+interface DagplanningEntry {
+  employeeName: string
+  status: string
+  machine: string | null
+  notes: string | null
+}
+
+interface WeatherData {
+  temperature: number
+  windSpeed: number
+  weatherCode: number
+  weatherLabel: string
+  weatherIcon: string
+  forecast: Array<{
+    time: string
+    label: string
+    temp: number
+    code: number
+    icon: string
+  }>
+}
+
+const DEFAULT_SLIDE_DURATION = 15
 const PRODUCTION_POLL_INTERVAL = 15000
 const PACKING_STATS_POLL_INTERVAL = 60 * 1000
+const DAGPLANNING_POLL_INTERVAL = 5 * 60 * 1000
+const WEATHER_POLL_INTERVAL = 15 * 60 * 1000
 
 export default function TvDisplayPage() {
   const [slides, setSlides] = useState<TvSlide[]>([])
@@ -74,6 +101,8 @@ export default function TvDisplayPage() {
   const [date, setDate] = useState('')
   const [productionOrders, setProductionOrders] = useState<ProductionOrder[]>([])
   const [packingStats, setPackingStats] = useState<PackingStatsResponse | null>(null)
+  const [dagplanning, setDagplanning] = useState<DagplanningEntry[]>([])
+  const [weather, setWeather] = useState<WeatherData | null>(null)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
   const fetchSlides = useCallback(async () => {
@@ -111,6 +140,28 @@ export default function TvDisplayPage() {
     }
   }, [])
 
+  const fetchDagplanning = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tv-slides/dagplanning')
+      if (!res.ok) throw new Error('dagplanning failed')
+      const json = await res.json()
+      setDagplanning(json.entries || [])
+    } catch (e) {
+      console.error('Fout bij laden dagplanning:', e)
+    }
+  }, [])
+
+  const fetchWeather = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tv-slides/weather')
+      if (!res.ok) throw new Error('weather failed')
+      const json = await res.json()
+      setWeather(json)
+    } catch (e) {
+      console.error('Fout bij laden weer:', e)
+    }
+  }, [])
+
   useEffect(() => { fetchSlides() }, [fetchSlides])
 
   // Supabase Realtime voor handmatige slides
@@ -141,18 +192,38 @@ export default function TvDisplayPage() {
     return () => clearInterval(interval)
   }, [hasPackingSlide, fetchPackingStats])
 
-  // Auto-rotatie
+  const hasDagplanningSlide = slides.some(s => s.type === 'dagplanning')
   useEffect(() => {
-    if (timerRef.current) clearInterval(timerRef.current)
+    if (!hasDagplanningSlide) return
+    fetchDagplanning()
+    const interval = setInterval(fetchDagplanning, DAGPLANNING_POLL_INTERVAL)
+    return () => clearInterval(interval)
+  }, [hasDagplanningSlide, fetchDagplanning])
+
+  const hasWeatherSlide = slides.some(s => s.type === 'weer')
+  useEffect(() => {
+    if (!hasWeatherSlide) return
+    fetchWeather()
+    const interval = setInterval(fetchWeather, WEATHER_POLL_INTERVAL)
+    return () => clearInterval(interval)
+  }, [hasWeatherSlide, fetchWeather])
+
+  // Auto-rotatie met dynamische duur per slide
+  const slideDuration = slides.length > 0
+    ? (slides[currentIndex]?.duration ?? DEFAULT_SLIDE_DURATION) * 1000
+    : DEFAULT_SLIDE_DURATION * 1000
+
+  useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current)
     if (slides.length > 1) {
-      timerRef.current = setInterval(() => {
+      timerRef.current = setTimeout(() => {
         setCurrentIndex(prev => (prev + 1) % slides.length)
-      }, ROTATION_INTERVAL)
+      }, slideDuration)
     } else {
       setCurrentIndex(0)
     }
-    return () => { if (timerRef.current) clearInterval(timerRef.current) }
-  }, [slides.length])
+    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
+  }, [slides.length, currentIndex, slideDuration])
 
   useEffect(() => {
     if (currentIndex >= slides.length) setCurrentIndex(0)
@@ -193,6 +264,20 @@ export default function TvDisplayPage() {
         </div>
       </div>
 
+      {/* Progress bar */}
+      {slides.length > 1 && currentSlide && (
+        <div className="h-1 shrink-0" style={{ backgroundColor: '#1a5c47' }}>
+          <div
+            key={`progress-${currentIndex}-${currentSlide.id}`}
+            className="h-full"
+            style={{
+              backgroundColor: '#4ade80',
+              animation: `slideProgress ${slideDuration}ms linear forwards`,
+            }}
+          />
+        </div>
+      )}
+
       <div className="flex-1 flex items-center justify-center min-h-0">
         {!currentSlide ? (
           <div className="text-2xl" style={{ color: '#4a8a74' }}>Geen actieve slides</div>
@@ -206,8 +291,21 @@ export default function TvDisplayPage() {
           <ProductieordersSlide orders={productionOrders} title={currentSlide.title} />
         ) : currentSlide.type === 'inpakstatistiek' ? (
           <PackingStatsSlide data={packingStats} title={currentSlide.title} />
+        ) : currentSlide.type === 'dagplanning' ? (
+          <DagplanningSlide entries={dagplanning} slide={currentSlide} />
+        ) : currentSlide.type === 'countdown' ? (
+          <CountdownSlide slide={currentSlide} />
+        ) : currentSlide.type === 'weer' ? (
+          <WeerSlide data={weather} title={currentSlide.title} />
         ) : null}
       </div>
+
+      <style jsx global>{`
+        @keyframes slideProgress {
+          from { width: 0%; }
+          to { width: 100%; }
+        }
+      `}</style>
     </div>
   )
 }
@@ -563,6 +661,185 @@ function AfbeeldingSlide({ slide }: { slide: TvSlide }) {
     <div className="w-full h-full flex items-center justify-center p-4">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={url} alt={slide.title || 'TV Slide'} className="max-w-full max-h-full object-contain" />
+    </div>
+  )
+}
+
+/* ---------- Dagplanning ---------- */
+
+const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string }> = {
+  aanwezig: { label: 'Aanwezig', bg: 'rgba(74, 222, 128, 0.15)', text: '#4ade80' },
+  thuiswerk: { label: 'Thuiswerk', bg: 'rgba(56, 189, 248, 0.12)', text: '#38bdf8' },
+  verlof: { label: 'Verlof', bg: 'rgba(250, 204, 21, 0.12)', text: '#facc15' },
+  ziek: { label: 'Ziek', bg: 'rgba(251, 113, 133, 0.12)', text: '#fb7185' },
+  afwezig: { label: 'Afwezig', bg: 'rgba(255,255,255,0.05)', text: '#6b7280' },
+}
+
+function DagplanningSlide({ entries, slide }: { entries: DagplanningEntry[]; slide: TvSlide }) {
+  const manualLines: string[] = slide.content?.manualEntries || []
+  const useManual = manualLines.length > 0
+
+  return (
+    <div className="w-full h-full flex flex-col px-10 py-6 overflow-hidden">
+      <h2 className="text-3xl font-bold text-center mb-6 text-white">
+        {slide.title || 'Dagplanning'}
+      </h2>
+
+      {useManual ? (
+        <div className="flex-1 overflow-auto">
+          <table className="w-full">
+            <tbody>
+              {manualLines.map((line, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid #1a5c47' }}>
+                  <td className="py-4 px-6 text-2xl text-white">{line}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : entries.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-xl" style={{ color: TV_MUTED }}>Geen dagplanning ingevuld voor vandaag</div>
+        </div>
+      ) : (
+        <div className="flex-1 overflow-auto">
+          <div className="grid grid-cols-2 gap-3">
+            {entries.map((entry, i) => {
+              const cfg = STATUS_CONFIG[entry.status] || STATUS_CONFIG.aanwezig
+              return (
+                <div
+                  key={i}
+                  className="rounded-xl px-5 py-3 flex items-center gap-4"
+                  style={{ backgroundColor: cfg.bg, border: `1px solid ${cfg.text}30` }}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xl font-semibold text-white truncate">{entry.employeeName}</div>
+                    {entry.machine && (
+                      <div className="text-sm mt-0.5" style={{ color: TV_TICK }}>{entry.machine}</div>
+                    )}
+                    {entry.notes && (
+                      <div className="text-sm mt-0.5 truncate" style={{ color: TV_MUTED }}>{entry.notes}</div>
+                    )}
+                  </div>
+                  <span
+                    className="px-3 py-1 rounded-full text-xs font-bold shrink-0"
+                    style={{ backgroundColor: `${cfg.text}20`, color: cfg.text }}
+                  >
+                    {cfg.label}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ---------- Countdown ---------- */
+
+function CountdownSlide({ slide }: { slide: TvSlide }) {
+  const targetDate = slide.content?.targetDate
+  const description = slide.content?.description || ''
+  const [now, setNow] = useState(Date.now())
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(interval)
+  }, [])
+
+  if (!targetDate) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4">
+        <div className="text-3xl font-bold text-white">{slide.title || 'Countdown'}</div>
+        <div className="text-xl" style={{ color: TV_MUTED }}>Geen doeldatum ingesteld</div>
+      </div>
+    )
+  }
+
+  const target = new Date(targetDate).getTime()
+  const diff = target - now
+  const passed = diff < 0
+  const absDiff = Math.abs(diff)
+
+  const days = Math.floor(absDiff / 86400000)
+  const hours = Math.floor((absDiff % 86400000) / 3600000)
+  const minutes = Math.floor((absDiff % 3600000) / 60000)
+  const seconds = Math.floor((absDiff % 60000) / 1000)
+
+  const unitStyle = { color: TV_MUTED }
+
+  return (
+    <div className="w-full h-full flex flex-col items-center justify-center px-16 gap-6">
+      {slide.title && (
+        <h2 className="text-3xl font-bold" style={{ color: '#4ade80' }}>{slide.title}</h2>
+      )}
+      {description && (
+        <p className="text-xl" style={{ color: TV_MUTED }}>{description}</p>
+      )}
+
+      {passed ? (
+        <div className="text-center">
+          <div className="text-2xl mb-4" style={{ color: '#fb7185' }}>Verlopen</div>
+          <div className="flex gap-8 items-end">
+            {days > 0 && <div className="text-center"><div className="text-7xl font-bold tabular-nums text-white">{days}</div><div className="text-sm mt-1" style={unitStyle}>dagen</div></div>}
+            <div className="text-center"><div className="text-7xl font-bold tabular-nums text-white">{hours}</div><div className="text-sm mt-1" style={unitStyle}>uur</div></div>
+            <div className="text-center"><div className="text-7xl font-bold tabular-nums text-white">{minutes}</div><div className="text-sm mt-1" style={unitStyle}>min</div></div>
+            <div className="text-center"><div className="text-5xl font-bold tabular-nums" style={{ color: TV_TICK }}>{seconds}</div><div className="text-sm mt-1" style={unitStyle}>sec</div></div>
+          </div>
+          <div className="text-lg mt-4" style={{ color: '#fb7185' }}>geleden</div>
+        </div>
+      ) : (
+        <div className="flex gap-8 items-end">
+          {days > 0 && <div className="text-center"><div className="text-8xl font-bold tabular-nums text-white">{days}</div><div className="text-lg mt-2" style={unitStyle}>dagen</div></div>}
+          <div className="text-center"><div className="text-8xl font-bold tabular-nums text-white">{String(hours).padStart(2, '0')}</div><div className="text-lg mt-2" style={unitStyle}>uur</div></div>
+          <div className="text-center"><div className="text-8xl font-bold tabular-nums text-white">{String(minutes).padStart(2, '0')}</div><div className="text-lg mt-2" style={unitStyle}>min</div></div>
+          <div className="text-center"><div className="text-6xl font-bold tabular-nums" style={{ color: '#4ade80' }}>{String(seconds).padStart(2, '0')}</div><div className="text-lg mt-2" style={unitStyle}>sec</div></div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ---------- Weer ---------- */
+
+function WeerSlide({ data, title }: { data: WeatherData | null; title: string | null }) {
+  if (!data) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4">
+        <div className="text-3xl font-bold text-white">{title || 'Weer'}</div>
+        <div className="text-xl" style={{ color: TV_MUTED }}>Weerdata laden...</div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="w-full h-full flex flex-col items-center justify-center px-16 gap-8">
+      {title && <h2 className="text-3xl font-bold" style={{ color: '#4ade80' }}>{title}</h2>}
+
+      <div className="flex items-center gap-10">
+        <div className="text-center">
+          <div className="text-[120px] leading-none">{data.weatherIcon}</div>
+        </div>
+        <div className="text-center">
+          <div className="text-8xl font-bold text-white tabular-nums">{Math.round(data.temperature)}°</div>
+          <div className="text-xl mt-2" style={{ color: TV_MUTED }}>{data.weatherLabel}</div>
+          <div className="text-lg mt-1" style={{ color: TV_TICK }}>Wind: {data.windSpeed} km/u</div>
+        </div>
+      </div>
+
+      {data.forecast.length > 0 && (
+        <div className="flex gap-6 mt-4">
+          {data.forecast.map((slot, i) => (
+            <div key={i} className="text-center rounded-xl px-6 py-4" style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid #1a5c47' }}>
+              <div className="text-sm font-medium mb-2" style={{ color: TV_MUTED }}>{slot.label}</div>
+              <div className="text-4xl mb-2">{slot.icon}</div>
+              <div className="text-2xl font-bold text-white tabular-nums">{Math.round(slot.temp)}°</div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
