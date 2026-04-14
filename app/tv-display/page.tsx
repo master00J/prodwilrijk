@@ -2,10 +2,21 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
+import {
+  Bar,
+  CartesianGrid,
+  ComposedChart,
+  Legend,
+  Line,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 
 interface TvSlide {
   id: string
-  type: 'werkorders' | 'tekst' | 'afbeelding' | 'productieorders'
+  type: 'werkorders' | 'tekst' | 'afbeelding' | 'productieorders' | 'inpakstatistiek'
   title: string | null
   content: any
   sort_order: number
@@ -26,8 +37,35 @@ interface ProductionOrder {
   lines: Array<{ item_number: string; description: string | null; quantity: number }>
 }
 
+interface PackingStatsDaily {
+  date: string
+  label: string
+  prepackItems: number
+  airtecItems: number
+  prepackManHours: number
+  airtecManHours: number
+  itemsTotal: number
+  manHoursTotal: number
+}
+
+interface PackingStatsResponse {
+  dateFrom: string
+  dateTo: string
+  days: number
+  daily: PackingStatsDaily[]
+  totals: {
+    itemsPacked: number
+    itemsPrepack: number
+    itemsAirtec: number
+    manHours: number
+    manHoursPrepack: number
+    manHoursAirtec: number
+  }
+}
+
 const ROTATION_INTERVAL = 15000
 const PRODUCTION_POLL_INTERVAL = 15000
+const PACKING_STATS_POLL_INTERVAL = 5 * 60 * 1000
 
 export default function TvDisplayPage() {
   const [slides, setSlides] = useState<TvSlide[]>([])
@@ -35,6 +73,7 @@ export default function TvDisplayPage() {
   const [clock, setClock] = useState('')
   const [date, setDate] = useState('')
   const [productionOrders, setProductionOrders] = useState<ProductionOrder[]>([])
+  const [packingStats, setPackingStats] = useState<PackingStatsResponse | null>(null)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
   const fetchSlides = useCallback(async () => {
@@ -60,6 +99,18 @@ export default function TvDisplayPage() {
     }
   }, [])
 
+  const fetchPackingStats = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tv-slides/packing-stats?days=14')
+      if (!res.ok) throw new Error('packing-stats failed')
+      const json = await res.json()
+      setPackingStats(json)
+    } catch (e) {
+      console.error('Fout bij laden inpakstatistieken:', e)
+      setPackingStats(null)
+    }
+  }, [])
+
   useEffect(() => { fetchSlides() }, [fetchSlides])
 
   // Supabase Realtime voor handmatige slides
@@ -81,6 +132,14 @@ export default function TvDisplayPage() {
     const interval = setInterval(fetchProductionStatus, PRODUCTION_POLL_INTERVAL)
     return () => clearInterval(interval)
   }, [hasProductionSlide, fetchProductionStatus])
+
+  const hasPackingSlide = slides.some(s => s.type === 'inpakstatistiek')
+  useEffect(() => {
+    if (!hasPackingSlide) return
+    fetchPackingStats()
+    const interval = setInterval(fetchPackingStats, PACKING_STATS_POLL_INTERVAL)
+    return () => clearInterval(interval)
+  }, [hasPackingSlide, fetchPackingStats])
 
   // Auto-rotatie
   useEffect(() => {
@@ -145,6 +204,8 @@ export default function TvDisplayPage() {
           <AfbeeldingSlide slide={currentSlide} />
         ) : currentSlide.type === 'productieorders' ? (
           <ProductieordersSlide orders={productionOrders} title={currentSlide.title} />
+        ) : currentSlide.type === 'inpakstatistiek' ? (
+          <PackingStatsSlide data={packingStats} title={currentSlide.title} />
         ) : null}
       </div>
     </div>
@@ -156,6 +217,176 @@ function formatElapsed(seconds: number): string {
   const m = Math.floor((seconds % 3600) / 60)
   if (h > 0) return `${h}u ${m}m`
   return `${m}m`
+}
+
+const TV_MUTED = '#80bfaa'
+const TV_GRID = '#1a5c47'
+const TV_TICK = '#a0c4b8'
+
+function PackingStatsSlide({
+  data,
+  title,
+}: {
+  data: PackingStatsResponse | null
+  title: string | null
+}) {
+  if (!data) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4">
+        <div className="text-3xl font-bold text-white">{title || 'Prepack + Airtec'}</div>
+        <div className="text-xl" style={{ color: TV_MUTED }}>Statistieken laden…</div>
+      </div>
+    )
+  }
+
+  const { daily, totals, days, dateFrom, dateTo } = data
+  const periodLabel = `${new Date(dateFrom).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })} — ${new Date(dateTo).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' })}`
+
+  return (
+    <div className="w-full h-full flex flex-col px-6 py-4 min-h-0 overflow-hidden">
+      <div className="text-center shrink-0 mb-3">
+        <h2 className="text-2xl sm:text-3xl font-bold text-white">
+          {title || 'Prepack + Airtec'}
+        </h2>
+        <p className="text-sm sm:text-base mt-1" style={{ color: TV_MUTED }}>
+          Laatste {days} dagen · geen financiële cijfers · {periodLabel}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 shrink-0 mb-4 max-w-4xl mx-auto w-full">
+        <div
+          className="rounded-xl px-4 py-3 sm:py-4 text-center"
+          style={{
+            backgroundColor: 'rgba(74, 222, 128, 0.12)',
+            border: '2px solid #4ade80',
+          }}
+        >
+          <div className="text-xs sm:text-sm uppercase tracking-wide" style={{ color: TV_MUTED }}>
+            Totaal verpakt
+          </div>
+          <div className="text-3xl sm:text-5xl font-bold text-white tabular-nums leading-tight mt-1">
+            {totals.itemsPacked.toLocaleString('nl-NL')}
+          </div>
+          <div className="text-xs sm:text-sm mt-1" style={{ color: TV_TICK }}>
+            Prepack {totals.itemsPrepack.toLocaleString('nl-NL')} · Airtec{' '}
+            {totals.itemsAirtec.toLocaleString('nl-NL')}
+          </div>
+        </div>
+        <div
+          className="rounded-xl px-4 py-3 sm:py-4 text-center"
+          style={{
+            backgroundColor: 'rgba(56, 189, 248, 0.1)',
+            border: '2px solid #38bdf8',
+          }}
+        >
+          <div className="text-xs sm:text-sm uppercase tracking-wide" style={{ color: TV_MUTED }}>
+            Totaal manuren
+          </div>
+          <div className="text-3xl sm:text-5xl font-bold text-white tabular-nums leading-tight mt-1">
+            {totals.manHours.toLocaleString('nl-NL', { maximumFractionDigits: 1 })}
+          </div>
+          <div className="text-xs sm:text-sm mt-1" style={{ color: TV_TICK }}>
+            Prepack {totals.manHoursPrepack.toFixed(1)} u · Airtec {totals.manHoursAirtec.toFixed(1)} u
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 min-h-[280px] w-full max-w-6xl mx-auto">
+        {daily.length === 0 ? (
+          <p className="text-center text-lg" style={{ color: TV_MUTED }}>
+            Geen data in deze periode.
+          </p>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={daily} margin={{ top: 8, right: 12, left: 4, bottom: 8 }}>
+              <CartesianGrid stroke={TV_GRID} strokeDasharray="4 4" vertical={false} />
+              <XAxis
+                dataKey="label"
+                tick={{ fill: TV_TICK, fontSize: daily.length > 12 ? 9 : 11 }}
+                interval={0}
+                angle={daily.length > 12 ? -40 : -25}
+                textAnchor="end"
+                height={daily.length > 12 ? 60 : 44}
+              />
+              <YAxis
+                yAxisId="items"
+                tick={{ fill: TV_TICK, fontSize: 12 }}
+                label={{
+                  value: 'Verpakt (stuks)',
+                  angle: -90,
+                  position: 'insideLeft',
+                  style: { fill: TV_MUTED, fontSize: 12 },
+                }}
+              />
+              <YAxis
+                yAxisId="uur"
+                orientation="right"
+                tick={{ fill: TV_TICK, fontSize: 12 }}
+                label={{
+                  value: 'Manuren',
+                  angle: 90,
+                  position: 'insideRight',
+                  style: { fill: TV_MUTED, fontSize: 12 },
+                }}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#002b20',
+                  border: '1px solid #00664d',
+                  borderRadius: 8,
+                  color: '#fff',
+                }}
+                labelStyle={{ color: TV_MUTED }}
+                formatter={(value: number, name: string) => [
+                  typeof value === 'number' && name.includes('Manuren')
+                    ? `${Number(value).toFixed(1)} u`
+                    : Number(value).toLocaleString('nl-NL'),
+                  name,
+                ]}
+              />
+              <Legend wrapperStyle={{ fontSize: 12, color: TV_TICK }} />
+              <Bar
+                yAxisId="items"
+                dataKey="prepackItems"
+                stackId="stuks"
+                name="Prepack (stuks)"
+                fill="#3b82f6"
+                radius={[2, 2, 0, 0]}
+              />
+              <Bar
+                yAxisId="items"
+                dataKey="airtecItems"
+                stackId="stuks"
+                name="Airtec (stuks)"
+                fill="#a855f7"
+                radius={[2, 2, 0, 0]}
+              />
+              <Line
+                yAxisId="uur"
+                type="monotone"
+                dataKey="prepackManHours"
+                name="Manuren Prepack"
+                stroke="#38bdf8"
+                strokeWidth={3}
+                dot={{ r: 3, fill: '#38bdf8' }}
+                activeDot={{ r: 5 }}
+              />
+              <Line
+                yAxisId="uur"
+                type="monotone"
+                dataKey="airtecManHours"
+                name="Manuren Airtec"
+                stroke="#fb7185"
+                strokeWidth={3}
+                dot={{ r: 3, fill: '#fb7185' }}
+                activeDot={{ r: 5 }}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+    </div>
+  )
 }
 
 function ProductieordersSlide({ orders, title }: { orders: ProductionOrder[]; title: string | null }) {

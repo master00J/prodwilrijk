@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 
 interface TvSlide {
   id: string
-  type: 'werkorders' | 'tekst' | 'afbeelding' | 'productieorders'
+  type: 'werkorders' | 'tekst' | 'afbeelding' | 'productieorders' | 'inpakstatistiek'
   title: string | null
   content: any
   sort_order: number
@@ -18,6 +18,7 @@ const SLIDE_TYPE_LABELS: Record<string, string> = {
   tekst: 'Tekst / Bericht',
   afbeelding: 'Afbeelding',
   productieorders: 'Productieorders (live)',
+  inpakstatistiek: 'Prepack + Airtec (statistiek)',
 }
 
 export default function TvAdminPage() {
@@ -25,7 +26,9 @@ export default function TvAdminPage() {
   const [loading, setLoading] = useState(true)
   const [editingSlide, setEditingSlide] = useState<TvSlide | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
-  const [newType, setNewType] = useState<'werkorders' | 'tekst' | 'afbeelding' | 'productieorders'>('werkorders')
+  const [newType, setNewType] = useState<
+    'werkorders' | 'tekst' | 'afbeelding' | 'productieorders' | 'inpakstatistiek'
+  >('werkorders')
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
@@ -51,7 +54,7 @@ export default function TvAdminPage() {
         ? { lines: [''] }
         : newType === 'tekst'
         ? { text: '' }
-        : newType === 'productieorders'
+        : newType === 'productieorders' || newType === 'inpakstatistiek'
         ? {}
         : { url: '' }
 
@@ -181,6 +184,7 @@ export default function TvAdminPage() {
                 <option value="tekst">Tekst / Bericht</option>
                 <option value="afbeelding">Afbeelding</option>
                 <option value="productieorders">Productieorders (live)</option>
+                <option value="inpakstatistiek">Prepack + Airtec (statistiek, ~14 dagen)</option>
               </select>
             </div>
             <button
@@ -232,6 +236,7 @@ export default function TvAdminPage() {
                 slide.type === 'werkorders' ? 'bg-blue-100 text-blue-700' :
                 slide.type === 'tekst' ? 'bg-purple-100 text-purple-700' :
                 slide.type === 'productieorders' ? 'bg-green-100 text-green-700' :
+                slide.type === 'inpakstatistiek' ? 'bg-teal-100 text-teal-800' :
                 'bg-amber-100 text-amber-700'
               }`}>
                 {SLIDE_TYPE_LABELS[slide.type]}
@@ -360,6 +365,16 @@ function SlideEditor({
             <li><strong>WACHTEND</strong> — order is geüpload maar nog niet gestart</li>
           </ul>
           <p className="mt-2 text-xs text-green-600">Pollt elke 15 seconden voor updates.</p>
+        </div>
+      )}
+
+      {slide.type === 'inpakstatistiek' && (
+        <div className="bg-teal-50 border border-teal-200 rounded-lg p-4 text-sm text-teal-900">
+          <p className="font-medium mb-1">Automatische slide (zonder financiële cijfers)</p>
+          <p>
+            Toont hetzelfde datateam als <strong>/admin/prepack-airtec</strong>: aantal verpakt (Prepack en Airtec
+            opgestapeld) en manuren per flow. Standaard periode: <strong>14 dagen</strong>. Vernieuwt ongeveer elke 5 minuten.
+          </p>
         </div>
       )}
 
