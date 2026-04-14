@@ -1299,6 +1299,7 @@ export default function CompetentieMatrixPage() {
                       return ds?.assigned_machine_id === m.id && (ds.status === 'aanwezig' || ds.status === 'thuiswerk')
                     })
                     const qualified = machineQualified[m.id] ?? []
+                    const available = visibleEmployees.filter(e => getLevel(e.id, m.id) >= 2 && (getDailyStatus(e.id)?.status === 'aanwezig' || !getDailyStatus(e.id)))
                     const isFull = assigned.length >= cap
                     const isOver = assigned.length > cap
                     const borderClass = isOver
