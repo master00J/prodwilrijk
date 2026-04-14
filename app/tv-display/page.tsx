@@ -239,94 +239,110 @@ function PackingStatsSlide({
     )
   }
 
-  const { daily, totals, days, dateFrom, dateTo } = data
+  const { daily, totals, dateFrom, dateTo } = data
   const periodLabel = `${new Date(dateFrom).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })} — ${new Date(dateTo).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' })}`
 
+  const avgItemsPerDay =
+    daily.length > 0
+      ? Math.round(totals.itemsPacked / Math.max(daily.filter((d) => d.itemsTotal > 0).length, 1))
+      : 0
+
   return (
-    <div className="w-full h-full flex flex-col px-6 py-4 min-h-0 overflow-hidden">
-      <div className="text-center shrink-0 mb-3">
-        <h2 className="text-2xl sm:text-3xl font-bold text-white">
-          {title || 'Prepack + Airtec'}
+    <div className="w-full h-full flex flex-col px-8 py-5 min-h-0 overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between shrink-0 mb-5">
+        <h2 className="text-3xl font-bold text-white">
+          {title || 'Inpak Statistieken'}
         </h2>
-        <p className="text-sm sm:text-base mt-1" style={{ color: TV_MUTED }}>
-          Laatste {days} dagen · geen financiële cijfers · {periodLabel}
-        </p>
+        <span className="text-sm tracking-wide" style={{ color: TV_MUTED }}>
+          {periodLabel}
+        </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 shrink-0 mb-4 max-w-4xl mx-auto w-full">
-        <div
-          className="rounded-xl px-4 py-3 sm:py-4 text-center"
-          style={{
-            backgroundColor: 'rgba(74, 222, 128, 0.12)',
-            border: '2px solid #4ade80',
-          }}
-        >
-          <div className="text-xs sm:text-sm uppercase tracking-wide" style={{ color: TV_MUTED }}>
-            Totaal verpakt
-          </div>
-          <div className="text-3xl sm:text-5xl font-bold text-white tabular-nums leading-tight mt-1">
-            {totals.itemsPacked.toLocaleString('nl-NL')}
-          </div>
-          <div className="text-xs sm:text-sm mt-1" style={{ color: TV_TICK }}>
-            Prepack {totals.itemsPrepack.toLocaleString('nl-NL')} · Airtec{' '}
-            {totals.itemsAirtec.toLocaleString('nl-NL')}
+      {/* KPI cards */}
+      <div className="grid grid-cols-4 gap-4 shrink-0 mb-5">
+        <div className="rounded-xl px-5 py-4" style={{ backgroundColor: 'rgba(74, 222, 128, 0.12)', border: '1px solid #22c55e' }}>
+          <div className="text-xs uppercase tracking-widest mb-1" style={{ color: TV_MUTED }}>Totaal verpakt</div>
+          <div className="text-4xl font-bold text-white tabular-nums">{totals.itemsPacked.toLocaleString('nl-NL')}</div>
+          <div className="flex gap-3 mt-2 text-xs" style={{ color: TV_TICK }}>
+            <span>Prepack: {totals.itemsPrepack.toLocaleString('nl-NL')}</span>
+            <span>Airtec: {totals.itemsAirtec.toLocaleString('nl-NL')}</span>
           </div>
         </div>
-        <div
-          className="rounded-xl px-4 py-3 sm:py-4 text-center"
-          style={{
-            backgroundColor: 'rgba(56, 189, 248, 0.1)',
-            border: '2px solid #38bdf8',
-          }}
-        >
-          <div className="text-xs sm:text-sm uppercase tracking-wide" style={{ color: TV_MUTED }}>
-            Totaal manuren
+
+        <div className="rounded-xl px-5 py-4" style={{ backgroundColor: 'rgba(56, 189, 248, 0.1)', border: '1px solid #38bdf8' }}>
+          <div className="text-xs uppercase tracking-widest mb-1" style={{ color: TV_MUTED }}>Totaal manuren</div>
+          <div className="text-4xl font-bold text-white tabular-nums">{totals.manHours.toLocaleString('nl-NL', { maximumFractionDigits: 1 })}</div>
+          <div className="flex gap-3 mt-2 text-xs" style={{ color: TV_TICK }}>
+            <span>Prepack: {totals.manHoursPrepack.toFixed(1)} u</span>
+            <span>Airtec: {totals.manHoursAirtec.toFixed(1)} u</span>
           </div>
-          <div className="text-3xl sm:text-5xl font-bold text-white tabular-nums leading-tight mt-1">
-            {totals.manHours.toLocaleString('nl-NL', { maximumFractionDigits: 1 })}
+        </div>
+
+        <div className="rounded-xl px-5 py-4" style={{ backgroundColor: 'rgba(250, 204, 21, 0.08)', border: '1px solid #ca8a04' }}>
+          <div className="text-xs uppercase tracking-widest mb-1" style={{ color: TV_MUTED }}>Gem. per dag</div>
+          <div className="text-4xl font-bold text-white tabular-nums">{avgItemsPerDay.toLocaleString('nl-NL')}</div>
+          <div className="mt-2 text-xs" style={{ color: TV_TICK }}>stuks / werkdag</div>
+        </div>
+
+        <div className="rounded-xl px-5 py-4" style={{ backgroundColor: 'rgba(168, 85, 247, 0.1)', border: '1px solid #a855f7' }}>
+          <div className="text-xs uppercase tracking-widest mb-1" style={{ color: TV_MUTED }}>Stuks / manuur</div>
+          <div className="text-4xl font-bold text-white tabular-nums">
+            {totals.manHours > 0
+              ? (totals.itemsPacked / totals.manHours).toFixed(1)
+              : '-'}
           </div>
-          <div className="text-xs sm:text-sm mt-1" style={{ color: TV_TICK }}>
-            Prepack {totals.manHoursPrepack.toFixed(1)} u · Airtec {totals.manHoursAirtec.toFixed(1)} u
-          </div>
+          <div className="mt-2 text-xs" style={{ color: TV_TICK }}>efficiëntie</div>
         </div>
       </div>
 
-      <div className="flex-1 min-h-[280px] w-full max-w-6xl mx-auto">
+      {/* Chart */}
+      <div className="flex-1 min-h-[220px] w-full rounded-xl px-2 py-3" style={{ backgroundColor: 'rgba(255,255,255,0.03)' }}>
         {daily.length === 0 ? (
           <p className="text-center text-lg" style={{ color: TV_MUTED }}>
             Geen data in deze periode.
           </p>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={daily} margin={{ top: 8, right: 12, left: 4, bottom: 8 }}>
-              <CartesianGrid stroke={TV_GRID} strokeDasharray="4 4" vertical={false} />
+            <ComposedChart data={daily} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+              <CartesianGrid stroke={TV_GRID} strokeDasharray="3 3" vertical={false} />
               <XAxis
                 dataKey="label"
-                tick={{ fill: TV_TICK, fontSize: daily.length > 12 ? 9 : 11 }}
+                tick={{ fill: TV_TICK, fontSize: 10 }}
                 interval={0}
-                angle={daily.length > 12 ? -40 : -25}
+                angle={-30}
                 textAnchor="end"
-                height={daily.length > 12 ? 60 : 44}
+                height={48}
+                axisLine={{ stroke: TV_GRID }}
+                tickLine={false}
               />
               <YAxis
                 yAxisId="items"
-                tick={{ fill: TV_TICK, fontSize: 12 }}
+                tick={{ fill: TV_TICK, fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                width={50}
                 label={{
-                  value: 'Verpakt (stuks)',
+                  value: 'Stuks',
                   angle: -90,
                   position: 'insideLeft',
-                  style: { fill: TV_MUTED, fontSize: 12 },
+                  offset: 10,
+                  style: { fill: TV_MUTED, fontSize: 11 },
                 }}
               />
               <YAxis
                 yAxisId="uur"
                 orientation="right"
-                tick={{ fill: TV_TICK, fontSize: 12 }}
+                tick={{ fill: TV_TICK, fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                width={50}
                 label={{
-                  value: 'Manuren',
+                  value: 'Uren',
                   angle: 90,
                   position: 'insideRight',
-                  style: { fill: TV_MUTED, fontSize: 12 },
+                  offset: 10,
+                  style: { fill: TV_MUTED, fontSize: 11 },
                 }}
               />
               <Tooltip
@@ -335,51 +351,48 @@ function PackingStatsSlide({
                   border: '1px solid #00664d',
                   borderRadius: 8,
                   color: '#fff',
+                  fontSize: 13,
                 }}
-                labelStyle={{ color: TV_MUTED }}
+                labelStyle={{ color: TV_MUTED, fontWeight: 600 }}
                 formatter={(value: number, name: string) => [
-                  typeof value === 'number' && name.includes('Manuren')
+                  name.includes('uren')
                     ? `${Number(value).toFixed(1)} u`
-                    : Number(value).toLocaleString('nl-NL'),
+                    : Number(value).toLocaleString('nl-NL') + ' stuks',
                   name,
                 ]}
               />
-              <Legend wrapperStyle={{ fontSize: 12, color: TV_TICK }} />
+              <Legend
+                verticalAlign="top"
+                height={28}
+                wrapperStyle={{ fontSize: 12, paddingBottom: 4 }}
+                iconType="circle"
+                iconSize={8}
+              />
               <Bar
                 yAxisId="items"
                 dataKey="prepackItems"
                 stackId="stuks"
-                name="Prepack (stuks)"
+                name="Prepack"
                 fill="#3b82f6"
-                radius={[2, 2, 0, 0]}
+                radius={[0, 0, 0, 0]}
               />
               <Bar
                 yAxisId="items"
                 dataKey="airtecItems"
                 stackId="stuks"
-                name="Airtec (stuks)"
+                name="Airtec"
                 fill="#a855f7"
-                radius={[2, 2, 0, 0]}
+                radius={[3, 3, 0, 0]}
               />
               <Line
                 yAxisId="uur"
                 type="monotone"
-                dataKey="prepackManHours"
-                name="Manuren Prepack"
-                stroke="#38bdf8"
+                dataKey="manHoursTotal"
+                name="Manuren totaal"
+                stroke="#facc15"
                 strokeWidth={3}
-                dot={{ r: 3, fill: '#38bdf8' }}
-                activeDot={{ r: 5 }}
-              />
-              <Line
-                yAxisId="uur"
-                type="monotone"
-                dataKey="airtecManHours"
-                name="Manuren Airtec"
-                stroke="#fb7185"
-                strokeWidth={3}
-                dot={{ r: 3, fill: '#fb7185' }}
-                activeDot={{ r: 5 }}
+                dot={{ r: 3, fill: '#facc15', strokeWidth: 0 }}
+                activeDot={{ r: 5, strokeWidth: 0 }}
               />
             </ComposedChart>
           </ResponsiveContainer>
