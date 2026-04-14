@@ -35,7 +35,7 @@ import {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Employee { id: number; name: string; active: boolean }
-interface Machine  { id: number; name: string; description: string | null; category: string; active: boolean; sort_order: number }
+interface Machine  { id: number; name: string; description: string | null; category: string; active: boolean; sort_order: number; capacity: number }
 interface Competency { id: number; employee_id: number; machine_id: number; level: number; notes: string | null }
 interface DailyStatus { id: number; employee_id: number; date: string; status: string; shift: string; assigned_machine_id: number | null; notes: string | null }
 interface CompetencyHistory { id: number; employee_id: number; machine_id: number; old_level: number; new_level: number; changed_at: string }
@@ -457,7 +457,7 @@ export default function CompetentieMatrixPage() {
 
   // ── Machine CRUD ───────────────────────────────────────────────────────────
 
-  const openNewMachine  = () => { setMachineForm({ name: '', description: '', category: 'machine', active: true, sort_order: 0 }); setMachineError('') }
+  const openNewMachine  = () => { setMachineForm({ name: '', description: '', category: 'machine', active: true, sort_order: 0, capacity: 1 }); setMachineError('') }
   const openEditMachine = (m: Machine) => { setMachineForm({ ...m }); setMachineError('') }
 
   const saveMachine = async () => {
@@ -1001,6 +1001,7 @@ export default function CompetentieMatrixPage() {
                           <tr>
                             <th className="px-4 py-3 text-left font-semibold">Naam</th>
                             <th className="px-4 py-3 text-left font-semibold">Omschrijving</th>
+                            <th className="px-4 py-3 text-center font-semibold">Capaciteit</th>
                             <th className="px-4 py-3 text-center font-semibold">Gekwal. MDW</th>
                             <th className="px-4 py-3 text-left font-semibold">Volgorde</th>
                             <th className="px-4 py-3 text-left font-semibold">Status</th>
@@ -1020,6 +1021,12 @@ export default function CompetentieMatrixPage() {
                                   </div>
                                 </td>
                                 <td className="px-4 py-3 text-gray-500 max-w-xs truncate">{m.description || '—'}</td>
+                                <td className="px-4 py-3 text-center">
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200 px-2 py-0.5 text-xs font-semibold text-blue-700 tabular-nums">
+                                    <Users className="w-3 h-3" />
+                                    {m.capacity ?? 1}
+                                  </span>
+                                </td>
                                 <td className="px-4 py-3 text-center">
                                   <span className={`text-sm font-semibold tabular-nums ${isAtRisk ? 'text-red-600' : 'text-emerald-600'}`}>
                                     {qualified.length}
@@ -1077,13 +1084,19 @@ export default function CompetentieMatrixPage() {
                     <textarea value={machineForm.description ?? ''} onChange={(e) => setMachineForm((f) => ({ ...f, description: e.target.value }))}
                       rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Optionele beschrijving" />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Categorie</label>
                       <select value={machineForm.category ?? 'machine'} onChange={(e) => setMachineForm((f) => ({ ...f, category: e.target.value }))}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                         {CATEGORIES.map((c) => <option key={c} value={c} className="capitalize">{c}</option>)}
                       </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Capaciteit</label>
+                      <input type="number" min={1} value={machineForm.capacity ?? 1} onChange={(e) => setMachineForm((f) => ({ ...f, capacity: Math.max(1, parseInt(e.target.value) || 1) }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                      <p className="text-[10px] text-gray-400 mt-0.5">Aantal personen</p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Volgorde</label>
@@ -1280,20 +1293,38 @@ export default function CompetentieMatrixPage() {
               </h2>
                 <div className="space-y-2">
                   {machines.filter(m => m.active).map(m => {
+                    const cap = m.capacity ?? 1
                     const assigned = visibleEmployees.filter(e => {
                       const ds = getDailyStatus(e.id)
                       return ds?.assigned_machine_id === m.id && (ds.status === 'aanwezig' || ds.status === 'thuiswerk')
                     })
                     const qualified = machineQualified[m.id] ?? []
-                    const available = visibleEmployees.filter(e => getLevel(e.id, m.id) >= 2 && (getDailyStatus(e.id)?.status === 'aanwezig' || !getDailyStatus(e.id)))
+                    const isFull = assigned.length >= cap
+                    const isOver = assigned.length > cap
+                    const borderClass = isOver
+                      ? 'border-amber-300 bg-amber-50'
+                      : isFull
+                        ? 'border-emerald-300 bg-emerald-50'
+                        : assigned.length > 0
+                          ? 'border-emerald-200 bg-emerald-50'
+                          : qualified.length < 2
+                            ? 'border-red-100 bg-red-50/50'
+                            : 'border-dashed border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/30'
                     return (
                       <div key={m.id}
                         onDragOver={(e) => e.preventDefault()}
                         onDrop={() => handleDropOnMachine(m.id)}
-                        className={`rounded-xl border-2 p-3 transition-all ${assigned.length > 0 ? 'border-emerald-200 bg-emerald-50' : qualified.length < 2 ? 'border-red-100 bg-red-50/50' : 'border-dashed border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/30'}`}>
+                        className={`rounded-xl border-2 p-3 transition-all ${borderClass}`}>
                         <div className="flex items-center justify-between mb-1">
                           <div className="text-xs font-semibold text-gray-700 truncate">{m.name}</div>
-                          {qualified.length < 2 && <AlertTriangle className="w-3 h-3 text-red-400 shrink-0" />}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                              isOver ? 'bg-amber-100 text-amber-700' : isFull ? 'bg-emerald-100 text-emerald-700' : assigned.length > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
+                            }`}>
+                              {assigned.length}/{cap}
+                            </span>
+                            {qualified.length < 2 && <AlertTriangle className="w-3 h-3 text-red-400 shrink-0" />}
+                          </div>
                         </div>
                         {assigned.length === 0 ? (
                           <div className="text-xs text-gray-300 italic">Sleep een medewerker hier…</div>
@@ -1305,6 +1336,11 @@ export default function CompetentieMatrixPage() {
                                 <span className="text-xs font-medium text-emerald-800">{e.name}</span>
                               </div>
                             ))}
+                          </div>
+                        )}
+                        {isOver && (
+                          <div className="mt-1 text-[10px] font-medium text-amber-600 flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3" /> Overbezet
                           </div>
                         )}
                         <div className="mt-1.5 text-[10px] text-gray-400">

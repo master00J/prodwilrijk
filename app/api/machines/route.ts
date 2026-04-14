@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
   if (auth instanceof NextResponse) return auth
 
   const body = await request.json()
-  const { name, description, category, active, sort_order } = body
+  const { name, description, category, active, sort_order, capacity } = body
 
   if (!name?.trim()) {
     return NextResponse.json({ error: 'Naam is verplicht' }, { status: 400 })
@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
       category: category || 'machine',
       active: active ?? true,
       sort_order: sort_order ?? 0,
+      capacity: capacity ?? 1,
     })
     .select()
     .single()
@@ -47,7 +48,7 @@ export async function PATCH(request: NextRequest) {
   if (auth instanceof NextResponse) return auth
 
   const body = await request.json()
-  const { id, name, description, category, active, sort_order } = body
+  const { id, name, description, category, active, sort_order, capacity } = body
 
   if (!id) return NextResponse.json({ error: 'ID is verplicht' }, { status: 400 })
   if (name !== undefined && !name?.trim()) {
@@ -60,6 +61,7 @@ export async function PATCH(request: NextRequest) {
   if (category !== undefined) updates.category = category
   if (active !== undefined) updates.active = active
   if (sort_order !== undefined) updates.sort_order = sort_order
+  if (capacity !== undefined) updates.capacity = capacity
 
   const { data, error } = await supabaseAdmin
     .from('machines')
