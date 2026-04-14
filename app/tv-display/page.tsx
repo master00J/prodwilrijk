@@ -685,58 +685,131 @@ function DagplanningSlide({ entries, slide }: { entries: DagplanningEntry[]; sli
   const manualLines: string[] = slide.content?.manualEntries || []
   const useManual = manualLines.length > 0
 
+  const present = entries.filter(e => e.status === 'aanwezig' || e.status === 'thuiswerk')
+  const absent = entries.filter(e => e.status !== 'aanwezig' && e.status !== 'thuiswerk')
+
+  const cols = present.length > 16 ? 4 : present.length > 8 ? 3 : 2
+  const isCompact = present.length > 12
+  const today = new Date().toLocaleDateString('nl-BE', { weekday: 'long', day: 'numeric', month: 'long' })
+
   return (
-    <div className="w-full h-full flex flex-col px-10 py-6 overflow-hidden">
-      <h2 className="text-3xl font-bold text-center mb-6 text-white">
-        {slide.title || 'Dagplanning'}
-      </h2>
+    <div className="w-full h-full flex flex-col px-10 py-5 overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between shrink-0 mb-4">
+        <h2 className="text-3xl font-bold text-white">{slide.title || 'Dagplanning'}</h2>
+        <div className="flex items-center gap-6">
+          <span className="text-sm capitalize" style={{ color: TV_MUTED }}>{today}</span>
+          <div className="flex items-center gap-4">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: '#4ade80' }} />
+              <span className="text-sm font-semibold text-white">{present.length}</span>
+              <span className="text-xs" style={{ color: TV_MUTED }}>aanwezig</span>
+            </span>
+            {absent.length > 0 && (
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: '#f87171' }} />
+                <span className="text-sm font-semibold text-white">{absent.length}</span>
+                <span className="text-xs" style={{ color: TV_MUTED }}>afwezig</span>
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
 
       {useManual ? (
-        <div className="flex-1 overflow-auto">
-          <table className="w-full">
-            <tbody>
-              {manualLines.map((line, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid #1a5c47' }}>
-                  <td className="py-4 px-6 text-2xl text-white">{line}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="flex-1 flex flex-col justify-center">
+          <div className="grid grid-cols-2 gap-2">
+            {manualLines.map((line, i) => (
+              <div key={i} className="px-5 py-3 rounded-lg text-lg text-white" style={{ borderBottom: '1px solid #1a5c47' }}>
+                {line}
+              </div>
+            ))}
+          </div>
         </div>
       ) : entries.length === 0 ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-xl" style={{ color: TV_MUTED }}>Geen dagplanning ingevuld voor vandaag</div>
         </div>
       ) : (
-        <div className="flex-1 overflow-auto">
-          <div className="grid grid-cols-2 gap-3">
-            {entries.map((entry, i) => {
-              const cfg = STATUS_CONFIG[entry.status] || STATUS_CONFIG.aanwezig
-              return (
+        <div className="flex-1 flex flex-col min-h-0">
+          {/* Aanwezig grid */}
+          <div className="flex-1 min-h-0">
+            <div
+              className="grid gap-2 h-full"
+              style={{
+                gridTemplateColumns: `repeat(${cols}, 1fr)`,
+                gridAutoRows: '1fr',
+              }}
+            >
+              {present.map((entry, i) => (
                 <div
                   key={i}
-                  className="rounded-xl px-5 py-3 flex items-center gap-4"
-                  style={{ backgroundColor: cfg.bg, border: `1px solid ${cfg.text}30` }}
+                  className="rounded-lg flex items-center gap-3 min-h-0"
+                  style={{
+                    backgroundColor: entry.status === 'thuiswerk' ? 'rgba(56, 189, 248, 0.10)' : 'rgba(74, 222, 128, 0.08)',
+                    border: `1px solid ${entry.status === 'thuiswerk' ? '#38bdf830' : '#4ade8025'}`,
+                    padding: isCompact ? '0.35rem 0.75rem' : '0.5rem 1rem',
+                  }}
                 >
+                  <div
+                    className="shrink-0 rounded-full flex items-center justify-center font-bold text-white"
+                    style={{
+                      width: isCompact ? '2rem' : '2.5rem',
+                      height: isCompact ? '2rem' : '2.5rem',
+                      fontSize: isCompact ? '0.75rem' : '0.875rem',
+                      backgroundColor: entry.status === 'thuiswerk' ? '#0ea5e9' : '#16a34a',
+                    }}
+                  >
+                    {entry.employeeName.charAt(0).toUpperCase()}
+                  </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-xl font-semibold text-white truncate">{entry.employeeName}</div>
+                    <div
+                      className="font-semibold text-white truncate"
+                      style={{ fontSize: isCompact ? '0.85rem' : '1.05rem' }}
+                    >
+                      {entry.employeeName}
+                    </div>
                     {entry.machine && (
-                      <div className="text-sm mt-0.5" style={{ color: TV_TICK }}>{entry.machine}</div>
-                    )}
-                    {entry.notes && (
-                      <div className="text-sm mt-0.5 truncate" style={{ color: TV_MUTED }}>{entry.notes}</div>
+                      <div
+                        className="truncate"
+                        style={{ color: TV_TICK, fontSize: isCompact ? '0.65rem' : '0.75rem' }}
+                      >
+                        {entry.machine}
+                      </div>
                     )}
                   </div>
-                  <span
-                    className="px-3 py-1 rounded-full text-xs font-bold shrink-0"
-                    style={{ backgroundColor: `${cfg.text}20`, color: cfg.text }}
-                  >
-                    {cfg.label}
-                  </span>
+                  {entry.status === 'thuiswerk' && (
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0" style={{ backgroundColor: '#0ea5e920', color: '#38bdf8' }}>
+                      TW
+                    </span>
+                  )}
                 </div>
-              )
-            })}
+              ))}
+            </div>
           </div>
+
+          {/* Afwezig strip */}
+          {absent.length > 0 && (
+            <div className="shrink-0 mt-3 pt-3" style={{ borderTop: '1px solid #1a5c47' }}>
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: TV_MUTED }}>Afwezig</span>
+                {absent.map((entry, i) => {
+                  const cfg = STATUS_CONFIG[entry.status] || STATUS_CONFIG.afwezig
+                  return (
+                    <span
+                      key={i}
+                      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1"
+                      style={{ backgroundColor: `${cfg.text}15`, border: `1px solid ${cfg.text}30` }}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cfg.text }} />
+                      <span className="text-sm text-white">{entry.employeeName}</span>
+                      <span className="text-[10px] font-semibold" style={{ color: cfg.text }}>{cfg.label}</span>
+                    </span>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
