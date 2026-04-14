@@ -371,18 +371,18 @@ function PackingStatsSlide({
               <Bar
                 yAxisId="items"
                 dataKey="prepackItems"
-                stackId="stuks"
                 name="Prepack"
                 fill="#3b82f6"
-                radius={[0, 0, 0, 0]}
+                radius={[3, 3, 0, 0]}
+                barSize={daily.length > 10 ? 14 : 20}
               />
               <Bar
                 yAxisId="items"
                 dataKey="airtecItems"
-                stackId="stuks"
                 name="Airtec"
                 fill="#a855f7"
                 radius={[3, 3, 0, 0]}
+                barSize={daily.length > 10 ? 14 : 20}
               />
               <Line
                 yAxisId="uur"
