@@ -27,6 +27,7 @@ export default function TvAdminPage() {
   const [showAddForm, setShowAddForm] = useState(false)
   const [newType, setNewType] = useState<'werkorders' | 'tekst' | 'afbeelding' | 'productieorders'>('werkorders')
   const [saving, setSaving] = useState(false)
+  const [saveMsg, setSaveMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const fetchSlides = useCallback(async () => {
     try {
@@ -72,13 +73,23 @@ export default function TvAdminPage() {
 
   const updateSlide = async (slide: TvSlide) => {
     setSaving(true)
+    setSaveMsg(null)
     try {
-      await fetch('/api/tv-slides', {
+      const res = await fetch('/api/tv-slides', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(slide),
       })
+      const json = await res.json()
+      if (!res.ok) {
+        setSaveMsg({ type: 'error', text: json.error || 'Opslaan mislukt' })
+        return
+      }
       setSlides(prev => prev.map(s => s.id === slide.id ? slide : s))
+      setSaveMsg({ type: 'success', text: 'Opgeslagen!' })
+      setTimeout(() => setSaveMsg(null), 3000)
+    } catch (err: any) {
+      setSaveMsg({ type: 'error', text: err.message || 'Opslaan mislukt' })
     } finally {
       setSaving(false)
     }
@@ -186,6 +197,14 @@ export default function TvAdminPage() {
               Annuleren
             </button>
           </div>
+        </div>
+      )}
+
+      {saveMsg && (
+        <div className={`mb-4 p-3 rounded-lg text-sm font-medium ${
+          saveMsg.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+        }`}>
+          {saveMsg.text}
         </div>
       )}
 
