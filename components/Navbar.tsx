@@ -48,9 +48,6 @@ function UserInfo({ user, signOut, mobile }: { user: User; signOut: () => Promis
 export default function Navbar() {
   const pathname = usePathname()
   const { user, signOut, isAdmin } = useAuth()
-
-  if (pathname === '/tv-display') return null
-
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isPrepackOpen, setIsPrepackOpen] = useState(false)
   const [isAirtecOpen, setIsAirtecOpen] = useState(false)
@@ -196,6 +193,8 @@ export default function Navbar() {
     if (next) closeAllDropdowns()
     setIsCNHOpen(next)
   }
+
+  if (pathname === '/tv-display') return null
 
   return (
     <nav className="bg-white shadow-lg border-b border-gray-200 sticky top-0 z-50">
