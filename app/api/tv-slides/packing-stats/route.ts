@@ -69,31 +69,15 @@ export async function GET(request: NextRequest) {
       e.airtecManHours += row.manHours
     }
 
-    const allDates: string[] = []
-    const [fy, fm, fd] = dateFrom.split('-').map(Number)
-    const [ty, tm, td] = dateTo.split('-').map(Number)
-    const cursor = new Date(Date.UTC(fy, fm - 1, fd))
-    const endUtc = new Date(Date.UTC(ty, tm - 1, td))
-    while (cursor <= endUtc) {
-      allDates.push(cursor.toISOString().split('T')[0])
-      cursor.setUTCDate(cursor.getUTCDate() + 1)
-    }
-
-    const daily = allDates.map((d) => {
-      const row = byDay.get(d) ?? {
-        date: d,
-        prepackItems: 0,
-        airtecItems: 0,
-        prepackManHours: 0,
-        airtecManHours: 0,
-      }
-      return {
+    const daily = Array.from(byDay.values())
+      .filter((row) => row.prepackItems + row.airtecItems > 0 || row.prepackManHours + row.airtecManHours > 0)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((row) => ({
         ...row,
-        label: shortNlDate(d),
+        label: shortNlDate(row.date),
         itemsTotal: row.prepackItems + row.airtecItems,
         manHoursTotal: row.prepackManHours + row.airtecManHours,
-      }
-    })
+      }))
 
     const totalItemsPrepack = prepack.totals.totalItemsPacked
     const totalItemsAirtec = airtec.totals.totalItemsPacked

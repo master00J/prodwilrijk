@@ -65,7 +65,7 @@ interface PackingStatsResponse {
 
 const ROTATION_INTERVAL = 15000
 const PRODUCTION_POLL_INTERVAL = 15000
-const PACKING_STATS_POLL_INTERVAL = 5 * 60 * 1000
+const PACKING_STATS_POLL_INTERVAL = 60 * 1000
 
 export default function TvDisplayPage() {
   const [slides, setSlides] = useState<TvSlide[]>([])
