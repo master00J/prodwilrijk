@@ -15,6 +15,8 @@ interface LabelData {
   supplier: string | null
   date: string | null
   delivery_notice: string | null
+  location: string | null
+  receiver: string | null
 }
 
 async function extractLabelWithClaude(base64Image: string, mediaType: string): Promise<LabelData> {
@@ -42,23 +44,27 @@ async function extractLabelWithClaude(base64Image: string, mediaType: string): P
             },
             {
               type: 'text',
-              text: `Analyze this shipping/pallet label from Atlas Copco. Extract the following fields and return ONLY valid JSON, no other text:
+              text: `Analyze this shipping/pallet label. Extract the following fields and return ONLY valid JSON, no other text:
 
 {
   "item_number": "the PART NO (P) value (large bold number, e.g. 1503 9013 80)",
   "quantity": numeric quantity (the QUANTITY (Q) field),
   "description": "the DESCRIPTION field at the bottom of the label",
-  "po_line": "the P.O.NO-LINE (K) value (e.g. 487527-001)",
+  "po_line": "the P.O.NO-LINE (K) or O.NO-LINE (K) value (e.g. 487527-001 or 451329516430)",
   "supplier": "the SUPPLIER name",
   "date": "the DATE field (format YYYYMMDD)",
-  "delivery_notice": "the DELIVERY NOTICE or SERIAL NUMBER (H) field (e.g. D006906, 0)"
+  "delivery_notice": "the DELIVERY NOTICE or SERIAL NUMBER (H) field (e.g. D006906, 0)",
+  "location": "the LOCATION (2L) code (e.g. FSILS, BPTD, FLSML)",
+  "receiver": "the RECEIVER name/address at top left of label"
 }
 
 Rules:
 - For item_number: keep original spacing/formatting as shown on label
 - For quantity: return as integer number
-- For po_line: this is sometimes labeled as P.O.NO-LINE or Purchase Order
-- For delivery_notice: this is labeled DELIVERY NOTICE or SERIAL NUMBER (H). Values like "0" should be returned as "0", D-numbers like "D006906" should be kept as-is
+- For po_line: this is sometimes labeled as P.O.NO-LINE, O.NO-LINE, or Purchase Order
+- For delivery_notice: values like "0" should be returned as "0", D-numbers like "D006906" kept as-is
+- For location: this is usually a short code like FSILS, BPTD, FLSML near the top right
+- For receiver: the company/address at the top left, e.g. "ATLAS COPCO B2610 WILRIJK SERVICE CENTER" or "Power Tools Distribution"
 - If a field is not readable or not present, use null
 - Return ONLY the JSON object, nothing else`,
             },
@@ -90,7 +96,21 @@ Rules:
     supplier: parsed.supplier || null,
     date: parsed.date || null,
     delivery_notice: parsed.delivery_notice || null,
+    location: parsed.location || null,
+    receiver: parsed.receiver || null,
   }
+}
+
+function detectLabelType(label: LabelData): 'prepack' | 'powertools' | 'd_nummer' {
+  if (label.delivery_notice && /^D\d+$/i.test(label.delivery_notice.trim())) {
+    return 'd_nummer'
+  }
+  const loc = (label.location || '').toUpperCase()
+  const recv = (label.receiver || '').toUpperCase()
+  if (loc.startsWith('BPTD') || recv.includes('POWER TOOLS') || recv.includes('HASSELT')) {
+    return 'powertools'
+  }
+  return 'prepack'
 }
 
 export async function POST(request: Request) {
@@ -107,12 +127,32 @@ export async function POST(request: Request) {
     }
 
     const labelData = await extractLabelWithClaude(image, mediaType)
+    const labelType = detectLabelType(labelData)
 
     if (!labelData.item_number) {
       return NextResponse.json({
         label: labelData,
+        labelType,
         matches: [],
         warning: 'Kon geen item nummer uitlezen van het label',
+      })
+    }
+
+    if (labelType === 'powertools') {
+      return NextResponse.json({
+        label: labelData,
+        labelType,
+        matches: [],
+        warning: null,
+      })
+    }
+
+    if (labelType === 'd_nummer') {
+      return NextResponse.json({
+        label: labelData,
+        labelType,
+        matches: [],
+        warning: null,
       })
     }
 
@@ -142,6 +182,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       label: labelData,
+      labelType,
       matches: matched.map((m: any) => ({
         id: m.id,
         item_number: m.item_number,

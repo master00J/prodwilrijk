@@ -10,6 +10,8 @@ interface ScanMatch {
   date_added: string
 }
 
+type LabelType = 'prepack' | 'powertools' | 'd_nummer'
+
 interface ScanResult {
   label: {
     item_number: string | null
@@ -19,14 +21,12 @@ interface ScanResult {
     supplier: string | null
     date: string | null
     delivery_notice: string | null
+    location: string | null
+    receiver: string | null
   }
+  labelType: LabelType
   matches: ScanMatch[]
   warning: string | null
-}
-
-function isDNumber(deliveryNotice: string | null): boolean {
-  if (!deliveryNotice) return false
-  return /^D\d+$/i.test(deliveryNotice.trim())
 }
 
 interface LabelScannerProps {
@@ -48,6 +48,8 @@ export default function LabelScanner({ onItemsMatched, onUnlistedAdded }: LabelS
   const [adding, setAdding] = useState(false)
   const [isExtraPallet, setIsExtraPallet] = useState(false)
   const [detectedDNumber, setDetectedDNumber] = useState<string | null>(null)
+  const [detectedPowertools, setDetectedPowertools] = useState(false)
+  const [addingToPack, setAddingToPack] = useState(false)
   const [scanTally, setScanTally] = useState<Record<string, { scanned: number; inList: number }>>({})
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -59,6 +61,7 @@ export default function LabelScanner({ onItemsMatched, onUnlistedAdded }: LabelS
     setResult(null)
     setIsExtraPallet(false)
     setDetectedDNumber(null)
+    setDetectedPowertools(false)
 
     const reader = new FileReader()
     reader.onload = async () => {
@@ -84,7 +87,10 @@ export default function LabelScanner({ onItemsMatched, onUnlistedAdded }: LabelS
         const data: ScanResult = await res.json()
         setResult(data)
 
-        if (isDNumber(data.label.delivery_notice)) {
+        if (data.labelType === 'powertools') {
+          setDetectedPowertools(true)
+          setScanCount(prev => prev + 1)
+        } else if (data.labelType === 'd_nummer') {
           setDetectedDNumber(data.label.delivery_notice)
           setScanCount(prev => prev + 1)
         } else if (data.matches.length > 0 && data.label.item_number) {
@@ -122,12 +128,44 @@ export default function LabelScanner({ onItemsMatched, onUnlistedAdded }: LabelS
     }
   }, [onItemsMatched])
 
+  const handleAddToPack = useCallback(async () => {
+    if (!result?.label) return
+    setAddingToPack(true)
+    try {
+      const label = result.label
+      const res = await fetch('/api/incoming-goods/scan-label/add-to-pack', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          item_number: label.item_number,
+          po_number: label.po_line,
+          amount: label.quantity || 1,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Toevoegen mislukt')
+
+      if (data.skipped) {
+        setError(data.message)
+      } else {
+        setResult(null)
+        setPreview(null)
+        setDetectedPowertools(false)
+      }
+    } catch (err: any) {
+      setError(err.message || 'Kon item niet toevoegen')
+    } finally {
+      setAddingToPack(false)
+    }
+  }, [result])
+
   const handleNewScan = () => {
     setResult(null)
     setPreview(null)
     setError(null)
     setIsExtraPallet(false)
     setDetectedDNumber(null)
+    setDetectedPowertools(false)
     fileInputRef.current?.click()
   }
 
@@ -184,6 +222,7 @@ export default function LabelScanner({ onItemsMatched, onUnlistedAdded }: LabelS
     setScanCount(0)
     setIsExtraPallet(false)
     setDetectedDNumber(null)
+    setDetectedPowertools(false)
     setScanTally({})
   }
 
@@ -310,6 +349,46 @@ export default function LabelScanner({ onItemsMatched, onUnlistedAdded }: LabelS
             )}
           </div>
 
+          {/* Powertools detectie */}
+          {detectedPowertools && (
+            <div className="bg-emerald-50 border-2 border-emerald-300 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <div className="bg-emerald-100 rounded-full p-2 shrink-0">
+                  <svg className="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17l-5.385-5.386a.563.563 0 010-.796L10.97 4.05a.562.562 0 01.795 0l4.938 4.937a.563.563 0 010 .796l-4.937 4.938a.563.563 0 01-.796 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 12a9.75 9.75 0 11-19.5 0 9.75 9.75 0 0119.5 0z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="text-emerald-800 font-bold text-lg">Powertools label</p>
+                  <p className="text-emerald-600 text-sm mt-1">
+                    Dit item wordt direct toegevoegd aan Items to Pack.
+                    Het P.O. nummer <span className="font-mono font-bold">{result?.label.po_line}</span> komt in de pallet nummer kolom.
+                  </p>
+                  <button
+                    onClick={handleAddToPack}
+                    disabled={addingToPack}
+                    className="mt-3 flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:bg-emerald-300 transition-colors font-medium text-sm"
+                  >
+                    {addingToPack ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Toevoegen...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                        Toevoegen aan Items to Pack
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* D-nummer detectie */}
           {detectedDNumber && (
             <div className="bg-purple-50 border-2 border-purple-300 rounded-lg p-4">
@@ -349,7 +428,7 @@ export default function LabelScanner({ onItemsMatched, onUnlistedAdded }: LabelS
           )}
 
           {/* Scan tally indicator */}
-          {!detectedDNumber && currentTally && result.matches.length > 0 && (
+          {!detectedDNumber && !detectedPowertools && currentTally && result.matches.length > 0 && (
             <div className={`rounded-lg px-4 py-3 flex items-center gap-3 ${
               isExtraPallet
                 ? 'bg-red-50 border border-red-200'
@@ -375,7 +454,7 @@ export default function LabelScanner({ onItemsMatched, onUnlistedAdded }: LabelS
           )}
 
           {/* Warning */}
-          {!detectedDNumber && result.warning && !isExtraPallet && (
+          {!detectedDNumber && !detectedPowertools && result.warning && !isExtraPallet && (
             <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-start gap-2">
               <svg className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
@@ -384,8 +463,8 @@ export default function LabelScanner({ onItemsMatched, onUnlistedAdded }: LabelS
             </div>
           )}
 
-          {/* Match / no-match / extra pallet (niet voor D-nummers) */}
-          {detectedDNumber ? null : isExtraPallet && result.matches.length > 0 ? (
+          {/* Match / no-match / extra pallet (niet voor D-nummers of Powertools) */}
+          {detectedDNumber || detectedPowertools ? null : isExtraPallet && result.matches.length > 0 ? (
             <div>
               <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">
                 Item staat in de lijst, maar dit is een extra pallet
