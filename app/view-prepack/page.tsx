@@ -5,6 +5,8 @@ import { IncomingGood } from '@/types/database'
 import ViewPrepackTable from '@/components/view-prepack/ViewPrepackTable'
 import ViewPrepackFilters from '@/components/view-prepack/ViewPrepackFilters'
 import AddItemForm from '@/components/view-prepack/AddItemForm'
+import LabelScanner from '@/components/view-prepack/LabelScanner'
+import UnlistedItemsSection from '@/components/view-prepack/UnlistedItemsSection'
 
 interface IncomingGoodsResponse {
   items: IncomingGood[]
@@ -192,9 +194,26 @@ export default function ViewPrepackPage() {
     return sortedItems.reduce((sum, item) => sum + (item.amount || 0), 0)
   }, [sortedItems])
 
+  const [unlistedRefreshKey, setUnlistedRefreshKey] = useState(0)
+
+  const handleScanMatched = useCallback((ids: number[]) => {
+    setSelectedItems(prev => {
+      const next = new Set(prev)
+      ids.forEach(id => next.add(id))
+      return next
+    })
+  }, [])
+
+  const handleUnlistedAdded = useCallback(() => {
+    setUnlistedRefreshKey(prev => prev + 1)
+  }, [])
+
   return (
     <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6 max-w-7xl">
-      <h1 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6">View Prepack - Incoming Goods</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold">View Prepack - Incoming Goods</h1>
+        <LabelScanner onItemsMatched={handleScanMatched} onUnlistedAdded={handleUnlistedAdded} />
+      </div>
 
       <ViewPrepackFilters
         searchTerm={searchTerm}
@@ -219,6 +238,8 @@ export default function ViewPrepackPage() {
 
 
       <AddItemForm onItemAdded={fetchItems} />
+
+      <UnlistedItemsSection refreshKey={unlistedRefreshKey} />
     </div>
   )
 }

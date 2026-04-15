@@ -41,7 +41,7 @@ const SLIDE_TYPES: Array<{
   { value: 'countdown', label: 'Countdown', icon: '⏳', description: 'Aftellen naar deadline', color: 'text-rose-700', bgColor: 'bg-rose-50' },
   { value: 'weer', label: 'Weer', icon: '🌤️', description: '7-daags weeroverzicht', color: 'text-sky-700', bgColor: 'bg-sky-50' },
   { value: 'priorities', label: 'Prioriteiten', icon: '⭐', description: 'Prio items Prepack + Airtec', color: 'text-yellow-700', bgColor: 'bg-yellow-50' },
-  { value: 'transportplanning', label: 'Transportplanning', icon: '🚚', description: 'Weekoverzicht transporten', color: 'text-indigo-700', bgColor: 'bg-indigo-50' },
+  { value: 'transportplanning', label: 'Planning', icon: '📋', description: 'Weekoverzicht planning', color: 'text-indigo-700', bgColor: 'bg-indigo-50' },
 ]
 
 function getSlideConfig(type: SlideType) {
@@ -1306,8 +1306,8 @@ function TransportPlanningEditor() {
 
   return (
     <div className="space-y-3">
-      <InfoBox color="indigo" icon="🚚" title="Transportplanning">
-        Voeg transporten toe per dag. Op het TV display verschijnt dit als een weekoverzicht.
+      <InfoBox color="indigo" icon="📋" title="Planning">
+        Voeg items toe per dag. Op het TV display verschijnt dit als een weekoverzicht.
       </InfoBox>
 
       {/* Week navigatie */}

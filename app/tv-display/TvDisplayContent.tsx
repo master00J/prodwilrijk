@@ -1286,7 +1286,7 @@ function TransportPlanningSlide({ entries, title }: { entries: TransportDisplayE
   return (
     <div className="w-full h-full flex flex-col px-6 py-4 min-h-0 overflow-hidden">
       <h2 className="text-3xl font-bold text-white text-center mb-4 shrink-0">
-        {title || 'Transportplanning'}
+        {title || 'Planning'}
       </h2>
 
       <div className="flex-1 grid grid-cols-5 gap-3 min-h-0">
