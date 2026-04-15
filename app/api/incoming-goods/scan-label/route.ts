@@ -107,7 +107,13 @@ function detectLabelType(label: LabelData): 'prepack' | 'powertools' | 'd_nummer
   }
   const loc = (label.location || '').toUpperCase()
   const recv = (label.receiver || '').toUpperCase()
+  const poLine = (label.po_line || '').trim()
+
   if (loc.startsWith('BPTD') || recv.includes('POWER TOOLS') || recv.includes('HASSELT')) {
+    return 'powertools'
+  }
+  // Powertools P.O. lines are long numeric strings (12+ digits), regular prepack uses shorter formats like "487527-001"
+  if (poLine.length >= 12 && /^\d+$/.test(poLine)) {
     return 'powertools'
   }
   return 'prepack'
