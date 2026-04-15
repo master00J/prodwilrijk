@@ -636,17 +636,14 @@ function ProductieordersSlide({ orders, title }: { orders: ProductionOrder[]; ti
               </div>
             )}
 
-            {/* Order lijnen (compact) */}
-            {order.lines.length > 0 && order.status === 'in_progress' && (
+            {/* Order lijnen */}
+            {order.lines.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1">
-                {order.lines.slice(0, 5).map((line, i) => (
+                {order.lines.map((line, i) => (
                   <span key={i} className="text-sm" style={{ color: '#a0c4b8' }}>
                     {line.quantity}x {line.item_number} {line.description ? `— ${line.description}` : ''}
                   </span>
                 ))}
-                {order.lines.length > 5 && (
-                  <span className="text-sm" style={{ color: '#4a8a74' }}>+{order.lines.length - 5} meer</span>
-                )}
               </div>
             )}
           </div>
