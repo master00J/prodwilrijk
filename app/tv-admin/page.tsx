@@ -658,7 +658,7 @@ interface ProdOrder {
 function ProductieordersPriorityEditor() {
   const [orders, setOrders] = useState<ProdOrder[]>([])
   const [loading, setLoading] = useState(true)
-  const [savingOrder, setSavingOrder] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const fetchOrders = useCallback(async () => {
@@ -675,9 +675,16 @@ function ProductieordersPriorityEditor() {
 
   useEffect(() => { fetchOrders() }, [fetchOrders])
 
-  const setPriority = async (orderNumber: string, priority: number) => {
-    setSavingOrder(orderNumber)
-    setMsg(null)
+  const sortedOrders = [...orders].sort((a, b) => {
+    const pa = a.tv_priority || 0
+    const pb = b.tv_priority || 0
+    if (pa > 0 && pb > 0) return pa - pb
+    if (pa > 0) return -1
+    if (pb > 0) return 1
+    return 0
+  })
+
+  const savePriority = async (orderNumber: string, priority: number) => {
     try {
       const res = await fetch('/api/tv-slides/production-status', {
         method: 'PUT',
@@ -688,53 +695,103 @@ function ProductieordersPriorityEditor() {
         const json = await res.json()
         throw new Error(json.error || 'Opslaan mislukt')
       }
-      setOrders(prev => prev.map(o =>
-        o.order_number === orderNumber ? { ...o, tv_priority: priority } : o
-      ))
-      setMsg({ type: 'success', text: `Prioriteit ${orderNumber} bijgewerkt` })
+    } catch (err: any) {
+      throw err
+    }
+  }
+
+  const moveOrder = async (orderNumber: string, direction: 'up' | 'down') => {
+    setSaving(true)
+    setMsg(null)
+
+    const ranked = sortedOrders.filter(o => (o.tv_priority || 0) > 0)
+    const unranked = sortedOrders.filter(o => (o.tv_priority || 0) === 0)
+    const idx = ranked.findIndex(o => o.order_number === orderNumber)
+
+    if (direction === 'up') {
+      if (idx <= 0) { setSaving(false); return }
+      const temp = ranked[idx]
+      ranked[idx] = ranked[idx - 1]
+      ranked[idx - 1] = temp
+    } else {
+      if (idx < 0 || idx >= ranked.length - 1) { setSaving(false); return }
+      const temp = ranked[idx]
+      ranked[idx] = ranked[idx + 1]
+      ranked[idx + 1] = temp
+    }
+
+    try {
+      const updates = ranked.map((o, i) => savePriority(o.order_number, i + 1))
+      await Promise.all(updates)
+      const newOrders = [...ranked.map((o, i) => ({ ...o, tv_priority: i + 1 })), ...unranked]
+      setOrders(newOrders)
+      setMsg({ type: 'success', text: 'Volgorde bijgewerkt' })
       setTimeout(() => setMsg(null), 2000)
     } catch (err: any) {
       setMsg({ type: 'error', text: err.message })
     } finally {
-      setSavingOrder(null)
+      setSaving(false)
     }
   }
 
-  const movePriority = async (orderNumber: string, direction: 'up' | 'down') => {
-    const sorted = [...orders].sort((a, b) => b.tv_priority - a.tv_priority)
-    const idx = sorted.findIndex(o => o.order_number === orderNumber)
-    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
-    if (swapIdx < 0 || swapIdx >= sorted.length) return
-
-    const current = sorted[idx]
-    const other = sorted[swapIdx]
-
-    const newCurrentPrio = other.tv_priority
-    const newOtherPrio = current.tv_priority
-
-    await Promise.all([
-      setPriority(current.order_number, newCurrentPrio),
-      setPriority(other.order_number, newOtherPrio),
-    ])
-    fetchOrders()
+  const addToRanking = async (orderNumber: string) => {
+    setSaving(true)
+    setMsg(null)
+    const ranked = sortedOrders.filter(o => (o.tv_priority || 0) > 0)
+    const newRank = ranked.length + 1
+    try {
+      await savePriority(orderNumber, newRank)
+      setOrders(prev => prev.map(o =>
+        o.order_number === orderNumber ? { ...o, tv_priority: newRank } : o
+      ))
+      setMsg({ type: 'success', text: `${orderNumber} toegevoegd als #${newRank}` })
+      setTimeout(() => setMsg(null), 2000)
+    } catch (err: any) {
+      setMsg({ type: 'error', text: err.message })
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const PRIO_LEVELS = [
-    { value: 3, label: 'URGENT', color: 'bg-red-100 text-red-700 border-red-300' },
-    { value: 2, label: 'HOOG', color: 'bg-orange-100 text-orange-700 border-orange-300' },
-    { value: 1, label: 'NORMAAL', color: 'bg-blue-100 text-blue-700 border-blue-300' },
-    { value: 0, label: 'GEEN', color: 'bg-gray-100 text-gray-500 border-gray-300' },
-  ]
+  const removeFromRanking = async (orderNumber: string) => {
+    setSaving(true)
+    setMsg(null)
+    try {
+      await savePriority(orderNumber, 0)
+      const remaining = sortedOrders
+        .filter(o => (o.tv_priority || 0) > 0 && o.order_number !== orderNumber)
+      const updates = remaining.map((o, i) => savePriority(o.order_number, i + 1))
+      await Promise.all(updates)
+      setOrders(prev => {
+        const updated = prev.map(o => {
+          if (o.order_number === orderNumber) return { ...o, tv_priority: 0 }
+          const newIdx = remaining.findIndex(r => r.order_number === o.order_number)
+          if (newIdx >= 0) return { ...o, tv_priority: newIdx + 1 }
+          return o
+        })
+        return updated
+      })
+      setMsg({ type: 'success', text: `${orderNumber} verwijderd uit ranking` })
+      setTimeout(() => setMsg(null), 2000)
+    } catch (err: any) {
+      setMsg({ type: 'error', text: err.message })
+    } finally {
+      setSaving(false)
+    }
+  }
 
   if (loading) {
     return <div className="text-sm text-gray-500 py-4 text-center">Orders laden...</div>
   }
 
+  const ranked = sortedOrders.filter(o => (o.tv_priority || 0) > 0)
+  const unranked = sortedOrders.filter(o => (o.tv_priority || 0) === 0)
+
   return (
     <div className="space-y-3">
-      <InfoBox color="green" icon="⚙️" title="Productieorders + Prioriteiten">
-        Toont live de actieve productieorders. Stel hieronder de prioriteit in per order.
-        Orders met hogere prioriteit worden bovenaan getoond op het display met een duidelijke markering.
+      <InfoBox color="green" icon="⚙️" title="Productieorders — Volgorde">
+        Rangschik de productieorders op prioriteit. #1 = hoogste prioriteit en wordt bovenaan getoond op het display.
+        Gebruik de pijltjes om de volgorde aan te passen.
       </InfoBox>
 
       {msg && (
@@ -750,81 +807,131 @@ function ProductieordersPriorityEditor() {
           Geen actieve productieorders gevonden
         </div>
       ) : (
-        <div className="space-y-2">
-          {[...orders].sort((a, b) => b.tv_priority - a.tv_priority).map((order, idx) => {
-            const prioConfig = PRIO_LEVELS.find(p => p.value === order.tv_priority) || PRIO_LEVELS[3]
-            const isSaving = savingOrder === order.order_number
-            return (
-              <div
-                key={order.order_number}
-                className={`border rounded-lg p-3 transition-all ${
-                  order.tv_priority >= 3 ? 'border-red-300 bg-red-50/50' :
-                  order.tv_priority >= 2 ? 'border-orange-300 bg-orange-50/30' :
-                  order.tv_priority >= 1 ? 'border-blue-200 bg-blue-50/30' :
-                  'border-gray-200 bg-white'
-                } ${isSaving ? 'opacity-60' : ''}`}
-              >
-                <div className="flex items-center gap-3">
-                  {/* Reorder arrows */}
-                  <div className="flex flex-col gap-0.5 shrink-0">
-                    <button
-                      onClick={() => movePriority(order.order_number, 'up')}
-                      disabled={idx === 0 || isSaving}
-                      className="w-5 h-4 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-25 text-[10px]"
-                    >▲</button>
-                    <button
-                      onClick={() => movePriority(order.order_number, 'down')}
-                      disabled={idx === orders.length - 1 || isSaving}
-                      className="w-5 h-4 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-25 text-[10px]"
-                    >▼</button>
-                  </div>
+        <>
+          {/* Gerangschikte orders */}
+          {ranked.length > 0 && (
+            <div>
+              <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Prioriteit volgorde</div>
+              <div className="space-y-1.5">
+                {ranked.map((order, idx) => {
+                  const isSaving = saving
+                  return (
+                    <div
+                      key={order.order_number}
+                      className={`border rounded-lg p-3 transition-all ${
+                        idx === 0 ? 'border-amber-400 bg-amber-50/60' :
+                        idx === 1 ? 'border-gray-300 bg-gray-50/60' :
+                        idx === 2 ? 'border-orange-300 bg-orange-50/40' :
+                        'border-gray-200 bg-white'
+                      } ${isSaving ? 'opacity-60 pointer-events-none' : ''}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex flex-col gap-0.5 shrink-0">
+                          <button
+                            onClick={() => moveOrder(order.order_number, 'up')}
+                            disabled={idx === 0 || isSaving}
+                            className="w-5 h-4 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-25 text-[10px]"
+                          >▲</button>
+                          <button
+                            onClick={() => moveOrder(order.order_number, 'down')}
+                            disabled={idx === ranked.length - 1 || isSaving}
+                            className="w-5 h-4 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-25 text-[10px]"
+                          >▼</button>
+                        </div>
 
-                  {/* Order info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm text-gray-900">{order.order_number}</span>
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                        order.status === 'in_progress'
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-gray-100 text-gray-500'
-                      }`}>
-                        {order.status === 'in_progress' ? 'ACTIEF' : 'WACHTEND'}
-                      </span>
-                      {order.due_date && (
-                        <span className="text-xs text-gray-400">
-                          Deadline: {new Date(order.due_date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })}
+                        <span className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-sm shrink-0 ${
+                          idx === 0 ? 'bg-amber-400 text-white' :
+                          idx === 1 ? 'bg-gray-400 text-white' :
+                          idx === 2 ? 'bg-orange-400 text-white' :
+                          'bg-gray-200 text-gray-600'
+                        }`}>
+                          {idx + 1}
                         </span>
-                      )}
-                    </div>
-                    {order.lines.length > 0 && (
-                      <div className="text-xs text-gray-500 mt-0.5 truncate">
-                        {order.lines.map(l => `${l.quantity}x ${l.item_number}`).join(', ')}
-                      </div>
-                    )}
-                  </div>
 
-                  {/* Prioriteit knoppen */}
-                  <div className="flex gap-1 shrink-0">
-                    {PRIO_LEVELS.map(p => (
-                      <button
-                        key={p.value}
-                        onClick={() => setPriority(order.order_number, p.value)}
-                        disabled={isSaving}
-                        className={`px-2 py-1 rounded text-[10px] font-bold border transition-all ${
-                          order.tv_priority === p.value
-                            ? p.color + ' ring-1 ring-offset-1'
-                            : 'border-gray-200 bg-white text-gray-400 hover:bg-gray-50'
-                        }`}
-                      >
-                        {p.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-sm text-gray-900">{order.order_number}</span>
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                              order.status === 'in_progress' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                            }`}>
+                              {order.status === 'in_progress' ? 'ACTIEF' : 'WACHTEND'}
+                            </span>
+                            {order.due_date && (
+                              <span className="text-xs text-gray-400">
+                                {new Date(order.due_date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })}
+                              </span>
+                            )}
+                          </div>
+                          {order.lines.length > 0 && (
+                            <div className="text-xs text-gray-500 mt-0.5 truncate">
+                              {order.lines.map(l => `${l.quantity}x ${l.item_number}`).join(', ')}
+                            </div>
+                          )}
+                        </div>
+
+                        <button
+                          onClick={() => removeFromRanking(order.order_number)}
+                          disabled={isSaving}
+                          className="shrink-0 px-2 py-1 rounded text-xs text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors"
+                          title="Verwijder uit ranking"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
-            )
-          })}
-        </div>
+            </div>
+          )}
+
+          {/* Niet-gerangschikte orders */}
+          {unranked.length > 0 && (
+            <div>
+              <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
+                Zonder prioriteit {ranked.length > 0 && <span className="text-gray-400 normal-case font-normal">— klik + om toe te voegen</span>}
+              </div>
+              <div className="space-y-1.5">
+                {unranked.map(order => (
+                  <div
+                    key={order.order_number}
+                    className={`border border-dashed border-gray-200 rounded-lg p-3 bg-white ${saving ? 'opacity-60 pointer-events-none' : ''}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="w-8 h-8 rounded-full flex items-center justify-center text-gray-300 border border-dashed border-gray-300 shrink-0 text-sm">
+                        —
+                      </span>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm text-gray-700">{order.order_number}</span>
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            order.status === 'in_progress' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                          }`}>
+                            {order.status === 'in_progress' ? 'ACTIEF' : 'WACHTEND'}
+                          </span>
+                        </div>
+                        {order.lines.length > 0 && (
+                          <div className="text-xs text-gray-500 mt-0.5 truncate">
+                            {order.lines.map(l => `${l.quantity}x ${l.item_number}`).join(', ')}
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={() => addToRanking(order.order_number)}
+                        disabled={saving}
+                        className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                      >
+                        + Prioriteit
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   )

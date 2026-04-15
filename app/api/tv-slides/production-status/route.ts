@@ -109,9 +109,13 @@ export async function GET() {
       }
     })
 
-    // Sorteer: hoogste prioriteit eerst, dan in_progress, dan waiting
+    // Sorteer: rang 1 eerst (laagste nummer = hoogste prio), 0 = geen prio onderaan
     result.sort((a: any, b: any) => {
-      if (a.tv_priority !== b.tv_priority) return b.tv_priority - a.tv_priority
+      const pa = a.tv_priority || 0
+      const pb = b.tv_priority || 0
+      if (pa > 0 && pb > 0) return pa - pb
+      if (pa > 0) return -1
+      if (pb > 0) return 1
       if (a.status === 'in_progress' && b.status !== 'in_progress') return -1
       if (a.status !== 'in_progress' && b.status === 'in_progress') return 1
       return 0

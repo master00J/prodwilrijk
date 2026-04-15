@@ -588,13 +588,12 @@ function ProductieordersSlide({ orders, title }: { orders: ProductionOrder[]; ti
       </h2>
       <div className="flex-1 space-y-4">
         {orders.map((order) => {
-          const prio = order.tv_priority || 0
-          const isUrgent = prio >= 3
-          const isHigh = prio >= 2
-          const hasPrio = prio >= 1
+          const rank = order.tv_priority || 0
+          const hasRank = rank > 0
+          const isTop = rank === 1
 
-          const borderColor = isUrgent ? '#ef4444' : isHigh ? '#f97316' : order.status === 'in_progress' ? '#4ade80' : '#1a5c47'
-          const bgColor = isUrgent ? 'rgba(239, 68, 68, 0.15)' : isHigh ? 'rgba(249, 115, 22, 0.12)' : order.status === 'in_progress' ? 'rgba(74, 222, 128, 0.12)' : 'rgba(255, 255, 255, 0.04)'
+          const borderColor = isTop ? '#facc15' : hasRank ? '#f97316' : order.status === 'in_progress' ? '#4ade80' : '#1a5c47'
+          const bgColor = isTop ? 'rgba(250, 204, 21, 0.12)' : hasRank ? 'rgba(249, 115, 22, 0.08)' : order.status === 'in_progress' ? 'rgba(74, 222, 128, 0.12)' : 'rgba(255, 255, 255, 0.04)'
 
           return (
           <div
@@ -607,15 +606,15 @@ function ProductieordersSlide({ orders, title }: { orders: ProductionOrder[]; ti
           >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-4">
-                {hasPrio && (
+                {hasRank && (
                   <span
-                    className="px-3 py-1 rounded-full text-sm font-black uppercase tracking-wider animate-pulse"
+                    className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-black ${isTop ? 'animate-pulse' : ''}`}
                     style={{
-                      backgroundColor: isUrgent ? '#7f1d1d' : isHigh ? '#7c2d12' : '#1e3a5f',
-                      color: isUrgent ? '#fca5a5' : isHigh ? '#fdba74' : '#93c5fd',
+                      backgroundColor: isTop ? '#facc15' : rank <= 3 ? '#f97316' : '#6b7280',
+                      color: isTop ? '#422006' : '#fff',
                     }}
                   >
-                    {isUrgent ? 'URGENT' : isHigh ? 'HOOG' : 'PRIO'}
+                    {rank}
                   </span>
                 )}
                 <span
