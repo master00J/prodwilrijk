@@ -1,15 +1,36 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+
+export async function PUT(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { order_number, tv_priority } = body
+
+    if (!order_number || tv_priority === undefined) {
+      return NextResponse.json({ error: 'order_number en tv_priority zijn verplicht' }, { status: 400 })
+    }
+
+    const { error } = await supabaseAdmin
+      .from('production_orders')
+      .update({ tv_priority: Number(tv_priority) })
+      .eq('order_number', order_number)
+
+    if (error) throw error
+    return NextResponse.json({ success: true })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
 
 export async function GET() {
   try {
     // Actieve orders (niet afgewerkt, voor tijdregistratie)
     const { data: orders } = await supabaseAdmin
       .from('production_orders')
-      .select('order_number, sales_order_number, creation_date, due_date, starting_date, finished_at')
+      .select('order_number, sales_order_number, creation_date, due_date, starting_date, finished_at, tv_priority')
       .eq('for_time_registration', true)
       .is('finished_at', null)
       .order('creation_date', { ascending: true })
@@ -74,6 +95,7 @@ export async function GET() {
         order_number: order.order_number,
         sales_order_number: order.sales_order_number,
         due_date: order.due_date,
+        tv_priority: order.tv_priority || 0,
         status: logs.length > 0 ? 'in_progress' : 'waiting',
         active_timers: logs.map((log: any) => ({
           ...log,
@@ -87,8 +109,9 @@ export async function GET() {
       }
     })
 
-    // Sorteer: in_progress eerst, dan waiting
+    // Sorteer: hoogste prioriteit eerst, dan in_progress, dan waiting
     result.sort((a: any, b: any) => {
+      if (a.tv_priority !== b.tv_priority) return b.tv_priority - a.tv_priority
       if (a.status === 'in_progress' && b.status !== 'in_progress') return -1
       if (a.status !== 'in_progress' && b.status === 'in_progress') return 1
       return 0

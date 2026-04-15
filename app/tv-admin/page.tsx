@@ -501,10 +501,7 @@ function SlideEditor({
       )}
 
       {slide.type === 'productieorders' && (
-        <InfoBox color="green" icon="⚙️" title="Automatische slide">
-          Toont live de actieve productieorders. <strong>ACTIEF</strong> = timer loopt, <strong>WACHTEND</strong> = nog niet gestart.
-          Pollt elke 15 seconden.
-        </InfoBox>
+        <ProductieordersPriorityEditor />
       )}
 
       {slide.type === 'inpakstatistiek' && (
@@ -645,6 +642,190 @@ function SlideEditor({
           {saving ? 'Opslaan...' : 'Opslaan'}
         </button>
       </div>
+    </div>
+  )
+}
+
+interface ProdOrder {
+  order_number: string
+  sales_order_number: string | null
+  due_date: string | null
+  tv_priority: number
+  status: 'in_progress' | 'waiting'
+  lines: Array<{ item_number: string; description: string | null; quantity: number }>
+}
+
+function ProductieordersPriorityEditor() {
+  const [orders, setOrders] = useState<ProdOrder[]>([])
+  const [loading, setLoading] = useState(true)
+  const [savingOrder, setSavingOrder] = useState<string | null>(null)
+  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  const fetchOrders = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tv-slides/production-status')
+      const json = await res.json()
+      setOrders(json.orders || [])
+    } catch {
+      setOrders([])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { fetchOrders() }, [fetchOrders])
+
+  const setPriority = async (orderNumber: string, priority: number) => {
+    setSavingOrder(orderNumber)
+    setMsg(null)
+    try {
+      const res = await fetch('/api/tv-slides/production-status', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_number: orderNumber, tv_priority: priority }),
+      })
+      if (!res.ok) {
+        const json = await res.json()
+        throw new Error(json.error || 'Opslaan mislukt')
+      }
+      setOrders(prev => prev.map(o =>
+        o.order_number === orderNumber ? { ...o, tv_priority: priority } : o
+      ))
+      setMsg({ type: 'success', text: `Prioriteit ${orderNumber} bijgewerkt` })
+      setTimeout(() => setMsg(null), 2000)
+    } catch (err: any) {
+      setMsg({ type: 'error', text: err.message })
+    } finally {
+      setSavingOrder(null)
+    }
+  }
+
+  const movePriority = async (orderNumber: string, direction: 'up' | 'down') => {
+    const sorted = [...orders].sort((a, b) => b.tv_priority - a.tv_priority)
+    const idx = sorted.findIndex(o => o.order_number === orderNumber)
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (swapIdx < 0 || swapIdx >= sorted.length) return
+
+    const current = sorted[idx]
+    const other = sorted[swapIdx]
+
+    const newCurrentPrio = other.tv_priority
+    const newOtherPrio = current.tv_priority
+
+    await Promise.all([
+      setPriority(current.order_number, newCurrentPrio),
+      setPriority(other.order_number, newOtherPrio),
+    ])
+    fetchOrders()
+  }
+
+  const PRIO_LEVELS = [
+    { value: 3, label: 'URGENT', color: 'bg-red-100 text-red-700 border-red-300' },
+    { value: 2, label: 'HOOG', color: 'bg-orange-100 text-orange-700 border-orange-300' },
+    { value: 1, label: 'NORMAAL', color: 'bg-blue-100 text-blue-700 border-blue-300' },
+    { value: 0, label: 'GEEN', color: 'bg-gray-100 text-gray-500 border-gray-300' },
+  ]
+
+  if (loading) {
+    return <div className="text-sm text-gray-500 py-4 text-center">Orders laden...</div>
+  }
+
+  return (
+    <div className="space-y-3">
+      <InfoBox color="green" icon="⚙️" title="Productieorders + Prioriteiten">
+        Toont live de actieve productieorders. Stel hieronder de prioriteit in per order.
+        Orders met hogere prioriteit worden bovenaan getoond op het display met een duidelijke markering.
+      </InfoBox>
+
+      {msg && (
+        <div className={`px-3 py-2 rounded-lg text-xs font-medium ${
+          msg.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+        }`}>
+          {msg.text}
+        </div>
+      )}
+
+      {orders.length === 0 ? (
+        <div className="text-sm text-gray-500 py-4 text-center border border-dashed border-gray-200 rounded-lg">
+          Geen actieve productieorders gevonden
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {[...orders].sort((a, b) => b.tv_priority - a.tv_priority).map((order, idx) => {
+            const prioConfig = PRIO_LEVELS.find(p => p.value === order.tv_priority) || PRIO_LEVELS[3]
+            const isSaving = savingOrder === order.order_number
+            return (
+              <div
+                key={order.order_number}
+                className={`border rounded-lg p-3 transition-all ${
+                  order.tv_priority >= 3 ? 'border-red-300 bg-red-50/50' :
+                  order.tv_priority >= 2 ? 'border-orange-300 bg-orange-50/30' :
+                  order.tv_priority >= 1 ? 'border-blue-200 bg-blue-50/30' :
+                  'border-gray-200 bg-white'
+                } ${isSaving ? 'opacity-60' : ''}`}
+              >
+                <div className="flex items-center gap-3">
+                  {/* Reorder arrows */}
+                  <div className="flex flex-col gap-0.5 shrink-0">
+                    <button
+                      onClick={() => movePriority(order.order_number, 'up')}
+                      disabled={idx === 0 || isSaving}
+                      className="w-5 h-4 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-25 text-[10px]"
+                    >▲</button>
+                    <button
+                      onClick={() => movePriority(order.order_number, 'down')}
+                      disabled={idx === orders.length - 1 || isSaving}
+                      className="w-5 h-4 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-25 text-[10px]"
+                    >▼</button>
+                  </div>
+
+                  {/* Order info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm text-gray-900">{order.order_number}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                        order.status === 'in_progress'
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-100 text-gray-500'
+                      }`}>
+                        {order.status === 'in_progress' ? 'ACTIEF' : 'WACHTEND'}
+                      </span>
+                      {order.due_date && (
+                        <span className="text-xs text-gray-400">
+                          Deadline: {new Date(order.due_date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })}
+                        </span>
+                      )}
+                    </div>
+                    {order.lines.length > 0 && (
+                      <div className="text-xs text-gray-500 mt-0.5 truncate">
+                        {order.lines.map(l => `${l.quantity}x ${l.item_number}`).join(', ')}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Prioriteit knoppen */}
+                  <div className="flex gap-1 shrink-0">
+                    {PRIO_LEVELS.map(p => (
+                      <button
+                        key={p.value}
+                        onClick={() => setPriority(order.order_number, p.value)}
+                        disabled={isSaving}
+                        className={`px-2 py-1 rounded text-[10px] font-bold border transition-all ${
+                          order.tv_priority === p.value
+                            ? p.color + ' ring-1 ring-offset-1'
+                            : 'border-gray-200 bg-white text-gray-400 hover:bg-gray-50'
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
