@@ -25,15 +25,17 @@ interface ScanResult {
 interface LabelScannerProps {
   onItemsMatched: (ids: number[]) => void
   onConfirmScanned: () => void
+  onItemAdded: () => void
 }
 
-export default function LabelScanner({ onItemsMatched, onConfirmScanned }: LabelScannerProps) {
+export default function LabelScanner({ onItemsMatched, onConfirmScanned, onItemAdded }: LabelScannerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [result, setResult] = useState<ScanResult | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [scanCount, setScanCount] = useState(0)
+  const [adding, setAdding] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleCapture = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -91,6 +93,47 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned }: Label
     setError(null)
     fileInputRef.current?.click()
   }
+
+  const handleAddFromLabel = useCallback(async () => {
+    if (!result?.label.item_number) return
+    setAdding(true)
+    try {
+      const items = result.label.serial_numbers.length > 0
+        ? result.label.serial_numbers.map(sn => ({
+            beschrijving: result.label.description || null,
+            item_number: result.label.item_number,
+            lot_number: sn,
+            datum_opgestuurd: null,
+            kistnummer: null,
+            divisie: null,
+            quantity: 1,
+          }))
+        : [{
+            beschrijving: result.label.description || null,
+            item_number: result.label.item_number,
+            lot_number: null,
+            datum_opgestuurd: null,
+            kistnummer: null,
+            divisie: null,
+            quantity: result.label.quantity || 1,
+          }]
+
+      const res = await fetch('/api/incoming-goods-airtec', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(items),
+      })
+      if (!res.ok) throw new Error('Toevoegen mislukt')
+      onItemAdded()
+      setScanCount(prev => prev + 1)
+      setResult(null)
+      setPreview(null)
+    } catch (err: any) {
+      setError(err.message || 'Kon item niet toevoegen')
+    } finally {
+      setAdding(false)
+    }
+  }, [result, onItemAdded])
 
   const handleClose = () => {
     setIsOpen(false)
@@ -248,9 +291,45 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned }: Label
                 </table>
               </div>
             </div>
+          ) : result.label.item_number ? (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-blue-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="flex-1">
+                  <p className="text-blue-800 font-medium">Niet gevonden in de lijst</p>
+                  <p className="text-blue-600 text-sm mt-1">
+                    {result.label.item_number} staat niet in de geüploade verzendnota.
+                    {result.label.serial_numbers.length > 0
+                      ? ` ${result.label.serial_numbers.length} serienummer(s) worden als aparte items toegevoegd.`
+                      : ` Wordt toegevoegd met ${result.label.quantity || 1} stuks.`}
+                  </p>
+                  <button
+                    onClick={handleAddFromLabel}
+                    disabled={adding}
+                    className="mt-3 flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-300 transition-colors font-medium text-sm"
+                  >
+                    {adding ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Toevoegen...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                        Voeg toe als nieuw item
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
           ) : (
             <div className="text-center py-4 text-gray-500">
-              Geen overeenkomende items gevonden in de lijst.
+              Geen item nummer herkend op het label.
             </div>
           )}
 

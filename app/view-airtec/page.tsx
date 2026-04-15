@@ -224,6 +224,7 @@ export default function ViewAirtecPage() {
       <LabelScanner
         onItemsMatched={handleScanMatched}
         onConfirmScanned={handleConfirm}
+        onItemAdded={fetchItems}
       />
 
       <ViewAirtecFilters
