@@ -6,6 +6,7 @@ import ViewAirtecTable from '@/components/view-airtec/ViewAirtecTable'
 import ViewAirtecFilters from '@/components/view-airtec/ViewAirtecFilters'
 import AddItemForm from '@/components/view-airtec/AddItemForm'
 import UnlistedItemsSection from '@/components/view-airtec/UnlistedItemsSection'
+import LabelScanner from '@/components/view-airtec/LabelScanner'
 
 interface IncomingGoodsAirtecResponse {
   items: IncomingGoodAirtec[]
@@ -204,6 +205,14 @@ export default function ViewAirtecPage() {
     }
   }
 
+  const handleScanMatched = useCallback((ids: number[]) => {
+    setSelectedItems(prev => {
+      const next = new Set(prev)
+      ids.forEach(id => next.add(id))
+      return next
+    })
+  }, [])
+
   const totalQuantity = useMemo(() => {
     return sortedItems.reduce((sum, item) => sum + (item.quantity || 0), 0)
   }, [sortedItems])
@@ -211,6 +220,11 @@ export default function ViewAirtecPage() {
   return (
     <div className="container mx-auto px-4 py-6 max-w-7xl">
       <h1 className="text-3xl font-bold mb-6">View Airtec - Incoming Goods</h1>
+
+      <LabelScanner
+        onItemsMatched={handleScanMatched}
+        onConfirmScanned={handleConfirm}
+      />
 
       <ViewAirtecFilters
         searchTerm={searchTerm}
