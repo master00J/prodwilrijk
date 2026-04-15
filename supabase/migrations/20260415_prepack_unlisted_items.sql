@@ -1,5 +1,6 @@
 -- Items gescand via label scanner maar niet in de WMS-import lijst.
--- Kunnen van een andere flow zijn, worden hier bijgehouden voor opvolging.
+-- Categorie 'extra_pallet' = vergeten te scannen op vorige locatie.
+-- Categorie 'd_nummer' = delivery notice met D-nummer (apart proces).
 
 CREATE TABLE IF NOT EXISTS prepack_unlisted_items (
   id BIGSERIAL PRIMARY KEY,
@@ -9,6 +10,8 @@ CREATE TABLE IF NOT EXISTS prepack_unlisted_items (
   po_line VARCHAR(255),
   supplier VARCHAR(255),
   label_date VARCHAR(50),
+  delivery_notice VARCHAR(255),
+  category VARCHAR(50) DEFAULT 'extra_pallet', -- extra_pallet | d_nummer
   opmerking TEXT,
   status VARCHAR(50) DEFAULT 'pending', -- pending | resolved
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -16,6 +19,7 @@ CREATE TABLE IF NOT EXISTS prepack_unlisted_items (
 );
 
 CREATE INDEX IF NOT EXISTS idx_prepack_unlisted_status ON prepack_unlisted_items(status);
+CREATE INDEX IF NOT EXISTS idx_prepack_unlisted_category ON prepack_unlisted_items(category);
 CREATE INDEX IF NOT EXISTS idx_prepack_unlisted_created_at ON prepack_unlisted_items(created_at);
 
 CREATE OR REPLACE FUNCTION update_prepack_unlisted_items_updated_at()

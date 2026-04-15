@@ -25,7 +25,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { item_number, quantity, description, po_line, supplier, label_date, opmerking } = body
+    const { item_number, quantity, description, po_line, supplier, label_date, delivery_notice, category, opmerking } = body
 
     if (!item_number?.trim()) {
       return NextResponse.json({ error: 'Item number is verplicht' }, { status: 400 })
@@ -40,6 +40,8 @@ export async function POST(request: NextRequest) {
         po_line: po_line ? String(po_line).trim() : null,
         supplier: supplier ? String(supplier).trim() : null,
         label_date: label_date ? String(label_date).trim() : null,
+        delivery_notice: delivery_notice ? String(delivery_notice).trim() : null,
+        category: category === 'd_nummer' ? 'd_nummer' : 'extra_pallet',
         opmerking: opmerking ? String(opmerking).trim() : null,
         status: 'pending',
       })

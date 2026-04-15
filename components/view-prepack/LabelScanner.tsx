@@ -18,9 +18,15 @@ interface ScanResult {
     po_line: string | null
     supplier: string | null
     date: string | null
+    delivery_notice: string | null
   }
   matches: ScanMatch[]
   warning: string | null
+}
+
+function isDNumber(deliveryNotice: string | null): boolean {
+  if (!deliveryNotice) return false
+  return /^D\d+$/i.test(deliveryNotice.trim())
 }
 
 interface LabelScannerProps {
@@ -41,6 +47,7 @@ export default function LabelScanner({ onItemsMatched, onUnlistedAdded }: LabelS
   const [scanCount, setScanCount] = useState(0)
   const [adding, setAdding] = useState(false)
   const [isExtraPallet, setIsExtraPallet] = useState(false)
+  const [detectedDNumber, setDetectedDNumber] = useState<string | null>(null)
   const [scanTally, setScanTally] = useState<Record<string, { scanned: number; inList: number }>>({})
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -51,6 +58,7 @@ export default function LabelScanner({ onItemsMatched, onUnlistedAdded }: LabelS
     setError(null)
     setResult(null)
     setIsExtraPallet(false)
+    setDetectedDNumber(null)
 
     const reader = new FileReader()
     reader.onload = async () => {
@@ -76,7 +84,10 @@ export default function LabelScanner({ onItemsMatched, onUnlistedAdded }: LabelS
         const data: ScanResult = await res.json()
         setResult(data)
 
-        if (data.matches.length > 0 && data.label.item_number) {
+        if (isDNumber(data.label.delivery_notice)) {
+          setDetectedDNumber(data.label.delivery_notice)
+          setScanCount(prev => prev + 1)
+        } else if (data.matches.length > 0 && data.label.item_number) {
           const key = normalizeItemNumber(data.label.item_number)
           const listTotal = data.matches.reduce((sum, m) => sum + m.amount, 0)
           const labelQty = data.label.quantity || 1
@@ -116,20 +127,26 @@ export default function LabelScanner({ onItemsMatched, onUnlistedAdded }: LabelS
     setPreview(null)
     setError(null)
     setIsExtraPallet(false)
+    setDetectedDNumber(null)
     fileInputRef.current?.click()
   }
 
-  const handleAddToUnlisted = useCallback(async (extraOpmerking?: string) => {
+  const handleAddToUnlisted = useCallback(async (extraOpmerking?: string, forceCategory?: string) => {
     if (!result?.label) return
     setAdding(true)
     try {
       const label = result.label
       const key = label.item_number ? normalizeItemNumber(label.item_number) : null
       const tally = key ? scanTally[key] : null
+      const hasDNumber = isDNumber(label.delivery_notice)
+      const category = forceCategory || (hasDNumber ? 'd_nummer' : 'extra_pallet')
+
       const opmerking = extraOpmerking
-        || (tally
-          ? `Extra pallet — ${tally.scanned} gescand, ${tally.inList} in WMS-lijst`
-          : 'Toegevoegd via label scan — niet in WMS-import')
+        || (hasDNumber
+          ? `D-nummer: ${label.delivery_notice}`
+          : tally
+            ? `Extra pallet — ${tally.scanned} gescand, ${tally.inList} in WMS-lijst`
+            : 'Toegevoegd via label scan — niet in WMS-import')
 
       const res = await fetch('/api/incoming-goods/unlisted', {
         method: 'POST',
@@ -141,15 +158,17 @@ export default function LabelScanner({ onItemsMatched, onUnlistedAdded }: LabelS
           po_line: label.po_line,
           supplier: label.supplier,
           label_date: label.date,
+          delivery_notice: label.delivery_notice,
+          category,
           opmerking,
         }),
       })
       if (!res.ok) throw new Error('Toevoegen mislukt')
       onUnlistedAdded()
-      setScanCount(prev => prev + 1)
       setResult(null)
       setPreview(null)
       setIsExtraPallet(false)
+      setDetectedDNumber(null)
     } catch (err: any) {
       setError(err.message || 'Kon item niet toevoegen')
     } finally {
@@ -164,6 +183,7 @@ export default function LabelScanner({ onItemsMatched, onUnlistedAdded }: LabelS
     setError(null)
     setScanCount(0)
     setIsExtraPallet(false)
+    setDetectedDNumber(null)
     setScanTally({})
   }
 
@@ -290,8 +310,46 @@ export default function LabelScanner({ onItemsMatched, onUnlistedAdded }: LabelS
             )}
           </div>
 
+          {/* D-nummer detectie */}
+          {detectedDNumber && (
+            <div className="bg-purple-50 border-2 border-purple-300 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <div className="bg-purple-100 rounded-full p-2 shrink-0">
+                  <svg className="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="text-purple-800 font-bold text-lg">D-nummer gedetecteerd: {detectedDNumber}</p>
+                  <p className="text-purple-600 text-sm mt-1">
+                    Dit is een Delivery Notice met D-nummer. Dit item wordt apart bijgehouden.
+                  </p>
+                  <button
+                    onClick={() => handleAddToUnlisted(undefined, 'd_nummer')}
+                    disabled={adding}
+                    className="mt-3 flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-purple-300 transition-colors font-medium text-sm"
+                  >
+                    {adding ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Toevoegen...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                        Toevoegen aan D-nummers lijst
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Scan tally indicator */}
-          {currentTally && result.matches.length > 0 && (
+          {!detectedDNumber && currentTally && result.matches.length > 0 && (
             <div className={`rounded-lg px-4 py-3 flex items-center gap-3 ${
               isExtraPallet
                 ? 'bg-red-50 border border-red-200'
@@ -309,7 +367,7 @@ export default function LabelScanner({ onItemsMatched, onUnlistedAdded }: LabelS
                 </p>
                 {isExtraPallet && (
                   <p className="text-red-600 text-xs mt-0.5">
-                    Deze pallet is niet gescand bij de vorige locatie. Voeg toe aan &quot;Niet in lijst&quot;.
+                    Vergeten te scannen op de vorige locatie. Voeg toe aan &quot;Niet in lijst&quot;.
                   </p>
                 )}
               </div>
@@ -317,7 +375,7 @@ export default function LabelScanner({ onItemsMatched, onUnlistedAdded }: LabelS
           )}
 
           {/* Warning */}
-          {result.warning && !isExtraPallet && (
+          {!detectedDNumber && result.warning && !isExtraPallet && (
             <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-start gap-2">
               <svg className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
@@ -326,8 +384,8 @@ export default function LabelScanner({ onItemsMatched, onUnlistedAdded }: LabelS
             </div>
           )}
 
-          {/* Extra pallet → add to unlisted */}
-          {isExtraPallet && result.matches.length > 0 ? (
+          {/* Match / no-match / extra pallet (niet voor D-nummers) */}
+          {detectedDNumber ? null : isExtraPallet && result.matches.length > 0 ? (
             <div>
               <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">
                 Item staat in de lijst, maar dit is een extra pallet
@@ -423,7 +481,7 @@ export default function LabelScanner({ onItemsMatched, onUnlistedAdded }: LabelS
                   <p className="text-orange-800 font-medium">Niet gevonden in de WMS-import</p>
                   <p className="text-orange-600 text-sm mt-1">
                     Item {result.label.item_number} staat niet in de geüploade lijst.
-                    Dit kan van een andere flow zijn (bijv. Airtec of Grote Inpak).
+                    Mogelijk vergeten te scannen op de vorige locatie, of van Powertools / D-nummer.
                   </p>
                   <button
                     onClick={() => handleAddToUnlisted('Toegevoegd via label scan — niet in WMS-import')}

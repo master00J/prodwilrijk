@@ -14,6 +14,7 @@ interface LabelData {
   po_line: string | null
   supplier: string | null
   date: string | null
+  delivery_notice: string | null
 }
 
 async function extractLabelWithClaude(base64Image: string, mediaType: string): Promise<LabelData> {
@@ -49,13 +50,15 @@ async function extractLabelWithClaude(base64Image: string, mediaType: string): P
   "description": "the DESCRIPTION field at the bottom of the label",
   "po_line": "the P.O.NO-LINE (K) value (e.g. 487527-001)",
   "supplier": "the SUPPLIER name",
-  "date": "the DATE field (format YYYYMMDD)"
+  "date": "the DATE field (format YYYYMMDD)",
+  "delivery_notice": "the DELIVERY NOTICE or SERIAL NUMBER (H) field (e.g. D006906, 0)"
 }
 
 Rules:
 - For item_number: keep original spacing/formatting as shown on label
 - For quantity: return as integer number
 - For po_line: this is sometimes labeled as P.O.NO-LINE or Purchase Order
+- For delivery_notice: this is labeled DELIVERY NOTICE or SERIAL NUMBER (H). Values like "0" should be returned as "0", D-numbers like "D006906" should be kept as-is
 - If a field is not readable or not present, use null
 - Return ONLY the JSON object, nothing else`,
             },
@@ -86,6 +89,7 @@ Rules:
     po_line: parsed.po_line || null,
     supplier: parsed.supplier || null,
     date: parsed.date || null,
+    delivery_notice: parsed.delivery_notice || null,
   }
 }
 
