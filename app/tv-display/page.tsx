@@ -150,7 +150,7 @@ interface TransportDisplayEntry {
 
 const TRANSPORT_POLL_INTERVAL = 60_000
 
-export default function TvDisplayPage({ screenSlug }: { screenSlug?: string }) {
+export function TvDisplay({ screenSlug }: { screenSlug?: string }) {
   const [slides, setSlides] = useState<TvSlide[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [clock, setClock] = useState('')
@@ -1370,4 +1370,8 @@ function TransportPlanningSlide({ entries, title }: { entries: TransportDisplayE
       </div>
     </div>
   )
+}
+
+export default function TvDisplayPage() {
+  return <TvDisplay />
 }

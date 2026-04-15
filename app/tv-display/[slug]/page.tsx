@@ -1,9 +1,9 @@
 'use client'
 
 import { use } from 'react'
-import TvDisplayPage from '../page'
+import { TvDisplay } from '../page'
 
 export default function TvDisplaySlugPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params)
-  return <TvDisplayPage screenSlug={slug} />
+  return <TvDisplay screenSlug={slug} />
 }
