@@ -84,6 +84,67 @@ export async function GET(request: NextRequest) {
     const totalManPrepack = prepack.totals.totalManHours
     const totalManAirtec = airtec.totals.totalManHours
 
+    // Vorige week berekenen (ma-vr van vorige week)
+    const now = new Date()
+    const dayOfWeek = now.getDay() // 0=zo, 1=ma
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+
+    const thisMonday = new Date(now)
+    thisMonday.setDate(now.getDate() + mondayOffset)
+    const thisFriday = new Date(thisMonday)
+    thisFriday.setDate(thisMonday.getDate() + 4)
+
+    const prevMonday = new Date(thisMonday)
+    prevMonday.setDate(thisMonday.getDate() - 7)
+    const prevFriday = new Date(prevMonday)
+    prevFriday.setDate(prevMonday.getDate() + 4)
+
+    const fmt = (d: Date) => d.toISOString().split('T')[0]
+
+    const [prevPrepack, prevAirtec, thisPrepack, thisAirtec] = await Promise.all([
+      fetchPrepackStats({ dateFrom: fmt(prevMonday), dateTo: fmt(prevFriday), includeDetails: false }),
+      fetchAirtecStats({ dateFrom: fmt(prevMonday), dateTo: fmt(prevFriday), includeDetails: false }),
+      fetchPrepackStats({ dateFrom: fmt(thisMonday), dateTo: fmt(thisFriday), includeDetails: false }),
+      fetchAirtecStats({ dateFrom: fmt(thisMonday), dateTo: fmt(thisFriday), includeDetails: false }),
+    ])
+
+    const buildWeekTotals = (pp: typeof prepack, at: typeof airtec) => ({
+      itemsPacked: pp.totals.totalItemsPacked + at.totals.totalItemsPacked,
+      itemsPrepack: pp.totals.totalItemsPacked,
+      itemsAirtec: at.totals.totalItemsPacked,
+      manHours: pp.totals.totalManHours + at.totals.totalManHours,
+      manHoursPrepack: pp.totals.totalManHours,
+      manHoursAirtec: at.totals.totalManHours,
+    })
+
+    const thisWeekTotals = buildWeekTotals(thisPrepack, thisAirtec)
+    const prevWeekTotals = buildWeekTotals(prevPrepack, prevAirtec)
+
+    const buildWeekDaily = (pp: typeof prepack, at: typeof airtec) => {
+      const m = new Map<string, { prepackItems: number; airtecItems: number; prepackManHours: number; airtecManHours: number }>()
+      for (const r of pp.dailyStats) {
+        if (!m.has(r.date)) m.set(r.date, { prepackItems: 0, airtecItems: 0, prepackManHours: 0, airtecManHours: 0 })
+        const e = m.get(r.date)!
+        e.prepackItems += r.itemsPacked
+        e.prepackManHours += r.manHours
+      }
+      for (const r of at.dailyStats) {
+        if (!m.has(r.date)) m.set(r.date, { prepackItems: 0, airtecItems: 0, prepackManHours: 0, airtecManHours: 0 })
+        const e = m.get(r.date)!
+        e.airtecItems += r.itemsPacked
+        e.airtecManHours += r.manHours
+      }
+      return Array.from(m.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, v]) => ({
+          date,
+          label: shortNlDate(date),
+          ...v,
+          itemsTotal: v.prepackItems + v.airtecItems,
+          manHoursTotal: v.prepackManHours + v.airtecManHours,
+        }))
+    }
+
     const response = NextResponse.json({
       dateFrom,
       dateTo,
@@ -96,6 +157,18 @@ export async function GET(request: NextRequest) {
         manHours: totalManPrepack + totalManAirtec,
         manHoursPrepack: totalManPrepack,
         manHoursAirtec: totalManAirtec,
+      },
+      thisWeek: {
+        dateFrom: fmt(thisMonday),
+        dateTo: fmt(thisFriday),
+        totals: thisWeekTotals,
+        daily: buildWeekDaily(thisPrepack, thisAirtec),
+      },
+      prevWeek: {
+        dateFrom: fmt(prevMonday),
+        dateTo: fmt(prevFriday),
+        totals: prevWeekTotals,
+        daily: buildWeekDaily(prevPrepack, prevAirtec),
       },
     })
     response.headers.set('Cache-Control', 'no-store, must-revalidate')
