@@ -176,7 +176,7 @@ export default function LabelScanner({ onItemsMatched, onUnlistedAdded }: LabelS
       const label = result.label
       const key = label.item_number ? normalizeItemNumber(label.item_number) : null
       const tally = key ? scanTally[key] : null
-      const hasDNumber = isDNumber(label.delivery_notice)
+      const hasDNumber = result.labelType === 'd_nummer'
       const category = forceCategory || (hasDNumber ? 'd_nummer' : 'extra_pallet')
 
       const opmerking = extraOpmerking
