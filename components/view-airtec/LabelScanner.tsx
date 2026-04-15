@@ -25,10 +25,10 @@ interface ScanResult {
 interface LabelScannerProps {
   onItemsMatched: (ids: number[]) => void
   onConfirmScanned: () => void
-  onItemAdded: () => void
+  onUnlistedAdded: () => void
 }
 
-export default function LabelScanner({ onItemsMatched, onConfirmScanned, onItemAdded }: LabelScannerProps) {
+export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlistedAdded }: LabelScannerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [result, setResult] = useState<ScanResult | null>(null)
@@ -95,36 +95,30 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onItemA
   }
 
   const handleAddFromLabel = useCallback(async () => {
-    if (!result?.label.item_number) return
+    if (!result?.label) return
     setAdding(true)
     try {
-      const items = result.label.serial_numbers.length > 0
-        ? result.label.serial_numbers.map(sn => ({
-            beschrijving: result.label.description || null,
-            item_number: result.label.item_number,
-            lot_number: sn,
-            datum_opgestuurd: null,
-            kistnummer: null,
-            divisie: null,
-            quantity: 1,
-          }))
-        : [{
-            beschrijving: result.label.description || null,
-            item_number: result.label.item_number,
-            lot_number: null,
-            datum_opgestuurd: null,
-            kistnummer: null,
-            divisie: null,
-            quantity: result.label.quantity || 1,
-          }]
+      const label = result.label
+      const serialStr = label.serial_numbers.length > 0
+        ? label.serial_numbers.join(', ')
+        : null
 
-      const res = await fetch('/api/incoming-goods-airtec', {
+      const res = await fetch('/api/incoming-goods-airtec/unlisted', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(items),
+        body: JSON.stringify({
+          beschrijving: label.description || label.item_number || 'Onbekend',
+          item_number: label.item_number,
+          lot_number: serialStr,
+          datum_opgestuurd: null,
+          kistnummer: null,
+          divisie: null,
+          quantity: label.quantity || 1,
+          opmerking: `Toegevoegd via label scan${label.serial_numbers.length > 0 ? ` (${label.serial_numbers.length} serienummers)` : ''}`,
+        }),
       })
       if (!res.ok) throw new Error('Toevoegen mislukt')
-      onItemAdded()
+      onUnlistedAdded()
       setScanCount(prev => prev + 1)
       setResult(null)
       setPreview(null)
@@ -133,7 +127,7 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onItemA
     } finally {
       setAdding(false)
     }
-  }, [result, onItemAdded])
+  }, [result, onUnlistedAdded])
 
   const handleClose = () => {
     setIsOpen(false)
@@ -298,12 +292,10 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onItemA
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <div className="flex-1">
-                  <p className="text-blue-800 font-medium">Niet gevonden in de lijst</p>
+                  <p className="text-blue-800 font-medium">Niet gevonden in de verzendnota</p>
                   <p className="text-blue-600 text-sm mt-1">
-                    {result.label.item_number} staat niet in de geüploade verzendnota.
-                    {result.label.serial_numbers.length > 0
-                      ? ` ${result.label.serial_numbers.length} serienummer(s) worden als aparte items toegevoegd.`
-                      : ` Wordt toegevoegd met ${result.label.quantity || 1} stuks.`}
+                    {result.label.item_number} staat niet in de geüploade lijst.
+                    Wordt toegevoegd aan &quot;Niet in lijst&quot; onderaan de pagina.
                   </p>
                   <button
                     onClick={handleAddFromLabel}
@@ -320,7 +312,7 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onItemA
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                         </svg>
-                        Voeg toe als nieuw item
+                        Toevoegen aan &quot;Niet in lijst&quot;
                       </>
                     )}
                   </button>

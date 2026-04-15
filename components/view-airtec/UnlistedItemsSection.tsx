@@ -6,7 +6,7 @@ import Link from 'next/link'
 
 const DEFAULT_EMAIL = 'prodwilrijk@foresco.eu'
 
-export default function UnlistedItemsSection() {
+export default function UnlistedItemsSection({ refreshKey }: { refreshKey?: number }) {
   const [items, setItems] = useState<AirtecUnlistedItem[]>([])
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState(false)
@@ -83,7 +83,14 @@ export default function UnlistedItemsSection() {
 
   useEffect(() => {
     fetchItems()
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (refreshKey && refreshKey > 0) {
+      fetchItems()
+      setExpanded(true)
+    }
+  }, [refreshKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault()

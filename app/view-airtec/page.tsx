@@ -25,6 +25,7 @@ export default function ViewAirtecPage() {
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set())
   const [sortColumn, setSortColumn] = useState<keyof IncomingGoodAirtec | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [unlistedRefreshKey, setUnlistedRefreshKey] = useState(0)
 
   const fetchItems = useCallback(async () => {
     setLoading(true)
@@ -224,7 +225,7 @@ export default function ViewAirtecPage() {
       <LabelScanner
         onItemsMatched={handleScanMatched}
         onConfirmScanned={handleConfirm}
-        onItemAdded={fetchItems}
+        onUnlistedAdded={() => setUnlistedRefreshKey(k => k + 1)}
       />
 
       <ViewAirtecFilters
@@ -252,7 +253,7 @@ export default function ViewAirtecPage() {
 
       <AddItemForm onItemAdded={fetchItems} />
 
-      <UnlistedItemsSection />
+      <UnlistedItemsSection refreshKey={unlistedRefreshKey} />
     </div>
   )
 }
