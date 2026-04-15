@@ -5,13 +5,22 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    const { data, error } = await supabaseAdmin
-      .from('tv_slides')
-      .select('*')
-      .order('sort_order', { ascending: true })
+    const { data: screens, error } = await supabaseAdmin
+      .from('tv_screens')
+      .select('*, tv_screen_slides(slide_id)')
+      .order('created_at', { ascending: true })
 
     if (error) throw error
-    return NextResponse.json({ data: data || [] })
+
+    const result = (screens || []).map((s: any) => ({
+      id: s.id,
+      slug: s.slug,
+      name: s.name,
+      created_at: s.created_at,
+      slideCount: (s.tv_screen_slides || []).length,
+    }))
+
+    return NextResponse.json({ data: result })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
@@ -19,26 +28,30 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { type, title, content, sort_order, active } = body
+    const { slug, name } = await request.json()
 
-    if (!type || !['werkorders', 'tekst', 'afbeelding', 'productieorders', 'inpakstatistiek', 'dagplanning', 'countdown', 'weer', 'priorities', 'transportplanning'].includes(type)) {
-      return NextResponse.json({ error: 'Ongeldig type' }, { status: 400 })
+    if (!slug || !name) {
+      return NextResponse.json({ error: 'Slug en naam zijn verplicht' }, { status: 400 })
+    }
+
+    const cleanSlug = String(slug).toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+    if (!cleanSlug) {
+      return NextResponse.json({ error: 'Ongeldige slug' }, { status: 400 })
     }
 
     const { data, error } = await supabaseAdmin
-      .from('tv_slides')
-      .insert({
-        type,
-        title: title || null,
-        content: content || {},
-        sort_order: sort_order ?? 0,
-        active: active ?? true,
-      })
+      .from('tv_screens')
+      .insert({ slug: cleanSlug, name: String(name).trim() })
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      if (error.code === '23505') {
+        return NextResponse.json({ error: 'Deze slug bestaat al' }, { status: 409 })
+      }
+      throw error
+    }
+
     return NextResponse.json({ data })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -47,15 +60,17 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { id, ...updates } = body
-
+    const { id, slug, name } = await request.json()
     if (!id) return NextResponse.json({ error: 'ID ontbreekt' }, { status: 400 })
 
-    updates.updated_at = new Date().toISOString()
+    const updates: any = {}
+    if (name !== undefined) updates.name = String(name).trim()
+    if (slug !== undefined) {
+      updates.slug = String(slug).toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+    }
 
     const { data, error } = await supabaseAdmin
-      .from('tv_slides')
+      .from('tv_screens')
       .update(updates)
       .eq('id', id)
       .select()
@@ -74,7 +89,7 @@ export async function DELETE(request: NextRequest) {
     if (!id) return NextResponse.json({ error: 'ID ontbreekt' }, { status: 400 })
 
     const { error } = await supabaseAdmin
-      .from('tv_slides')
+      .from('tv_screens')
       .delete()
       .eq('id', id)
 

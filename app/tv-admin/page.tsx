@@ -2,7 +2,15 @@
 
 import { useState, useEffect, useCallback } from 'react'
 
-type SlideType = 'werkorders' | 'tekst' | 'afbeelding' | 'productieorders' | 'inpakstatistiek' | 'dagplanning' | 'countdown' | 'weer' | 'priorities'
+type SlideType = 'werkorders' | 'tekst' | 'afbeelding' | 'productieorders' | 'inpakstatistiek' | 'dagplanning' | 'countdown' | 'weer' | 'priorities' | 'transportplanning'
+
+interface TvScreen {
+  id: string
+  slug: string
+  name: string
+  created_at: string
+  slideCount: number
+}
 
 interface TvSlide {
   id: string
@@ -33,6 +41,7 @@ const SLIDE_TYPES: Array<{
   { value: 'countdown', label: 'Countdown', icon: '⏳', description: 'Aftellen naar deadline', color: 'text-rose-700', bgColor: 'bg-rose-50' },
   { value: 'weer', label: 'Weer', icon: '🌤️', description: '7-daags weeroverzicht', color: 'text-sky-700', bgColor: 'bg-sky-50' },
   { value: 'priorities', label: 'Prioriteiten', icon: '⭐', description: 'Prio items Prepack + Airtec', color: 'text-yellow-700', bgColor: 'bg-yellow-50' },
+  { value: 'transportplanning', label: 'Transportplanning', icon: '🚚', description: 'Weekoverzicht transporten', color: 'text-indigo-700', bgColor: 'bg-indigo-50' },
 ]
 
 function getSlideConfig(type: SlideType) {
@@ -62,6 +71,8 @@ function getSlidePreview(slide: TvSlide): string {
       return `Locatie: ${slide.content?.latitude?.toFixed(2) ?? '51.16'}, ${slide.content?.longitude?.toFixed(2) ?? '4.39'}`
     case 'inpakstatistiek':
       return `Punten per €${slide.content?.pointRate || 50} marge`
+    case 'transportplanning':
+      return 'Weekkalender transporten'
     case 'priorities':
       return 'Live prio items uit inpak'
     default:
@@ -77,6 +88,13 @@ export default function TvAdminPage() {
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
+  const [screens, setScreens] = useState<TvScreen[]>([])
+  const [showScreenManager, setShowScreenManager] = useState(false)
+  const [newScreenName, setNewScreenName] = useState('')
+  const [newScreenSlug, setNewScreenSlug] = useState('')
+  const [selectedScreen, setSelectedScreen] = useState<string | null>(null)
+  const [screenSlideIds, setScreenSlideIds] = useState<string[]>([])
+
   const fetchSlides = useCallback(async () => {
     try {
       const res = await fetch('/api/tv-slides')
@@ -89,7 +107,88 @@ export default function TvAdminPage() {
     }
   }, [])
 
-  useEffect(() => { fetchSlides() }, [fetchSlides])
+  const fetchScreens = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tv-screens')
+      const json = await res.json()
+      setScreens(json.data || [])
+    } catch (e) {
+      console.error('Fout bij laden schermen:', e)
+    }
+  }, [])
+
+  const fetchScreenSlides = useCallback(async (slug: string) => {
+    try {
+      const res = await fetch(`/api/tv-screens/${slug}/slides`)
+      const json = await res.json()
+      setScreenSlideIds((json.data || []).map((s: any) => s.id))
+    } catch {
+      setScreenSlideIds([])
+    }
+  }, [])
+
+  useEffect(() => { fetchSlides(); fetchScreens() }, [fetchSlides, fetchScreens])
+
+  useEffect(() => {
+    if (selectedScreen) {
+      const screen = screens.find(s => s.id === selectedScreen)
+      if (screen) fetchScreenSlides(screen.slug)
+    } else {
+      setScreenSlideIds([])
+    }
+  }, [selectedScreen, screens, fetchScreenSlides])
+
+  const createScreen = async () => {
+    if (!newScreenName.trim()) return
+    const slug = newScreenSlug.trim() || newScreenName.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-')
+    try {
+      const res = await fetch('/api/tv-screens', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, name: newScreenName.trim() }),
+      })
+      const json = await res.json()
+      if (json.data) {
+        setScreens(prev => [...prev, { ...json.data, slideCount: 0 }])
+        setNewScreenName('')
+        setNewScreenSlug('')
+        setSaveMsg({ type: 'success', text: `Scherm "${json.data.name}" aangemaakt` })
+        setTimeout(() => setSaveMsg(null), 3000)
+      } else {
+        setSaveMsg({ type: 'error', text: json.error || 'Aanmaken mislukt' })
+      }
+    } catch (err: any) {
+      setSaveMsg({ type: 'error', text: err.message })
+    }
+  }
+
+  const deleteScreen = async (id: string) => {
+    if (!confirm('Weet je zeker dat je dit scherm wilt verwijderen?')) return
+    await fetch('/api/tv-screens', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+    setScreens(prev => prev.filter(s => s.id !== id))
+    if (selectedScreen === id) setSelectedScreen(null)
+  }
+
+  const toggleSlideForScreen = async (slideId: string) => {
+    const screen = screens.find(s => s.id === selectedScreen)
+    if (!screen) return
+    const newIds = screenSlideIds.includes(slideId)
+      ? screenSlideIds.filter(id => id !== slideId)
+      : [...screenSlideIds, slideId]
+    setScreenSlideIds(newIds)
+    try {
+      await fetch(`/api/tv-screens/${screen.slug}/slides`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slideIds: newIds }),
+      })
+      fetchScreens()
+    } catch { /* silent */ }
+  }
 
   const createSlide = async (type: SlideType) => {
     setSaving(true)
@@ -107,7 +206,7 @@ export default function TvAdminPage() {
         ? { latitude: 51.16, longitude: 4.39 }
         : type === 'inpakstatistiek'
         ? { pointRate: 50 }
-        : type === 'productieorders' || type === 'priorities'
+        : type === 'transportplanning' || type === 'productieorders' || type === 'priorities'
         ? {}
         : { url: '' }
 
@@ -216,10 +315,18 @@ export default function TvAdminPage() {
             <div>
               <h1 className="text-2xl font-bold text-gray-900">TV Display Beheer</h1>
               <p className="text-sm text-gray-500 mt-0.5">
-                {slides.length} slide{slides.length !== 1 ? 's' : ''} &middot; {activeCount} actief &middot; Rotatie elke {slides.length > 0 ? 'slide eigen duur' : '15s'}
+                {slides.length} slide{slides.length !== 1 ? 's' : ''} &middot; {activeCount} actief &middot; {screens.length} scherm{screens.length !== 1 ? 'en' : ''}
               </p>
             </div>
             <div className="flex gap-2">
+              <button
+                onClick={() => setShowScreenManager(!showScreenManager)}
+                className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  showScreenManager ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {showScreenManager ? 'Schermen sluiten' : 'Schermen'}
+              </button>
               <a
                 href="/tv-display"
                 target="_blank"
@@ -244,6 +351,114 @@ export default function TvAdminPage() {
       </div>
 
       <div className="max-w-5xl mx-auto px-4 py-6">
+        {/* Screen Manager */}
+        {showScreenManager && (
+          <div className="mb-6 bg-white rounded-xl border border-indigo-200 p-5">
+            <h2 className="text-sm font-semibold text-indigo-700 uppercase tracking-wide mb-3">TV Schermen</h2>
+
+            {/* Bestaande schermen */}
+            {screens.length > 0 && (
+              <div className="space-y-2 mb-4">
+                {screens.map(screen => (
+                  <div
+                    key={screen.id}
+                    className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
+                      selectedScreen === screen.id ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                    onClick={() => setSelectedScreen(selectedScreen === screen.id ? null : screen.id)}
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600 text-sm font-bold shrink-0">
+                      {screen.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm text-gray-900">{screen.name}</div>
+                      <div className="text-xs text-gray-500 font-mono">/tv-display/{screen.slug}</div>
+                    </div>
+                    <span className="text-xs text-gray-400">{screen.slideCount} slides</span>
+                    <button
+                      onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(`${window.location.origin}/tv-display/${screen.slug}`) }}
+                      className="shrink-0 px-2 py-1 rounded text-xs text-indigo-600 hover:bg-indigo-50 transition-colors"
+                      title="Kopieer URL"
+                    >
+                      URL
+                    </button>
+                    <button
+                      onClick={e => { e.stopPropagation(); deleteScreen(screen.id) }}
+                      className="shrink-0 w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors text-xs"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Slide toewijzing voor geselecteerd scherm */}
+            {selectedScreen && (
+              <div className="mb-4 p-3 bg-indigo-50/50 rounded-lg border border-indigo-100">
+                <div className="text-xs font-semibold text-indigo-700 uppercase tracking-wide mb-2">
+                  Slides voor: {screens.find(s => s.id === selectedScreen)?.name}
+                </div>
+                <div className="space-y-1">
+                  {sortedSlides.map(slide => {
+                    const cfg = getSlideConfig(slide.type)
+                    const isLinked = screenSlideIds.includes(slide.id)
+                    return (
+                      <label
+                        key={slide.id}
+                        className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
+                          isLinked ? 'bg-indigo-100' : 'hover:bg-gray-50'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isLinked}
+                          onChange={() => toggleSlideForScreen(slide.id)}
+                          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-sm">{cfg.icon}</span>
+                        <span className="text-sm text-gray-900 truncate">{slide.title || cfg.label}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${cfg.color} ${cfg.bgColor}`}>
+                          {cfg.label}
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Nieuw scherm */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newScreenName}
+                onChange={e => {
+                  setNewScreenName(e.target.value)
+                  if (!newScreenSlug || newScreenSlug === newScreenName.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-')) {
+                    setNewScreenSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-'))
+                  }
+                }}
+                placeholder="Naam (bv. Productiehal)"
+                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+              />
+              <input
+                type="text"
+                value={newScreenSlug}
+                onChange={e => setNewScreenSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))}
+                placeholder="slug"
+                className="w-40 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+              />
+              <button
+                onClick={createScreen}
+                disabled={!newScreenName.trim()}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium transition-colors"
+              >
+                + Scherm
+              </button>
+            </div>
+          </div>
+        )}
         {/* Toast */}
         {saveMsg && (
           <div className={`mb-4 px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-2 ${
@@ -537,6 +752,10 @@ function SlideEditor({
             </p>
           </div>
         </div>
+      )}
+
+      {slide.type === 'transportplanning' && (
+        <TransportPlanningEditor />
       )}
 
       {slide.type === 'priorities' && (
@@ -965,6 +1184,253 @@ function ProductieordersPriorityEditor() {
   )
 }
 
+const TRANSPORT_TYPES = [
+  { value: 'eigen', label: 'Eigen transport', color: 'bg-green-100 text-green-700' },
+  { value: 'extern', label: 'Externe transporteur', color: 'bg-blue-100 text-blue-700' },
+  { value: 'ophaling', label: 'Ophaling door klant', color: 'bg-orange-100 text-orange-700' },
+] as const
+
+interface TransportEntry {
+  id: string
+  transport_date: string
+  transport_type: 'eigen' | 'extern' | 'ophaling'
+  destination: string | null
+  description: string | null
+  transporter_name: string | null
+  notes: string | null
+}
+
+function TransportPlanningEditor() {
+  const [entries, setEntries] = useState<TransportEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [weekOffset, setWeekOffset] = useState(0)
+  const [weekLabel, setWeekLabel] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+
+  const [formDate, setFormDate] = useState('')
+  const [formType, setFormType] = useState<'eigen' | 'extern' | 'ophaling'>('eigen')
+  const [formDestination, setFormDestination] = useState('')
+  const [formDescription, setFormDescription] = useState('')
+  const [formTransporter, setFormTransporter] = useState('')
+  const [formNotes, setFormNotes] = useState('')
+
+  const fetchEntries = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/tv-slides/transport-planning?weekOffset=${weekOffset}`)
+      const json = await res.json()
+      setEntries(json.data || [])
+      if (json.weekFrom && json.weekTo) {
+        const fmtNl = (d: string) => new Date(d).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })
+        setWeekLabel(`${fmtNl(json.weekFrom)} — ${fmtNl(json.weekTo)}`)
+      }
+    } catch { setEntries([]) }
+    finally { setLoading(false) }
+  }, [weekOffset])
+
+  useEffect(() => { fetchEntries() }, [fetchEntries])
+
+  const resetForm = () => {
+    setEditingId(null)
+    setFormDate('')
+    setFormType('eigen')
+    setFormDestination('')
+    setFormDescription('')
+    setFormTransporter('')
+    setFormNotes('')
+  }
+
+  const startEdit = (entry: TransportEntry) => {
+    setEditingId(entry.id)
+    setFormDate(entry.transport_date)
+    setFormType(entry.transport_type)
+    setFormDestination(entry.destination || '')
+    setFormDescription(entry.description || '')
+    setFormTransporter(entry.transporter_name || '')
+    setFormNotes(entry.notes || '')
+  }
+
+  const saveEntry = async () => {
+    if (!formDate) { setMsg({ type: 'error', text: 'Datum is verplicht' }); return }
+    setSaving(true)
+    setMsg(null)
+    const body = {
+      transport_date: formDate,
+      transport_type: formType,
+      destination: formDestination || null,
+      description: formDescription || null,
+      transporter_name: formTransporter || null,
+      notes: formNotes || null,
+    }
+    try {
+      const res = editingId
+        ? await fetch('/api/tv-slides/transport-planning', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editingId, ...body }) })
+        : await fetch('/api/tv-slides/transport-planning', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Opslaan mislukt')
+      setMsg({ type: 'success', text: editingId ? 'Bijgewerkt' : 'Toegevoegd' })
+      setTimeout(() => setMsg(null), 2000)
+      resetForm()
+      fetchEntries()
+    } catch (err: any) {
+      setMsg({ type: 'error', text: err.message })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const deleteEntry = async (id: string) => {
+    if (!confirm('Verwijderen?')) return
+    try {
+      await fetch('/api/tv-slides/transport-planning', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
+      fetchEntries()
+    } catch { /* silent */ }
+  }
+
+  const weekDays = (() => {
+    const now = new Date()
+    const dayOfWeek = now.getDay()
+    const mondayOff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+    const monday = new Date(now)
+    monday.setDate(now.getDate() + mondayOff + weekOffset * 7)
+    return Array.from({ length: 5 }, (_, i) => {
+      const d = new Date(monday)
+      d.setDate(monday.getDate() + i)
+      return d.toISOString().split('T')[0]
+    })
+  })()
+
+  const dayNames = ['Ma', 'Di', 'Wo', 'Do', 'Vr']
+
+  return (
+    <div className="space-y-3">
+      <InfoBox color="indigo" icon="🚚" title="Transportplanning">
+        Voeg transporten toe per dag. Op het TV display verschijnt dit als een weekoverzicht.
+      </InfoBox>
+
+      {/* Week navigatie */}
+      <div className="flex items-center justify-between">
+        <button onClick={() => setWeekOffset(w => w - 1)} className="px-3 py-1.5 rounded-lg text-sm bg-gray-100 hover:bg-gray-200 transition-colors">← Vorige</button>
+        <div className="text-sm font-medium text-gray-700">
+          {weekLabel}
+          {weekOffset !== 0 && <button onClick={() => setWeekOffset(0)} className="ml-2 text-xs text-indigo-600 hover:underline">Vandaag</button>}
+        </div>
+        <button onClick={() => setWeekOffset(w => w + 1)} className="px-3 py-1.5 rounded-lg text-sm bg-gray-100 hover:bg-gray-200 transition-colors">Volgende →</button>
+      </div>
+
+      {msg && (
+        <div className={`px-3 py-2 rounded-lg text-xs font-medium ${msg.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+          {msg.text}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="text-sm text-gray-500 py-4 text-center">Laden...</div>
+      ) : (
+        <div className="space-y-2">
+          {weekDays.map((date, dayIdx) => {
+            const dayEntries = entries.filter(e => e.transport_date === date)
+            const isToday = date === new Date().toISOString().split('T')[0]
+            return (
+              <div key={date} className={`border rounded-lg p-3 ${isToday ? 'border-indigo-300 bg-indigo-50/30' : 'border-gray-200'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-bold text-gray-600 uppercase w-6">{dayNames[dayIdx]}</span>
+                  <span className="text-sm font-medium text-gray-900">
+                    {new Date(date + 'T12:00:00').toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })}
+                  </span>
+                  {isToday && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-700">VANDAAG</span>}
+                  <button
+                    onClick={() => { resetForm(); setFormDate(date) }}
+                    className="ml-auto text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                  >
+                    + Toevoegen
+                  </button>
+                </div>
+                {dayEntries.length === 0 && (
+                  <div className="text-xs text-gray-400 italic">Geen transporten</div>
+                )}
+                {dayEntries.map(entry => {
+                  const tc = TRANSPORT_TYPES.find(t => t.value === entry.transport_type)
+                  return (
+                    <div key={entry.id} className="flex items-start gap-2 py-1.5 border-t border-gray-100 first:border-0">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 mt-0.5 ${tc?.color || 'bg-gray-100 text-gray-700'}`}>
+                        {tc?.label || entry.transport_type}
+                      </span>
+                      <div className="flex-1 min-w-0 text-xs">
+                        {entry.destination && <span className="font-medium text-gray-900">{entry.destination}</span>}
+                        {entry.description && <span className="text-gray-600"> — {entry.description}</span>}
+                        {entry.transporter_name && <span className="text-gray-500"> ({entry.transporter_name})</span>}
+                        {entry.notes && <div className="text-gray-400 italic mt-0.5">{entry.notes}</div>}
+                      </div>
+                      <button onClick={() => startEdit(entry)} className="text-xs text-gray-400 hover:text-indigo-600 shrink-0">Bewerk</button>
+                      <button onClick={() => deleteEntry(entry.id)} className="text-xs text-gray-400 hover:text-red-600 shrink-0">✕</button>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Formulier */}
+      {formDate && (
+        <div className="bg-indigo-50/50 border border-indigo-200 rounded-lg p-4 space-y-3">
+          <div className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">
+            {editingId ? 'Transport bewerken' : 'Nieuw transport'}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Datum</label>
+              <input type="date" value={formDate} onChange={e => setFormDate(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Type</label>
+              <select value={formType} onChange={e => setFormType(e.target.value as any)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                {TRANSPORT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Bestemming</label>
+              <input type="text" value={formDestination} onChange={e => setFormDestination(e.target.value)} placeholder="Bv. Willebroek"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Transporteur</label>
+              <input type="text" value={formTransporter} onChange={e => setFormTransporter(e.target.value)} placeholder="Naam chauffeur/bedrijf"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Omschrijving</label>
+            <input type="text" value={formDescription} onChange={e => setFormDescription(e.target.value)} placeholder="Wat wordt er getransporteerd?"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Opmerkingen</label>
+            <input type="text" value={formNotes} onChange={e => setFormNotes(e.target.value)} placeholder="Optioneel"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={saveEntry} disabled={saving}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium transition-colors">
+              {saving ? 'Opslaan...' : editingId ? 'Bijwerken' : 'Toevoegen'}
+            </button>
+            <button onClick={resetForm}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium transition-colors">
+              Annuleren
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function InfoBox({ color, icon, title, children }: { color: string; icon: string; title: string; children: React.ReactNode }) {
   const colorMap: Record<string, string> = {
     green: 'bg-green-50 border-green-200 text-green-800',
@@ -972,6 +1438,7 @@ function InfoBox({ color, icon, title, children }: { color: string; icon: string
     orange: 'bg-orange-50 border-orange-200 text-orange-800',
     sky: 'bg-sky-50 border-sky-200 text-sky-800',
     yellow: 'bg-yellow-50 border-yellow-200 text-yellow-800',
+    indigo: 'bg-indigo-50 border-indigo-200 text-indigo-800',
   }
   return (
     <div className={`border rounded-lg p-3 text-sm ${colorMap[color] || colorMap.green}`}>

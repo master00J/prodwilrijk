@@ -14,7 +14,7 @@ import {
   YAxis,
 } from 'recharts'
 
-type SlideType = 'werkorders' | 'tekst' | 'afbeelding' | 'productieorders' | 'inpakstatistiek' | 'dagplanning' | 'countdown' | 'weer' | 'priorities'
+type SlideType = 'werkorders' | 'tekst' | 'afbeelding' | 'productieorders' | 'inpakstatistiek' | 'dagplanning' | 'countdown' | 'weer' | 'priorities' | 'transportplanning'
 
 interface TvSlide {
   id: string
@@ -138,7 +138,19 @@ const DAGPLANNING_POLL_INTERVAL = 60 * 1000
 const WEATHER_POLL_INTERVAL = 15 * 60 * 1000
 const PRIORITIES_POLL_INTERVAL = 30 * 1000
 
-export default function TvDisplayPage() {
+interface TransportDisplayEntry {
+  id: string
+  transport_date: string
+  transport_type: 'eigen' | 'extern' | 'ophaling'
+  destination: string | null
+  description: string | null
+  transporter_name: string | null
+  notes: string | null
+}
+
+const TRANSPORT_POLL_INTERVAL = 60_000
+
+export default function TvDisplayPage({ screenSlug }: { screenSlug?: string } = {}) {
   const [slides, setSlides] = useState<TvSlide[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [clock, setClock] = useState('')
@@ -148,20 +160,23 @@ export default function TvDisplayPage() {
   const [dagplanning, setDagplanning] = useState<DagplanningEntry[]>([])
   const [weather, setWeather] = useState<WeatherData | null>(null)
   const [priorities, setPriorities] = useState<PrioritiesData | null>(null)
+  const [transportEntries, setTransportEntries] = useState<TransportDisplayEntry[]>([])
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
   const fetchSlides = useCallback(async () => {
     try {
-      const res = await fetch('/api/tv-slides')
+      const url = screenSlug ? `/api/tv-screens/${screenSlug}/slides` : '/api/tv-slides'
+      const res = await fetch(url)
       const json = await res.json()
-      const active = (json.data || [])
-        .filter((s: TvSlide) => s.active)
-        .sort((a: TvSlide, b: TvSlide) => a.sort_order - b.sort_order)
+      const allSlides = json.data || []
+      const active = screenSlug
+        ? allSlides.sort((a: TvSlide, b: TvSlide) => a.sort_order - b.sort_order)
+        : allSlides.filter((s: TvSlide) => s.active).sort((a: TvSlide, b: TvSlide) => a.sort_order - b.sort_order)
       setSlides(active)
     } catch (e) {
       console.error('Fout bij laden slides:', e)
     }
-  }, [])
+  }, [screenSlug])
 
   const fetchProductionStatus = useCallback(async () => {
     try {
@@ -271,6 +286,25 @@ export default function TvDisplayPage() {
     return () => clearInterval(interval)
   }, [fetchPriorities])
 
+  const fetchTransport = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tv-slides/transport-planning?weekOffset=0')
+      if (!res.ok) throw new Error('transport failed')
+      const json = await res.json()
+      setTransportEntries(json.data || [])
+    } catch (e) {
+      console.error('Fout bij laden transport:', e)
+    }
+  }, [])
+
+  const hasTransportSlide = slides.some(s => s.type === 'transportplanning')
+  useEffect(() => {
+    if (!hasTransportSlide) return
+    fetchTransport()
+    const interval = setInterval(fetchTransport, TRANSPORT_POLL_INTERVAL)
+    return () => clearInterval(interval)
+  }, [hasTransportSlide, fetchTransport])
+
   // Priorities slide automatisch tonen/verbergen op basis van prio items
   const hasPrioItems = (priorities?.prepack?.length ?? 0) + (priorities?.airtec?.length ?? 0) > 0
   const visibleSlides = slides.filter(s => {
@@ -369,6 +403,8 @@ export default function TvDisplayPage() {
           <WeerSlide data={weather} title={currentSlide.title} />
         ) : currentSlide.type === 'priorities' ? (
           <PrioriteitenSlide data={priorities} title={currentSlide.title} />
+        ) : currentSlide.type === 'transportplanning' ? (
+          <TransportPlanningSlide entries={transportEntries} title={currentSlide.title} />
         ) : null}
       </div>
 
@@ -1221,6 +1257,117 @@ function PrioriteitenSlide({ data, title }: { data: PrioritiesData | null; title
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+const TRANSPORT_TYPE_CONFIG = {
+  eigen: { label: 'Eigen transport', color: '#4ade80', bg: 'rgba(74, 222, 128, 0.15)', border: '#22c55e' },
+  extern: { label: 'Externe transporteur', color: '#60a5fa', bg: 'rgba(96, 165, 250, 0.15)', border: '#3b82f6' },
+  ophaling: { label: 'Ophaling door klant', color: '#fb923c', bg: 'rgba(251, 146, 60, 0.15)', border: '#f97316' },
+} as const
+
+function TransportPlanningSlide({ entries, title }: { entries: TransportDisplayEntry[]; title: string | null }) {
+  const now = new Date()
+  const dayOfWeek = now.getDay()
+  const mondayOff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+  const monday = new Date(now)
+  monday.setDate(now.getDate() + mondayOff)
+
+  const weekDays = Array.from({ length: 5 }, (_, i) => {
+    const d = new Date(monday)
+    d.setDate(monday.getDate() + i)
+    return d.toISOString().split('T')[0]
+  })
+
+  const todayStr = now.toISOString().split('T')[0]
+  const dayLabels = ['Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag']
+
+  return (
+    <div className="w-full h-full flex flex-col px-6 py-4 min-h-0 overflow-hidden">
+      <h2 className="text-3xl font-bold text-white text-center mb-4 shrink-0">
+        {title || 'Transportplanning'}
+      </h2>
+
+      <div className="flex-1 grid grid-cols-5 gap-3 min-h-0">
+        {weekDays.map((date, i) => {
+          const dayEntries = entries.filter(e => e.transport_date === date)
+          const isToday = date === todayStr
+          const dayDate = new Date(date + 'T12:00:00')
+
+          return (
+            <div
+              key={date}
+              className="flex flex-col rounded-xl overflow-hidden min-h-0"
+              style={{
+                backgroundColor: isToday ? 'rgba(74, 222, 128, 0.08)' : 'rgba(255, 255, 255, 0.03)',
+                border: isToday ? '2px solid #22c55e' : '1px solid #1a5c47',
+              }}
+            >
+              {/* Dag header */}
+              <div
+                className="px-3 py-2.5 shrink-0 text-center"
+                style={{ backgroundColor: isToday ? 'rgba(74, 222, 128, 0.15)' : 'rgba(255, 255, 255, 0.04)' }}
+              >
+                <div className="text-sm font-bold" style={{ color: isToday ? '#4ade80' : '#a0c4b8' }}>
+                  {dayLabels[i]}
+                </div>
+                <div className="text-xs" style={{ color: isToday ? '#80bfaa' : '#4a8a74' }}>
+                  {dayDate.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })}
+                </div>
+                {isToday && (
+                  <div className="mt-1">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: '#22c55e', color: '#002b20' }}>
+                      VANDAAG
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Entries */}
+              <div className="flex-1 overflow-auto p-2 space-y-2">
+                {dayEntries.length === 0 ? (
+                  <div className="flex items-center justify-center h-full">
+                    <span className="text-xs italic" style={{ color: '#4a8a74' }}>Geen transport</span>
+                  </div>
+                ) : (
+                  dayEntries.map(entry => {
+                    const cfg = TRANSPORT_TYPE_CONFIG[entry.transport_type] || TRANSPORT_TYPE_CONFIG.eigen
+                    return (
+                      <div
+                        key={entry.id}
+                        className="rounded-lg p-2.5"
+                        style={{ backgroundColor: cfg.bg, border: `1px solid ${cfg.border}40` }}
+                      >
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span
+                            className="text-[9px] font-bold px-1.5 py-0.5 rounded"
+                            style={{ backgroundColor: `${cfg.color}30`, color: cfg.color }}
+                          >
+                            {cfg.label}
+                          </span>
+                        </div>
+                        {entry.destination && (
+                          <div className="text-sm font-semibold text-white truncate">{entry.destination}</div>
+                        )}
+                        {entry.description && (
+                          <div className="text-xs truncate" style={{ color: '#a0c4b8' }}>{entry.description}</div>
+                        )}
+                        {entry.transporter_name && (
+                          <div className="text-xs mt-1 truncate" style={{ color: '#80bfaa' }}>{entry.transporter_name}</div>
+                        )}
+                        {entry.notes && (
+                          <div className="text-[10px] mt-1 italic truncate" style={{ color: '#4a8a74' }}>{entry.notes}</div>
+                        )}
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
