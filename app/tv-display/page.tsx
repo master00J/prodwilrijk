@@ -51,6 +51,9 @@ interface PackingStatsDaily {
   airtecManHours: number
   itemsTotal: number
   manHoursTotal: number
+  scorePrepack: number
+  scoreAirtec: number
+  scoreTotal: number
 }
 
 interface WeekTotals {
@@ -60,6 +63,9 @@ interface WeekTotals {
   manHours: number
   manHoursPrepack: number
   manHoursAirtec: number
+  scorePrepack: number
+  scoreAirtec: number
+  scoreTotal: number
 }
 
 interface WeekData {
@@ -73,6 +79,7 @@ interface PackingStatsResponse {
   dateFrom: string
   dateTo: string
   days: number
+  pointRate: number
   daily: PackingStatsDaily[]
   totals: WeekTotals
   thisWeek?: WeekData
@@ -413,8 +420,9 @@ function DiffBadge({ current, previous, suffix, invert }: { current: number; pre
 
 function WeekKpiCards({ totals, prevTotals, label }: { totals: WeekTotals; prevTotals?: WeekTotals; label: string }) {
   const prev = prevTotals || null
+  const hasScores = (totals.scoreTotal ?? 0) !== 0 || (prev && (prev.scoreTotal ?? 0) !== 0)
   return (
-    <div className="grid grid-cols-4 gap-3 shrink-0">
+    <div className={`grid gap-3 shrink-0 ${hasScores ? 'grid-cols-5' : 'grid-cols-4'}`}>
       <div className="rounded-xl px-5 py-4" style={{ backgroundColor: 'rgba(74, 222, 128, 0.12)', border: '1px solid #22c55e' }}>
         <div className="text-xs uppercase tracking-widest mb-1" style={{ color: TV_MUTED }}>Totaal verpakt</div>
         <div className="flex items-baseline">
@@ -433,7 +441,10 @@ function WeekKpiCards({ totals, prevTotals, label }: { totals: WeekTotals; prevT
           <span className="text-4xl font-bold text-white tabular-nums">{totals.itemsPrepack.toLocaleString('nl-NL')}</span>
           {prev && <DiffBadge current={totals.itemsPrepack} previous={prev.itemsPrepack} />}
         </div>
-        <div className="mt-2 text-xs" style={{ color: TV_TICK }}>{totals.manHoursPrepack.toFixed(1)} manuren</div>
+        <div className="mt-2 text-xs" style={{ color: TV_TICK }}>
+          {totals.manHoursPrepack.toFixed(1)} manuren
+          {hasScores && <> &middot; Score: {(totals.scorePrepack ?? 0).toLocaleString('nl-NL', { maximumFractionDigits: 1 })}</>}
+        </div>
       </div>
 
       <div className="rounded-xl px-5 py-4" style={{ backgroundColor: 'rgba(168, 85, 247, 0.1)', border: '1px solid #a855f7' }}>
@@ -442,8 +453,24 @@ function WeekKpiCards({ totals, prevTotals, label }: { totals: WeekTotals; prevT
           <span className="text-4xl font-bold text-white tabular-nums">{totals.itemsAirtec.toLocaleString('nl-NL')}</span>
           {prev && <DiffBadge current={totals.itemsAirtec} previous={prev.itemsAirtec} />}
         </div>
-        <div className="mt-2 text-xs" style={{ color: TV_TICK }}>{totals.manHoursAirtec.toFixed(1)} manuren</div>
+        <div className="mt-2 text-xs" style={{ color: TV_TICK }}>
+          {totals.manHoursAirtec.toFixed(1)} manuren
+          {hasScores && <> &middot; Score: {(totals.scoreAirtec ?? 0).toLocaleString('nl-NL', { maximumFractionDigits: 1 })}</>}
+        </div>
       </div>
+
+      {hasScores && (
+        <div className="rounded-xl px-5 py-4" style={{ backgroundColor: 'rgba(250, 204, 21, 0.12)', border: '1px solid #eab308' }}>
+          <div className="text-xs uppercase tracking-widest mb-1" style={{ color: '#fde047' }}>Score</div>
+          <div className="flex items-baseline">
+            <span className="text-4xl font-bold text-white tabular-nums">{(totals.scoreTotal ?? 0).toLocaleString('nl-NL', { maximumFractionDigits: 1 })}</span>
+            {prev && <DiffBadge current={totals.scoreTotal ?? 0} previous={prev.scoreTotal ?? 0} suffix=" pt" />}
+          </div>
+          <div className="mt-2 text-xs" style={{ color: TV_TICK }}>
+            PP: {(totals.scorePrepack ?? 0).toLocaleString('nl-NL', { maximumFractionDigits: 1 })} &middot; AT: {(totals.scoreAirtec ?? 0).toLocaleString('nl-NL', { maximumFractionDigits: 1 })}
+          </div>
+        </div>
+      )}
 
       <div className="rounded-xl px-5 py-4 flex flex-col justify-center" style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid #1a5c47' }}>
         <div className="text-xs uppercase tracking-widest mb-1" style={{ color: TV_MUTED }}>{label}</div>
@@ -452,9 +479,14 @@ function WeekKpiCards({ totals, prevTotals, label }: { totals: WeekTotals; prevT
             <div className="text-sm text-white mb-1">
               Stuks: <DiffBadge current={totals.itemsPacked} previous={prev.itemsPacked} />
             </div>
-            <div className="text-sm text-white">
+            <div className="text-sm text-white mb-1">
               Uren: <DiffBadge current={totals.manHours} previous={prev.manHours} suffix="u" />
             </div>
+            {hasScores && (
+              <div className="text-sm text-white">
+                Score: <DiffBadge current={totals.scoreTotal ?? 0} previous={prev.scoreTotal ?? 0} suffix=" pt" />
+              </div>
+            )}
           </div>
         ) : (
           <div className="text-sm" style={{ color: TV_MUTED }}>Geen vergelijking</div>
@@ -548,12 +580,21 @@ function PackingStatsSlide({
               <CartesianGrid stroke={TV_GRID} strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="label" tick={{ fill: TV_TICK, fontSize: 11 }} interval={0} angle={-30} textAnchor="end" height={48} axisLine={{ stroke: TV_GRID }} tickLine={false} />
               <YAxis yAxisId="items" tick={{ fill: TV_TICK, fontSize: 11 }} axisLine={false} tickLine={false} width={50} label={{ value: 'Stuks', angle: -90, position: 'insideLeft', offset: 10, style: { fill: TV_MUTED, fontSize: 11 } }} />
-              <YAxis yAxisId="uur" orientation="right" tick={{ fill: TV_TICK, fontSize: 11 }} axisLine={false} tickLine={false} width={50} label={{ value: 'Uren', angle: 90, position: 'insideRight', offset: 10, style: { fill: TV_MUTED, fontSize: 11 } }} />
-              <Tooltip contentStyle={{ backgroundColor: '#002b20', border: '1px solid #00664d', borderRadius: 8, color: '#fff', fontSize: 13 }} labelStyle={{ color: TV_MUTED, fontWeight: 600 }} formatter={(value: number, name: string) => [name.includes('uren') ? `${Number(value).toFixed(1)} u` : Number(value).toLocaleString('nl-NL') + ' stuks', name]} />
+              <YAxis yAxisId="uur" orientation="right" tick={{ fill: TV_TICK, fontSize: 11 }} axisLine={false} tickLine={false} width={50} label={{ value: 'Uren / Score', angle: 90, position: 'insideRight', offset: 10, style: { fill: TV_MUTED, fontSize: 11 } }} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#002b20', border: '1px solid #00664d', borderRadius: 8, color: '#fff', fontSize: 13 }}
+                labelStyle={{ color: TV_MUTED, fontWeight: 600 }}
+                formatter={(value: number, name: string) => {
+                  if (name.includes('uren')) return [`${Number(value).toFixed(1)} u`, name]
+                  if (name.includes('Score')) return [`${Number(value).toLocaleString('nl-NL', { maximumFractionDigits: 1 })} pt`, name]
+                  return [Number(value).toLocaleString('nl-NL') + ' stuks', name]
+                }}
+              />
               <Legend verticalAlign="top" height={28} wrapperStyle={{ fontSize: 12, paddingBottom: 4 }} iconType="circle" iconSize={8} />
               <Bar yAxisId="items" dataKey="prepackItems" name="Prepack" fill="#3b82f6" radius={[3, 3, 0, 0]} label={<BarLabel fill="#93c5fd" fontSize={activeDaily.length > 10 ? 11 : 14} />} />
               <Bar yAxisId="items" dataKey="airtecItems" name="Airtec" fill="#a855f7" radius={[3, 3, 0, 0]} label={<BarLabel fill="#c4b5fd" fontSize={activeDaily.length > 10 ? 11 : 14} />} />
               <Line yAxisId="uur" type="monotone" dataKey="manHoursTotal" name="Manuren totaal" stroke="#facc15" strokeWidth={3} dot={{ r: 3, fill: '#facc15', strokeWidth: 0 }} activeDot={{ r: 5, strokeWidth: 0 }} />
+              <Line yAxisId="uur" type="monotone" dataKey="scoreTotal" name="Score totaal" stroke="#f97316" strokeWidth={2} strokeDasharray="6 3" dot={{ r: 3, fill: '#f97316', strokeWidth: 0 }} activeDot={{ r: 5, strokeWidth: 0 }} />
             </ComposedChart>
           </ResponsiveContainer>
         )}

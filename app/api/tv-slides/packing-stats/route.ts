@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchPrepackStats } from '@/lib/prepack/stats'
 import { fetchAirtecStats } from '@/lib/airtec/stats'
+import { supabaseAdmin } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+
+const DEFAULT_POINT_RATE = 50
 
 function shortNlDate(isoDate: string) {
   return new Date(isoDate).toLocaleDateString('nl-NL', {
@@ -13,10 +16,26 @@ function shortNlDate(isoDate: string) {
   })
 }
 
-/**
- * Geen omzet/materiaalkosten — enkel volumes en manuren voor het productie-Tscherm.
- * Standaard: laatste N dagen (inclusief vandaag), default 14.
- */
+async function getPointRate(): Promise<number> {
+  try {
+    const { data } = await supabaseAdmin
+      .from('tv_slides')
+      .select('content')
+      .eq('type', 'inpakstatistiek')
+      .limit(1)
+      .single()
+    const rate = data?.content?.pointRate
+    return typeof rate === 'number' && rate > 0 ? rate : DEFAULT_POINT_RATE
+  } catch {
+    return DEFAULT_POINT_RATE
+  }
+}
+
+function marginToPoints(revenue: number, materialCost: number, pointRate: number): number {
+  const margin = revenue - materialCost
+  return pointRate > 0 ? Number((margin / pointRate).toFixed(1)) : 0
+}
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
@@ -29,30 +48,34 @@ export async function GET(request: NextRequest) {
     const dateTo = end.toISOString().split('T')[0]
     const dateFrom = start.toISOString().split('T')[0]
 
-    const [prepack, airtec] = await Promise.all([
+    const [prepack, airtec, pointRate] = await Promise.all([
       fetchPrepackStats({ dateFrom, dateTo, includeDetails: false }),
       fetchAirtecStats({ dateFrom, dateTo, includeDetails: false }),
+      getPointRate(),
     ])
 
-    const byDay = new Map<
-      string,
-      {
-        date: string
-        prepackItems: number
-        airtecItems: number
-        prepackManHours: number
-        airtecManHours: number
-      }
-    >()
+    interface DayBucket {
+      date: string
+      prepackItems: number
+      airtecItems: number
+      prepackManHours: number
+      airtecManHours: number
+      prepackRevenue: number
+      airtecRevenue: number
+      prepackMaterialCost: number
+      airtecMaterialCost: number
+    }
 
-    const ensure = (d: string) => {
+    const byDay = new Map<string, DayBucket>()
+
+    const ensure = (d: string): DayBucket => {
       if (!byDay.has(d)) {
         byDay.set(d, {
           date: d,
-          prepackItems: 0,
-          airtecItems: 0,
-          prepackManHours: 0,
-          airtecManHours: 0,
+          prepackItems: 0, airtecItems: 0,
+          prepackManHours: 0, airtecManHours: 0,
+          prepackRevenue: 0, airtecRevenue: 0,
+          prepackMaterialCost: 0, airtecMaterialCost: 0,
         })
       }
       return byDay.get(d)!
@@ -62,21 +85,36 @@ export async function GET(request: NextRequest) {
       const e = ensure(row.date)
       e.prepackItems += row.itemsPacked
       e.prepackManHours += row.manHours
+      e.prepackRevenue += row.revenue
+      e.prepackMaterialCost += row.materialCost
     }
     for (const row of airtec.dailyStats) {
       const e = ensure(row.date)
       e.airtecItems += row.itemsPacked
       e.airtecManHours += row.manHours
+      e.airtecRevenue += row.revenue
+      e.airtecMaterialCost += row.materialCost
     }
 
     const daily = Array.from(byDay.values())
       .filter((row) => row.prepackItems + row.airtecItems > 0 || row.prepackManHours + row.airtecManHours > 0)
       .sort((a, b) => a.date.localeCompare(b.date))
       .map((row) => ({
-        ...row,
+        date: row.date,
         label: shortNlDate(row.date),
+        prepackItems: row.prepackItems,
+        airtecItems: row.airtecItems,
+        prepackManHours: row.prepackManHours,
+        airtecManHours: row.airtecManHours,
         itemsTotal: row.prepackItems + row.airtecItems,
         manHoursTotal: row.prepackManHours + row.airtecManHours,
+        scorePrepack: marginToPoints(row.prepackRevenue, row.prepackMaterialCost, pointRate),
+        scoreAirtec: marginToPoints(row.airtecRevenue, row.airtecMaterialCost, pointRate),
+        scoreTotal: marginToPoints(
+          row.prepackRevenue + row.airtecRevenue,
+          row.prepackMaterialCost + row.airtecMaterialCost,
+          pointRate,
+        ),
       }))
 
     const totalItemsPrepack = prepack.totals.totalItemsPacked
@@ -84,9 +122,8 @@ export async function GET(request: NextRequest) {
     const totalManPrepack = prepack.totals.totalManHours
     const totalManAirtec = airtec.totals.totalManHours
 
-    // Vorige week berekenen (ma-vr van vorige week)
     const now = new Date()
-    const dayOfWeek = now.getDay() // 0=zo, 1=ma
+    const dayOfWeek = now.getDay()
     const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
 
     const thisMonday = new Date(now)
@@ -115,33 +152,50 @@ export async function GET(request: NextRequest) {
       manHours: pp.totals.totalManHours + at.totals.totalManHours,
       manHoursPrepack: pp.totals.totalManHours,
       manHoursAirtec: at.totals.totalManHours,
+      scorePrepack: marginToPoints(pp.totals.totalRevenue, pp.totals.totalMaterialCost, pointRate),
+      scoreAirtec: marginToPoints(at.totals.totalRevenue, at.totals.totalMaterialCost, pointRate),
+      scoreTotal: marginToPoints(
+        pp.totals.totalRevenue + at.totals.totalRevenue,
+        pp.totals.totalMaterialCost + at.totals.totalMaterialCost,
+        pointRate,
+      ),
     })
 
     const thisWeekTotals = buildWeekTotals(thisPrepack, thisAirtec)
     const prevWeekTotals = buildWeekTotals(prevPrepack, prevAirtec)
 
     const buildWeekDaily = (pp: typeof prepack, at: typeof airtec) => {
-      const m = new Map<string, { prepackItems: number; airtecItems: number; prepackManHours: number; airtecManHours: number }>()
+      const m = new Map<string, DayBucket>()
       for (const r of pp.dailyStats) {
-        if (!m.has(r.date)) m.set(r.date, { prepackItems: 0, airtecItems: 0, prepackManHours: 0, airtecManHours: 0 })
+        if (!m.has(r.date)) m.set(r.date, { date: r.date, prepackItems: 0, airtecItems: 0, prepackManHours: 0, airtecManHours: 0, prepackRevenue: 0, airtecRevenue: 0, prepackMaterialCost: 0, airtecMaterialCost: 0 })
         const e = m.get(r.date)!
         e.prepackItems += r.itemsPacked
         e.prepackManHours += r.manHours
+        e.prepackRevenue += r.revenue
+        e.prepackMaterialCost += r.materialCost
       }
       for (const r of at.dailyStats) {
-        if (!m.has(r.date)) m.set(r.date, { prepackItems: 0, airtecItems: 0, prepackManHours: 0, airtecManHours: 0 })
+        if (!m.has(r.date)) m.set(r.date, { date: r.date, prepackItems: 0, airtecItems: 0, prepackManHours: 0, airtecManHours: 0, prepackRevenue: 0, airtecRevenue: 0, prepackMaterialCost: 0, airtecMaterialCost: 0 })
         const e = m.get(r.date)!
         e.airtecItems += r.itemsPacked
         e.airtecManHours += r.manHours
+        e.airtecRevenue += r.revenue
+        e.airtecMaterialCost += r.materialCost
       }
       return Array.from(m.entries())
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([date, v]) => ({
           date,
           label: shortNlDate(date),
-          ...v,
+          prepackItems: v.prepackItems,
+          airtecItems: v.airtecItems,
+          prepackManHours: v.prepackManHours,
+          airtecManHours: v.airtecManHours,
           itemsTotal: v.prepackItems + v.airtecItems,
           manHoursTotal: v.prepackManHours + v.airtecManHours,
+          scorePrepack: marginToPoints(v.prepackRevenue, v.prepackMaterialCost, pointRate),
+          scoreAirtec: marginToPoints(v.airtecRevenue, v.airtecMaterialCost, pointRate),
+          scoreTotal: marginToPoints(v.prepackRevenue + v.airtecRevenue, v.prepackMaterialCost + v.airtecMaterialCost, pointRate),
         }))
     }
 
@@ -149,6 +203,7 @@ export async function GET(request: NextRequest) {
       dateFrom,
       dateTo,
       days,
+      pointRate,
       daily,
       totals: {
         itemsPacked: totalItemsPrepack + totalItemsAirtec,
@@ -157,6 +212,13 @@ export async function GET(request: NextRequest) {
         manHours: totalManPrepack + totalManAirtec,
         manHoursPrepack: totalManPrepack,
         manHoursAirtec: totalManAirtec,
+        scorePrepack: marginToPoints(prepack.totals.totalRevenue, prepack.totals.totalMaterialCost, pointRate),
+        scoreAirtec: marginToPoints(airtec.totals.totalRevenue, airtec.totals.totalMaterialCost, pointRate),
+        scoreTotal: marginToPoints(
+          prepack.totals.totalRevenue + airtec.totals.totalRevenue,
+          prepack.totals.totalMaterialCost + airtec.totals.totalMaterialCost,
+          pointRate,
+        ),
       },
       thisWeek: {
         dateFrom: fmt(thisMonday),

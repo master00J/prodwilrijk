@@ -60,6 +60,8 @@ function getSlidePreview(slide: TvSlide): string {
     }
     case 'weer':
       return `Locatie: ${slide.content?.latitude?.toFixed(2) ?? '51.16'}, ${slide.content?.longitude?.toFixed(2) ?? '4.39'}`
+    case 'inpakstatistiek':
+      return `Punten per €${slide.content?.pointRate || 50} marge`
     case 'priorities':
       return 'Live prio items uit inpak'
     default:
@@ -103,7 +105,9 @@ export default function TvAdminPage() {
         ? { manualEntries: [] }
         : type === 'weer'
         ? { latitude: 51.16, longitude: 4.39 }
-        : type === 'productieorders' || type === 'inpakstatistiek' || type === 'priorities'
+        : type === 'inpakstatistiek'
+        ? { pointRate: 50 }
+        : type === 'productieorders' || type === 'priorities'
         ? {}
         : { url: '' }
 
@@ -505,10 +509,34 @@ function SlideEditor({
       )}
 
       {slide.type === 'inpakstatistiek' && (
-        <InfoBox color="teal" icon="📊" title="Automatische slide">
-          Prepack + Airtec: aantal verpakt en manuren (geen financiële cijfers).
-          Periode: laatste 14 dagen. Vernieuwt elke minuut.
-        </InfoBox>
+        <div className="space-y-3">
+          <InfoBox color="teal" icon="📊" title="Automatische slide">
+            Prepack + Airtec: aantal verpakt, manuren en marge-score.
+            Periode: laatste 14 dagen. Vernieuwt elke minuut.
+          </InfoBox>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">
+              Puntentarief (euro per punt)
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                min={1}
+                max={1000}
+                step={1}
+                value={slide.content?.pointRate ?? 50}
+                onChange={e => updateContent({ pointRate: Math.max(1, parseInt(e.target.value, 10) || 50) })}
+                className="w-28 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              />
+              <span className="text-xs text-gray-500">
+                Score = marge / {slide.content?.pointRate || 50} — hoger tarief = lagere scores
+              </span>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">
+              Voorbeeld: bij tarief 50 levert een marge van €500 een score van 10 punten op.
+            </p>
+          </div>
+        </div>
       )}
 
       {slide.type === 'priorities' && (
