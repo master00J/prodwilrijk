@@ -35,6 +35,7 @@ interface ProductionOrder {
     employee_name: string
     production_step: string
     production_item_number: string
+    item_description: string | null
     elapsed_seconds: number
   }>
   lines: Array<{ item_number: string; description: string | null; quantity: number }>
@@ -617,6 +618,30 @@ function ProductieordersSlide({ orders, title }: { orders: ProductionOrder[]; ti
               )}
             </div>
 
+            {/* Items tabel */}
+            {order.lines.length > 0 && (
+              <div className="mt-3 rounded-lg overflow-hidden" style={{ border: '1px solid #1a5c47' }}>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                      <th className="text-left px-4 py-2 font-semibold text-xs uppercase tracking-wider" style={{ color: '#80bfaa' }}>Item</th>
+                      <th className="text-left px-4 py-2 font-semibold text-xs uppercase tracking-wider" style={{ color: '#80bfaa' }}>Omschrijving</th>
+                      <th className="text-right px-4 py-2 font-semibold text-xs uppercase tracking-wider" style={{ color: '#80bfaa' }}>Aantal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {order.lines.map((line, i) => (
+                      <tr key={i} style={{ borderTop: '1px solid #1a5c4750' }}>
+                        <td className="px-4 py-2 font-mono font-bold text-white">{line.item_number}</td>
+                        <td className="px-4 py-2" style={{ color: '#a0c4b8' }}>{line.description || '—'}</td>
+                        <td className="px-4 py-2 text-right font-bold text-white">{line.quantity}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
             {/* Actieve timers */}
             {order.active_timers.length > 0 && (
               <div className="flex flex-wrap gap-3 mt-3">
@@ -629,20 +654,14 @@ function ProductieordersSlide({ orders, title }: { orders: ProductionOrder[]; ti
                     <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: '#4ade80' }} />
                     <span className="text-sm font-semibold text-white">{timer.employee_name}</span>
                     <span className="text-sm" style={{ color: '#80bfaa' }}>—</span>
+                    <span className="text-sm font-mono" style={{ color: '#80bfaa' }}>{timer.production_item_number}</span>
+                    {timer.item_description && (
+                      <span className="text-xs" style={{ color: '#4a8a74' }}>({timer.item_description})</span>
+                    )}
+                    <span className="text-sm" style={{ color: '#80bfaa' }}>—</span>
                     <span className="text-sm" style={{ color: '#80bfaa' }}>{timer.production_step}</span>
                     <span className="text-sm font-mono" style={{ color: '#4ade80' }}>{formatElapsed(timer.elapsed_seconds)}</span>
                   </div>
-                ))}
-              </div>
-            )}
-
-            {/* Order lijnen */}
-            {order.lines.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1">
-                {order.lines.map((line, i) => (
-                  <span key={i} className="text-sm" style={{ color: '#a0c4b8' }}>
-                    {line.quantity}x {line.item_number} {line.description ? `— ${line.description}` : ''}
-                  </span>
                 ))}
               </div>
             )}

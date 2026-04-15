@@ -64,12 +64,21 @@ export async function GET() {
     const result = (orders || []).map((order: any) => {
       const logs = activeLogsByOrder.get(order.order_number) || []
       const lines = linesMap.get(order.order_number) || []
+
+      const descMap = new Map<string, string>()
+      lines.forEach((l: any) => {
+        if (l.item_number && l.description) descMap.set(l.item_number, l.description)
+      })
+
       return {
         order_number: order.order_number,
         sales_order_number: order.sales_order_number,
         due_date: order.due_date,
         status: logs.length > 0 ? 'in_progress' : 'waiting',
-        active_timers: logs,
+        active_timers: logs.map((log: any) => ({
+          ...log,
+          item_description: descMap.get(log.production_item_number) || null,
+        })),
         lines: lines.map((l: any) => ({
           item_number: l.item_number,
           description: l.description,
