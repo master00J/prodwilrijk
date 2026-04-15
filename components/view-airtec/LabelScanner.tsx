@@ -16,7 +16,6 @@ interface ScanResult {
     item_number: string | null
     quantity: number | null
     description: string | null
-    po_line: string | null
     serial_numbers: string[]
   }
   matches: ScanMatch[]
@@ -184,7 +183,7 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned }: Label
           {/* Herkende label data */}
           <div className="bg-gray-50 rounded-lg p-4">
             <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Herkend van label</h4>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div>
                 <span className="text-xs text-gray-500">Part Nr</span>
                 <p className="font-bold text-gray-900 text-lg">{result.label.item_number || '—'}</p>
@@ -196,10 +195,6 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned }: Label
               <div>
                 <span className="text-xs text-gray-500">Omschrijving</span>
                 <p className="font-medium text-gray-700">{result.label.description || '—'}</p>
-              </div>
-              <div>
-                <span className="text-xs text-gray-500">PO-Line</span>
-                <p className="font-medium text-gray-700">{result.label.po_line || '—'}</p>
               </div>
             </div>
             {result.label.serial_numbers.length > 0 && (

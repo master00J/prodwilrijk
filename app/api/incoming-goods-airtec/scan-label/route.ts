@@ -11,7 +11,6 @@ interface LabelData {
   item_number: string | null
   quantity: number | null
   description: string | null
-  po_line: string | null
   serial_numbers: string[]
 }
 
@@ -46,7 +45,6 @@ async function extractLabelWithClaude(base64Image: string, mediaType: string): P
   "item_number": "the PART NR value (large bold number, e.g. 1616 6575 93)",
   "quantity": numeric quantity (the QUANTITY field),
   "description": "the DESCR field (e.g. OIS F-05, AIREND OFSL D 0)",
-  "po_line": "the PO NO - LINE NO value (e.g. 494520-001)",
   "serial_numbers": ["array of AIA serial numbers if visible, e.g. AIA3235655"]
 }
 
@@ -81,7 +79,6 @@ Rules:
     item_number: parsed.item_number || null,
     quantity: parsed.quantity != null ? Number(parsed.quantity) : null,
     description: parsed.description || null,
-    po_line: parsed.po_line || null,
     serial_numbers: Array.isArray(parsed.serial_numbers) ? parsed.serial_numbers : [],
   }
 }
