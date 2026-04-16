@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { consumeStageKistenForPackedPowertoolsItems } from '@/lib/prepack/stage-kisten-stock'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -177,6 +178,17 @@ export async function POST(request: NextRequest) {
         { error: 'Failed to save packed items' },
         { status: 500 }
       )
+    }
+
+    try {
+      await consumeStageKistenForPackedPowertoolsItems(
+        items.map((item: any) => ({
+          item_number: item.item_number,
+          amount: item.amount,
+        }))
+      )
+    } catch (e) {
+      console.error('Stagekisten stock-afname (prepack):', e)
     }
 
     // Delete from items_to_pack

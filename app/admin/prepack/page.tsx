@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   ComposedChart,
@@ -144,6 +144,36 @@ export default function PrepackMonitorPage() {
   const [hourlyRate, setHourlyRate] = useState<number>(47)
   const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null)
 
+  type StageKistenPayload = {
+    totals: Record<string, number>
+    perItem: { item_number: string; amount: number; erp_codes: { code: string; qty: number }[] }[]
+    queueLineCount: number
+    capped?: boolean
+  }
+  const [stageKisten, setStageKisten] = useState<StageKistenPayload | null>(null)
+  const [stageKistenLoading, setStageKistenLoading] = useState(false)
+  const [stageKistenError, setStageKistenError] = useState<string | null>(null)
+
+  const fetchStageKisten = useCallback(async () => {
+    setStageKistenLoading(true)
+    setStageKistenError(null)
+    try {
+      const res = await fetch('/api/admin/prepack-stage-kisten', { cache: 'no-store' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      setStageKisten(data as StageKistenPayload)
+    } catch (e: any) {
+      setStageKistenError(e?.message || 'Laden mislukt')
+      setStageKisten(null)
+    } finally {
+      setStageKistenLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void fetchStageKisten()
+  }, [fetchStageKisten])
+
   const totalLaborCost = totals ? totals.totalManHours * hourlyRate : null
   const netMarginAfterLabor = grossMargin != null && totalLaborCost != null
     ? grossMargin - totalLaborCost
@@ -261,6 +291,65 @@ export default function PrepackMonitorPage() {
               </div>
               <div className="text-xs text-gray-400 mt-0.5">werkdagen (60 dgn gem.)</div>
             </div>
+          </div>
+        ) : null}
+      </div>
+
+      {/* Stagekisten (Airtec) — verwacht verbruik uit wachtrij-BOM */}
+      <div className="mb-6 rounded-xl border border-amber-100 bg-amber-50/40 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Stagekisten in wachtrij</h2>
+            <p className="text-xs text-gray-500 mt-0.5 max-w-2xl">
+              ERP-codes uit productieorder-componenten waar de omschrijving <span className="font-medium">STAGE</span> bevat
+              (zoals in BC Lines / beschrijving met code tussen haakjes). Zelfde logica als bij het afvinken op Items to Pack.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              href="/admin/airtec-kisten-stock"
+              className="text-xs font-medium text-blue-700 hover:text-blue-900 border border-blue-200 bg-white rounded-full px-3 py-1"
+            >
+              Airtec kistenvoorraad →
+            </Link>
+            <button
+              type="button"
+              onClick={() => void fetchStageKisten()}
+              disabled={stageKistenLoading}
+              className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-blue-600 border border-gray-200 bg-white rounded-full px-3 py-1"
+            >
+              <RefreshCw className={`w-3 h-3 ${stageKistenLoading ? 'animate-spin' : ''}`} />
+              Vernieuwen
+            </button>
+          </div>
+        </div>
+        {stageKistenError && (
+          <p className="text-sm text-red-600 mb-2">{stageKistenError}</p>
+        )}
+        {stageKistenLoading && !stageKisten ? (
+          <div className="animate-pulse h-16 bg-amber-100/60 rounded-lg" />
+        ) : stageKisten ? (
+          <div className="text-sm text-gray-700 space-y-2">
+            <p className="text-xs text-gray-500">
+              {stageKisten.queueLineCount} open lijn(en) in items-to-pack
+              {stageKisten.capped ? ' (max. weergave gelimiteerd)' : ''}
+            </p>
+            {Object.keys(stageKisten.totals).length === 0 ? (
+              <p className="text-gray-500">Geen STAGE-componenten gevonden voor de huidige wachtrij (of geen koppeling met productieorders).</p>
+            ) : (
+              <ul className="flex flex-wrap gap-2">
+                {Object.entries(stageKisten.totals).map(([code, qty]) => (
+                  <li
+                    key={code}
+                    className="inline-flex items-center gap-1.5 bg-white border border-amber-200/80 rounded-lg px-2.5 py-1 text-xs"
+                  >
+                    <span className="font-mono font-medium text-gray-900">{code}</span>
+                    <span className="text-gray-400">×</span>
+                    <span>{qty}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         ) : null}
       </div>
