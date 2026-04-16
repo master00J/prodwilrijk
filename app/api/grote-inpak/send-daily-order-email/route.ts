@@ -245,11 +245,17 @@ async function fetchKKistenForExcel(
           : `${data.notOnForecast}x niet op forecast`)
       }
       if (data.forecastDates.length > 0) {
-        const sorted = [...data.forecastDates].sort()
-        const earliest = sorted[0]
-        const d = new Date(earliest)
-        if (!isNaN(d.getTime())) {
-          infoParts.push(`Forecast datum ${String(d.getUTCDate()).padStart(2, '0')}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`)
+        const fmtDt = (iso: string) => {
+          const d = new Date(iso)
+          if (isNaN(d.getTime())) return null
+          return `${String(d.getUTCDate()).padStart(2, '0')}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+        }
+        const uniqueDates = [...new Set(data.forecastDates.map((d: string) => d.split('T')[0]))].sort()
+        const formatted = uniqueDates.map(fmtDt).filter(Boolean)
+        if (formatted.length === 1) {
+          infoParts.push(`Forecast datum ${formatted[0]}`)
+        } else if (formatted.length > 1) {
+          infoParts.push(`Forecast ${formatted.join(', ')}`)
         }
       }
 

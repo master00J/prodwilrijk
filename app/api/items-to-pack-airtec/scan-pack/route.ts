@@ -98,6 +98,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Auto-afname kisten stock
+    const kist = item.kistnummer ? String(item.kistnummer).trim() : null
+    if (kist) {
+      const qty = Number(item.quantity) || 1
+      await supabaseAdmin.rpc('decrement_airtec_kisten_stock', { p_kistnummer: kist, p_quantity: qty }).catch(() => {})
+    }
+
     return NextResponse.json({ success: true, item })
   } catch (error: any) {
     console.error('Unexpected error:', error)

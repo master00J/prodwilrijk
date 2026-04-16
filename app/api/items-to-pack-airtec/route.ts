@@ -135,6 +135,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Auto-afname kisten stock: per kistnummer de totale quantity aftrekken
+    const stockUpdates = new Map<string, number>()
+    items.forEach((item: any) => {
+      const kist = item.kistnummer ? String(item.kistnummer).trim() : null
+      if (kist) {
+        stockUpdates.set(kist, (stockUpdates.get(kist) || 0) + (Number(item.quantity) || 1))
+      }
+    })
+    for (const [kist, qty] of stockUpdates) {
+      await supabaseAdmin.rpc('decrement_airtec_kisten_stock', { p_kistnummer: kist, p_quantity: qty }).catch(() => {})
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Items successfully packed',
