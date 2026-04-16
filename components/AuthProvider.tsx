@@ -66,17 +66,21 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     }, COOKIE_REFRESH_INTERVAL)
   }, [syncSessionCookie])
 
-  const checkUserStatus = useCallback(async (): Promise<{ isAdmin: boolean; verified: boolean }> => {
+  const checkUserStatus = useCallback(async (): Promise<{ isAdmin: boolean; verified: boolean; mustChangePassword: boolean }> => {
     try {
       const response = await fetch('/api/auth/me')
       if (response.ok) {
         const data = await response.json()
-        return { isAdmin: data.isAdmin || false, verified: data.verified || false }
+        return {
+          isAdmin: data.isAdmin || false,
+          verified: data.verified || false,
+          mustChangePassword: data.mustChangePassword || false,
+        }
       }
     } catch {
       // Fall through
     }
-    return { isAdmin: false, verified: false }
+    return { isAdmin: false, verified: false, mustChangePassword: false }
   }, [])
 
   useEffect(() => {
@@ -107,6 +111,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           }
           setLoading(false)
           return
+        }
+
+        if (status.mustChangePassword && pathname !== '/account') {
+          router.push('/account?reason=password-reset')
         }
 
         startCookieRefreshTimer()
@@ -143,6 +151,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             router.push('/pending-verification')
           }
           return
+        }
+
+        if (status.mustChangePassword && pathname !== '/account') {
+          router.push('/account?reason=password-reset')
         }
 
         startCookieRefreshTimer()

@@ -18,12 +18,12 @@ export async function GET(request: NextRequest) {
   try {
     const { data, error } = await supabaseAdmin
       .from('user_roles')
-      .select('role, verified, username')
+      .select('role, verified, username, must_change_password')
       .eq('user_id', userId)
       .maybeSingle()
 
     if (error || !data) {
-      return NextResponse.json({ user: null, isAdmin: false, verified: false })
+      return NextResponse.json({ user: null, isAdmin: false, verified: false, mustChangePassword: false })
     }
 
     return NextResponse.json({
@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
       },
       isAdmin: data.role === 'admin',
       verified: data.verified === true,
+      mustChangePassword: data.must_change_password === true,
     })
   } catch {
     return NextResponse.json({ user: null, isAdmin: false, verified: false })

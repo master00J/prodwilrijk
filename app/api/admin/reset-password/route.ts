@@ -36,6 +36,11 @@ export const POST = withAdmin(async (request, adminUser) => {
       )
     }
 
+    await supabaseAdmin
+      .from('user_roles')
+      .update({ must_change_password: true })
+      .eq('user_id', userId)
+
     logAudit({
       user_id: adminUser.id,
       user_email: adminUser.email,
