@@ -10,7 +10,12 @@ interface CmrItem {
   amount: number
 }
 
-async function extractCmrWithClaude(base64Image: string, mediaType: string): Promise<CmrItem[]> {
+async function extractCmrWithClaude(base64Data: string, mediaType: string): Promise<CmrItem[]> {
+  const isPdf = mediaType === 'application/pdf'
+  const contentBlock = isPdf
+    ? { type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: base64Data } }
+    : { type: 'image' as const, source: { type: 'base64' as const, media_type: mediaType, data: base64Data } }
+
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -25,14 +30,7 @@ async function extractCmrWithClaude(base64Image: string, mediaType: string): Pro
         {
           role: 'user',
           content: [
-            {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: mediaType,
-                data: base64Image,
-              },
-            },
+            contentBlock,
             {
               type: 'text',
               text: `This is a CMR Summary / delivery note from Foresco for packaging materials (stagekisten/crates).
