@@ -51,13 +51,87 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
   const [isOpen, setIsOpen] = useState(false)
   const [queue, setQueue] = useState<QueueItem[]>([])
   const [scanTally, setScanTally] = useState<Record<string, { scanned: number; inList: number }>>({})
+  const [cameraActive, setCameraActive] = useState(false)
+  const [cameraError, setCameraError] = useState<string | null>(null)
   const processingRef = useRef(false)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const doneCount = queue.filter(q => q.status === 'done').length
   const pendingCount = queue.filter(q => q.status === 'pending' || q.status === 'processing').length
   const actionCount = queue.filter(q => q.status === 'action_needed').length
   const matchedCount = queue.filter(q => q.status === 'done' && q.result && q.result.matches.length > 0).length
+
+  const stopCamera = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop())
+      streamRef.current = null
+    }
+    setCameraActive(false)
+  }, [])
+
+  const startCamera = useCallback(async () => {
+    setCameraError(null)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+      })
+      streamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        await videoRef.current.play()
+      }
+      setCameraActive(true)
+    } catch {
+      setCameraError('Camera kon niet geopend worden. Gebruik de knop hieronder om een foto te selecteren.')
+      setCameraActive(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop())
+      }
+    }
+  }, [])
+
+  const captureFrame = useCallback(() => {
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    if (!video || !canvas) return
+
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    ctx.drawImage(video, 0, 0)
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
+    const base64 = dataUrl.split(',')[1]
+    const id = `scan-${++queueIdCounter}-${Date.now()}`
+
+    setQueue(prev => [{ id, preview: dataUrl, status: 'pending', result: null, error: null, autoAction: null, base64, mediaType: 'image/jpeg' }, ...prev])
+  }, [])
+
+  const handleFileCapture = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = reader.result as string
+      const base64 = dataUrl.split(',')[1]
+      const mediaType = file.type || 'image/jpeg'
+      const id = `scan-${++queueIdCounter}-${Date.now()}`
+
+      setQueue(prev => [{ id, preview: dataUrl, status: 'pending', result: null, error: null, autoAction: null, base64, mediaType }, ...prev])
+    }
+    reader.readAsDataURL(file)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }, [])
 
   const processItem = useCallback(async (item: QueueItem) => {
     setQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'processing' as const } : q))
@@ -117,29 +191,6 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
     })
   }, [queue, processItem])
 
-  const handleCapture = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    const reader = new FileReader()
-    reader.onload = () => {
-      const dataUrl = reader.result as string
-      const base64 = dataUrl.split(',')[1]
-      const mediaType = file.type || 'image/jpeg'
-      const id = `scan-${++queueIdCounter}-${Date.now()}`
-
-      setQueue(prev => [{ id, preview: dataUrl, status: 'pending', result: null, error: null, autoAction: null, base64, mediaType }, ...prev])
-
-      setTimeout(() => {
-        if (fileInputRef.current) {
-          fileInputRef.current.value = ''
-          fileInputRef.current.click()
-        }
-      }, 300)
-    }
-    reader.readAsDataURL(file)
-  }, [])
-
   const handleAddToUnlisted = useCallback(async (queueId: string) => {
     const item = queue.find(q => q.id === queueId)
     if (!item?.result?.label) return
@@ -178,17 +229,17 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
   }, [queue, scanTally, onUnlistedAdded])
 
   const handleClose = () => {
+    stopCamera()
     setIsOpen(false)
     setQueue([])
     setScanTally({})
+    setCameraError(null)
   }
-
-  const openCamera = () => fileInputRef.current?.click()
 
   if (!isOpen) {
     return (
       <button
-        onClick={() => { setIsOpen(true); setTimeout(() => fileInputRef.current?.click(), 100) }}
+        onClick={() => { setIsOpen(true); setTimeout(() => startCamera(), 100) }}
         className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium shadow-sm"
       >
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -196,14 +247,6 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
           <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
         </svg>
         Scan Label
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          onChange={handleCapture}
-          className="hidden"
-        />
       </button>
     )
   }
@@ -238,26 +281,60 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
         </button>
       </div>
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        onChange={handleCapture}
-        className="hidden"
-      />
+      {/* Live camera viewfinder */}
+      <div className="relative mb-4 rounded-xl overflow-hidden bg-black">
+        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className={`w-full ${cameraActive ? 'block' : 'hidden'}`}
+          style={{ maxHeight: '35vh', objectFit: 'cover' }}
+        />
+        <canvas ref={canvasRef} className="hidden" />
 
-      {/* Camera button - always visible */}
-      <button
-        onClick={openCamera}
-        className="w-full flex items-center justify-center gap-3 px-4 py-4 mb-4 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 active:bg-indigo-800 transition-colors font-medium text-lg shadow-sm"
-      >
-        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
-        </svg>
-        {queue.length === 0 ? 'Maak een foto van het label' : 'Volgende label scannen'}
-      </button>
+        {cameraActive && (
+          <button
+            onClick={captureFrame}
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 w-16 h-16 bg-white rounded-full border-4 border-indigo-500 shadow-lg active:scale-90 transition-transform flex items-center justify-center"
+          >
+            <div className="w-12 h-12 bg-indigo-500 rounded-full" />
+          </button>
+        )}
+
+        {!cameraActive && !cameraError && (
+          <div className="flex flex-col items-center justify-center py-12 gap-3">
+            <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+            <p className="text-gray-400 text-sm">Camera starten...</p>
+          </div>
+        )}
+      </div>
+
+      {/* Camera error fallback */}
+      {cameraError && (
+        <div className="mb-4">
+          <p className="text-sm text-amber-600 mb-2">{cameraError}</p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleFileCapture}
+            className="hidden"
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full flex items-center justify-center gap-3 px-4 py-4 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 active:bg-indigo-800 transition-colors font-medium text-lg shadow-sm"
+          >
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+            </svg>
+            Maak een foto
+          </button>
+        </div>
+      )}
 
       {/* Confirm all matched button */}
       {matchedCount > 0 && (
@@ -274,7 +351,7 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
 
       {/* Results feed */}
       {queue.length > 0 && (
-        <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+        <div className="space-y-2 max-h-[40vh] overflow-y-auto">
           {queue.map(item => (
             <ScanCard
               key={item.id}
@@ -286,7 +363,7 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
       )}
 
       {queue.length === 0 && (
-        <p className="text-center text-gray-400 text-sm py-2">Neem foto&apos;s van labels — resultaten verschijnen hier</p>
+        <p className="text-center text-gray-400 text-sm py-2">Richt de camera op een label en druk op de knop</p>
       )}
     </div>
   )
