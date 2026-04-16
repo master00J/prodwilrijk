@@ -31,6 +31,22 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const router = useRouter()
   const pathname = usePathname()
 
+  const syncSessionCookie = async (accessToken: string | null) => {
+    try {
+      if (accessToken) {
+        await fetch('/api/auth/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ access_token: accessToken }),
+        })
+      } else {
+        await fetch('/api/auth/session', { method: 'DELETE' })
+      }
+    } catch {
+      // Cookie sync failure is non-critical
+    }
+  }
+
   const checkAdminStatus = async (userId: string) => {
     try {
       const response = await fetch(`/api/auth/check-admin?userId=${encodeURIComponent(userId)}`)
@@ -65,6 +81,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     // Get initial session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setUser(session?.user ?? null)
+      syncSessionCookie(session?.access_token ?? null)
       
       if (session?.user) {
         const [adminResult, verifiedResult] = await Promise.all([
@@ -115,6 +132,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null)
+      syncSessionCookie(session?.access_token ?? null)
       
       if (session?.user) {
         await Promise.all([
@@ -179,6 +197,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   const signOut = async () => {
     await supabase.auth.signOut()
+    await syncSessionCookie(null)
     setUser(null)
     setIsAdmin(false)
     router.push('/login')

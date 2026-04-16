@@ -1,10 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { withAdmin } from '@/lib/api/with-auth'
+import { logAudit } from '@/lib/api/audit'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export async function POST(request: NextRequest) {
+export const POST = withAdmin(async (request, user) => {
   try {
     const body = await request.json()
     const { userId, verified = true } = body
@@ -16,7 +18,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Update user verification status (explicitly set as boolean)
     const { data, error } = await supabaseAdmin
       .from('user_roles')
       .update({ verified: verified === true })
@@ -27,29 +28,32 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('Error updating verification status:', error)
       return NextResponse.json(
-        { error: 'Failed to update verification status', details: error.message },
+        { error: 'Verificatie bijwerken mislukt' },
         { status: 500 }
       )
     }
 
     if (!data) {
-      console.error('No data returned after update')
       return NextResponse.json(
-        { error: 'User role not found' },
+        { error: 'Gebruiker niet gevonden' },
         { status: 404 }
       )
     }
 
-    console.log('Verification status updated:', { userId, verified: data.verified, data })
+    logAudit({
+      user_id: user.id,
+      user_email: user.email,
+      action: 'user_verified',
+      resource_type: 'user_roles',
+      resource_id: userId,
+      details: { verified: data.verified },
+    })
 
     return NextResponse.json({ success: true, data })
-  } catch (error) {
-    console.error('Unexpected error:', error)
+  } catch {
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Server error' },
       { status: 500 }
     )
   }
-}
-
-
+})

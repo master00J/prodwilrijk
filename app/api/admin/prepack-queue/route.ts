@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { getWorkingDaysBetween } from '@/lib/utils/workdays'
+import { withAdmin } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,7 +9,7 @@ function countWorkingDays(from: Date, to: Date): number {
   return getWorkingDaysBetween(from, to)
 }
 
-export async function GET() {
+export const GET = withAdmin(async () => {
   try {
     const now = new Date()
     now.setHours(0, 0, 0, 0)
@@ -97,8 +98,7 @@ export async function GET() {
       avgLeadTimeDays,
       backlogPct: queueStuks > 0 ? Math.round((backlogStuks / queueStuks) * 100) : 0,
     })
-  } catch (error) {
-    console.error('prepack-queue error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  } catch {
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
-}
+})

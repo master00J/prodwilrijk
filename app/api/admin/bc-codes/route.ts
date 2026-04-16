@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { withAdmin } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// GET - Get all BC codes
-export async function GET(request: NextRequest) {
+export const GET = withAdmin(async (_request, _user) => {
   try {
     const { data, error } = await supabaseAdmin
       .from('bc_codes')
@@ -23,17 +23,15 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json(data || [])
-  } catch (error) {
-    console.error('Unexpected error:', error)
+  } catch {
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Server error' },
       { status: 500 }
     )
   }
-}
+})
 
-// POST - Create new BC code
-export async function POST(request: NextRequest) {
+export const POST = withAdmin(async (request, _user) => {
   try {
     const body = await request.json()
     const { breedte, dikte, houtsoort, bc_code } = body
@@ -72,17 +70,15 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, data })
-  } catch (error) {
-    console.error('Unexpected error:', error)
+  } catch {
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Server error' },
       { status: 500 }
     )
   }
-}
+})
 
-// PUT - Update BC code
-export async function PUT(request: NextRequest) {
+export const PUT = withAdmin(async (request, _user) => {
   try {
     const body = await request.json()
     const { id, breedte, dikte, houtsoort, bc_code } = body
@@ -119,17 +115,15 @@ export async function PUT(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, data })
-  } catch (error) {
-    console.error('Unexpected error:', error)
+  } catch {
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Server error' },
       { status: 500 }
     )
   }
-}
+})
 
-// DELETE - Delete BC code
-export async function DELETE(request: NextRequest) {
+export const DELETE = withAdmin(async (request, _user) => {
   try {
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
@@ -155,14 +149,11 @@ export async function DELETE(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error('Unexpected error:', error)
+  } catch {
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Server error' },
       { status: 500 }
     )
   }
-}
-
-
+})
 

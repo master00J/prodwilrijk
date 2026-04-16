@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { scanLabelSchema, validateBody, isErrorResponse } from '@/lib/api/validation'
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
 
@@ -85,17 +86,14 @@ Rules:
 
 export async function POST(request: Request) {
   if (!ANTHROPIC_API_KEY) {
-    return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
+    return NextResponse.json({ error: 'Server configuratie fout' }, { status: 500 })
   }
 
   try {
-    const body = await request.json()
-    const { image, mediaType } = body
+    const parsed = await validateBody(request, scanLabelSchema)
+    if (isErrorResponse(parsed)) return parsed
 
-    if (!image || !mediaType) {
-      return NextResponse.json({ error: 'Missing image or mediaType' }, { status: 400 })
-    }
-
+    const { image, mediaType } = parsed
     const labelData = await extractLabelWithClaude(image, mediaType)
 
     if (!labelData.item_number) {
@@ -142,8 +140,8 @@ export async function POST(request: Request) {
       })),
       warning,
     })
-  } catch (err: any) {
+  } catch (err) {
     console.error('Scan label error:', err)
-    return NextResponse.json({ error: err.message || 'Scan failed' }, { status: 500 })
+    return NextResponse.json({ error: 'Label scan mislukt' }, { status: 500 })
   }
 }

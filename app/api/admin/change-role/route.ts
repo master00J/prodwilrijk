@@ -1,10 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { withAdmin } from '@/lib/api/with-auth'
+import { logAudit } from '@/lib/api/audit'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export async function POST(request: NextRequest) {
+export const POST = withAdmin(async (request, user) => {
   try {
     const body = await request.json()
     const { userId, role } = body
@@ -18,19 +20,18 @@ export async function POST(request: NextRequest) {
 
     if (!['user', 'admin'].includes(role)) {
       return NextResponse.json(
-        { error: 'Invalid role. Must be "user" or "admin"' },
+        { error: 'Invalid role' },
         { status: 400 }
       )
     }
 
-    // Update or insert user role
     const { data, error } = await supabaseAdmin
       .from('user_roles')
       .upsert(
         {
           user_id: userId,
           role: role,
-          verified: true, // When changing role, also verify the user
+          verified: true,
         },
         {
           onConflict: 'user_id',
@@ -42,19 +43,25 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('Error updating role:', error)
       return NextResponse.json(
-        { error: 'Failed to update role' },
+        { error: 'Rol bijwerken mislukt' },
         { status: 500 }
       )
     }
 
+    logAudit({
+      user_id: user.id,
+      user_email: user.email,
+      action: 'role_changed',
+      resource_type: 'user_roles',
+      resource_id: userId,
+      details: { new_role: role },
+    })
+
     return NextResponse.json({ success: true, data })
-  } catch (error) {
-    console.error('Unexpected error:', error)
+  } catch {
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Server error' },
       { status: 500 }
     )
   }
-}
-
-
+})

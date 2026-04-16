@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { withAdmin } from '@/lib/api/with-auth'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -152,7 +153,7 @@ const chunkArray = <T,>(items: T[], size: number) => {
   return chunks
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withAdmin(async (request, _user) => {
   try {
     const formData = await request.formData()
     const packedFile = formData.get('packedFile')
@@ -304,8 +305,8 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Airtec legacy import error:', error)
     return NextResponse.json(
-      { error: error.message || 'Import mislukt' },
+      { error: 'Import mislukt' },
       { status: 500 }
     )
   }
-}
+})

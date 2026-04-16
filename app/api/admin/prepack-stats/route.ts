@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchPrepackStats } from '@/lib/prepack/stats'
+import { withAdmin } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(request: NextRequest) {
+export const GET = withAdmin(async (request, _user) => {
   try {
     const searchParams = request.nextUrl.searchParams
     const dateFrom = searchParams.get('date_from') || ''
@@ -16,14 +17,13 @@ export async function GET(request: NextRequest) {
     })
 
     return NextResponse.json(data)
-  } catch (error) {
-    console.error('Unexpected error:', error)
+  } catch {
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Server error' },
       { status: 500 }
     )
   }
-}
+})
 
 
 
