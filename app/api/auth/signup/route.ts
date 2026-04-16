@@ -65,8 +65,14 @@ export async function POST(request: NextRequest) {
 
     if (authError || !authData.user) {
       console.error('Error creating auth user:', authError)
+      if (authError?.code === 'email_exists') {
+        return NextResponse.json(
+          { error: 'Deze gebruikersnaam is al in gebruik' },
+          { status: 400 }
+        )
+      }
       return NextResponse.json(
-        { error: 'Failed to create account' },
+        { error: 'Account aanmaken mislukt' },
         { status: 500 }
       )
     }
