@@ -175,10 +175,15 @@ export default function LabelScanner({ onItemsMatched, onUnlistedAdded }: LabelS
       const id = `scan-${++queueIdCounter}-${Date.now()}`
 
       setQueue(prev => [{ id, preview: dataUrl, status: 'pending', result: null, error: null, autoAction: null, base64, mediaType }, ...prev])
+
+      setTimeout(() => {
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ''
+          fileInputRef.current.click()
+        }
+      }, 300)
     }
     reader.readAsDataURL(file)
-
-    if (fileInputRef.current) fileInputRef.current.value = ''
   }, [])
 
   const handleAddToUnlisted = useCallback(async (queueId: string) => {
