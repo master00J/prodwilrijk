@@ -144,7 +144,9 @@ export async function POST(request: NextRequest) {
       }
     })
     for (const [kist, qty] of stockUpdates) {
-      await supabaseAdmin.rpc('decrement_airtec_kisten_stock', { p_kistnummer: kist, p_quantity: qty }).catch(() => {})
+      try {
+        await supabaseAdmin.rpc('decrement_airtec_kisten_stock', { p_kistnummer: kist, p_quantity: qty })
+      } catch { /* stock tabel bestaat mogelijk nog niet */ }
     }
 
     return NextResponse.json({

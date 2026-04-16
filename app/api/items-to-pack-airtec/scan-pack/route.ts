@@ -102,7 +102,9 @@ export async function POST(request: NextRequest) {
     const kist = item.kistnummer ? String(item.kistnummer).trim() : null
     if (kist) {
       const qty = Number(item.quantity) || 1
-      await supabaseAdmin.rpc('decrement_airtec_kisten_stock', { p_kistnummer: kist, p_quantity: qty }).catch(() => {})
+      try {
+        await supabaseAdmin.rpc('decrement_airtec_kisten_stock', { p_kistnummer: kist, p_quantity: qty })
+      } catch { /* stock tabel bestaat mogelijk nog niet */ }
     }
 
     return NextResponse.json({ success: true, item })
