@@ -71,6 +71,12 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         )
       }
+      if (authError?.status === 500 || authError?.code === 'unexpected_failure') {
+        return NextResponse.json(
+          { error: 'Database fout bij aanmaken account. Probeer het later opnieuw of neem contact op met een admin.' },
+          { status: 503 }
+        )
+      }
       return NextResponse.json(
         { error: 'Account aanmaken mislukt' },
         { status: 500 }
