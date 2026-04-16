@@ -48,9 +48,13 @@ export default function UnlistedItemsSection({ refreshKey }: { refreshKey?: numb
     setForm((prev) => ({ ...prev, lot_number: '', divisie: '' }))
   }, [isCoolerDescription])
 
+  const [autoKist, setAutoKist] = useState(false)
+
   useEffect(() => {
     const itemNumber = form.item_number.trim()
-    if (!itemNumber || form.kistnummer) return
+    if (!itemNumber) return
+    // Skip if user manually typed a kistnummer (not auto-filled)
+    if (form.kistnummer && !autoKist) return
     const t = window.setTimeout(async () => {
       try {
         const res = await fetch(
@@ -60,13 +64,17 @@ export default function UnlistedItemsSection({ refreshKey }: { refreshKey?: numb
         const data = await res.json()
         if (data?.kistnummer) {
           setForm((prev) => ({ ...prev, kistnummer: data.kistnummer }))
+          setAutoKist(true)
+        } else if (autoKist) {
+          setForm((prev) => ({ ...prev, kistnummer: '' }))
+          setAutoKist(false)
         }
       } catch {
         // ignore
       }
     }, 300)
     return () => window.clearTimeout(t)
-  }, [form.item_number, form.kistnummer])
+  }, [form.item_number]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchItems = async () => {
     try {
@@ -128,6 +136,7 @@ export default function UnlistedItemsSection({ refreshKey }: { refreshKey?: numb
         quantity: '1',
         opmerking: '',
       })
+      setAutoKist(false)
       await fetchItems()
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Toevoegen mislukt')
@@ -398,12 +407,20 @@ export default function UnlistedItemsSection({ refreshKey }: { refreshKey?: numb
             </div>
             <div>
               <label className="block mb-2 font-medium">Box Number (Kistnummer)</label>
-              <input
-                type="text"
-                value={form.kistnummer}
-                onChange={(e) => setForm((f) => ({ ...f, kistnummer: e.target.value }))}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  value={form.kistnummer}
+                  onChange={(e) => {
+                    setForm((f) => ({ ...f, kistnummer: e.target.value }))
+                    setAutoKist(false)
+                  }}
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent ${autoKist ? 'border-green-400 bg-green-50' : 'border-gray-300'}`}
+                />
+                {autoKist && (
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-green-600 text-xs font-medium">auto</span>
+                )}
+              </div>
             </div>
             <div>
               <label className="block mb-2 font-medium">Division</label>

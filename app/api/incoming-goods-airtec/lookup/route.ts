@@ -13,23 +13,49 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ kistnummer: null })
     }
 
-    const { data, error } = await supabaseAdmin
+    // 1) Check incoming_goods_airtec (most recent first)
+    const { data: incomingData } = await supabaseAdmin
       .from('incoming_goods_airtec')
       .select('kistnummer')
       .eq('item_number', itemNumber)
+      .not('kistnummer', 'is', null)
       .order('datum_ontvangen', { ascending: false })
       .order('id', { ascending: false })
       .limit(1)
       .maybeSingle()
 
-    if (error) {
-      console.error('Error looking up box number:', error)
-      return NextResponse.json({ error: 'Failed to lookup box number' }, { status: 500 })
+    if (incomingData?.kistnummer) {
+      return NextResponse.json({ kistnummer: incomingData.kistnummer })
     }
 
-    return NextResponse.json({ kistnummer: data?.kistnummer || null })
+    // 2) Fallback: check packed_items_airtec (previously packed items)
+    const { data: packedData } = await supabaseAdmin
+      .from('packed_items_airtec')
+      .select('kistnummer')
+      .eq('item_number', itemNumber)
+      .not('kistnummer', 'is', null)
+      .order('date_packed', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (packedData?.kistnummer) {
+      return NextResponse.json({ kistnummer: packedData.kistnummer })
+    }
+
+    // 3) Fallback: check airtec_unlisted_items (previously added unlisted)
+    const { data: unlistedData } = await supabaseAdmin
+      .from('airtec_unlisted_items')
+      .select('kistnummer')
+      .eq('item_number', itemNumber)
+      .not('kistnummer', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    return NextResponse.json({ kistnummer: unlistedData?.kistnummer || null })
   } catch (error) {
-    console.error('Unexpected error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Lookup error:', error)
+    return NextResponse.json({ error: 'Lookup mislukt' }, { status: 500 })
   }
 }
