@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 
 interface ScanMatch {
   id: number
@@ -11,7 +11,7 @@ interface ScanMatch {
   kistnummer: string | null
 }
 
-interface ScanResult {
+interface ScanResultData {
   label: {
     item_number: string | null
     quantity: number | null
@@ -22,88 +22,134 @@ interface ScanResult {
   warning: string | null
 }
 
+type QueueItemStatus = 'pending' | 'processing' | 'done' | 'error' | 'action_needed'
+
+interface QueueItem {
+  id: string
+  preview: string
+  status: QueueItemStatus
+  result: ScanResultData | null
+  error: string | null
+  autoAction: string | null
+  base64: string
+  mediaType: string
+}
+
 interface LabelScannerProps {
   onItemsMatched: (ids: number[]) => void
   onConfirmScanned: () => void
   onUnlistedAdded: () => void
 }
 
+function normalizeItemNumber(raw: string): string {
+  return raw.replace(/[\s\-\.]/g, '').toUpperCase()
+}
+
+let queueIdCounter = 0
+
 export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlistedAdded }: LabelScannerProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const [scanning, setScanning] = useState(false)
-  const [result, setResult] = useState<ScanResult | null>(null)
-  const [preview, setPreview] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [scanCount, setScanCount] = useState(0)
-  const [adding, setAdding] = useState(false)
+  const [queue, setQueue] = useState<QueueItem[]>([])
+  const [scanTally, setScanTally] = useState<Record<string, { scanned: number; inList: number }>>({})
+  const processingRef = useRef(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleCapture = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const doneCount = queue.filter(q => q.status === 'done').length
+  const pendingCount = queue.filter(q => q.status === 'pending' || q.status === 'processing').length
+  const actionCount = queue.filter(q => q.status === 'action_needed').length
+  const matchedCount = queue.filter(q => q.status === 'done' && q.result && q.result.matches.length > 0).length
 
-    setError(null)
-    setResult(null)
+  const processItem = useCallback(async (item: QueueItem) => {
+    setQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'processing' as const } : q))
 
-    const reader = new FileReader()
-    reader.onload = async () => {
-      const dataUrl = reader.result as string
-      setPreview(dataUrl)
-      setScanning(true)
+    try {
+      const res = await fetch('/api/incoming-goods-airtec/scan-label', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: item.base64, mediaType: item.mediaType }),
+      })
 
-      try {
-        const base64 = dataUrl.split(',')[1]
-        const mediaType = file.type || 'image/jpeg'
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.error || `Scan mislukt (${res.status})`)
+      }
 
-        const res = await fetch('/api/incoming-goods-airtec/scan-label', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: base64, mediaType }),
+      const data: ScanResultData = await res.json()
+
+      if (data.matches.length > 0 && data.label.item_number) {
+        const key = normalizeItemNumber(data.label.item_number)
+        const listTotal = data.matches.reduce((sum, m) => sum + m.quantity, 0)
+        const labelQty = data.label.quantity || 1
+
+        let isExtra = false
+        setScanTally(prev => {
+          const existing = prev[key] || { scanned: 0, inList: listTotal }
+          const newScanned = existing.scanned + labelQty
+          isExtra = newScanned > listTotal
+          return { ...prev, [key]: { scanned: newScanned, inList: listTotal } }
         })
 
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}))
-          throw new Error(errData.error || `Scan mislukt (${res.status})`)
-        }
+        await new Promise(r => setTimeout(r, 0))
 
-        const data: ScanResult = await res.json()
-        setResult(data)
-
-        if (data.matches.length > 0) {
-          const ids = data.matches.map(m => m.id)
-          onItemsMatched(ids)
-          setScanCount(prev => prev + 1)
+        if (isExtra) {
+          setQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'action_needed', result: data, autoAction: null } : q))
+        } else {
+          onItemsMatched(data.matches.map(m => m.id))
+          setQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'done', result: data, autoAction: `${data.matches.length} item(s) geselecteerd` } : q))
         }
-      } catch (err: any) {
-        setError(err.message || 'Onbekende fout bij scannen')
-      } finally {
-        setScanning(false)
+        return
       }
-    }
-    reader.readAsDataURL(file)
 
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
+      setQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'action_needed', result: data, autoAction: null } : q))
+    } catch (err: any) {
+      setQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'error', error: err.message || 'Scan mislukt' } : q))
     }
   }, [onItemsMatched])
 
-  const handleNewScan = () => {
-    setResult(null)
-    setPreview(null)
-    setError(null)
-    fileInputRef.current?.click()
-  }
+  useEffect(() => {
+    if (processingRef.current) return
+    const next = queue.find(q => q.status === 'pending')
+    if (!next) return
 
-  const handleAddFromLabel = useCallback(async () => {
-    if (!result?.label) return
-    setAdding(true)
+    processingRef.current = true
+    processItem(next).finally(() => {
+      processingRef.current = false
+    })
+  }, [queue, processItem])
+
+  const handleCapture = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = reader.result as string
+      const base64 = dataUrl.split(',')[1]
+      const mediaType = file.type || 'image/jpeg'
+      const id = `scan-${++queueIdCounter}-${Date.now()}`
+
+      setQueue(prev => [{ id, preview: dataUrl, status: 'pending', result: null, error: null, autoAction: null, base64, mediaType }, ...prev])
+    }
+    reader.readAsDataURL(file)
+
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }, [])
+
+  const handleAddToUnlisted = useCallback(async (queueId: string) => {
+    const item = queue.find(q => q.id === queueId)
+    if (!item?.result?.label) return
+
+    setQueue(prev => prev.map(q => q.id === queueId ? { ...q, status: 'processing' } : q))
+
     try {
-      const label = result.label
+      const label = item.result.label
       const serialStr = label.serial_numbers.length > 0
         ? label.serial_numbers.join(', ')
         : null
+      const key = label.item_number ? normalizeItemNumber(label.item_number) : null
+      const tally = key ? scanTally[key] : null
 
-      const res = await fetch('/api/incoming-goods-airtec/unlisted', {
+      await fetch('/api/incoming-goods-airtec/unlisted', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -114,28 +160,25 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
           kistnummer: null,
           divisie: null,
           quantity: label.quantity || 1,
-          opmerking: `Toegevoegd via label scan${label.serial_numbers.length > 0 ? ` (${label.serial_numbers.length} serienummers)` : ''}`,
+          opmerking: tally
+            ? `Extra pallet — ${tally.scanned} gescand, ${tally.inList} in verzendnota`
+            : 'Toegevoegd via label scan — niet in verzendnota',
         }),
       })
-      if (!res.ok) throw new Error('Toevoegen mislukt')
       onUnlistedAdded()
-      setScanCount(prev => prev + 1)
-      setResult(null)
-      setPreview(null)
-    } catch (err: any) {
-      setError(err.message || 'Kon item niet toevoegen')
-    } finally {
-      setAdding(false)
+      setQueue(prev => prev.map(q => q.id === queueId ? { ...q, status: 'done', autoAction: 'Toegevoegd aan niet-in-lijst' } : q))
+    } catch {
+      setQueue(prev => prev.map(q => q.id === queueId ? { ...q, status: 'action_needed' } : q))
     }
-  }, [result, onUnlistedAdded])
+  }, [queue, scanTally, onUnlistedAdded])
 
   const handleClose = () => {
     setIsOpen(false)
-    setResult(null)
-    setPreview(null)
-    setError(null)
-    setScanCount(0)
+    setQueue([])
+    setScanTally({})
   }
+
+  const openCamera = () => fileInputRef.current?.click()
 
   if (!isOpen) {
     return (
@@ -162,12 +205,24 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-5 mb-4">
+      {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <h3 className="text-lg font-bold text-gray-800">Label Scanner</h3>
-          {scanCount > 0 && (
+          {doneCount > 0 && (
             <span className="bg-green-100 text-green-700 text-sm font-semibold px-2.5 py-0.5 rounded-full">
-              {scanCount} gescand
+              {doneCount} verwerkt
+            </span>
+          )}
+          {pendingCount > 0 && (
+            <span className="bg-indigo-100 text-indigo-700 text-sm font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+              <div className="w-3 h-3 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin" />
+              {pendingCount} bezig
+            </span>
+          )}
+          {actionCount > 0 && (
+            <span className="bg-amber-100 text-amber-700 text-sm font-semibold px-2.5 py-0.5 rounded-full">
+              {actionCount} actie nodig
             </span>
           )}
         </div>
@@ -187,186 +242,151 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
         className="hidden"
       />
 
-      {scanning && (
-        <div className="flex flex-col items-center justify-center py-8 gap-3">
-          <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
-          <p className="text-gray-600 font-medium">Label analyseren met AI...</p>
-          {preview && (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={preview} alt="Scan preview" className="mt-2 max-h-32 rounded-lg opacity-50" />
-          )}
+      {/* Camera button - always visible */}
+      <button
+        onClick={openCamera}
+        className="w-full flex items-center justify-center gap-3 px-4 py-4 mb-4 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 active:bg-indigo-800 transition-colors font-medium text-lg shadow-sm"
+      >
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+        </svg>
+        {queue.length === 0 ? 'Maak een foto van het label' : 'Volgende label scannen'}
+      </button>
+
+      {/* Confirm all matched button */}
+      {matchedCount > 0 && (
+        <button
+          onClick={onConfirmScanned}
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 mb-4 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium shadow-sm"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+          </svg>
+          Bevestig alle gescande items
+        </button>
+      )}
+
+      {/* Results feed */}
+      {queue.length > 0 && (
+        <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+          {queue.map(item => (
+            <ScanCard
+              key={item.id}
+              item={item}
+              onAddToUnlisted={() => handleAddToUnlisted(item.id)}
+            />
+          ))}
         </div>
       )}
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-          <div className="flex items-start gap-3">
-            <svg className="w-5 h-5 text-red-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+      {queue.length === 0 && (
+        <p className="text-center text-gray-400 text-sm py-2">Neem foto&apos;s van labels — resultaten verschijnen hier</p>
+      )}
+    </div>
+  )
+}
+
+function ScanCard({ item, onAddToUnlisted }: { item: QueueItem; onAddToUnlisted: () => void }) {
+  const label = item.result?.label
+
+  const statusConfig = {
+    pending: { bg: 'bg-gray-50 border-gray-200', icon: 'waiting' as const },
+    processing: { bg: 'bg-indigo-50 border-indigo-200', icon: 'spinning' as const },
+    done: { bg: 'bg-green-50 border-green-200', icon: 'check' as const },
+    error: { bg: 'bg-red-50 border-red-200', icon: 'error' as const },
+    action_needed: { bg: 'bg-amber-50 border-amber-200', icon: 'warning' as const },
+  }
+
+  const config = statusConfig[item.status]
+
+  return (
+    <div className={`rounded-lg border p-3 ${config.bg} transition-all`}>
+      <div className="flex items-start gap-3">
+        {/* Status icon */}
+        <div className="shrink-0 mt-0.5">
+          {config.icon === 'spinning' && (
+            <div className="w-5 h-5 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin" />
+          )}
+          {config.icon === 'waiting' && (
+            <div className="w-5 h-5 border-2 border-gray-300 rounded-full" />
+          )}
+          {config.icon === 'check' && (
+            <svg className="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+          )}
+          {config.icon === 'error' && (
+            <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          )}
+          {config.icon === 'warning' && (
+            <svg className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
             </svg>
-            <div>
-              <p className="text-red-700 font-medium">Scan mislukt</p>
-              <p className="text-red-600 text-sm mt-1">{error}</p>
-            </div>
-          </div>
-          <button onClick={handleNewScan} className="mt-3 text-sm text-red-600 hover:text-red-800 font-medium underline">
-            Opnieuw proberen
-          </button>
+          )}
         </div>
-      )}
 
-      {result && !scanning && (
-        <div className="space-y-4">
-          {/* Herkende label data */}
-          <div className="bg-gray-50 rounded-lg p-4">
-            <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Herkend van label</h4>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <div>
-                <span className="text-xs text-gray-500">Part Nr</span>
-                <p className="font-bold text-gray-900 text-lg">{result.label.item_number || '—'}</p>
-              </div>
-              <div>
-                <span className="text-xs text-gray-500">Aantal</span>
-                <p className="font-bold text-gray-900 text-lg">{result.label.quantity ?? '—'}</p>
-              </div>
-              <div>
-                <span className="text-xs text-gray-500">Omschrijving</span>
-                <p className="font-medium text-gray-700">{result.label.description || '—'}</p>
-              </div>
-            </div>
-            {result.label.serial_numbers.length > 0 && (
-              <div className="mt-2">
-                <span className="text-xs text-gray-500">Serienummers</span>
-                <p className="text-sm text-gray-600 font-mono">
-                  {result.label.serial_numbers.join(', ')}
-                </p>
-              </div>
-            )}
-          </div>
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          {(item.status === 'pending' || item.status === 'processing') && !label && (
+            <p className="text-sm text-gray-600">
+              {item.status === 'pending' ? 'In wachtrij...' : 'Label analyseren...'}
+            </p>
+          )}
 
-          {/* Warning */}
-          {result.warning && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-start gap-2">
-              <svg className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-              </svg>
-              <p className="text-amber-700 text-sm font-medium">{result.warning}</p>
+          {item.status === 'error' && (
+            <p className="text-sm text-red-600 font-medium">{item.error}</p>
+          )}
+
+          {label && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-mono font-bold text-gray-900 text-sm">{label.item_number || '?'}</span>
+              <span className="text-gray-400">&times;</span>
+              <span className="font-bold text-gray-700 text-sm">{label.quantity ?? '?'}</span>
+              {label.description && (
+                <span className="text-xs text-gray-500 truncate max-w-[200px]">{label.description}</span>
+              )}
+              {label.serial_numbers.length > 0 && (
+                <span className="text-xs text-gray-400">({label.serial_numbers.length} AIA nrs)</span>
+              )}
             </div>
           )}
 
-          {/* Matched items */}
-          {result.matches.length > 0 ? (
-            <div>
-              <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                {result.matches.length} item(s) gevonden en geselecteerd
-              </h4>
-              <div className="border border-green-200 rounded-lg overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-green-50">
-                    <tr>
-                      <th className="text-left px-3 py-2 font-semibold text-green-800">Item Nr</th>
-                      <th className="text-left px-3 py-2 font-semibold text-green-800">Omschrijving</th>
-                      <th className="text-right px-3 py-2 font-semibold text-green-800">Aantal</th>
-                      <th className="text-left px-3 py-2 font-semibold text-green-800">Lot</th>
-                      <th className="text-left px-3 py-2 font-semibold text-green-800">Kist</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.matches.map(m => (
-                      <tr key={m.id} className="border-t border-green-100">
-                        <td className="px-3 py-2 font-mono font-bold text-gray-900">{m.item_number}</td>
-                        <td className="px-3 py-2 text-gray-700">{m.beschrijving || '—'}</td>
-                        <td className="px-3 py-2 text-right font-bold text-gray-900">{m.quantity}</td>
-                        <td className="px-3 py-2 text-gray-600 font-mono text-xs">{m.lot_number || '—'}</td>
-                        <td className="px-3 py-2 text-gray-600">{m.kistnummer || '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : result.label.item_number ? (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <svg className="w-5 h-5 text-blue-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <div className="flex-1">
-                  <p className="text-blue-800 font-medium">Niet gevonden in de verzendnota</p>
-                  <p className="text-blue-600 text-sm mt-1">
-                    {result.label.item_number} staat niet in de geüploade lijst.
-                    Wordt toegevoegd aan &quot;Niet in lijst&quot; onderaan de pagina.
-                  </p>
-                  <button
-                    onClick={handleAddFromLabel}
-                    disabled={adding}
-                    className="mt-3 flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-300 transition-colors font-medium text-sm"
-                  >
-                    {adding ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        Toevoegen...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                        </svg>
-                        Toevoegen aan &quot;Niet in lijst&quot;
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-4 text-gray-500">
-              Geen item nummer herkend op het label.
-            </div>
+          {item.autoAction && item.status === 'done' && (
+            <p className="text-xs text-green-600 font-medium mt-0.5">{item.autoAction}</p>
           )}
 
-          {/* Actions */}
-          <div className="flex items-center gap-3 pt-2">
-            <button
-              onClick={handleNewScan}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
-              </svg>
-              Volgende label scannen
-            </button>
-            {result.matches.length > 0 && (
-              <button
-                onClick={onConfirmScanned}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                </svg>
-                Bevestig gescande items
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+          {item.result?.warning && item.status !== 'done' && (
+            <p className="text-xs text-amber-600 mt-0.5">{item.result.warning}</p>
+          )}
 
-      {!scanning && !result && !error && (
-        <div className="flex flex-col items-center py-6 gap-3">
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="flex flex-col items-center gap-3 p-8 border-2 border-dashed border-indigo-300 rounded-xl hover:border-indigo-500 hover:bg-indigo-50 transition-colors cursor-pointer w-full"
-          >
-            <svg className="w-12 h-12 text-indigo-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
-            </svg>
-            <span className="text-indigo-600 font-medium text-lg">Maak een foto van het pallet-label</span>
-            <span className="text-gray-500 text-sm">De camera opent automatisch</span>
-          </button>
+          {item.status === 'action_needed' && label && (
+            <div className="mt-2">
+              {item.result?.matches && item.result.matches.length > 0 ? (
+                <button
+                  onClick={onAddToUnlisted}
+                  className="text-xs px-3 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium"
+                >
+                  Extra pallet &rarr; Niet in lijst
+                </button>
+              ) : (
+                <button
+                  onClick={onAddToUnlisted}
+                  className="text-xs px-3 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium"
+                >
+                  Toevoegen aan Niet in lijst
+                </button>
+              )}
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Thumbnail */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={item.preview} alt="" className="w-10 h-10 rounded object-cover shrink-0 opacity-60" />
+      </div>
     </div>
   )
 }
