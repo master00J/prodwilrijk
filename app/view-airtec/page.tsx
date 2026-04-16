@@ -226,6 +226,7 @@ export default function ViewAirtecPage() {
         onItemsMatched={handleScanMatched}
         onConfirmScanned={handleConfirm}
         onUnlistedAdded={() => setUnlistedRefreshKey(k => k + 1)}
+        onIncomingAdded={fetchItems}
       />
 
       <ViewAirtecFilters

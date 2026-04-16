@@ -41,6 +41,7 @@ interface LabelScannerProps {
   onItemsMatched: (ids: number[]) => void
   onConfirmScanned: () => void
   onUnlistedAdded: () => void
+  onIncomingAdded?: () => void
 }
 
 function normalizeItemNumber(raw: string): string {
@@ -49,7 +50,7 @@ function normalizeItemNumber(raw: string): string {
 
 let queueIdCounter = 0
 
-export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlistedAdded }: LabelScannerProps) {
+export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlistedAdded, onIncomingAdded }: LabelScannerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [queue, setQueue] = useState<QueueItem[]>([])
   const [scanTally, setScanTally] = useState<Record<string, { scanned: number; inList: number }>>({})
@@ -135,10 +136,10 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
     if (fileInputRef.current) fileInputRef.current.value = ''
   }, [])
 
-  const addCoolerToUnlisted = useCallback(async (queueId: string, data: ScanResultData) => {
+  const addCoolerToIncoming = useCallback(async (queueId: string, data: ScanResultData) => {
     try {
       const today = new Date().toISOString().slice(0, 10)
-      await fetch('/api/incoming-goods-airtec/unlisted', {
+      const res = await fetch('/api/incoming-goods-airtec', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -149,10 +150,12 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
           kistnummer: data.kistnummer || null,
           divisie: null,
           quantity: data.label.quantity || 1,
-          opmerking: null,
         }),
       })
-      onUnlistedAdded()
+
+      if (!res.ok) throw new Error('Toevoegen mislukt')
+
+      onIncomingAdded?.()
       setQueue(prev => prev.map(q => q.id === queueId ? {
         ...q,
         status: 'done' as const,
@@ -162,7 +165,7 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
     } catch {
       setQueue(prev => prev.map(q => q.id === queueId ? { ...q, status: 'action_needed', result: data, autoAction: null } : q))
     }
-  }, [onUnlistedAdded])
+  }, [onIncomingAdded])
 
   const processItem = useCallback(async (item: QueueItem) => {
     setQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'processing' as const } : q))
@@ -181,9 +184,9 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
 
       const data: ScanResultData = await res.json()
 
-      // Cooler labels: auto-add to unlisted items
+      // Cooler labels: auto-add to incoming goods (main list)
       if (data.label.label_type === 'cooler' && data.label.item_number) {
-        await addCoolerToUnlisted(item.id, data)
+        await addCoolerToIncoming(item.id, data)
         return
       }
 
@@ -215,7 +218,7 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
     } catch (err: any) {
       setQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'error', error: err.message || 'Scan mislukt' } : q))
     }
-  }, [onItemsMatched, addCoolerToUnlisted])
+  }, [onItemsMatched, addCoolerToIncoming])
 
   useEffect(() => {
     if (processingRef.current) return
