@@ -11,7 +11,8 @@ export const GET = withAuth(async () => {
     .order('kistnummer', { ascending: true })
 
   if (error) {
-    return NextResponse.json({ error: 'Fout bij ophalen stock' }, { status: 500 })
+    console.error('airtec_kisten_stock GET error:', error)
+    return NextResponse.json({ error: `Fout bij ophalen stock: ${error.message}` }, { status: 500 })
   }
 
   const enriched = (data || []).map((row: any) => ({

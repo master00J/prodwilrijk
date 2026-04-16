@@ -87,51 +87,67 @@ Rules:
 }
 
 export const POST = withAuth(async (request) => {
-  if (!ANTHROPIC_API_KEY) {
-    return NextResponse.json({ error: 'AI niet geconfigureerd' }, { status: 500 })
-  }
-
-  const body = await request.json()
-  const { image, mediaType } = body
-
-  if (!image || !mediaType) {
-    return NextResponse.json({ error: 'Afbeelding is verplicht' }, { status: 400 })
-  }
-
-  const cmrItems = await extractCmrWithClaude(image, mediaType)
-
-  // Match CMR items tegen bestaande kisten stock via erp_code
-  const { data: stockRows } = await supabaseAdmin
-    .from('airtec_kisten_stock')
-    .select('id, kistnummer, erp_code, huidige_voorraad')
-
-  const erpToStock = new Map<string, any>()
-  ;(stockRows || []).forEach((row: any) => {
-    if (row.erp_code) erpToStock.set(row.erp_code.toUpperCase().trim(), row)
-  })
-
-  const matched: any[] = []
-  const unmatched: any[] = []
-
-  cmrItems.forEach((item) => {
-    const stockRow = erpToStock.get(item.erp_code.toUpperCase().trim())
-    if (stockRow) {
-      matched.push({
-        erp_code: item.erp_code,
-        kistnummer: stockRow.kistnummer,
-        description: item.description,
-        amount: item.amount,
-        current_stock: stockRow.huidige_voorraad,
-        stock_id: stockRow.id,
-      })
-    } else {
-      unmatched.push({
-        erp_code: item.erp_code,
-        description: item.description,
-        amount: item.amount,
-      })
+  try {
+    if (!ANTHROPIC_API_KEY) {
+      return NextResponse.json({ error: 'AI niet geconfigureerd (ANTHROPIC_API_KEY ontbreekt)' }, { status: 500 })
     }
-  })
 
-  return NextResponse.json({ matched, unmatched })
+    const body = await request.json()
+    const { image, mediaType } = body
+
+    if (!image || !mediaType) {
+      return NextResponse.json({ error: 'Afbeelding is verplicht' }, { status: 400 })
+    }
+
+    let cmrItems: CmrItem[]
+    try {
+      cmrItems = await extractCmrWithClaude(image, mediaType)
+    } catch (err: any) {
+      console.error('CMR scan error:', err)
+      return NextResponse.json({ error: `Scan mislukt: ${err.message || 'onbekende fout'}` }, { status: 500 })
+    }
+
+    // Match CMR items tegen bestaande kisten stock via erp_code
+    const { data: stockRows, error: stockError } = await supabaseAdmin
+      .from('airtec_kisten_stock')
+      .select('id, kistnummer, erp_code, huidige_voorraad')
+
+    if (stockError) {
+      console.error('Stock query error:', stockError)
+      return NextResponse.json({ error: 'Fout bij ophalen stock data. Is de tabel al aangemaakt?' }, { status: 500 })
+    }
+
+    const erpToStock = new Map<string, any>()
+    ;(stockRows || []).forEach((row: any) => {
+      if (row.erp_code) erpToStock.set(row.erp_code.toUpperCase().trim(), row)
+    })
+
+    const matched: any[] = []
+    const unmatched: any[] = []
+
+    cmrItems.forEach((item) => {
+      const stockRow = erpToStock.get(item.erp_code.toUpperCase().trim())
+      if (stockRow) {
+        matched.push({
+          erp_code: item.erp_code,
+          kistnummer: stockRow.kistnummer,
+          description: item.description,
+          amount: item.amount,
+          current_stock: stockRow.huidige_voorraad,
+          stock_id: stockRow.id,
+        })
+      } else {
+        unmatched.push({
+          erp_code: item.erp_code,
+          description: item.description,
+          amount: item.amount,
+        })
+      }
+    })
+
+    return NextResponse.json({ matched, unmatched })
+  } catch (err: any) {
+    console.error('CMR scan unexpected error:', err)
+    return NextResponse.json({ error: err.message || 'Onverwachte fout' }, { status: 500 })
+  }
 })
