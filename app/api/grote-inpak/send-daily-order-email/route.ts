@@ -215,7 +215,7 @@ async function fetchKKistenForExcel(
       else if (statusRaw === 'Leeg' || statusRaw === 'Productie aanmaken') {
         if (tekort === 0 && inProductieAndereLoc > 0) {
           status = location === 'Genk' ? 'In productie Wilrijk' : 'In productie Genk'
-        } else if (inProductie > 0) {
+        } else if (inProductie >= tekortTotaal) {
           status = 'In productie leggen'
         } else {
           status = 'Productie aanmaken en inleggen'
