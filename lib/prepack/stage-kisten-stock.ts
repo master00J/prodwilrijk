@@ -87,9 +87,13 @@ function normalizeFetchedOrderLine(raw: Record<string, unknown>): LineRow {
   const comps = raw.production_order_components
   const production_order_components = Array.isArray(comps) ? comps : comps != null ? [comps] : null
 
+  const itemNum = (raw.item_number as string | null | undefined) ?? null
+  const itemNo = (raw.item_no as string | null | undefined) ?? null
+
   return {
     id: Number(raw.id),
-    item_number: (raw.item_number as string | null) ?? null,
+    /** Zelfde artikelcode als in items_to_pack: vaak in item_no (BC), soms ook in item_number */
+    item_number: itemNum ?? itemNo,
     description: (raw.description as string | null) ?? null,
     description_2: (raw.description_2 as string | null) ?? null,
     production_orders,
@@ -129,11 +133,9 @@ export async function fetchLatestBomLinesByItemNumber(itemNumbers: string[]): Pr
   const BATCH = 80
   for (let i = 0; i < candidates.length; i += BATCH) {
     const batch = candidates.slice(i, i + BATCH)
-    const { data, error } = await supabaseAdmin
-      .from('production_order_lines')
-      .select(
-        `
+    const selectLines = `
         id,
+        item_no,
         item_number,
         description,
         description_2,
@@ -145,15 +147,27 @@ export async function fetchLatestBomLinesByItemNumber(itemNumbers: string[]): Pr
           component_unit
         )
       `
-      )
+
+    const byId = new Map<number, Record<string, unknown>>()
+
+    const { data: byItemNumber, error: err1 } = await supabaseAdmin
+      .from('production_order_lines')
+      .select(selectLines)
       .in('item_number', batch)
 
-    if (error) {
-      console.error('fetchLatestBomLinesByItemNumber:', error)
-      continue
-    }
-    if (data?.length) {
-      allLines.push(...(data as Record<string, unknown>[]).map(normalizeFetchedOrderLine))
+    if (err1) console.error('fetchLatestBomLinesByItemNumber (item_number):', err1)
+    else (byItemNumber || []).forEach((row: any) => byId.set(Number(row.id), row))
+
+    const { data: byItemNo, error: err2 } = await supabaseAdmin
+      .from('production_order_lines')
+      .select(selectLines)
+      .in('item_no', batch)
+
+    if (err2) console.error('fetchLatestBomLinesByItemNumber (item_no):', err2)
+    else (byItemNo || []).forEach((row: any) => byId.set(Number(row.id), row))
+
+    if (byId.size > 0) {
+      allLines.push(...[...byId.values()].map(normalizeFetchedOrderLine))
     }
   }
 
