@@ -129,6 +129,35 @@ export default function UsersManagementPage() {
     }
   }
 
+  const handleResetPassword = async (userId: string, username: string) => {
+    const newPassword = window.prompt(`Nieuw wachtwoord voor "${username}" (min. 6 tekens):`)
+    if (!newPassword) return
+
+    if (newPassword.length < 6) {
+      alert('Wachtwoord moet minimaal 6 tekens zijn')
+      return
+    }
+
+    if (!confirm(`Wachtwoord van "${username}" resetten?`)) return
+
+    try {
+      const response = await fetch('/api/admin/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, newPassword }),
+      })
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        throw new Error(err.error || 'Reset mislukt')
+      }
+
+      alert(`Wachtwoord van "${username}" is gereset.`)
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Reset mislukt')
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -215,6 +244,12 @@ export default function UsersManagementPage() {
                               Verify
                             </button>
                           )}
+                          <button
+                            onClick={() => handleResetPassword(user.id, user.username)}
+                            className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm font-medium"
+                          >
+                            Reset wachtwoord
+                          </button>
                         </div>
                       </td>
                     </tr>
