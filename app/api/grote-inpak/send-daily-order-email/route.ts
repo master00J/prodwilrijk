@@ -176,10 +176,20 @@ async function fetchKKistenForExcel(
       if (kt) { kt = norm(kt); transferByKist.set(kt, (transferByKist.get(kt) || 0) + Number(row.quantity || 0)) }
     })
 
-    const grouped = new Map<string, { case_type: string; total_count: number; oldest_arrival: string | null; has_overdue: boolean }>()
+    // Forecast data ophalen om te detecteren welke PILS cases niet op de forecast stonden
+    const allCaseLabels = (cases || []).map((c: any) => c.case_label).filter(Boolean)
+    const { data: forecastRows } = allCaseLabels.length > 0
+      ? await supabaseAdmin.from('grote_inpak_forecast').select('case_label, case_type, arrival_date').in('case_label', allCaseLabels)
+      : { data: [] as any[] }
+    const forecastByLabel = new Map<string, string>()
+    ;(forecastRows || []).forEach((f: any) => {
+      if (f.case_label) forecastByLabel.set(f.case_label, f.arrival_date || '')
+    })
+
+    const grouped = new Map<string, { case_type: string; total_count: number; oldest_arrival: string | null; has_overdue: boolean; notOnForecast: number; forecastDates: string[] }>()
     ;(cases || []).forEach((c: any) => {
       const kt = norm(c.case_type || '')
-      if (!grouped.has(kt)) grouped.set(kt, { case_type: kt, total_count: 0, oldest_arrival: null, has_overdue: false })
+      if (!grouped.has(kt)) grouped.set(kt, { case_type: kt, total_count: 0, oldest_arrival: null, has_overdue: false, notOnForecast: 0, forecastDates: [] })
       const g = grouped.get(kt)!
       g.total_count++
       if (c.arrival_date) {
@@ -187,6 +197,12 @@ async function fetchKKistenForExcel(
         if (!g.oldest_arrival || d < g.oldest_arrival) g.oldest_arrival = d
       }
       if ((c.dagen_te_laat ?? 0) > 0) g.has_overdue = true
+      if (!forecastByLabel.has(c.case_label)) {
+        g.notOnForecast++
+      } else {
+        const fcDate = forecastByLabel.get(c.case_label)
+        if (fcDate) g.forecastDates.push(fcDate)
+      }
     })
 
     const kRows: any[] = []
@@ -222,6 +238,21 @@ async function fetchKKistenForExcel(
         }
       }
 
+      const infoParts: string[] = []
+      if (data.notOnForecast > 0) {
+        infoParts.push(data.notOnForecast === data.total_count
+          ? 'Niet op Forecast gekomen'
+          : `${data.notOnForecast}x niet op forecast`)
+      }
+      if (data.forecastDates.length > 0) {
+        const sorted = [...data.forecastDates].sort()
+        const earliest = sorted[0]
+        const d = new Date(earliest)
+        if (!isNaN(d.getTime())) {
+          infoParts.push(`Forecast datum ${String(d.getUTCDate()).padStart(2, '0')}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`)
+        }
+      }
+
       kRows.push({
         case_type: caseType,
         productielocatie: location,
@@ -238,6 +269,7 @@ async function fetchKKistenForExcel(
         op_pils: data.total_count,
         tekort,
         status,
+        info: infoParts.join(', ') || '',
         _oldest_arrival: data.oldest_arrival,
         _has_overdue: data.has_overdue,
       })

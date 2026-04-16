@@ -21,7 +21,7 @@ function mapStatusForDisplay(status: string, inProductie: number): string {
 }
 
 const headersC = ['Prioriteit', 'Kisttype', 'Prod.locatie', 'Max voorraad', 'Stock in rek', 'Stock Genk', 'Stock Wilrijk', 'Prod. Genk', 'Prod. Wilrijk', 'Prod. Willebroek', 'In transfer', 'Op PILS', 'Tekort', 'Effectief te produceren', 'Status']
-const headersK = ['Prioriteit', 'Kisttype', 'Prod.locatie', 'Stock Genk', 'Stock Wilrijk', 'Stock Willebroek', 'Prod. Genk', 'Prod. Wilrijk', 'Prod. Willebroek', 'In transfer', 'Op PILS', 'Tekort', 'Effectief te produceren', 'Status']
+const headersK = ['Prioriteit', 'Kisttype', 'Prod.locatie', 'Stock Genk', 'Stock Wilrijk', 'Stock Willebroek', 'Prod. Genk', 'Prod. Wilrijk', 'Prod. Willebroek', 'In transfer', 'Op PILS', 'Tekort', 'Effectief te produceren', 'Status', 'Info']
 
 function addDailyOrderSheet(
   wb: ExcelJS.Workbook,
@@ -38,7 +38,7 @@ function addDailyOrderSheet(
   ws.columns = variant === 'k'
     ? [
         { width: 10 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 13 }, { width: 14 },
-        { width: 11 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 10 }, { width: 10 }, { width: 22 }, { width: 16 },
+        { width: 11 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 10 }, { width: 10 }, { width: 22 }, { width: 16 }, { width: 28 },
       ]
     : [
         { width: 10 }, { width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 13 },
@@ -80,6 +80,7 @@ function addDailyOrderSheet(
       row.stock_genk ?? 0, row.stock_wilrijk ?? 0, row.stock_willebroek ?? row.stock_in_rek ?? 0,
       row.in_productie_genk ?? 0, row.in_productie_wilrijk ?? 0, row.in_productie_willebroek ?? 0,
       row.in_transfer ?? 0, row.op_pils ?? 0, row.tekort, row.tekort, status,
+      row.info || '',
     ]
   }
 
@@ -93,11 +94,13 @@ function addDailyOrderSheet(
     const colEffectief = variant === 'k' ? 13 : 14
     const colStatus = variant === 'k' ? 14 : 15
 
+    const colInfo = variant === 'k' ? 15 : 0
     dRow.eachCell((cell, col) => {
+      const isTextCol = col === 2 || col === 3 || col === colInfo
       cell.style = {
         fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: fgColor } },
         border,
-        alignment: { horizontal: col === 2 || col === 3 ? 'left' : 'center', vertical: 'middle' },
+        alignment: { horizontal: isTextCol ? 'left' : 'center', vertical: 'middle' },
       }
       if (col === colStockGenk && (row.stock_genk ?? 0) > 0) {
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD6E4F0' } }
@@ -122,6 +125,15 @@ function addDailyOrderSheet(
       if (col === colEffectief) {
         const effectief = variant === 'c' ? (row.bestel_aantal ?? row.tekort) : row.tekort
         if (effectief > 0) cell.font = { bold: true, color: { argb: 'FFCC0000' } }
+      }
+      if (col === colInfo && row.info) {
+        const infoStr = String(row.info)
+        if (infoStr.includes('Niet op Forecast') || infoStr.includes('niet op forecast')) {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF2CC' } }
+          cell.font = { bold: true, color: { argb: 'FF996600' } }
+        } else {
+          cell.font = { italic: true, color: { argb: 'FF555555' } }
+        }
       }
     })
   })
