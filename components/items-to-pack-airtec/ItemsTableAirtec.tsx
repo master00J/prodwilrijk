@@ -12,6 +12,7 @@ interface ItemsTableAirtecProps {
   onSort: (column: keyof ItemToPackAirtec) => void
   onRefresh: () => void
   onDelete: (id: number) => void
+  getUrgencyGroup?: (item: ItemToPackAirtec) => number
 }
 
 export default function ItemsTableAirtec({
@@ -24,6 +25,7 @@ export default function ItemsTableAirtec({
   onSort,
   onRefresh,
   onDelete,
+  getUrgencyGroup,
 }: ItemsTableAirtecProps) {
   const allSelected = items.length > 0 && items.every(item => selectedItems.has(item.id))
   const someSelected = items.some(item => selectedItems.has(item.id))
@@ -107,8 +109,15 @@ export default function ItemsTableAirtec({
                 </td>
               </tr>
             ) : (
-              items.map((item) => (
-                <tr key={item.id} className={item.priority ? 'bg-yellow-50 priority-row' : ''}>
+              items.map((item) => {
+                const urgency = getUrgencyGroup ? getUrgencyGroup(item) : 2
+                const rowClass = urgency === 0
+                  ? 'bg-purple-100 border-l-4 border-l-purple-500'
+                  : urgency === 1
+                    ? 'bg-orange-100 border-l-4 border-l-orange-500'
+                    : item.priority ? 'bg-yellow-50 priority-row' : ''
+                return (
+                <tr key={item.id} className={rowClass}>
                   <td className="print-col-hide px-4 py-4">
                     <input
                       type="checkbox"
@@ -145,7 +154,7 @@ export default function ItemsTableAirtec({
                     </button>
                   </td>
                 </tr>
-              ))
+              )})
             )}
           </tbody>
         </table>

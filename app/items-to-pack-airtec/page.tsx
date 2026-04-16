@@ -106,16 +106,38 @@ export default function ItemsToPackAirtecPage() {
     fetchBoxSummary()
   }, [fetchBoxSummary])
 
-  // Sort items (filtering is now done server-side)
-  const sortedItems = useMemo(() => {
-    if (!sortColumn) return items
+  // Determine urgency: date_sent older than 1 business day
+  const getUrgencyGroup = useCallback((item: ItemToPackAirtec): number => {
+    if (!item.datum_opgestuurd) return 2 // no date = normal
+    const sent = new Date(item.datum_opgestuurd)
+    const now = new Date()
+    // Count business days between sent and now
+    let bizDays = 0
+    const d = new Date(sent)
+    d.setDate(d.getDate() + 1) // start counting from day after sent
+    while (d <= now) {
+      const dow = d.getDay()
+      if (dow !== 0 && dow !== 6) bizDays++
+      d.setDate(d.getDate() + 1)
+    }
+    if (bizDays <= 1) return 2 // normal
+    const isCooler = (item.beschrijving || '').toLowerCase().includes('cooler')
+    return isCooler ? 0 : 1 // 0 = urgent cooler (purple), 1 = urgent other (orange)
+  }, [])
 
+  // Sort items: urgent coolers first, then urgent others, then normal + user sort
+  const sortedItems = useMemo(() => {
     const sorted = [...items]
     sorted.sort((a, b) => {
+      const groupA = getUrgencyGroup(a)
+      const groupB = getUrgencyGroup(b)
+      if (groupA !== groupB) return groupA - groupB
+
+      if (!sortColumn) return 0
+
       let aVal: any = a[sortColumn]
       let bVal: any = b[sortColumn]
 
-      // Handle null/undefined values
       if (aVal == null && bVal == null) return 0
       if (aVal == null) return sortDirection === 'asc' ? 1 : -1
       if (bVal == null) return sortDirection === 'asc' ? -1 : 1
@@ -134,7 +156,7 @@ export default function ItemsToPackAirtecPage() {
     })
 
     return sorted
-  }, [items, sortColumn, sortDirection])
+  }, [items, sortColumn, sortDirection, getUrgencyGroup])
 
   const handleSort = (column: keyof ItemToPackAirtec) => {
     if (sortColumn === column) {
@@ -494,6 +516,7 @@ export default function ItemsToPackAirtecPage() {
         onSort={handleSort}
         onRefresh={fetchItems}
         onDelete={handleDelete}
+        getUrgencyGroup={getUrgencyGroup}
       />
 
 
