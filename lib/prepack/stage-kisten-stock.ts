@@ -7,8 +7,25 @@ const normalizeItemNumber = (value: unknown) => {
 
 const hasStage = (text: string) => /\bSTAGE\b/i.test(text)
 
-/** ERP-code uit haakjes aan het einde van een STAGE-regel, bv. "... STAGE 191 (1127380796)" */
-const erpFromStageLine = (line: string) => {
+/**
+ * Kistnummer = cijfer na "STAGE" (zoals op voorraad), bv. "STAGE 193" → "193".
+ * Niet het artikelnummer tussen haakjes.
+ */
+const kistnummerFromStageText = (text: string): string | null => {
+  const m = text.match(/\bSTAGE\s+(\d+)\b/i)
+  return m?.[1]?.trim() ?? null
+}
+
+function kistnummerFromStageBlob(blob: string): string | null {
+  for (const line of blob.split(/\r?\n/)) {
+    const k = kistnummerFromStageText(line)
+    if (k) return k
+  }
+  return kistnummerFromStageText(blob)
+}
+
+/** Fallback: oude patroon met ERP tussen haakjes aan het eind van een STAGE-regel */
+const legacyErpFromStageLine = (line: string) => {
   if (!hasStage(line)) return null
   const m = line.match(/\((\d+)\)\s*$/)
   return m?.[1]?.trim() ?? null
@@ -21,11 +38,11 @@ function stageConsumptionFromComponents(components: any[] | null | undefined, pa
     const blob = `${comp.component_description || ''}\n${comp.component_description_2 || ''}`
     if (!hasStage(blob)) continue
 
-    const itemNo = String(comp.component_item_no || '').trim()
-    let code: string | null = /^\d+$/.test(itemNo) ? itemNo : null
+    let code = kistnummerFromStageBlob(blob)
     if (!code) {
       for (const line of blob.split(/\r?\n/)) {
-        code = erpFromStageLine(line)
+        if (!hasStage(line)) continue
+        code = legacyErpFromStageLine(line)
         if (code) break
       }
     }
@@ -43,7 +60,8 @@ function stageConsumptionFromLineDescription(description: string | null | undefi
   const amt = Math.max(1, Math.round(Number(packedAmount) || 1))
   const blob = `${description || ''}\n${description2 || ''}`
   for (const line of blob.split(/\r?\n/)) {
-    const code = erpFromStageLine(line)
+    if (!hasStage(line)) continue
+    let code = kistnummerFromStageText(line) || legacyErpFromStageLine(line)
     if (!code) continue
     m.set(code, (m.get(code) || 0) + amt)
   }

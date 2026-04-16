@@ -301,8 +301,8 @@ export default function PrepackMonitorPage() {
           <div>
             <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Stagekisten in wachtrij</h2>
             <p className="text-xs text-gray-500 mt-0.5 max-w-2xl">
-              ERP-codes uit productieorder-componenten waar de omschrijving <span className="font-medium">STAGE</span> bevat
-              (zoals in BC Lines / beschrijving met code tussen haakjes). Zelfde logica als bij het afvinken op Items to Pack.
+              Kistnummers uit het cijfer na <span className="font-medium">STAGE</span> in de BOM (bv. STAGE 193 → voorraad kistnummer 193).
+              Haakjes aan het eind van de regel zijn alleen fallback. Zelfde logica als bij het afvinken op Items to Pack.
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
