@@ -145,7 +145,14 @@ export async function POST(request: NextRequest) {
     })
     for (const [kist, qty] of stockUpdates) {
       try {
-        await supabaseAdmin.rpc('decrement_airtec_kisten_stock', { p_kistnummer: kist, p_quantity: qty })
+        const { data: row } = await supabaseAdmin
+          .from('airtec_kisten_stock').select('id, huidige_voorraad').eq('kistnummer', kist).maybeSingle()
+        if (row) {
+          await supabaseAdmin.from('airtec_kisten_stock')
+            .update({ huidige_voorraad: Math.max(0, (row.huidige_voorraad || 0) - qty), updated_at: new Date().toISOString() })
+            .eq('id', row.id)
+          await supabaseAdmin.from('airtec_kisten_stock_log').insert({ kistnummer: kist, change_type: 'consumed', quantity: qty })
+        }
       } catch { /* stock tabel bestaat mogelijk nog niet */ }
     }
 

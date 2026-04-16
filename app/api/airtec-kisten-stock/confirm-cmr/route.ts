@@ -40,6 +40,7 @@ export const POST = withAuth(async (request) => {
           results.push({ kistnummer: kist, success: false, error: updateError.message })
           continue
         }
+        await supabaseAdmin.from('airtec_kisten_stock_log').insert({ kistnummer: kist, change_type: 'delivered', quantity: qty })
         results.push({ kistnummer: kist, success: true, added: qty, new_stock: newStock })
       } else {
         const { error: insertError } = await supabaseAdmin
@@ -56,6 +57,7 @@ export const POST = withAuth(async (request) => {
           results.push({ kistnummer: kist, success: false, error: insertError.message })
           continue
         }
+        await supabaseAdmin.from('airtec_kisten_stock_log').insert({ kistnummer: kist, change_type: 'delivered', quantity: qty })
         results.push({ kistnummer: kist, success: true, added: qty, new_stock: qty })
       }
     }

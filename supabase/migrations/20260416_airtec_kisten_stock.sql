@@ -10,6 +10,18 @@ CREATE TABLE IF NOT EXISTS airtec_kisten_stock (
 
 CREATE INDEX idx_airtec_kisten_stock_erp ON airtec_kisten_stock(erp_code);
 
+-- Verbruik/levering log voor historiek en analyse
+CREATE TABLE IF NOT EXISTS airtec_kisten_stock_log (
+  id BIGSERIAL PRIMARY KEY,
+  kistnummer VARCHAR(50) NOT NULL,
+  change_type VARCHAR(20) NOT NULL CHECK (change_type IN ('consumed', 'delivered', 'manual')),
+  quantity INTEGER NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_airtec_kisten_stock_log_kist ON airtec_kisten_stock_log(kistnummer);
+CREATE INDEX idx_airtec_kisten_stock_log_date ON airtec_kisten_stock_log(created_at);
+
 -- RPC functie voor atomaire stock-afname
 CREATE OR REPLACE FUNCTION decrement_airtec_kisten_stock(p_kistnummer TEXT, p_quantity INTEGER)
 RETURNS VOID AS $$
