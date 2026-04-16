@@ -18,7 +18,6 @@ const PUBLIC_API_ROUTES = [
   '/api/auth/signup',
   '/api/auth/session',
   '/api/auth/create-user-role',
-  '/api/tv-slides',
   '/api/tv-screens',
   '/api/tv-slides/production-status',
   '/api/tv-slides/packing-stats',
@@ -27,6 +26,13 @@ const PUBLIC_API_ROUTES = [
   '/api/tv-slides/weather',
   '/api/tv-slides/dagplanning',
 ]
+
+function isPublicRoute(pathname: string): boolean {
+  if (PUBLIC_API_ROUTES.some(route => pathname.startsWith(route))) return true
+  // /api/tv-slides exact match (GET) or with query params, but NOT /api/tv-slides/upload-image
+  if (pathname === '/api/tv-slides') return true
+  return false
+}
 
 const PUBLIC_PAGES = ['/login', '/signup', '/pending-verification']
 
@@ -90,7 +96,7 @@ export async function middleware(req: NextRequest) {
 
   // --- API route protection ---
   if (pathname.startsWith('/api')) {
-    const isPublic = PUBLIC_API_ROUTES.some(route => pathname.startsWith(route))
+    const isPublic = isPublicRoute(pathname)
 
     // Rate limiting (applied to all API routes, including public)
     const ip = getClientIp(req)
@@ -170,7 +176,9 @@ export async function middleware(req: NextRequest) {
       setCachedStatus(userId, userStatus)
     }
 
-    if (!userStatus.verified) {
+    // Auth routes (/api/auth/*) skip the verified check —
+    // they're part of the auth flow and need to report status to unverified users
+    if (!userStatus.verified && !pathname.startsWith('/api/auth/')) {
       const unverifiedResponse = NextResponse.json(
         { error: 'Account niet geverifieerd' },
         { status: 403 }
