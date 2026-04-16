@@ -55,16 +55,35 @@ function stageConsumptionFromComponents(components: any[] | null | undefined, pa
   return m
 }
 
+/** Items-to-pack-nummer komt in BC-omschrijving voor tussen haakjes, bv. (2204200205) */
+function descriptionContainsPackedItemInBrackets(blob: string, packedItemNumber: string): boolean {
+  const p = String(packedItemNumber || '').trim()
+  if (!p || !blob) return false
+  const inner = p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`\\(${inner}\\)`, 'i').test(blob)
+}
+
 function stageConsumptionFromLineDescription(description: string | null | undefined, description2: string | null | undefined, packedAmount: number) {
   const m = new Map<string, number>()
   const amt = Math.max(1, Math.round(Number(packedAmount) || 1))
   const blob = `${description || ''}\n${description2 || ''}`
-  for (const line of blob.split(/\r?\n/)) {
-    if (!hasStage(line)) continue
-    let code = kistnummerFromStageText(line) || legacyErpFromStageLine(line)
-    if (!code) continue
-    m.set(code, (m.get(code) || 0) + amt)
+
+  const reStage = /\bSTAGE\s+(\d+)\b/gi
+  let match: RegExpExecArray | null
+  while ((match = reStage.exec(blob)) !== null) {
+    const code = match[1]?.trim()
+    if (code) m.set(code, (m.get(code) || 0) + amt)
   }
+
+  if (m.size === 0) {
+    for (const line of blob.split(/\r?\n/)) {
+      if (!hasStage(line)) continue
+      let code = kistnummerFromStageText(line) || legacyErpFromStageLine(line)
+      if (!code) continue
+      m.set(code, (m.get(code) || 0) + amt)
+    }
+  }
+
   return m
 }
 
@@ -72,7 +91,29 @@ function mergeMaps(target: Map<string, number>, add: Map<string, number>) {
   add.forEach((v, k) => target.set(k, (target.get(k) || 0) + v))
 }
 
-export function stageConsumptionForOrderLine(line: any, packedAmount: number): Map<string, number> {
+/**
+ * Bepaalt welke kistnummers (STAGE n → n) af te boeken zijn voor één productieorderregel.
+ *
+ * Als `packedItemNumber` gezet is (van items_to_pack): alleen afboeken als dat nummer
+ * in dezelfde description/description_2 tussen haakjes staat én daar ook STAGE voorkomt —
+ * zoals op de Airtec-kistenvoorraad (kist 193).
+ *
+ * Zonder packedItemNumber: oude gedrag (componenten eerst, dan omschrijving).
+ */
+export function stageConsumptionForOrderLine(
+  line: any,
+  packedAmount: number,
+  packedItemNumber?: string | null
+): Map<string, number> {
+  const pack = packedItemNumber != null ? String(packedItemNumber).trim() : ''
+
+  if (pack) {
+    const blob = `${line.description || ''}\n${line.description_2 || ''}`
+    if (!descriptionContainsPackedItemInBrackets(blob, pack)) return new Map()
+    if (!hasStage(blob)) return new Map()
+    return stageConsumptionFromLineDescription(line.description, line.description_2, packedAmount)
+  }
+
   const fromComp = stageConsumptionFromComponents(line.production_order_components, packedAmount)
   if (fromComp.size > 0) return fromComp
   return stageConsumptionFromLineDescription(line.description, line.description_2, packedAmount)
@@ -307,7 +348,7 @@ export async function consumeStageKistenForPackedPowertoolsItems(
     if (!key) continue
     const line = lineByItem.get(key)
     if (!line) continue
-    const part = stageConsumptionForOrderLine(line, Number(item.amount) || 1)
+    const part = stageConsumptionForOrderLine(line, Number(item.amount) || 1, item.item_number)
     mergeMaps(total, part)
   }
 
@@ -327,7 +368,9 @@ export async function aggregateStageKistenNeedForQueue(
     const key = normalizeItemNumber(raw)
     if (!key) continue
     const line = lineByItem.get(key)
-    const m = line ? stageConsumptionForOrderLine(line, Number(item.amount) || 1) : new Map<string, number>()
+    const m = line
+      ? stageConsumptionForOrderLine(line, Number(item.amount) || 1, item.item_number)
+      : new Map<string, number>()
     const erp_codes = [...m.entries()].map(([code, qty]) => ({ code, qty }))
     m.forEach((v, k) => totals.set(k, (totals.get(k) || 0) + v))
     perItem.push({ item_number: raw, amount: Number(item.amount) || 1, erp_codes })
