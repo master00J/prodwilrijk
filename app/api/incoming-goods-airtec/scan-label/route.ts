@@ -84,12 +84,20 @@ Rules:
   }
 
   const parsed = JSON.parse(jsonMatch[0])
+  let itemNumber: string | null = parsed.item_number || null
+  const labelType = parsed.label_type === 'cooler' ? 'cooler' : parsed.label_type === 'airtec' ? 'airtec' : 'unknown'
+
+  // Cooler labels often have dots as visual separators (e.g. "1621700.301") — strip them
+  if (itemNumber && labelType === 'cooler') {
+    itemNumber = itemNumber.replace(/\./g, '')
+  }
+
   return {
-    item_number: parsed.item_number || null,
+    item_number: itemNumber,
     quantity: parsed.quantity != null ? Number(parsed.quantity) : null,
     description: parsed.description || null,
     serial_numbers: Array.isArray(parsed.serial_numbers) ? parsed.serial_numbers : [],
-    label_type: parsed.label_type === 'cooler' ? 'cooler' : parsed.label_type === 'airtec' ? 'airtec' : 'unknown',
+    label_type: labelType,
   }
 }
 
