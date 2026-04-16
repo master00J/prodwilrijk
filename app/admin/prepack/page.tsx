@@ -301,7 +301,7 @@ export default function PrepackMonitorPage() {
           <div>
             <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Stagekisten in wachtrij</h2>
             <p className="text-xs text-gray-500 mt-0.5 max-w-2xl">
-              Per open lijn: itemnummer moet in de productieorder-<span className="font-medium">omschrijving tussen haakjes</span> staan en in <span className="font-medium">dezelfde tekst</span> moet <span className="font-medium">STAGE</span> staan (bv. STAGE 193 → kist 193). Zelfde regels als bij klaarmelden op Items to Pack.
+              Alleen kolom <span className="font-medium">description</span> op de productieorderregel: het itemnummer moet daar voorkomen (tussen haakjes of als woord) én in diezelfde tekst <span className="font-medium">STAGE</span> (bv. STAGE 193 → kist 193). Zelfde regels als bij klaarmelden op Items to Pack.
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">

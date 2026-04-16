@@ -55,18 +55,20 @@ function stageConsumptionFromComponents(components: any[] | null | undefined, pa
   return m
 }
 
-/** Items-to-pack-nummer komt in BC-omschrijving voor tussen haakjes, bv. (2204200205) */
-function descriptionContainsPackedItemInBrackets(blob: string, packedItemNumber: string): boolean {
+/** Itemnummer staat in description: tussen haakjes en/of als afzonderlijk token */
+function descriptionReferencesPackedItem(desc: string | null | undefined, packedItemNumber: string): boolean {
+  const blob = String(desc || '').trim()
   const p = String(packedItemNumber || '').trim()
-  if (!p || !blob) return false
-  const inner = p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return new RegExp(`\\(${inner}\\)`, 'i').test(blob)
+  if (!blob || !p) return false
+  const esc = p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  if (new RegExp(`\\(${esc}\\)`, 'i').test(blob)) return true
+  return new RegExp(`\\b${esc}\\b`, 'i').test(blob)
 }
 
-function stageConsumptionFromLineDescription(description: string | null | undefined, description2: string | null | undefined, packedAmount: number) {
+function stageConsumptionFromLineDescription(description: string | null | undefined, packedAmount: number) {
   const m = new Map<string, number>()
   const amt = Math.max(1, Math.round(Number(packedAmount) || 1))
-  const blob = `${description || ''}\n${description2 || ''}`
+  const blob = String(description || '').trim()
 
   const reStage = /\bSTAGE\s+(\d+)\b/gi
   let match: RegExpExecArray | null
@@ -94,11 +96,11 @@ function mergeMaps(target: Map<string, number>, add: Map<string, number>) {
 /**
  * Bepaalt welke kistnummers (STAGE n → n) af te boeken zijn voor één productieorderregel.
  *
- * Als `packedItemNumber` gezet is (van items_to_pack): alleen afboeken als dat nummer
- * in dezelfde description/description_2 tussen haakjes staat én daar ook STAGE voorkomt —
- * zoals op de Airtec-kistenvoorraad (kist 193).
+ * Met `packedItemNumber` (items_to_pack): alleen kolom **description** — dat nummer moet
+ * daar voorkomen (haakjes of woordgrens) én **STAGE** met kistnummer in diezelfde tekst;
+ * dan afboeken op Airtec-voorraad (bv. STAGE 193 → kist 193).
  *
- * Zonder packedItemNumber: oude gedrag (componenten eerst, dan omschrijving).
+ * Zonder packedItemNumber: componenten eerst, anders description.
  */
 export function stageConsumptionForOrderLine(
   line: any,
@@ -108,22 +110,21 @@ export function stageConsumptionForOrderLine(
   const pack = packedItemNumber != null ? String(packedItemNumber).trim() : ''
 
   if (pack) {
-    const blob = `${line.description || ''}\n${line.description_2 || ''}`
-    if (!descriptionContainsPackedItemInBrackets(blob, pack)) return new Map()
-    if (!hasStage(blob)) return new Map()
-    return stageConsumptionFromLineDescription(line.description, line.description_2, packedAmount)
+    const desc = line.description as string | null | undefined
+    if (!descriptionReferencesPackedItem(desc, pack)) return new Map()
+    if (!hasStage(String(desc || ''))) return new Map()
+    return stageConsumptionFromLineDescription(desc, packedAmount)
   }
 
   const fromComp = stageConsumptionFromComponents(line.production_order_components, packedAmount)
   if (fromComp.size > 0) return fromComp
-  return stageConsumptionFromLineDescription(line.description, line.description_2, packedAmount)
+  return stageConsumptionFromLineDescription(line.description, packedAmount)
 }
 
 type LineRow = {
   id: number
   item_number: string | null
   description: string | null
-  description_2: string | null
   production_orders: { uploaded_at: string | null } | null
   production_order_components: any[] | null
 }
@@ -154,7 +155,6 @@ function normalizeFetchedOrderLine(raw: Record<string, unknown>): LineRow {
     /** Zelfde artikelcode als in items_to_pack: vaak in item_no (BC), soms ook in item_number */
     item_number: itemNum ?? itemNo,
     description: (raw.description as string | null) ?? null,
-    description_2: (raw.description_2 as string | null) ?? null,
     production_orders,
     production_order_components,
   }
@@ -175,8 +175,7 @@ function extractTrailingBracketItemNo(desc: string | null | undefined): string |
 }
 
 /**
- * Alle lookup-keys voor één orderregel: item_number/item_no + nummer uit haakjes in description.
- * Zo matcht items_to_pack "2204200205" op een regel waar de omschrijving eindigt op "(2204200205)".
+ * Lookup-keys: item_number/item_no + nummer uit haakjes aan einde van **description** alleen.
  */
 function buildLineLookupMap(lines: LineRow[]): Map<string, LineRow> {
   const deduped = new Map<number, LineRow>()
@@ -198,8 +197,6 @@ function buildLineLookupMap(lines: LineRow[]): Map<string, LineRow> {
     consider(line.item_number, line)
     const b1 = extractTrailingBracketItemNo(line.description)
     if (b1) consider(b1, line)
-    const b2 = extractTrailingBracketItemNo(line.description_2)
-    if (b2) consider(b2, line)
   }
 
   return new Map([...best.entries()].map(([k, v]) => [k, v.line]))
@@ -210,7 +207,6 @@ const SELECT_PRODUCTION_LINE = `
         item_no,
         item_number,
         description,
-        description_2,
         production_orders (uploaded_at),
         production_order_components (
           component_item_no,
@@ -231,7 +227,6 @@ async function fetchLinesByBracketInDescription(itemNumbers: string[]): Promise<
     const orParts: string[] = []
     for (const u of chunk) {
       orParts.push(`description.ilike.%(${u})%`)
-      orParts.push(`description_2.ilike.%(${u})%`)
     }
     const { data, error } = await supabaseAdmin
       .from('production_order_lines')
