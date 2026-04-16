@@ -69,6 +69,34 @@ type LineRow = {
   production_order_components: any[] | null
 }
 
+/** Supabase typt geneste many-to-one soms als object, soms als enkel-element-array */
+function normalizeFetchedOrderLine(raw: Record<string, unknown>): LineRow {
+  const po = raw.production_orders as
+    | { uploaded_at?: string | null }
+    | { uploaded_at?: string | null }[]
+    | null
+    | undefined
+
+  let production_orders: { uploaded_at: string | null } | null = null
+  if (Array.isArray(po) && po[0] && typeof po[0] === 'object') {
+    production_orders = { uploaded_at: (po[0] as { uploaded_at?: string | null }).uploaded_at ?? null }
+  } else if (po && typeof po === 'object' && !Array.isArray(po)) {
+    production_orders = { uploaded_at: (po as { uploaded_at?: string | null }).uploaded_at ?? null }
+  }
+
+  const comps = raw.production_order_components
+  const production_order_components = Array.isArray(comps) ? comps : comps != null ? [comps] : null
+
+  return {
+    id: Number(raw.id),
+    item_number: (raw.item_number as string | null) ?? null,
+    description: (raw.description as string | null) ?? null,
+    description_2: (raw.description_2 as string | null) ?? null,
+    production_orders,
+    production_order_components,
+  }
+}
+
 function pickLatestLinePerItem(lines: LineRow[]): Map<string, LineRow> {
   const best = new Map<string, LineRow>()
   for (const line of lines) {
@@ -124,7 +152,9 @@ export async function fetchLatestBomLinesByItemNumber(itemNumbers: string[]): Pr
       console.error('fetchLatestBomLinesByItemNumber:', error)
       continue
     }
-    if (data?.length) allLines.push(...(data as LineRow[]))
+    if (data?.length) {
+      allLines.push(...(data as Record<string, unknown>[]).map(normalizeFetchedOrderLine))
+    }
   }
 
   return pickLatestLinePerItem(allLines)
