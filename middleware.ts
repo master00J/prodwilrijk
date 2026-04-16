@@ -2,18 +2,35 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { checkRateLimit, RATE_LIMITS, type RateLimitConfig } from '@/lib/api/rate-limit'
+import { getCachedStatus, setCachedStatus } from '@/lib/api/user-status-cache'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+
+const ALLOWED_ORIGINS = [
+  'https://prodwilrijk.be',
+  'https://www.prodwilrijk.be',
+  process.env.NEXT_PUBLIC_SITE_URL,
+].filter(Boolean) as string[]
 
 const PUBLIC_API_ROUTES = [
   '/api/auth/login',
   '/api/auth/signup',
   '/api/auth/session',
   '/api/auth/create-user-role',
+  '/api/tv-slides',
+  '/api/tv-screens',
+  '/api/tv-slides/production-status',
+  '/api/tv-slides/packing-stats',
+  '/api/tv-slides/transport-planning',
+  '/api/tv-slides/priorities',
+  '/api/tv-slides/weather',
+  '/api/tv-slides/dagplanning',
 ]
 
 const PUBLIC_PAGES = ['/login', '/signup', '/pending-verification']
+
+// User status cache is in lib/api/user-status-cache.ts (shared with admin routes for invalidation)
 
 function getClientIp(req: NextRequest): string {
   return (
@@ -39,10 +56,24 @@ function getRateLimitConfig(pathname: string): RateLimitConfig {
   return RATE_LIMITS.general
 }
 
+function addCorsHeaders(response: NextResponse, origin: string | null): NextResponse {
+  const isAllowed = !origin || ALLOWED_ORIGINS.some(o => origin.startsWith(o))
+
+  if (origin && isAllowed) {
+    response.headers.set('Access-Control-Allow-Origin', origin)
+  }
+  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  response.headers.set('Access-Control-Allow-Credentials', 'true')
+  response.headers.set('Access-Control-Max-Age', '86400')
+
+  return response
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
+  const origin = req.headers.get('origin')
 
-  // Skip static files and internal Next.js routes
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon') ||
@@ -51,21 +82,24 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS' && pathname.startsWith('/api')) {
+    const preflightResponse = new NextResponse(null, { status: 204 })
+    return addCorsHeaders(preflightResponse, origin)
+  }
+
   // --- API route protection ---
   if (pathname.startsWith('/api')) {
-    // Allow public API routes without auth
-    if (PUBLIC_API_ROUTES.some(route => pathname.startsWith(route))) {
-      return NextResponse.next()
-    }
+    const isPublic = PUBLIC_API_ROUTES.some(route => pathname.startsWith(route))
 
-    // Rate limiting (applied to all API routes)
+    // Rate limiting (applied to all API routes, including public)
     const ip = getClientIp(req)
     const rateLimitConfig = getRateLimitConfig(pathname)
     const rateLimitKey = `${ip}:${pathname.split('/').slice(0, 4).join('/')}`
     const rateResult = checkRateLimit(rateLimitKey, rateLimitConfig)
 
     if (!rateResult.allowed) {
-      return NextResponse.json(
+      const rateLimitResponse = NextResponse.json(
         { error: 'Te veel verzoeken. Probeer het later opnieuw.' },
         {
           status: 429,
@@ -75,6 +109,14 @@ export async function middleware(req: NextRequest) {
           },
         }
       )
+      return addCorsHeaders(rateLimitResponse, origin)
+    }
+
+    // Public routes: allow without auth, still apply rate limiting
+    if (isPublic) {
+      const pubResponse = NextResponse.next()
+      pubResponse.headers.set('X-RateLimit-Remaining', String(rateResult.remaining))
+      return addCorsHeaders(pubResponse, origin)
     }
 
     // Auth check: read HttpOnly cookie or Authorization header
@@ -84,10 +126,11 @@ export async function middleware(req: NextRequest) {
     const token = cookieToken || bearerToken
 
     if (!token) {
-      return NextResponse.json(
+      const noAuthResponse = NextResponse.json(
         { error: 'Niet ingelogd' },
         { status: 401 }
       )
+      return addCorsHeaders(noAuthResponse, origin)
     }
 
     // Validate the token with Supabase
@@ -97,22 +140,55 @@ export async function middleware(req: NextRequest) {
 
     const { data, error } = await supabase.auth.getUser(token)
     if (error || !data.user) {
-      return NextResponse.json(
+      const invalidResponse = NextResponse.json(
         { error: 'Ongeldige of verlopen sessie' },
         { status: 401 }
       )
+      return addCorsHeaders(invalidResponse, origin)
+    }
+
+    // Session invalidation: check verified/role status with cache
+    const userId = data.user.id
+    let userStatus = getCachedStatus(userId)
+
+    if (!userStatus) {
+      const adminClient = createClient(
+        supabaseUrl,
+        process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+        { auth: { autoRefreshToken: false, persistSession: false } }
+      )
+      const { data: roleData } = await adminClient
+        .from('user_roles')
+        .select('verified, role')
+        .eq('user_id', userId)
+        .maybeSingle()
+
+      userStatus = {
+        verified: roleData?.verified === true,
+        role: roleData?.role || 'user',
+      }
+      setCachedStatus(userId, userStatus)
+    }
+
+    if (!userStatus.verified) {
+      const unverifiedResponse = NextResponse.json(
+        { error: 'Account niet geverifieerd' },
+        { status: 403 }
+      )
+      return addCorsHeaders(unverifiedResponse, origin)
     }
 
     // Inject user info into request headers for route handlers
     const response = NextResponse.next()
     response.headers.set('x-user-id', data.user.id)
     response.headers.set('x-user-email', data.user.email || '')
+    response.headers.set('x-user-role', userStatus.role)
     response.headers.set('X-RateLimit-Remaining', String(rateResult.remaining))
 
-    return response
+    return addCorsHeaders(response, origin)
   }
 
-  // --- Page protection (client-side handles redirect, but skip for public pages) ---
+  // --- Page protection ---
   if (PUBLIC_PAGES.some(route => pathname.startsWith(route))) {
     return NextResponse.next()
   }

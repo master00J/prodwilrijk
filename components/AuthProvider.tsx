@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
@@ -23,6 +23,14 @@ const AuthContext = createContext<AuthContextType>({
 
 export const useAuth = () => useContext(AuthContext)
 
+const COOKIE_REFRESH_INTERVAL = 50 * 60 * 1000 // 50 minutes
+
+const PUBLIC_PATHS = ['/login', '/signup', '/pending-verification', '/tv-display']
+
+function isPublicPath(path: string): boolean {
+  return PUBLIC_PATHS.some(p => path.startsWith(p))
+}
+
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
@@ -30,8 +38,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [isVerified, setIsVerified] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
+  const refreshTimerRef = useRef<NodeJS.Timeout | null>(null)
 
-  const syncSessionCookie = async (accessToken: string | null) => {
+  const syncSessionCookie = useCallback(async (accessToken: string | null) => {
     try {
       if (accessToken) {
         await fetch('/api/auth/session', {
@@ -43,114 +52,90 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         await fetch('/api/auth/session', { method: 'DELETE' })
       }
     } catch {
-      // Cookie sync failure is non-critical
+      // Non-critical
     }
-  }
+  }, [])
 
-  const checkAdminStatus = async (userId: string) => {
+  const startCookieRefreshTimer = useCallback(() => {
+    if (refreshTimerRef.current) clearInterval(refreshTimerRef.current)
+    refreshTimerRef.current = setInterval(async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.access_token) {
+        syncSessionCookie(session.access_token)
+      }
+    }, COOKIE_REFRESH_INTERVAL)
+  }, [syncSessionCookie])
+
+  const checkUserStatus = useCallback(async (): Promise<{ isAdmin: boolean; verified: boolean }> => {
     try {
-      const response = await fetch(`/api/auth/check-admin?userId=${encodeURIComponent(userId)}`)
+      const response = await fetch('/api/auth/me')
       if (response.ok) {
         const data = await response.json()
-        setIsAdmin(data.isAdmin || false)
-      } else {
-        setIsAdmin(false)
+        return { isAdmin: data.isAdmin || false, verified: data.verified || false }
       }
-    } catch (error) {
-      console.error('Error checking admin status:', error)
-      setIsAdmin(false)
+    } catch {
+      // Fall through
     }
-  }
-
-  const checkVerificationStatus = async (userId: string) => {
-    try {
-      const response = await fetch(`/api/auth/check-verified?userId=${encodeURIComponent(userId)}`)
-      if (response.ok) {
-        const data = await response.json()
-        setIsVerified(data.verified || false)
-      } else {
-        setIsVerified(false)
-      }
-    } catch (error) {
-      console.error('Error checking verification status:', error)
-      setIsVerified(false)
-    }
-  }
+    return { isAdmin: false, verified: false }
+  }, [])
 
   useEffect(() => {
-    // Get initial session
+    // TV display pages don't need auth
+    if (isPublicPath(pathname)) {
+      setLoading(false)
+      return
+    }
+
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setUser(session?.user ?? null)
-      syncSessionCookie(session?.access_token ?? null)
-      
+
       if (session?.user) {
-        const [adminResult, verifiedResult] = await Promise.all([
-          checkAdminStatus(session.user.id),
-          checkVerificationStatus(session.user.id)
-        ])
-        
-        // Check verification status directly
-        const verifiedResponse = await fetch(`/api/auth/check-verified?userId=${encodeURIComponent(session.user.id)}`)
-        let userVerified = false
-        if (verifiedResponse.ok) {
-          const verifiedData = await verifiedResponse.json()
-          userVerified = verifiedData.verified || false
-        }
-        
-        // If not verified, sign out and redirect
-        if (!userVerified) {
+        await syncSessionCookie(session.access_token)
+
+        const status = await checkUserStatus()
+        setIsAdmin(status.isAdmin)
+        setIsVerified(status.verified)
+
+        if (!status.verified) {
           await supabase.auth.signOut()
+          await syncSessionCookie(null)
           setUser(null)
           setIsAdmin(false)
           setIsVerified(false)
           if (pathname !== '/pending-verification') {
             router.push('/pending-verification')
           }
+          setLoading(false)
           return
         }
+
+        startCookieRefreshTimer()
       } else {
         setIsAdmin(false)
         setIsVerified(false)
       }
-      
+
       setLoading(false)
 
-      // Redirect to login if not authenticated and not on login/signup/pending page
-      if (
-        !session &&
-        !pathname.startsWith('/login') &&
-        !pathname.startsWith('/signup') &&
-        !pathname.startsWith('/pending-verification')
-      ) {
-        const redirectUrl = `/login?redirect=${encodeURIComponent(pathname)}`
-        router.push(redirectUrl)
+      if (!session && !isPublicPath(pathname)) {
+        router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
       }
     })
 
-    // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null)
-      syncSessionCookie(session?.access_token ?? null)
-      
+      await syncSessionCookie(session?.access_token ?? null)
+
       if (session?.user) {
-        await Promise.all([
-          checkAdminStatus(session.user.id),
-          checkVerificationStatus(session.user.id)
-        ])
-        
-        // Check verification status directly
-        const verifiedResponse = await fetch(`/api/auth/check-verified?userId=${encodeURIComponent(session.user.id)}`)
-        let userVerified = false
-        if (verifiedResponse.ok) {
-          const verifiedData = await verifiedResponse.json()
-          userVerified = verifiedData.verified || false
-        }
-        
-        // If not verified, sign out and redirect
-        if (!userVerified) {
+        const status = await checkUserStatus()
+        setIsAdmin(status.isAdmin)
+        setIsVerified(status.verified)
+
+        if (!status.verified) {
           await supabase.auth.signOut()
+          await syncSessionCookie(null)
           setUser(null)
           setIsAdmin(false)
           setIsVerified(false)
@@ -159,52 +144,37 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           }
           return
         }
+
+        startCookieRefreshTimer()
       } else {
         setIsAdmin(false)
         setIsVerified(false)
+        if (refreshTimerRef.current) clearInterval(refreshTimerRef.current)
       }
-      
-      if (
-        !session &&
-        !pathname.startsWith('/login') &&
-        !pathname.startsWith('/signup') &&
-        !pathname.startsWith('/pending-verification')
-      ) {
-        const redirectUrl = `/login?redirect=${encodeURIComponent(pathname)}`
-        router.push(redirectUrl)
+
+      if (!session && !isPublicPath(pathname)) {
+        router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
       } else if (session && (pathname === '/login' || pathname === '/signup')) {
-        // Check verification before redirecting
-        if (session.user) {
-          const verifiedResponse = await fetch(`/api/auth/check-verified?userId=${encodeURIComponent(session.user.id)}`)
-          if (verifiedResponse.ok) {
-            const verifiedData = await verifiedResponse.json()
-            if (!verifiedData.verified) {
-              await supabase.auth.signOut()
-              setUser(null)
-              setIsAdmin(false)
-              setIsVerified(false)
-              router.push('/pending-verification')
-              return
-            }
-          }
-        }
         router.push('/')
       }
     })
 
-    return () => subscription.unsubscribe()
-  }, [router, pathname])
+    return () => {
+      subscription.unsubscribe()
+      if (refreshTimerRef.current) clearInterval(refreshTimerRef.current)
+    }
+  }, [router, pathname, syncSessionCookie, checkUserStatus, startCookieRefreshTimer])
 
   const signOut = async () => {
     await supabase.auth.signOut()
     await syncSessionCookie(null)
+    if (refreshTimerRef.current) clearInterval(refreshTimerRef.current)
     setUser(null)
     setIsAdmin(false)
     router.push('/login')
   }
 
-  // Don't render children if loading and not on login/signup page
-  if (loading && !pathname.startsWith('/login') && !pathname.startsWith('/signup')) {
+  if (loading && !isPublicPath(pathname)) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-xl">Loading...</div>
@@ -218,4 +188,3 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     </AuthContext.Provider>
   )
 }
-

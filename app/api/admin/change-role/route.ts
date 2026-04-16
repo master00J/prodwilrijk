@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { withAdmin } from '@/lib/api/with-auth'
 import { logAudit } from '@/lib/api/audit'
+import { invalidateCachedStatus } from '@/lib/api/user-status-cache'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -47,6 +48,8 @@ export const POST = withAdmin(async (request, user) => {
         { status: 500 }
       )
     }
+
+    invalidateCachedStatus(userId)
 
     logAudit({
       user_id: user.id,
