@@ -17,9 +17,11 @@ interface ScanResultData {
     quantity: number | null
     description: string | null
     serial_numbers: string[]
+    label_type?: 'airtec' | 'cooler' | 'unknown'
   }
   matches: ScanMatch[]
   warning: string | null
+  kistnummer?: string | null
 }
 
 type QueueItemStatus = 'pending' | 'processing' | 'done' | 'error' | 'action_needed'
@@ -133,6 +135,35 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
     if (fileInputRef.current) fileInputRef.current.value = ''
   }, [])
 
+  const addCoolerToUnlisted = useCallback(async (queueId: string, data: ScanResultData) => {
+    try {
+      const today = new Date().toISOString().slice(0, 10)
+      await fetch('/api/incoming-goods-airtec/unlisted', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          beschrijving: 'cooler',
+          item_number: data.label.item_number,
+          lot_number: null,
+          datum_opgestuurd: today,
+          kistnummer: data.kistnummer || null,
+          divisie: null,
+          quantity: data.label.quantity || 1,
+          opmerking: null,
+        }),
+      })
+      onUnlistedAdded()
+      setQueue(prev => prev.map(q => q.id === queueId ? {
+        ...q,
+        status: 'done' as const,
+        result: data,
+        autoAction: `Cooler toegevoegd${data.kistnummer ? ` (kist: ${data.kistnummer})` : ''}`,
+      } : q))
+    } catch {
+      setQueue(prev => prev.map(q => q.id === queueId ? { ...q, status: 'action_needed', result: data, autoAction: null } : q))
+    }
+  }, [onUnlistedAdded])
+
   const processItem = useCallback(async (item: QueueItem) => {
     setQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'processing' as const } : q))
 
@@ -149,6 +180,12 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
       }
 
       const data: ScanResultData = await res.json()
+
+      // Cooler labels: auto-add to unlisted items
+      if (data.label.label_type === 'cooler' && data.label.item_number) {
+        await addCoolerToUnlisted(item.id, data)
+        return
+      }
 
       if (data.matches.length > 0 && data.label.item_number) {
         const key = normalizeItemNumber(data.label.item_number)
@@ -178,7 +215,7 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
     } catch (err: any) {
       setQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'error', error: err.message || 'Scan mislukt' } : q))
     }
-  }, [onItemsMatched])
+  }, [onItemsMatched, addCoolerToUnlisted])
 
   useEffect(() => {
     if (processingRef.current) return
@@ -424,6 +461,9 @@ function ScanCard({ item, onAddToUnlisted }: { item: QueueItem; onAddToUnlisted:
 
           {label && (
             <div className="flex items-center gap-2 flex-wrap">
+              {label.label_type === 'cooler' && (
+                <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">Cooler</span>
+              )}
               <span className="font-mono font-bold text-gray-900 text-sm">{label.item_number || '?'}</span>
               <span className="text-gray-400">&times;</span>
               <span className="font-bold text-gray-700 text-sm">{label.quantity ?? '?'}</span>
