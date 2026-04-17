@@ -9,12 +9,18 @@ import {
 } from 'react'
 import * as XLSX from 'xlsx'
 import type {
+  Aggregation,
+  AggregatedStat,
   CompareMode,
   DailyStat,
   DetailedItem,
   DetailSortColumn,
+  MissingDataStat,
   PersonStats,
+  PrepackTargets,
+  TopItemStat,
   Totals,
+  WeekdayStat,
 } from './types'
 
 const toDateInput = (date: Date) => {
@@ -25,6 +31,51 @@ const toDateInput = (date: Date) => {
 }
 
 const toLocalDate = (value: string) => new Date(`${value}T00:00:00`)
+
+// ISO-week helpers
+function getIsoWeek(date: Date): { year: number; week: number } {
+  const target = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  const dayNum = (target.getUTCDay() + 6) % 7 // ma=0, zo=6
+  target.setUTCDate(target.getUTCDate() - dayNum + 3)
+  const firstThursday = new Date(Date.UTC(target.getUTCFullYear(), 0, 4))
+  const firstThursdayDay = (firstThursday.getUTCDay() + 6) % 7
+  firstThursday.setUTCDate(firstThursday.getUTCDate() - firstThursdayDay + 3)
+  const week = 1 + Math.round((target.getTime() - firstThursday.getTime()) / (7 * 86400000))
+  return { year: target.getUTCFullYear(), week }
+}
+
+function startOfIsoWeek(date: Date): Date {
+  const d = new Date(date)
+  const day = (d.getDay() + 6) % 7 // ma=0
+  d.setDate(d.getDate() - day)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+function endOfIsoWeek(date: Date): Date {
+  const d = startOfIsoWeek(date)
+  d.setDate(d.getDate() + 6)
+  return d
+}
+
+function workingDaysBetween(from: Date, to: Date): number {
+  let count = 0
+  const d = new Date(from)
+  d.setHours(0, 0, 0, 0)
+  const end = new Date(to)
+  end.setHours(0, 0, 0, 0)
+  while (d <= end) {
+    const dow = d.getDay()
+    if (dow !== 0 && dow !== 6) count++
+    d.setDate(d.getDate() + 1)
+  }
+  return count
+}
+
+const WEEKDAY_LABELS = ['Zo', 'Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za']
+const LS_KEY_AGGREGATION = 'prepack.aggregation.v1'
+const LS_KEY_HOURLY = 'prepack.hourlyRate.v1'
+const LS_KEY_TARGETS = 'prepack.targets.v1'
 
 export function usePrepackStats(
   dateFromInputRef: React.RefObject<HTMLInputElement | null>,
@@ -79,6 +130,8 @@ export function usePrepackStats(
     people: false,
     details: false,
     daily: false,
+    topItems: false,
+    weekday: false,
   })
   const [queueStats, setQueueStats] = useState<{
     queueStuks: number
@@ -89,9 +142,66 @@ export function usePrepackStats(
     oldestWorkingDays: number
     avgLeadTimeDays: number | null
     backlogPct: number
+    topCritical?: Array<{
+      id: number
+      item_number: string | null
+      description: string | null
+      amount: number
+      priority: boolean
+      date_added: string
+      workingDaysOld: number
+    }>
   } | null>(null)
   const [queueLoading, setQueueLoading] = useState(false)
   const initialLoadDone = useRef(false)
+  const [aggregation, setAggregation] = useState<Aggregation>('day')
+  const [targets, setTargets] = useState<PrepackTargets>({ dailyItems: null, dailyRevenue: null })
+
+  // Hydrate persisted settings
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const a = window.localStorage.getItem(LS_KEY_AGGREGATION)
+      if (a === 'day' || a === 'week' || a === 'month') setAggregation(a)
+      const t = window.localStorage.getItem(LS_KEY_TARGETS)
+      if (t) {
+        const parsed = JSON.parse(t)
+        setTargets({
+          dailyItems:
+            typeof parsed?.dailyItems === 'number' && Number.isFinite(parsed.dailyItems)
+              ? parsed.dailyItems
+              : null,
+          dailyRevenue:
+            typeof parsed?.dailyRevenue === 'number' && Number.isFinite(parsed.dailyRevenue)
+              ? parsed.dailyRevenue
+              : null,
+        })
+      }
+    } catch {
+      // ignore malformed storage
+    }
+  }, [])
+
+  const updateAggregation = useCallback((next: Aggregation) => {
+    setAggregation(next)
+    try {
+      window.localStorage.setItem(LS_KEY_AGGREGATION, next)
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  const updateTargets = useCallback((patch: Partial<PrepackTargets>) => {
+    setTargets((prev) => {
+      const next = { ...prev, ...patch }
+      try {
+        window.localStorage.setItem(LS_KEY_TARGETS, JSON.stringify(next))
+      } catch {
+        // ignore
+      }
+      return next
+    })
+  }, [])
 
   const fetchStatsData = useCallback(async (range: { from: string; to: string }) => {
     const params = new URLSearchParams({
@@ -277,6 +387,92 @@ export function usePrepackStats(
       void handleRefresh({ from: range.from, to: range.to })
     },
     [getPresetRange, handleRefresh, dateFromInputRef, dateToInputRef]
+  )
+
+  // Compare-presets: primary range + compare range + compareMode (custom)
+  const handleApplyComparePreset = useCallback(
+    (preset:
+      | 'thisWeekVsLastWeek'
+      | 'thisMonthVsLastMonth'
+      | 'thisMonthVsLastYearSameMonth'
+      | 'thisQuarterVsLastQuarter'
+      | 'thisYearVsLastYear') => {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+
+      let primaryFrom: Date
+      let primaryTo: Date
+      let compFrom: Date
+      let compTo: Date
+      let aggHint: Aggregation = aggregation
+
+      if (preset === 'thisWeekVsLastWeek') {
+        primaryFrom = startOfIsoWeek(today)
+        primaryTo = today
+        const prevAnchor = new Date(primaryFrom)
+        prevAnchor.setDate(prevAnchor.getDate() - 1)
+        compFrom = startOfIsoWeek(prevAnchor)
+        compTo = endOfIsoWeek(prevAnchor)
+        aggHint = 'day'
+      } else if (preset === 'thisMonthVsLastMonth') {
+        primaryFrom = new Date(today.getFullYear(), today.getMonth(), 1)
+        primaryTo = today
+        compFrom = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+        compTo = new Date(today.getFullYear(), today.getMonth(), 0)
+        aggHint = 'week'
+      } else if (preset === 'thisMonthVsLastYearSameMonth') {
+        primaryFrom = new Date(today.getFullYear(), today.getMonth(), 1)
+        primaryTo = today
+        compFrom = new Date(today.getFullYear() - 1, today.getMonth(), 1)
+        compTo = new Date(today.getFullYear() - 1, today.getMonth() + 1, 0)
+        aggHint = 'week'
+      } else if (preset === 'thisQuarterVsLastQuarter') {
+        const q = Math.floor(today.getMonth() / 3)
+        primaryFrom = new Date(today.getFullYear(), q * 3, 1)
+        primaryTo = today
+        const startMonth = (q - 1) * 3
+        const year = startMonth < 0 ? today.getFullYear() - 1 : today.getFullYear()
+        const normalized = startMonth < 0 ? 9 : startMonth
+        compFrom = new Date(year, normalized, 1)
+        compTo = new Date(year, normalized + 3, 0)
+        aggHint = 'month'
+      } else {
+        primaryFrom = new Date(today.getFullYear(), 0, 1)
+        primaryTo = today
+        compFrom = new Date(today.getFullYear() - 1, 0, 1)
+        compTo = new Date(today.getFullYear() - 1, 11, 31)
+        aggHint = 'month'
+      }
+
+      const pf = toDateInput(primaryFrom)
+      const pt = toDateInput(primaryTo)
+      const cf = toDateInput(compFrom)
+      const ct = toDateInput(compTo)
+
+      setDateFrom(pf)
+      setDateTo(pt)
+      if (dateFromInputRef.current) dateFromInputRef.current.value = pf
+      if (dateToInputRef.current) dateToInputRef.current.value = pt
+
+      setCompareEnabled(true)
+      setCompareMode('custom')
+      setCompareFrom(cf)
+      setCompareTo(ct)
+      if (compareFromInputRef.current) compareFromInputRef.current.value = cf
+      if (compareToInputRef.current) compareToInputRef.current.value = ct
+
+      updateAggregation(aggHint)
+      void handleRefresh({ from: pf, to: pt })
+    },
+    [
+      aggregation,
+      handleRefresh,
+      updateAggregation,
+      dateFromInputRef,
+      dateToInputRef,
+      compareFromInputRef,
+      compareToInputRef,
+    ]
   )
 
   const fetchQueueStats = useCallback(async () => {
@@ -475,6 +671,238 @@ export function usePrepackStats(
     [formatCurrency]
   )
 
+  // Aggregeert DailyStat[] naar AggregatedStat[] voor week/maand views
+  const aggregateStats = useCallback(
+    (stats: DailyStat[], agg: Aggregation): AggregatedStat[] => {
+      if (agg === 'day') {
+        return stats.map<AggregatedStat>((s) => {
+          const d = toLocalDate(s.date)
+          const dow = d.getDay()
+          const workingDaysInBucket = dow === 0 || dow === 6 ? 0 : 1
+          return {
+            ...s,
+            periodStart: s.date,
+            periodEnd: s.date,
+            periodKey: s.date,
+            periodLabel: d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }),
+            workingDaysInBucket,
+          }
+        })
+      }
+
+      const buckets = new Map<
+        string,
+        { key: string; start: Date; end: Date; label: string; rows: DailyStat[] }
+      >()
+
+      for (const row of stats) {
+        const d = toLocalDate(row.date)
+        let key = ''
+        let start: Date
+        let end: Date
+        let label = ''
+        if (agg === 'week') {
+          const iso = getIsoWeek(d)
+          key = `${iso.year}-W${String(iso.week).padStart(2, '0')}`
+          start = startOfIsoWeek(d)
+          end = endOfIsoWeek(d)
+          label = `W${iso.week} • ${start.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })}`
+        } else {
+          key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+          start = new Date(d.getFullYear(), d.getMonth(), 1)
+          end = new Date(d.getFullYear(), d.getMonth() + 1, 0)
+          label = start.toLocaleDateString('nl-NL', { month: 'short', year: '2-digit' })
+        }
+        const existing = buckets.get(key)
+        if (existing) existing.rows.push(row)
+        else buckets.set(key, { key, start, end, label, rows: [row] })
+      }
+
+      const sortedKeys = Array.from(buckets.keys()).sort()
+      return sortedKeys.map<AggregatedStat>((key) => {
+        const b = buckets.get(key)!
+        const sum = b.rows.reduce(
+          (acc, r) => {
+            acc.itemsPacked += r.itemsPacked || 0
+            acc.manHours += r.manHours || 0
+            acc.revenue += r.revenue || 0
+            acc.materialCost += r.materialCost || 0
+            acc.incomingItems += r.incomingItems || 0
+            acc.fte += r.fte || 0
+            acc.employeeCount = Math.max(acc.employeeCount, r.employeeCount || 0)
+            return acc
+          },
+          {
+            itemsPacked: 0,
+            manHours: 0,
+            revenue: 0,
+            materialCost: 0,
+            incomingItems: 0,
+            fte: 0,
+            employeeCount: 0,
+          }
+        )
+        const itemsPerFte = sum.fte > 0 ? sum.itemsPacked / sum.fte : 0
+        const workingDaysInBucket = workingDaysBetween(b.start, b.end)
+        return {
+          date: toDateInput(b.start),
+          itemsPacked: sum.itemsPacked,
+          manHours: Math.round(sum.manHours * 10) / 10,
+          employeeCount: sum.employeeCount,
+          itemsPerFte: Math.round(itemsPerFte * 10) / 10,
+          revenue: Math.round(sum.revenue * 100) / 100,
+          materialCost: Math.round(sum.materialCost * 100) / 100,
+          incomingItems: sum.incomingItems,
+          fte: Math.round(sum.fte * 100) / 100,
+          periodStart: toDateInput(b.start),
+          periodEnd: toDateInput(b.end),
+          periodKey: b.key,
+          periodLabel: b.label,
+          workingDaysInBucket,
+        }
+      })
+    },
+    []
+  )
+
+  const aggregatedStats = useMemo<AggregatedStat[]>(
+    () => aggregateStats(dailyStats, aggregation),
+    [dailyStats, aggregation, aggregateStats]
+  )
+
+  const aggregatedCompareStats = useMemo<AggregatedStat[]>(
+    () => aggregateStats(compareDailyStats, aggregation),
+    [compareDailyStats, aggregation, aggregateStats]
+  )
+
+  // Trend-deltas: pct% verschillen tov de compare-periode, voor badges op KPIs
+  const trendDeltas = useMemo(() => {
+    const baseTotals = compareMode === 'selectedDays' ? comparePrimaryTotals : totals
+    if (!compareEnabled || !baseTotals || !compareTotals) return null
+    const pct = (current: number, previous: number) =>
+      !previous || !Number.isFinite(previous) ? null : ((current - previous) / previous) * 100
+    const baseDays = baseTotals.totalDays || 1
+    const compDays = compareTotals.totalDays || 1
+    const perDay = (value: number, days: number) => (days > 0 ? value / days : 0)
+    const baseMargin = baseTotals.totalRevenue - baseTotals.totalMaterialCost
+    const compMargin = compareTotals.totalRevenue - compareTotals.totalMaterialCost
+    return {
+      items: pct(baseTotals.totalItemsPacked, compareTotals.totalItemsPacked),
+      incoming: pct(baseTotals.totalIncoming, compareTotals.totalIncoming),
+      manHours: pct(baseTotals.totalManHours, compareTotals.totalManHours),
+      revenue: pct(baseTotals.totalRevenue, compareTotals.totalRevenue),
+      materialCost: pct(baseTotals.totalMaterialCost, compareTotals.totalMaterialCost),
+      margin: pct(baseMargin, compMargin),
+      itemsPerFte: pct(baseTotals.averageItemsPerFte, compareTotals.averageItemsPerFte),
+      itemsPerDay: pct(
+        perDay(baseTotals.totalItemsPacked, baseDays),
+        perDay(compareTotals.totalItemsPacked, compDays)
+      ),
+      revenuePerDay: pct(
+        perDay(baseTotals.totalRevenue, baseDays),
+        perDay(compareTotals.totalRevenue, compDays)
+      ),
+    }
+  }, [totals, compareTotals, compareMode, comparePrimaryTotals, compareEnabled])
+
+  // Top items op omzet en slechtste marge
+  const topItems = useMemo(() => {
+    if (!detailedItems.length) return { byRevenue: [] as TopItemStat[], byMargin: [] as TopItemStat[] }
+    const map = new Map<string, TopItemStat>()
+    for (const it of detailedItems) {
+      const key = it.item_number || '—'
+      const existing = map.get(key)
+      if (existing) {
+        existing.totalAmount += it.amount || 0
+        existing.totalRevenue += it.revenue || 0
+        existing.totalMaterialCost += it.materialCostTotal || 0
+        if (!it.priceFound || it.price <= 0) existing.missingPrice = true
+      } else {
+        map.set(key, {
+          item_number: key,
+          description: it.description ?? null,
+          totalAmount: it.amount || 0,
+          totalRevenue: it.revenue || 0,
+          totalMaterialCost: it.materialCostTotal || 0,
+          grossMargin: 0,
+          marginPct: null,
+          missingPrice: !it.priceFound || it.price <= 0,
+        })
+      }
+    }
+    const arr = Array.from(map.values()).map((row) => {
+      const margin = row.totalRevenue - row.totalMaterialCost
+      const pct = row.totalRevenue > 0 ? (margin / row.totalRevenue) * 100 : null
+      return { ...row, grossMargin: margin, marginPct: pct }
+    })
+    const byRevenue = [...arr].sort((a, b) => b.totalRevenue - a.totalRevenue).slice(0, 10)
+    const byMargin = [...arr]
+      .filter((r) => r.totalRevenue > 0 && !r.missingPrice && r.marginPct !== null)
+      .sort((a, b) => (a.marginPct ?? 0) - (b.marginPct ?? 0))
+      .slice(0, 10)
+    return { byRevenue, byMargin }
+  }, [detailedItems])
+
+  // Weekdag-patroon uit dailyStats
+  const weekdayStats = useMemo<WeekdayStat[]>(() => {
+    if (!dailyStats.length) return []
+    const agg: Record<number, { items: number; hours: number; perFte: number; revenue: number; days: number }> = {}
+    for (const s of dailyStats) {
+      const d = toLocalDate(s.date)
+      const dow = d.getDay()
+      if (dow === 0 || dow === 6) continue // alleen werkdagen
+      if (!agg[dow]) agg[dow] = { items: 0, hours: 0, perFte: 0, revenue: 0, days: 0 }
+      agg[dow].items += s.itemsPacked || 0
+      agg[dow].hours += s.manHours || 0
+      agg[dow].perFte += s.itemsPerFte || 0
+      agg[dow].revenue += s.revenue || 0
+      agg[dow].days += 1
+    }
+    return [1, 2, 3, 4, 5].map<WeekdayStat>((dow) => {
+      const a = agg[dow] ?? { items: 0, hours: 0, perFte: 0, revenue: 0, days: 0 }
+      const d = a.days || 1
+      return {
+        weekdayIndex: dow,
+        label: WEEKDAY_LABELS[dow],
+        avgItemsPacked: a.days ? Math.round(a.items / d) : 0,
+        avgManHours: a.days ? Math.round((a.hours / d) * 10) / 10 : 0,
+        avgItemsPerFte: a.days ? Math.round((a.perFte / d) * 10) / 10 : 0,
+        avgRevenue: a.days ? Math.round(a.revenue / d) : 0,
+        daysCounted: a.days,
+      }
+    })
+  }, [dailyStats])
+
+  // Verloren data (ontbrekende prijzen / materiaalkost)
+  const missingDataStats = useMemo<MissingDataStat>(() => {
+    const totalItemsInPeriod = detailedItems.length
+    let itemsWithoutPrice = 0
+    let itemsWithoutMaterialCost = 0
+    for (const it of detailedItems) {
+      if (!it.priceFound || it.price <= 0) itemsWithoutPrice++
+      if (!it.materialCostTotal || it.materialCostTotal <= 0) itemsWithoutMaterialCost++
+    }
+    let estimatedLostRevenueHint: string | null = null
+    if (itemsWithoutPrice > 0 && totalItemsInPeriod > itemsWithoutPrice) {
+      const withPrice = detailedItems.filter((i) => i.priceFound && i.price > 0)
+      if (withPrice.length > 0) {
+        const avgPrice =
+          withPrice.reduce((s, i) => s + i.price, 0) / withPrice.length
+        const missingAmount = detailedItems
+          .filter((i) => !i.priceFound || i.price <= 0)
+          .reduce((s, i) => s + (i.amount || 0), 0)
+        const estimate = avgPrice * missingAmount
+        estimatedLostRevenueHint = estimate > 0 ? `±€${Math.round(estimate).toLocaleString('nl-NL')}` : null
+      }
+    }
+    return {
+      itemsWithoutPrice,
+      itemsWithoutMaterialCost,
+      totalItemsInPeriod,
+      estimatedLostRevenueHint,
+    }
+  }, [detailedItems])
+
   const handleExportExcel = useCallback(() => {
     if (exporting) return
     setExporting(true)
@@ -583,6 +1011,7 @@ export function usePrepackStats(
     formatSignedCurrency,
     handleRefresh,
     handleApplyPreset,
+    handleApplyComparePreset,
     handleExportExcel,
     openBomDetail,
     closeBomDetail,
@@ -592,5 +1021,15 @@ export function usePrepackStats(
     sortColumn,
     sortDir,
     handleSort,
+    aggregation,
+    updateAggregation,
+    aggregatedStats,
+    aggregatedCompareStats,
+    targets,
+    updateTargets,
+    trendDeltas,
+    topItems,
+    weekdayStats,
+    missingDataStats,
   }
 }
