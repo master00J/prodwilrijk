@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef, ReactNode } from 'react'
+import { useState, useEffect, useMemo, useRef, ReactNode, useCallback } from 'react'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
 import {
@@ -13,6 +13,12 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
+import PeriodCompareCard, { type CompareTotals } from '@/components/admin/shared/PeriodCompareCard'
+import {
+  getComparePreset,
+  getPreviousPeriodRange,
+  type ComparePresetKey,
+} from '@/lib/utils/periodPresets'
 
 interface DailyStat {
   date: string
@@ -71,6 +77,12 @@ export default function AirtecMonitorPage() {
   const [detailsLimited, setDetailsLimited] = useState(false)
   const dateFromInputRef = useRef<HTMLInputElement>(null)
   const dateToInputRef = useRef<HTMLInputElement>(null)
+
+  const [compareEnabled, setCompareEnabled] = useState(false)
+  const [compareFrom, setCompareFrom] = useState('')
+  const [compareTo, setCompareTo] = useState('')
+  const [compareTotals, setCompareTotals] = useState<Totals | null>(null)
+  const [compareLoading, setCompareLoading] = useState(false)
   const [collapsedSections, setCollapsedSections] = useState({
     filters: false,
     chartOutput: false,
@@ -226,6 +238,59 @@ export default function AirtecMonitorPage() {
     }
   }
 
+  const fetchCompareStats = useCallback(async (from: string, to: string) => {
+    if (!from || !to) return
+    setCompareLoading(true)
+    try {
+      const params = new URLSearchParams({
+        date_from: from,
+        date_to: to,
+        include_details: 'false',
+      })
+      const res = await fetch(`/api/admin/airtec-stats?${params}`)
+      if (!res.ok) throw new Error('Vergelijkingsperiode laden mislukt')
+      const data = await res.json()
+      setCompareTotals(data.totals || null)
+    } catch (err) {
+      console.error('compare airtec fetch failed:', err)
+      setCompareTotals(null)
+    } finally {
+      setCompareLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (compareEnabled && compareFrom && compareTo) {
+      fetchCompareStats(compareFrom, compareTo)
+    } else {
+      setCompareTotals(null)
+    }
+  }, [compareEnabled, compareFrom, compareTo, fetchCompareStats])
+
+  const handleApplyComparePreset = useCallback((key: ComparePresetKey) => {
+    const range = getComparePreset(key)
+    setDateFrom(range.primaryFrom)
+    setDateTo(range.primaryTo)
+    if (dateFromInputRef.current) dateFromInputRef.current.value = range.primaryFrom
+    if (dateToInputRef.current) dateToInputRef.current.value = range.primaryTo
+    setCompareEnabled(true)
+    setCompareFrom(range.compareFrom)
+    setCompareTo(range.compareTo)
+    fetchStats({ from: range.primaryFrom, to: range.primaryTo })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const handleEnableCompare = useCallback(() => {
+    setCompareEnabled(true)
+    if (!compareFrom || !compareTo) {
+      const prev = getPreviousPeriodRange(dateFrom, dateTo)
+      if (prev) {
+        setCompareFrom(prev.from)
+        setCompareTo(prev.to)
+      }
+    }
+  }, [compareFrom, compareTo, dateFrom, dateTo])
+
   const handleRefresh = () => {
     const fromValue = dateFromInputRef.current?.value || dateFrom
     const toValue = dateToInputRef.current?.value || dateTo
@@ -301,6 +366,28 @@ export default function AirtecMonitorPage() {
           </span>
         </div>
       </div>
+
+      <PeriodCompareCard
+        title="Periode-analyse & vergelijking (Airtec)"
+        subtitle="Zet twee periodes naast elkaar met één klik, of kies handmatig een eigen vergelijkingsperiode."
+        accent="purple"
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        compareEnabled={compareEnabled}
+        compareFrom={compareFrom}
+        compareTo={compareTo}
+        totals={totals as unknown as CompareTotals | null}
+        compareTotals={compareTotals as unknown as CompareTotals | null}
+        loading={loading || compareLoading}
+        onApplyPreset={handleApplyComparePreset}
+        onEnableCompare={handleEnableCompare}
+        onDisableCompare={() => setCompareEnabled(false)}
+        onChangeCompareRange={(from, to) => {
+          setCompareFrom(from)
+          setCompareTo(to)
+        }}
+        formatCurrency={(v: number) => formatCurrency(v) || '-'}
+      />
 
       <div className="mb-6">
         <CollapsibleCard id="filters" title="Filters & KPI's">

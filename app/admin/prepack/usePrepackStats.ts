@@ -72,6 +72,38 @@ function workingDaysBetween(from: Date, to: Date): number {
   return count
 }
 
+// Telt werkdagen in een periode, inclusief zaterdag/zondag wanneer er op die
+// weekenddagen effectief activiteit was (items gepakt of manuren geboekt).
+// Week loopt zo altijd ma t/m zo, maar lege weekenddagen worden niet meegeteld.
+function activeDaysInBucket(
+  from: Date,
+  to: Date,
+  rows: Array<{ date: string; itemsPacked?: number; manHours?: number }>
+): number {
+  const activeWeekend = new Set<string>()
+  for (const r of rows) {
+    const d = toLocalDate(r.date)
+    const dow = d.getDay()
+    const hasActivity = (r.itemsPacked || 0) > 0 || (r.manHours || 0) > 0
+    if ((dow === 0 || dow === 6) && hasActivity) activeWeekend.add(r.date)
+  }
+  let count = 0
+  const d = new Date(from)
+  d.setHours(0, 0, 0, 0)
+  const end = new Date(to)
+  end.setHours(0, 0, 0, 0)
+  while (d <= end) {
+    const dow = d.getDay()
+    if (dow !== 0 && dow !== 6) {
+      count++
+    } else if (activeWeekend.has(toDateInput(d))) {
+      count++
+    }
+    d.setDate(d.getDate() + 1)
+  }
+  return count
+}
+
 const WEEKDAY_LABELS = ['Zo', 'Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za']
 const LS_KEY_AGGREGATION = 'prepack.aggregation.v1'
 const LS_KEY_HOURLY = 'prepack.hourlyRate.v1'
@@ -715,7 +747,9 @@ export function usePrepackStats(
         return stats.map<AggregatedStat>((s) => {
           const d = toLocalDate(s.date)
           const dow = d.getDay()
-          const workingDaysInBucket = dow === 0 || dow === 6 ? 0 : 1
+          const hasActivity = (s.itemsPacked || 0) > 0 || (s.manHours || 0) > 0
+          // Weekend-dagen tellen als werkdag zodra er effectief gewerkt is
+          const workingDaysInBucket = dow === 0 || dow === 6 ? (hasActivity ? 1 : 0) : 1
           return {
             ...s,
             periodStart: s.date,
@@ -780,7 +814,7 @@ export function usePrepackStats(
           }
         )
         const itemsPerFte = sum.fte > 0 ? sum.itemsPacked / sum.fte : 0
-        const workingDaysInBucket = workingDaysBetween(b.start, b.end)
+        const workingDaysInBucket = activeDaysInBucket(b.start, b.end, b.rows)
         return {
           date: toDateInput(b.start),
           itemsPacked: sum.itemsPacked,

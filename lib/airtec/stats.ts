@@ -377,8 +377,12 @@ export async function fetchAirtecStats({
   const dailyStatsArray: DailyStat[] = Object.values(dailyStats)
     .map((stat) => {
       const expectedHours = getExpectedHoursForDay(stat.date)
+      // Als er in het weekend gewerkt wordt (expectedHours = 0 maar er zijn
+      // manuren), hanteren we een standaard werkdag van 8u als FTE-basis zodat
+      // zaterdag/zondag-werk correct wordt meegerekend in FTE en items/FTE.
+      const fteBasis = expectedHours > 0 ? expectedHours : stat.manHours > 0 ? 8 : 0
       const fte =
-        expectedHours > 0 ? Number((stat.manHours / expectedHours).toFixed(2)) : 0
+        fteBasis > 0 ? Number((stat.manHours / fteBasis).toFixed(2)) : 0
       const itemsPerFte =
         fte > 0 ? Number((stat.itemsPacked / fte).toFixed(2)) : 0
       return {

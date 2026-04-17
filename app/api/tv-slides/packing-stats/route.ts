@@ -124,25 +124,26 @@ export async function GET(request: NextRequest) {
 
     const now = new Date()
     const dayOfWeek = now.getDay()
+    // Week loopt van maandag t/m zondag (zodat zaterdagwerk meegerekend wordt)
     const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
 
     const thisMonday = new Date(now)
     thisMonday.setDate(now.getDate() + mondayOffset)
-    const thisFriday = new Date(thisMonday)
-    thisFriday.setDate(thisMonday.getDate() + 4)
+    const thisSunday = new Date(thisMonday)
+    thisSunday.setDate(thisMonday.getDate() + 6)
 
     const prevMonday = new Date(thisMonday)
     prevMonday.setDate(thisMonday.getDate() - 7)
-    const prevFriday = new Date(prevMonday)
-    prevFriday.setDate(prevMonday.getDate() + 4)
+    const prevSunday = new Date(prevMonday)
+    prevSunday.setDate(prevMonday.getDate() + 6)
 
     const fmt = (d: Date) => d.toISOString().split('T')[0]
 
     const [prevPrepack, prevAirtec, thisPrepack, thisAirtec] = await Promise.all([
-      fetchPrepackStats({ dateFrom: fmt(prevMonday), dateTo: fmt(prevFriday), includeDetails: false }),
-      fetchAirtecStats({ dateFrom: fmt(prevMonday), dateTo: fmt(prevFriday), includeDetails: false }),
-      fetchPrepackStats({ dateFrom: fmt(thisMonday), dateTo: fmt(thisFriday), includeDetails: false }),
-      fetchAirtecStats({ dateFrom: fmt(thisMonday), dateTo: fmt(thisFriday), includeDetails: false }),
+      fetchPrepackStats({ dateFrom: fmt(prevMonday), dateTo: fmt(prevSunday), includeDetails: false }),
+      fetchAirtecStats({ dateFrom: fmt(prevMonday), dateTo: fmt(prevSunday), includeDetails: false }),
+      fetchPrepackStats({ dateFrom: fmt(thisMonday), dateTo: fmt(thisSunday), includeDetails: false }),
+      fetchAirtecStats({ dateFrom: fmt(thisMonday), dateTo: fmt(thisSunday), includeDetails: false }),
     ])
 
     const buildWeekTotals = (pp: typeof prepack, at: typeof airtec) => ({
@@ -222,13 +223,13 @@ export async function GET(request: NextRequest) {
       },
       thisWeek: {
         dateFrom: fmt(thisMonday),
-        dateTo: fmt(thisFriday),
+        dateTo: fmt(thisSunday),
         totals: thisWeekTotals,
         daily: buildWeekDaily(thisPrepack, thisAirtec),
       },
       prevWeek: {
         dateFrom: fmt(prevMonday),
-        dateTo: fmt(prevFriday),
+        dateTo: fmt(prevSunday),
         totals: prevWeekTotals,
         daily: buildWeekDaily(prevPrepack, prevAirtec),
       },

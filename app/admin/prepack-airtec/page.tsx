@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
   CartesianGrid,
@@ -15,6 +15,12 @@ import {
   YAxis,
   Bar,
 } from 'recharts'
+import PeriodCompareCard, { type CompareTotals } from '@/components/admin/shared/PeriodCompareCard'
+import {
+  getComparePreset,
+  getPreviousPeriodRange,
+  type ComparePresetKey,
+} from '@/lib/utils/periodPresets'
 
 interface PrepackDailyStat {
   date: string
@@ -101,6 +107,13 @@ export default function PrepackAirtecOverviewPage() {
   const [airtecTotals, setAirtecTotals] = useState<AirtecTotals | null>(null)
   const [airtecDetails, setAirtecDetails] = useState<AirtecDetail[]>([])
 
+  const [compareEnabled, setCompareEnabled] = useState(false)
+  const [compareFrom, setCompareFrom] = useState('')
+  const [compareTo, setCompareTo] = useState('')
+  const [comparePrepackTotals, setComparePrepackTotals] = useState<PrepackTotals | null>(null)
+  const [compareAirtecTotals, setCompareAirtecTotals] = useState<AirtecTotals | null>(null)
+  const [compareLoading, setCompareLoading] = useState(false)
+
   useEffect(() => {
     const today = new Date()
     const lastWeek = new Date(today)
@@ -160,6 +173,99 @@ export default function PrepackAirtecOverviewPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateFrom, dateTo])
+
+  const fetchCompareStats = useCallback(async (from: string, to: string) => {
+    if (!from || !to) return
+    setCompareLoading(true)
+    try {
+      const params = new URLSearchParams({ date_from: from, date_to: to, include_details: 'false' })
+      const [prepackRes, airtecRes] = await Promise.all([
+        fetch(`/api/admin/prepack-stats?${params}`),
+        fetch(`/api/admin/airtec-stats?${params}`),
+      ])
+      if (!prepackRes.ok || !airtecRes.ok) throw new Error('Vergelijkingsperiode laden mislukt')
+      const [prepackData, airtecData] = await Promise.all([prepackRes.json(), airtecRes.json()])
+      setComparePrepackTotals(prepackData.totals || null)
+      setCompareAirtecTotals(airtecData.totals || null)
+    } catch (err) {
+      console.error('compare combined fetch failed:', err)
+      setComparePrepackTotals(null)
+      setCompareAirtecTotals(null)
+    } finally {
+      setCompareLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (compareEnabled && compareFrom && compareTo) {
+      fetchCompareStats(compareFrom, compareTo)
+    } else {
+      setComparePrepackTotals(null)
+      setCompareAirtecTotals(null)
+    }
+  }, [compareEnabled, compareFrom, compareTo, fetchCompareStats])
+
+  const handleApplyComparePreset = useCallback((key: ComparePresetKey) => {
+    const range = getComparePreset(key)
+    setDateFrom(range.primaryFrom)
+    setDateTo(range.primaryTo)
+    setCompareEnabled(true)
+    setCompareFrom(range.compareFrom)
+    setCompareTo(range.compareTo)
+  }, [])
+
+  const handleEnableCompare = useCallback(() => {
+    setCompareEnabled(true)
+    if (!compareFrom || !compareTo) {
+      const prev = getPreviousPeriodRange(dateFrom, dateTo)
+      if (prev) {
+        setCompareFrom(prev.from)
+        setCompareTo(prev.to)
+      }
+    }
+  }, [compareFrom, compareTo, dateFrom, dateTo])
+
+  // Gecombineerde totalen (prepack + airtec) voor vergelijking
+  const buildCombinedTotals = (
+    pp: PrepackTotals | null,
+    at: AirtecTotals | null
+  ): CompareTotals | null => {
+    if (!pp && !at) return null
+    const ppI = pp?.totalItemsPacked ?? 0
+    const atI = at?.totalItemsPacked ?? 0
+    const ppH = pp?.totalManHours ?? 0
+    const atH = at?.totalManHours ?? 0
+    const totalItems = ppI + atI
+    const totalHours = ppH + atH
+    const totalRevenue = (pp?.totalRevenue ?? 0) + (at?.totalRevenue ?? 0)
+    const totalMaterial = (pp?.totalMaterialCost ?? 0) + (at?.totalMaterialCost ?? 0)
+    const totalIncoming = (pp?.totalIncoming ?? 0) + (at?.totalIncoming ?? 0)
+    const totalDays = Math.max(pp?.totalDays ?? 0, at?.totalDays ?? 0)
+    const totalFte = (pp?.totalFte ?? 0) + (at?.totalFte ?? 0)
+    const averageItemsPerFte = totalFte > 0 ? totalItems / totalFte : 0
+    const weightedLead =
+      (pp?.avgLeadTimeHours ?? 0) * ppI + (at?.avgLeadTimeHours ?? 0) * atI
+    const avgLeadTimeHours = totalItems > 0 ? weightedLead / totalItems : null
+    return {
+      totalItemsPacked: totalItems,
+      totalManHours: totalHours,
+      averageItemsPerFte,
+      totalDays,
+      totalRevenue,
+      totalMaterialCost: totalMaterial,
+      totalIncoming,
+      avgLeadTimeHours,
+    }
+  }
+
+  const combinedTotals = useMemo(
+    () => buildCombinedTotals(prepackTotals, airtecTotals),
+    [prepackTotals, airtecTotals]
+  )
+  const combinedCompareTotals = useMemo(
+    () => buildCombinedTotals(comparePrepackTotals, compareAirtecTotals),
+    [comparePrepackTotals, compareAirtecTotals]
+  )
 
   const prepackSummary = useMemo(() => {
     if (!prepackTotals) return null
@@ -316,6 +422,63 @@ export default function PrepackAirtecOverviewPage() {
         </div>
         {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
       </div>
+
+      <PeriodCompareCard
+        title="Periode-analyse & vergelijking (Prepack + Airtec)"
+        subtitle="Vergelijk de gecombineerde output en omzet van beide teams tussen twee periodes."
+        accent="emerald"
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        compareEnabled={compareEnabled}
+        compareFrom={compareFrom}
+        compareTo={compareTo}
+        totals={combinedTotals}
+        compareTotals={combinedCompareTotals}
+        loading={loading || compareLoading}
+        onApplyPreset={handleApplyComparePreset}
+        onEnableCompare={handleEnableCompare}
+        onDisableCompare={() => setCompareEnabled(false)}
+        onChangeCompareRange={(from, to) => {
+          setCompareFrom(from)
+          setCompareTo(to)
+        }}
+        formatCurrency={(v: number) => formatCurrency(v) || '-'}
+      />
+
+      {compareEnabled && (comparePrepackTotals || compareAirtecTotals) && (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+          <PeriodCompareCard
+            title="Prepack vergelijking"
+            subtitle="Alleen Prepack-cijfers"
+            accent="indigo"
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            compareEnabled={compareEnabled}
+            compareFrom={compareFrom}
+            compareTo={compareTo}
+            totals={prepackTotals as unknown as CompareTotals | null}
+            compareTotals={comparePrepackTotals as unknown as CompareTotals | null}
+            loading={loading || compareLoading}
+            onApplyPreset={handleApplyComparePreset}
+            formatCurrency={(v: number) => formatCurrency(v) || '-'}
+          />
+          <PeriodCompareCard
+            title="Airtec vergelijking"
+            subtitle="Alleen Airtec-cijfers"
+            accent="purple"
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            compareEnabled={compareEnabled}
+            compareFrom={compareFrom}
+            compareTo={compareTo}
+            totals={airtecTotals as unknown as CompareTotals | null}
+            compareTotals={compareAirtecTotals as unknown as CompareTotals | null}
+            loading={loading || compareLoading}
+            onApplyPreset={handleApplyComparePreset}
+            formatCurrency={(v: number) => formatCurrency(v) || '-'}
+          />
+        </div>
+      )}
 
       {combinedSummary && (
         <div className="bg-white rounded-lg shadow p-6 mb-6">
