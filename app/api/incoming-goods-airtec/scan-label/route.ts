@@ -56,13 +56,23 @@ Return ONLY valid JSON:
   "serial_numbers": ["array of AIA serial numbers if visible, empty array otherwise"]
 }
 
-Rules:
-- For cooler labels: item_number is the number on the label (e.g. "1621700.301"), quantity from AANTAL
-- For airtec labels: item_number from PART NR, quantity from QUANTITY, description from DESCR
-- Keep original formatting of item_number as shown on label
-- quantity must be an integer
-- If a field is not readable, use null
-- Return ONLY the JSON object`,
+CRITICAL rules for item_number on Atlas Copco / airtec labels:
+- item_number MUST come from the field labeled "PART NR" (or "PART NO", "PARTNR"), printed with its own barcode.
+  On Atlas Copco labels this is a 10-digit number usually shown with spaces, e.g. "1616 7472 81".
+  Always return it WITHOUT spaces (e.g. "1616747281").
+- NEVER use values from fields labeled "NO-LINE NO", "LINE NO", "SALES ORDER", "ORDER NO", "DELIVERY NOTICE",
+  "PO", "PO LINE", "SERIAL" or "AIA". Those are order / line / serial numbers, NOT the item number.
+  Typical wrong formats to AVOID as item_number: "393603-001", "PO-LINE-…", "AIA…", anything that contains a hyphen
+  followed by a short numeric suffix (like "-001", "-002"). If the only candidate you see looks like that, return null.
+- Keep original digits/letters exactly as on the label; only strip spaces.
+
+Rules for cooler labels:
+- item_number is the number on the label (e.g. "1621700.301"), quantity from AANTAL.
+
+General:
+- quantity must be an integer.
+- If a field is not readable or rules forbid the only visible candidate, use null.
+- Return ONLY the JSON object.`,
             },
           ],
         },
@@ -87,9 +97,18 @@ Rules:
   let itemNumber: string | null = parsed.item_number || null
   const labelType = parsed.label_type === 'cooler' ? 'cooler' : parsed.label_type === 'airtec' ? 'airtec' : 'unknown'
 
-  // Cooler labels often have dots as visual separators (e.g. "1621700.301") — strip them
   if (itemNumber && labelType === 'cooler') {
     itemNumber = itemNumber.replace(/\./g, '')
+  }
+
+  // Veiligheidscheck: Atlas Copco labels hebben vaak een "NO-LINE NO" (formaat 6 cijfers-3 cijfers,
+  // bv. 393603-001) die geen echt itemnummer is. Weiger dat expliciet voor airtec-labels.
+  if (itemNumber && labelType === 'airtec') {
+    const trimmed = itemNumber.trim()
+    const looksLikeOrderLine = /^\d{4,8}-\d{1,4}$/.test(trimmed)
+    if (looksLikeOrderLine) {
+      itemNumber = null
+    }
   }
 
   return {
