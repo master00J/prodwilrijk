@@ -843,14 +843,21 @@ export function usePrepackStats(
     return { byRevenue, byMargin }
   }, [detailedItems])
 
-  // Weekdag-patroon uit dailyStats
+  // Weekdag-patroon uit dailyStats.
+  // We tonen alle weekdagen met data (inclusief zaterdag/zondag indien er
+  // effectief gewerkt is in het weekend). Dagen zonder data worden niet
+  // getoond om ruis te vermijden.
   const weekdayStats = useMemo<WeekdayStat[]>(() => {
     if (!dailyStats.length) return []
     const agg: Record<number, { items: number; hours: number; perFte: number; revenue: number; days: number }> = {}
     for (const s of dailyStats) {
       const d = toLocalDate(s.date)
       const dow = d.getDay()
-      if (dow === 0 || dow === 6) continue // alleen werkdagen
+      const hasActivity =
+        (s.itemsPacked || 0) > 0 || (s.manHours || 0) > 0 || (s.revenue || 0) > 0
+      // Sla lege weekenddagen over; werkdagen altijd meetellen zodat rustige
+      // ma-vr ook zichtbaar blijven als zwak patroon.
+      if ((dow === 0 || dow === 6) && !hasActivity) continue
       if (!agg[dow]) agg[dow] = { items: 0, hours: 0, perFte: 0, revenue: 0, days: 0 }
       agg[dow].items += s.itemsPacked || 0
       agg[dow].hours += s.manHours || 0
@@ -858,19 +865,23 @@ export function usePrepackStats(
       agg[dow].revenue += s.revenue || 0
       agg[dow].days += 1
     }
-    return [1, 2, 3, 4, 5].map<WeekdayStat>((dow) => {
-      const a = agg[dow] ?? { items: 0, hours: 0, perFte: 0, revenue: 0, days: 0 }
-      const d = a.days || 1
-      return {
-        weekdayIndex: dow,
-        label: WEEKDAY_LABELS[dow],
-        avgItemsPacked: a.days ? Math.round(a.items / d) : 0,
-        avgManHours: a.days ? Math.round((a.hours / d) * 10) / 10 : 0,
-        avgItemsPerFte: a.days ? Math.round((a.perFte / d) * 10) / 10 : 0,
-        avgRevenue: a.days ? Math.round(a.revenue / d) : 0,
-        daysCounted: a.days,
-      }
-    })
+    // Volgorde: ma, di, wo, do, vr, za, zo (alleen buckets die bestaan)
+    const order = [1, 2, 3, 4, 5, 6, 0]
+    return order
+      .filter((dow) => agg[dow])
+      .map<WeekdayStat>((dow) => {
+        const a = agg[dow]
+        const d = a.days || 1
+        return {
+          weekdayIndex: dow,
+          label: WEEKDAY_LABELS[dow],
+          avgItemsPacked: Math.round(a.items / d),
+          avgManHours: Math.round((a.hours / d) * 10) / 10,
+          avgItemsPerFte: Math.round((a.perFte / d) * 10) / 10,
+          avgRevenue: Math.round(a.revenue / d),
+          daysCounted: a.days,
+        }
+      })
   }, [dailyStats])
 
   // Verloren data (ontbrekende prijzen / materiaalkost)
