@@ -184,7 +184,6 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
 
       const data: ScanResultData = await res.json()
 
-      // Cooler labels: auto-add to incoming goods (main list)
       if (data.label.label_type === 'cooler' && data.label.item_number) {
         await addCoolerToIncoming(item.id, data)
         return

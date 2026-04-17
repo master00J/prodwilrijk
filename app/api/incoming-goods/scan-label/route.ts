@@ -47,7 +47,7 @@ async function extractLabelWithClaude(base64Image: string, mediaType: string): P
               text: `Analyze this shipping/pallet label. Extract the following fields and return ONLY valid JSON, no other text:
 
 {
-  "item_number": "the PART NO (P) value (large bold number, e.g. 1503 9013 80)",
+  "item_number": "the PART NO (P) value without any spaces (e.g. 150390138 0 becomes 1503901380)",
   "quantity": numeric quantity (the QUANTITY (Q) field),
   "description": "the DESCRIPTION field at the bottom of the label",
   "po_line": "the P.O.NO-LINE (K) or O.NO-LINE (K) value (e.g. 487527-001 or 451329516430)",
@@ -59,7 +59,7 @@ async function extractLabelWithClaude(base64Image: string, mediaType: string): P
 }
 
 Rules:
-- For item_number: keep original spacing/formatting as shown on label
+- For item_number: remove ALL spaces, hyphens and dots — concatenate all digits/letters into one continuous string
 - For quantity: return as integer number
 - For po_line: this is sometimes labeled as P.O.NO-LINE, O.NO-LINE, or Purchase Order
 - For delivery_notice: values like "0" should be returned as "0", D-numbers like "D006906" kept as-is
@@ -89,7 +89,7 @@ Rules:
 
   const parsed = JSON.parse(jsonMatch[0])
   return {
-    item_number: parsed.item_number || null,
+    item_number: parsed.item_number ? parsed.item_number.replace(/[\s\-\.]/g, '') : null,
     quantity: parsed.quantity != null ? Number(parsed.quantity) : null,
     description: parsed.description || null,
     po_line: parsed.po_line || null,

@@ -44,22 +44,22 @@ async function extractLabelWithClaude(base64Image: string, mediaType: string): P
               text: `Analyze this shipping/pallet label. It can be one of two types:
 
 TYPE 1 - Atlas Copco Airtec label (has fields like PART NR, DESCR, QUANTITY, AIA serial numbers)
-TYPE 2 - Foresco cooler label (simple label with "FORESCO", a part number like "1621700.301", and "AANTAL: X")
+TYPE 2 - Foresco cooler label (simple label with "FORESCO", a part number like "1621700301", and "AANTAL: X")
 
 Return ONLY valid JSON:
 
 {
   "label_type": "airtec" or "cooler" or "unknown",
-  "item_number": "the part number / item number",
+  "item_number": "the part number / item number without any spaces (e.g. 1616657593)",
   "quantity": numeric quantity (from QUANTITY or AANTAL field),
   "description": "the description if visible (DESCR field for airtec, null for cooler)",
   "serial_numbers": ["array of AIA serial numbers if visible, empty array otherwise"]
 }
 
 Rules:
-- For cooler labels: item_number is the number on the label (e.g. "1621700.301"), quantity from AANTAL
+- For cooler labels: item_number is the number on the label (e.g. "1621700301"), quantity from AANTAL
 - For airtec labels: item_number from PART NR, quantity from QUANTITY, description from DESCR
-- Keep original formatting of item_number as shown on label
+- For item_number: remove ALL spaces, hyphens and dots — concatenate all digits/letters into one continuous string
 - quantity must be an integer
 - If a field is not readable, use null
 - Return ONLY the JSON object`,
@@ -84,16 +84,10 @@ Rules:
   }
 
   const parsed = JSON.parse(jsonMatch[0])
-  let itemNumber: string | null = parsed.item_number || null
   const labelType = parsed.label_type === 'cooler' ? 'cooler' : parsed.label_type === 'airtec' ? 'airtec' : 'unknown'
 
-  // Cooler labels often have dots as visual separators (e.g. "1621700.301") — strip them
-  if (itemNumber && labelType === 'cooler') {
-    itemNumber = itemNumber.replace(/\./g, '')
-  }
-
   return {
-    item_number: itemNumber,
+    item_number: parsed.item_number ? parsed.item_number.replace(/[\s\-\.]/g, '') : null,
     quantity: parsed.quantity != null ? Number(parsed.quantity) : null,
     description: parsed.description || null,
     serial_numbers: Array.isArray(parsed.serial_numbers) ? parsed.serial_numbers : [],
