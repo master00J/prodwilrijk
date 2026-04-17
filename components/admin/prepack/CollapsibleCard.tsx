@@ -12,6 +12,8 @@ export type SectionKey =
   | 'people'
   | 'details'
   | 'daily'
+  | 'topItems'
+  | 'weekday'
 
 type Props = {
   id: SectionKey
