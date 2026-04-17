@@ -3,10 +3,12 @@ import './globals.css'
 import Navbar from '@/components/Navbar'
 import AuthProvider from '@/components/AuthProvider'
 import NewFeaturePopup from '@/components/NewFeaturePopup'
+import ServiceWorkerRegister from '@/components/ServiceWorkerRegister'
 
 export const metadata: Metadata = {
   title: 'Prodwilrijk V2',
   description: 'Modern warehouse management system',
+  manifest: '/manifest.json',
 }
 
 export const viewport: Viewport = {
@@ -26,6 +28,7 @@ export default function RootLayout({
         <AuthProvider>
           <Navbar />
           <NewFeaturePopup />
+          <ServiceWorkerRegister />
           {children}
         </AuthProvider>
       </body>

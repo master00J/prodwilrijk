@@ -1,35 +1,32 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { WoodStock } from '@/types/database'
+import { useWoodOfflineSync } from '@/lib/offline/useWoodOfflineSync'
+import { enqueueOutbox } from '@/lib/offline/woodOfflineDb'
+import OfflineStatusBanner from '@/components/offline/OfflineStatusBanner'
+
+async function fetchStockFromServer(): Promise<WoodStock[]> {
+  const response = await fetch('/api/wood/stock', { cache: 'no-store' })
+  if (!response.ok) throw new Error('Failed to fetch stock')
+  return response.json()
+}
 
 export default function WoodPickingPage() {
-  const [stock, setStock] = useState<WoodStock[]>([])
-  const [pickedItems, setPickedItems] = useState<WoodStock[]>([])
-  const [loading, setLoading] = useState(true)
+  const {
+    state,
+    stock,
+    loading,
+    refetchFromServer,
+    fullSync,
+    applyLocalPick,
+  } = useWoodOfflineSync({ fetchStock: fetchStockFromServer })
+
   const [searchTerm, setSearchTerm] = useState('')
   const [sortColumn, setSortColumn] = useState<keyof WoodStock | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [edits, setEdits] = useState<Record<number, Partial<WoodStock>>>({})
   const [savingIds, setSavingIds] = useState<Set<number>>(new Set())
-
-  const fetchStock = async () => {
-    try {
-      const response = await fetch('/api/wood/stock')
-      if (!response.ok) throw new Error('Failed to fetch stock')
-      const data = await response.json()
-      setStock(data)
-    } catch (error) {
-      console.error('Error fetching stock:', error)
-      alert('Failed to load stock')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchStock()
-  }, [])
 
   const handleSort = (column: keyof WoodStock) => {
     if (sortColumn === column) {
@@ -70,79 +67,53 @@ export default function WoodPickingPage() {
 
   const sortedStock = [...filteredStock].sort((a, b) => {
     if (!sortColumn) return 0
-    
     const aVal = a[sortColumn]
     const bVal = b[sortColumn]
-    
     if (aVal === null || aVal === undefined) return 1
     if (bVal === null || bVal === undefined) return -1
-    
     if (typeof aVal === 'number' && typeof bVal === 'number') {
       return sortDirection === 'asc' ? aVal - bVal : bVal - aVal
     }
-    
     const aStr = String(aVal).toLowerCase()
     const bStr = String(bVal).toLowerCase()
-    
-    if (sortDirection === 'asc') {
-      return aStr.localeCompare(bStr)
-    } else {
-      return bStr.localeCompare(aStr)
-    }
+    return sortDirection === 'asc' ? aStr.localeCompare(bStr) : bStr.localeCompare(aStr)
   })
 
-  const handlePick = async (stockItem: WoodStock) => {
-    const raw = prompt(`Aantal planken om te picken (max ${stockItem.aantal}):`, String(stockItem.aantal))
-    if (raw === null) return
-    const amount = Number(raw)
-    if (!Number.isFinite(amount) || amount <= 0 || amount > stockItem.aantal) {
-      alert('Ongeldig aantal')
-      return
-    }
-
-    if (!confirm(`Pick ${amount} planken van dit item?`)) return
-
-    try {
-      const response = await fetch('/api/wood/pick', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          stock_id: stockItem.id,
-          aantal: amount,
-        }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to pick wood')
+  const handlePick = useCallback(
+    async (stockItem: WoodStock) => {
+      const raw = prompt(`Aantal planken om te picken (max ${stockItem.aantal}):`, String(stockItem.aantal))
+      if (raw === null) return
+      const amount = Number(raw)
+      if (!Number.isFinite(amount) || amount <= 0 || amount > stockItem.aantal) {
+        alert('Ongeldig aantal')
+        return
       }
+      if (!confirm(`Pick ${amount} planken van dit item?`)) return
 
-      alert('Wood picked successfully!')
-      await fetchStock()
-    } catch (error) {
-      console.error('Error picking wood:', error)
-      alert(error instanceof Error ? error.message : 'Failed to pick wood')
-    }
-  }
-
-  const handleUpdateStock = async (id: number, field: keyof WoodStock, value: string | number) => {
-    try {
-      const response = await fetch('/api/wood/stock', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id,
-          [field]: value,
-        }),
+      // 1. outbox-item wegschrijven (ook als online — zo blijft de flow uniform)
+      await enqueueOutbox({
+        kind: 'pick',
+        stock_id: stockItem.id,
+        aantal: amount,
+        snapshot: {
+          houtsoort: stockItem.houtsoort,
+          pakketnummer: stockItem.pakketnummer ?? null,
+          locatie: stockItem.locatie,
+          dikte: stockItem.dikte,
+          breedte: stockItem.breedte,
+          lengte: stockItem.lengte,
+        },
+        client_created_at: new Date().toISOString(),
       })
 
-      if (!response.ok) throw new Error('Failed to update stock')
-      await fetchStock()
-    } catch (error) {
-      console.error('Error updating stock:', error)
-      alert('Failed to update stock')
-    }
-  }
+      // 2. lokale cache direct bijwerken (optimistic)
+      await applyLocalPick(stockItem.id, amount)
+
+      // 3. proberen te synchroniseren (lukt online, stille fallback offline)
+      void fullSync()
+    },
+    [applyLocalPick, fullSync]
+  )
 
   const handleFieldChange = (id: number, field: keyof WoodStock, value: string) => {
     setEdits((prev) => ({
@@ -155,6 +126,10 @@ export default function WoodPickingPage() {
   }
 
   const handleSaveRow = async (item: WoodStock) => {
+    if (!state.online) {
+      alert('Bewerken van een rij vereist internet. Picken werkt wél offline.')
+      return
+    }
     const rowEdits = edits[item.id]
     if (!rowEdits || Object.keys(rowEdits).length === 0) return
 
@@ -179,7 +154,7 @@ export default function WoodPickingPage() {
         body: JSON.stringify({ id: item.id, ...payload }),
       })
       if (!response.ok) throw new Error('Failed to update stock')
-      await fetchStock()
+      await refetchFromServer()
       setEdits((prev) => {
         const next = { ...prev }
         delete next[item.id]
@@ -205,7 +180,7 @@ export default function WoodPickingPage() {
     })
   }
 
-  if (loading) {
+  if (loading && stock.length === 0) {
     return (
       <div className="container mx-auto px-4 py-6">
         <div className="text-center">Loading...</div>
@@ -239,6 +214,17 @@ export default function WoodPickingPage() {
             🖨️ Print volledige lijst
           </button>
         </div>
+      </div>
+
+      <div className="no-print">
+        <OfflineStatusBanner
+          online={state.online}
+          pending={state.pending}
+          syncing={state.syncing}
+          lastSync={state.lastSync}
+          errors={state.errors}
+          onManualSync={fullSync}
+        />
       </div>
 
       {/* Search Bar */}
@@ -319,49 +305,56 @@ export default function WoodPickingPage() {
                       <input
                         value={(edits[item.id]?.houtsoort as string) ?? item.houtsoort ?? ''}
                         onChange={(e) => handleFieldChange(item.id, 'houtsoort', e.target.value)}
-                        className="w-full bg-transparent border-b border-gray-200 focus:border-blue-500 outline-none"
+                        disabled={!state.online}
+                        className="w-full bg-transparent border-b border-gray-200 focus:border-blue-500 outline-none disabled:text-gray-700"
                       />
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500 break-words">
                       <input
                         value={(edits[item.id]?.pakketnummer as string) ?? item.pakketnummer ?? ''}
                         onChange={(e) => handleFieldChange(item.id, 'pakketnummer', e.target.value)}
-                        className="w-full bg-transparent border-b border-gray-200 focus:border-blue-500 outline-none"
+                        disabled={!state.online}
+                        className="w-full bg-transparent border-b border-gray-200 focus:border-blue-500 outline-none disabled:text-gray-700"
                       />
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500 break-words">
                       <input
                         value={String((edits[item.id]?.dikte as number | string | undefined) ?? item.dikte ?? '')}
                         onChange={(e) => handleFieldChange(item.id, 'dikte', e.target.value)}
-                        className="w-full bg-transparent border-b border-gray-200 focus:border-blue-500 outline-none"
+                        disabled={!state.online}
+                        className="w-full bg-transparent border-b border-gray-200 focus:border-blue-500 outline-none disabled:text-gray-700"
                       />
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500 break-words">
                       <input
                         value={String((edits[item.id]?.breedte as number | string | undefined) ?? item.breedte ?? '')}
                         onChange={(e) => handleFieldChange(item.id, 'breedte', e.target.value)}
-                        className="w-full bg-transparent border-b border-gray-200 focus:border-blue-500 outline-none"
+                        disabled={!state.online}
+                        className="w-full bg-transparent border-b border-gray-200 focus:border-blue-500 outline-none disabled:text-gray-700"
                       />
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500 break-words">
                       <input
                         value={String((edits[item.id]?.lengte as number | string | undefined) ?? item.lengte ?? '')}
                         onChange={(e) => handleFieldChange(item.id, 'lengte', e.target.value)}
-                        className="w-full bg-transparent border-b border-gray-200 focus:border-blue-500 outline-none"
+                        disabled={!state.online}
+                        className="w-full bg-transparent border-b border-gray-200 focus:border-blue-500 outline-none disabled:text-gray-700"
                       />
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500 break-words">
                       <input
                         value={(edits[item.id]?.locatie as string) ?? item.locatie ?? ''}
                         onChange={(e) => handleFieldChange(item.id, 'locatie', e.target.value)}
-                        className="w-full bg-transparent border-b border-gray-200 focus:border-blue-500 outline-none"
+                        disabled={!state.online}
+                        className="w-full bg-transparent border-b border-gray-200 focus:border-blue-500 outline-none disabled:text-gray-700"
                       />
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500 break-words">
                       <input
                         value={String((edits[item.id]?.aantal as number | string | undefined) ?? item.aantal ?? '')}
                         onChange={(e) => handleFieldChange(item.id, 'aantal', e.target.value)}
-                        className="w-full bg-transparent border-b border-gray-200 focus:border-blue-500 outline-none"
+                        disabled={!state.online}
+                        className="w-full bg-transparent border-b border-gray-200 focus:border-blue-500 outline-none disabled:text-gray-700"
                       />
                     </td>
                     <td className="px-6 py-4 text-sm no-print">
@@ -374,8 +367,9 @@ export default function WoodPickingPage() {
                         </button>
                         <button
                           onClick={() => handleSaveRow(item)}
-                          disabled={savingIds.has(item.id)}
-                          className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm disabled:opacity-50"
+                          disabled={savingIds.has(item.id) || !state.online}
+                          className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                          title={state.online ? undefined : 'Bewerken vereist internet'}
                         >
                           Opslaan
                         </button>
@@ -397,6 +391,3 @@ export default function WoodPickingPage() {
     </div>
   )
 }
-
-
-
