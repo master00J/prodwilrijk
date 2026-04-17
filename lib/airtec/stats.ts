@@ -513,7 +513,13 @@ export async function fetchAirtecStats({
           return safeLeft - safeRight
         })
 
-  const totalMaterialCost = detailedItems.reduce((sum, item) => sum + item.materialCostTotal, 0)
+  // Materiaalkost altijd uit dailyStats afleiden, zodat de totaal ook correct is
+  // wanneer details worden overgeslagen (skipDetails = true bij grote periodes of
+  // bij vergelijkingsperiodes die enkel totals nodig hebben).
+  const totalMaterialCost = dailyStatsArray.reduce(
+    (sum, stat) => sum + (stat.materialCost || 0),
+    0
+  )
 
   return {
     dailyStats: dailyStatsArray,
