@@ -37,7 +37,8 @@ import {
   Target,
 } from 'lucide-react'
 import CollapsibleCard from '@/components/admin/prepack/CollapsibleCard'
-import PeriodCompareOverview from '@/components/admin/prepack/PeriodCompareOverview'
+import PeriodCompareCard, { type CompareTotals } from '@/components/admin/shared/PeriodCompareCard'
+import { getPreviousPeriodRange } from '@/lib/utils/periodPresets'
 import { usePrepackStats } from './usePrepackStats'
 import type { CompareMode } from './types'
 
@@ -264,6 +265,59 @@ export default function PrepackMonitorPage() {
     ? grossMargin - totalLaborCost
     : null
 
+  // Wrapper-handlers om de PeriodCompareCard te koppelen aan de bestaande
+  // prepack-stats hook (inclusief refs en refresh).
+  const handleEnableCompare = useCallback(() => {
+    setCompareEnabled(true)
+    if (!compareFrom || !compareTo) {
+      const prev = getPreviousPeriodRange(dateFrom, dateTo)
+      if (prev) {
+        setCompareFrom(prev.from)
+        setCompareTo(prev.to)
+        if (compareFromInputRef.current) compareFromInputRef.current.value = prev.from
+        if (compareToInputRef.current) compareToInputRef.current.value = prev.to
+      }
+      setCompareMode('custom')
+    }
+    setTimeout(() => void handleRefresh(), 0)
+  }, [
+    compareFrom,
+    compareTo,
+    dateFrom,
+    dateTo,
+    setCompareEnabled,
+    setCompareFrom,
+    setCompareTo,
+    setCompareMode,
+    compareFromInputRef,
+    compareToInputRef,
+    handleRefresh,
+  ])
+
+  const handleDisableCompare = useCallback(() => {
+    setCompareEnabled(false)
+    setTimeout(() => void handleRefresh(), 0)
+  }, [setCompareEnabled, handleRefresh])
+
+  const handleChangeCompareRange = useCallback(
+    (from: string, to: string) => {
+      setCompareMode('custom')
+      setCompareFrom(from)
+      setCompareTo(to)
+      if (compareFromInputRef.current) compareFromInputRef.current.value = from
+      if (compareToInputRef.current) compareToInputRef.current.value = to
+      setTimeout(() => void handleRefresh(), 0)
+    },
+    [setCompareMode, setCompareFrom, setCompareTo, compareFromInputRef, compareToInputRef, handleRefresh]
+  )
+
+  const comparePrimaryDisplay =
+    compareMode === 'selectedDays' ? comparePrimaryTotals : totals
+
+  const compareFromForCard =
+    compareMode === 'custom' ? compareFrom : compareEffectiveFrom
+  const compareToForCard = compareMode === 'custom' ? compareTo : compareEffectiveTo
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
       {/* Header */}
@@ -291,17 +345,22 @@ export default function PrepackMonitorPage() {
         )}
       </div>
 
-      <PeriodCompareOverview
+      <PeriodCompareCard
+        title="Periode-analyse & vergelijking (Prepack)"
+        subtitle="Zet twee periodes naast elkaar met één klik of kies handmatig een eigen vergelijkingsperiode."
+        accent="indigo"
         dateFrom={dateFrom}
         dateTo={dateTo}
         compareEnabled={compareEnabled}
-        compareMode={compareMode}
-        compareEffectiveFrom={compareEffectiveFrom}
-        compareEffectiveTo={compareEffectiveTo}
-        totals={totals}
-        compareTotals={compareTotals}
-        comparePrimaryTotals={comparePrimaryTotals}
-        onApplyComparePreset={handleApplyComparePreset}
+        compareFrom={compareFromForCard}
+        compareTo={compareToForCard}
+        totals={comparePrimaryDisplay as unknown as CompareTotals | null}
+        compareTotals={compareTotals as unknown as CompareTotals | null}
+        loading={loading}
+        onApplyPreset={handleApplyComparePreset}
+        onEnableCompare={handleEnableCompare}
+        onDisableCompare={handleDisableCompare}
+        onChangeCompareRange={handleChangeCompareRange}
         formatCurrency={formatCurrency}
       />
 
