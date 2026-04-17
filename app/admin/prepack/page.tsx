@@ -37,6 +37,7 @@ import {
   Target,
 } from 'lucide-react'
 import CollapsibleCard from '@/components/admin/prepack/CollapsibleCard'
+import PeriodCompareOverview from '@/components/admin/prepack/PeriodCompareOverview'
 import { usePrepackStats } from './usePrepackStats'
 import type { CompareMode } from './types'
 
@@ -289,6 +290,20 @@ export default function PrepackMonitorPage() {
           </div>
         )}
       </div>
+
+      <PeriodCompareOverview
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        compareEnabled={compareEnabled}
+        compareMode={compareMode}
+        compareEffectiveFrom={compareEffectiveFrom}
+        compareEffectiveTo={compareEffectiveTo}
+        totals={totals}
+        compareTotals={compareTotals}
+        comparePrimaryTotals={comparePrimaryTotals}
+        onApplyComparePreset={handleApplyComparePreset}
+        formatCurrency={formatCurrency}
+      />
 
       {/* Live Wachtrij Status */}
       <div className="mb-6">
@@ -561,33 +576,6 @@ export default function PrepackMonitorPage() {
             </button>
           </div>
 
-          {/* Snelle vergelijk-presets */}
-          <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50/60 px-4 py-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide mr-1">
-                Snel vergelijken:
-              </span>
-              {(
-                [
-                  ['thisWeekVsLastWeek', 'Deze week vs vorige'],
-                  ['thisMonthVsLastMonth', 'Deze maand vs vorige'],
-                  ['thisMonthVsLastYearSameMonth', 'Deze maand YoY'],
-                  ['thisQuarterVsLastQuarter', 'Dit kwartaal vs vorige'],
-                  ['thisYearVsLastYear', 'Dit jaar vs vorig jaar'],
-                ] as const
-              ).map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => handleApplyComparePreset(key as any)}
-                  className="text-xs font-medium text-blue-700 bg-white border border-blue-200 rounded-full px-3 py-1 hover:bg-blue-100"
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
           <div className="mb-4 flex flex-wrap gap-4 items-center rounded-lg border border-gray-200 px-4 py-3 bg-gray-50">
             <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
               <input
@@ -755,11 +743,12 @@ export default function PrepackMonitorPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 bg-white">
-                      {(
-                        [
+                      {(() => {
+                        const cur = compareMode === 'selectedDays' ? comparePrimaryTotals : totals
+                        const baseRows = [
                           {
                             label: 'Items verpakt',
-                            current: (compareMode === 'selectedDays' ? comparePrimaryTotals?.totalItemsPacked : totals?.totalItemsPacked)?.toLocaleString('nl-NL') ?? '-',
+                            current: cur?.totalItemsPacked.toLocaleString('nl-NL') ?? '-',
                             compare: compareTotals?.totalItemsPacked.toLocaleString('nl-NL') ?? '-',
                             diff: compareSummary ? formatSignedNumber(compareSummary.items.diff) : '-',
                             pct: compareSummary?.items.pct,
@@ -767,7 +756,7 @@ export default function PrepackMonitorPage() {
                           },
                           {
                             label: 'Goederen binnen',
-                            current: (compareMode === 'selectedDays' ? comparePrimaryTotals?.totalIncoming : totals?.totalIncoming)?.toLocaleString('nl-NL') ?? '-',
+                            current: cur?.totalIncoming.toLocaleString('nl-NL') ?? '-',
                             compare: compareTotals?.totalIncoming.toLocaleString('nl-NL') ?? '-',
                             diff: compareSummary ? formatSignedNumber(compareSummary.incoming.diff) : '-',
                             pct: compareSummary?.incoming.pct,
@@ -775,7 +764,7 @@ export default function PrepackMonitorPage() {
                           },
                           {
                             label: 'Manuren',
-                            current: compareMode === 'selectedDays' ? (comparePrimaryTotals ? comparePrimaryTotals.totalManHours.toFixed(2) : '-') : (totals ? totals.totalManHours.toFixed(2) : '-'),
+                            current: cur ? cur.totalManHours.toFixed(2) : '-',
                             compare: compareTotals ? compareTotals.totalManHours.toFixed(2) : '-',
                             diff: compareSummary ? formatSignedNumber(compareSummary.manHours.diff, 2) : '-',
                             pct: compareSummary?.manHours.pct,
@@ -783,14 +772,78 @@ export default function PrepackMonitorPage() {
                           },
                           {
                             label: 'Omzet',
-                            current: compareMode === 'selectedDays' ? (comparePrimaryTotals ? formatCurrency(comparePrimaryTotals.totalRevenue) : '-') : (totals ? formatCurrency(totals.totalRevenue) : '-'),
+                            current: cur ? formatCurrency(cur.totalRevenue) : '-',
                             compare: compareTotals ? formatCurrency(compareTotals.totalRevenue) : '-',
                             diff: compareSummary ? formatSignedCurrency(compareSummary.revenue.diff) : '-',
                             pct: compareSummary?.revenue.pct,
                             positiveIsGood: true,
                           },
-                        ] as const
-                      ).map((row) => {
+                          {
+                            label: 'Materiaalkost',
+                            current: cur ? formatCurrency(cur.totalMaterialCost) : '-',
+                            compare: compareTotals ? formatCurrency(compareTotals.totalMaterialCost) : '-',
+                            diff: compareSummary ? formatSignedCurrency(compareSummary.material.diff) : '-',
+                            pct: compareSummary?.material.pct,
+                            positiveIsGood: false,
+                          },
+                          {
+                            label: 'Bruto marge (omzet − materiaal)',
+                            current: cur ? formatCurrency(cur.totalRevenue - cur.totalMaterialCost) : '-',
+                            compare: compareTotals
+                              ? formatCurrency(compareTotals.totalRevenue - compareTotals.totalMaterialCost)
+                              : '-',
+                            diff: compareSummary ? formatSignedCurrency(compareSummary.margin.diff) : '-',
+                            pct: compareSummary?.margin.pct,
+                            positiveIsGood: true,
+                          },
+                          {
+                            label: 'Items / FTE (gemiddelde)',
+                            current: cur ? cur.averageItemsPerFte.toFixed(2) : '-',
+                            compare: compareTotals ? compareTotals.averageItemsPerFte.toFixed(2) : '-',
+                            diff: compareSummary ? formatSignedNumber(compareSummary.itemsPerFte.diff, 2) : '-',
+                            pct: compareSummary?.itemsPerFte.pct,
+                            positiveIsGood: true,
+                          },
+                          {
+                            label: 'Gem. items / kalenderdag',
+                            current: cur && cur.totalDays ? (cur.totalItemsPacked / cur.totalDays).toFixed(1) : '-',
+                            compare:
+                              compareTotals && compareTotals.totalDays
+                                ? (compareTotals.totalItemsPacked / compareTotals.totalDays).toFixed(1)
+                                : '-',
+                            diff: compareSummary ? formatSignedNumber(compareSummary.itemsPerDay.diff, 1) : '-',
+                            pct: compareSummary?.itemsPerDay.pct,
+                            positiveIsGood: true,
+                          },
+                          {
+                            label: 'Gem. omzet / kalenderdag',
+                            current: cur && cur.totalDays ? formatCurrency(cur.totalRevenue / cur.totalDays) : '-',
+                            compare:
+                              compareTotals && compareTotals.totalDays
+                                ? formatCurrency(compareTotals.totalRevenue / compareTotals.totalDays)
+                                : '-',
+                            diff: compareSummary ? formatSignedCurrency(compareSummary.revenuePerDay.diff) : '-',
+                            pct: compareSummary?.revenuePerDay.pct,
+                            positiveIsGood: true,
+                          },
+                        ]
+                        const leadRow =
+                          compareSummary?.leadTime != null
+                            ? [
+                                {
+                                  label: 'Gem. doorlooptijd (uren)',
+                                  current: cur?.avgLeadTimeHours != null ? cur.avgLeadTimeHours.toFixed(1) : '-',
+                                  compare:
+                                    compareTotals?.avgLeadTimeHours != null
+                                      ? compareTotals.avgLeadTimeHours.toFixed(1)
+                                      : '-',
+                                  diff: formatSignedNumber(compareSummary.leadTime.diff, 1),
+                                  pct: compareSummary.leadTime.pct,
+                                  positiveIsGood: false,
+                                },
+                              ]
+                            : []
+                        return [...baseRows, ...leadRow].map((row) => {
                         const pctNum = row.pct ?? null
                         const isPositive = pctNum != null && pctNum > 0
                         const isNegative = pctNum != null && pctNum < 0
@@ -813,7 +866,8 @@ export default function PrepackMonitorPage() {
                             </td>
                           </tr>
                         )
-                      })}
+                      })
+                      })()}
                     </tbody>
                   </table>
                 </div>

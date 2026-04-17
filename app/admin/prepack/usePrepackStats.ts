@@ -606,6 +606,14 @@ export function usePrepackStats(
     const diff = (current: number, previous: number) => current - previous
     const pct = (current: number, previous: number) =>
       previous === 0 ? null : ((current - previous) / previous) * 100
+    const baseDays = baseTotals.totalDays || 1
+    const compDays = compareTotals.totalDays || 1
+    const baseMargin = baseTotals.totalRevenue - baseTotals.totalMaterialCost
+    const compMargin = compareTotals.totalRevenue - compareTotals.totalMaterialCost
+    const baseItemsPerDay = baseTotals.totalItemsPacked / baseDays
+    const compItemsPerDay = compareTotals.totalItemsPacked / compDays
+    const baseRevPerDay = baseTotals.totalRevenue / baseDays
+    const compRevPerDay = compareTotals.totalRevenue / compDays
     return {
       items: {
         diff: diff(baseTotals.totalItemsPacked, compareTotals.totalItemsPacked),
@@ -623,6 +631,35 @@ export function usePrepackStats(
         diff: diff(baseTotals.totalRevenue, compareTotals.totalRevenue),
         pct: pct(baseTotals.totalRevenue, compareTotals.totalRevenue),
       },
+      material: {
+        diff: diff(baseTotals.totalMaterialCost, compareTotals.totalMaterialCost),
+        pct: pct(baseTotals.totalMaterialCost, compareTotals.totalMaterialCost),
+      },
+      margin: {
+        diff: diff(baseMargin, compMargin),
+        pct: pct(baseMargin, compMargin),
+      },
+      itemsPerFte: {
+        diff: diff(baseTotals.averageItemsPerFte, compareTotals.averageItemsPerFte),
+        pct: pct(baseTotals.averageItemsPerFte, compareTotals.averageItemsPerFte),
+      },
+      itemsPerDay: {
+        diff: diff(baseItemsPerDay, compItemsPerDay),
+        pct: pct(baseItemsPerDay, compItemsPerDay),
+      },
+      revenuePerDay: {
+        diff: diff(baseRevPerDay, compRevPerDay),
+        pct: pct(baseRevPerDay, compRevPerDay),
+      },
+      leadTime: (() => {
+        const a = baseTotals.avgLeadTimeHours
+        const b = compareTotals.avgLeadTimeHours
+        if (a == null || b == null) return null
+        return {
+          diff: diff(a, b),
+          pct: pct(a, b),
+        }
+      })(),
     }
   }, [totals, compareTotals, compareMode, comparePrimaryTotals])
 
