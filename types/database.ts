@@ -434,6 +434,7 @@ export interface WoodStock {
   locatie: string
   aantal: number
   ontvangen_op: string
+  laatst_geteld_op?: string | null
   created_at: string
   updated_at: string
 }

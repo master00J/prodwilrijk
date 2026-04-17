@@ -28,10 +28,10 @@ export const GET = withAdmin(async () => {
     const backlogThreshold = new Date(now)
     backlogThreshold.setDate(backlogThreshold.getDate() - daysBack)
 
-    // Fetch all unpacked items
+    // Fetch all unpacked items (incl. item_number + description voor kritieke lijst)
     const { data: queueItems, error: queueError } = await supabaseAdmin
       .from('items_to_pack')
-      .select('id, amount, priority, date_added')
+      .select('id, item_number, description, amount, priority, date_added')
       .eq('packed', false)
 
     if (queueError) throw queueError
@@ -88,6 +88,26 @@ export const GET = withAdmin(async () => {
       avgLeadTimeDays = Math.round((totalLeadDays / packedRows.length) * 10) / 10
     }
 
+    // Top 5 kritieke items: prioriteit eerst, dan oudste
+    const withAge = items.map((i) => {
+      const addedDate = new Date(i.date_added)
+      return {
+        id: i.id as number,
+        item_number: (i as any).item_number as string | null,
+        description: (i as any).description as string | null,
+        amount: (i.amount as number) || 0,
+        priority: Boolean(i.priority),
+        date_added: i.date_added as string,
+        workingDaysOld: countWorkingDays(addedDate, now),
+      }
+    })
+    const topCritical = withAge
+      .sort((a, b) => {
+        if (a.priority !== b.priority) return a.priority ? -1 : 1
+        return b.workingDaysOld - a.workingDaysOld
+      })
+      .slice(0, 5)
+
     return NextResponse.json({
       queueStuks,
       queueLines,
@@ -97,6 +117,7 @@ export const GET = withAdmin(async () => {
       oldestWorkingDays,
       avgLeadTimeDays,
       backlogPct: queueStuks > 0 ? Math.round((backlogStuks / queueStuks) * 100) : 0,
+      topCritical,
     })
   } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

@@ -44,29 +44,59 @@ async function extractLabelWithClaude(base64Image: string, mediaType: string): P
             },
             {
               type: 'text',
-              text: `Analyze this shipping/pallet label. Extract the following fields and return ONLY valid JSON, no other text:
+              text: `Analyze this shipping/pallet label. Labels come in several layouts:
+
+LAYOUT A - Atlas Copco / supplier pallet label (most common):
+  Contains labelled fields such as "PART NO (P)", "QUANTITY (Q)", "P.O.NO-LINE (K)" or "O.NO-LINE (K)",
+  "LOCATION (2L)", "SUPPLIER", "DELIVERY NOTICE", "SERIAL NUMBER (H)", "SHOP ORDER NUMBER (2P)",
+  "DATE", "DESCRIPTION", "SUPPLIER CODE", "LABEL NUMBER". Each has its own barcode.
+
+LAYOUT B - Foresco / Alteco / destination label:
+  Big "FORESCO" text, smaller sticker with "Prepack", "QTY", "Dest", "Pallet", a large bold dashed
+  item number like "1624-8375-00", and a description like "PIPE". No PART NO / P.O.NO-LINE fields.
+
+Return ONLY valid JSON, no other text:
 
 {
-  "item_number": "the PART NO (P) value without any spaces (e.g. 150390138 0 becomes 1503901380)",
-  "quantity": numeric quantity (the QUANTITY (Q) field),
-  "description": "the DESCRIPTION field at the bottom of the label",
-  "po_line": "the P.O.NO-LINE (K) or O.NO-LINE (K) value (e.g. 487527-001 or 451329516430)",
-  "supplier": "the SUPPLIER name",
-  "date": "the DATE field (format YYYYMMDD)",
-  "delivery_notice": "the DELIVERY NOTICE or SERIAL NUMBER (H) field (e.g. D006906, 0)",
-  "location": "the LOCATION (2L) code (e.g. FSILS, BPTD, FLSML)",
-  "receiver": "the RECEIVER name/address at top left of label"
+  "item_number": "...",
+  "quantity": integer,
+  "description": "...",
+  "po_line": "...",
+  "supplier": "...",
+  "date": "YYYYMMDD",
+  "delivery_notice": "...",
+  "location": "...",
+  "receiver": "..."
 }
 
-Rules:
-- For item_number: remove ALL spaces, hyphens and dots — concatenate all digits/letters into one continuous string
-- For quantity: return as integer number
-- For po_line: this is sometimes labeled as P.O.NO-LINE, O.NO-LINE, or Purchase Order
-- For delivery_notice: values like "0" should be returned as "0", D-numbers like "D006906" kept as-is
-- For location: this is usually a short code like FSILS, BPTD, FLSML near the top right
-- For receiver: the company/address at the top left, e.g. "ATLAS COPCO B2610 WILRIJK SERVICE CENTER" or "Power Tools Distribution"
-- If a field is not readable or not present, use null
-- Return ONLY the JSON object, nothing else`,
+CRITICAL rules for item_number:
+- LAYOUT A: item_number MUST be the value of the field labelled "PART NO (P)" / "PART NR" / "PART NO".
+  This is the large bold number with its own barcode (typically 10 digits, often shown with spaces,
+  e.g. "1621 1617 11" or "1503 9013 80"). Return it WITHOUT spaces (e.g. "1621161711").
+- LAYOUT B (Foresco / Alteco): item_number is the large bold dashed number (e.g. "1624-8375-00").
+  Keep the dashes as shown on the label.
+- NEVER EVER take item_number from these fields — they are order/admin numbers, NOT item numbers:
+    * P.O.NO-LINE, O.NO-LINE, PO LINE (bv. "487527-001", "471814-001")
+    * SHOP ORDER NUMBER / 2P (bv. "Z017226467")
+    * SERIAL NUMBER / H / AIA (bv. "801724")
+    * DELIVERY NOTICE (bv. "0000000", "D006906")
+    * SUPPLIER CODE (bv. "75112")
+    * LABEL NUMBER (bv. "390249")
+    * PALLET number (bv. "554884"), BackOrderQty, PrepackNr
+  If the only candidate you see matches one of these fields, return item_number: null.
+
+Rules for other fields:
+- quantity: integer from "QUANTITY (Q)" on layout A, or "Qty"/"QTY" on layout B.
+- po_line: from "P.O.NO-LINE (K)" / "O.NO-LINE (K)" only (e.g. "487527-001" or a long 12+ digit number). Null on layout B.
+- delivery_notice: value from "DELIVERY NOTICE" or "SERIAL NUMBER (H)". Keep D-numbers (e.g. "D006906") as-is. "0" or "0000000" stays as given.
+- location: short code like "FSILS", "BPTD", "FLSML", "FL3ML", usually near top-right. Strip trailing codes like "AID".
+- receiver: company/address at top-left (e.g. "ATLAS COPCO B2610 WILRIJK SERVICE CENTER", "Power Tools Distribution").
+- supplier: the supplier name (e.g. "ITK NV", "ALTECO N.V.").
+- date: format YYYYMMDD. If the label shows "16/04/2026" return "20260416".
+- description: the item description (DESCR on layout A, or the item text like "PIPE" / "CONNECTION").
+- If a field is not readable or not present, use null.
+
+Return ONLY the JSON object, nothing else`,
             },
           ],
         },
@@ -88,14 +118,46 @@ Rules:
   }
 
   const parsed = JSON.parse(jsonMatch[0])
+
+  let itemNumber: string | null = parsed.item_number || null
+  let poLine: string | null = parsed.po_line || null
+
+  // Veiligheidscheck 1: het typische "P.O.NO-LINE" formaat (bv. 471814-001 / 487527-001) mag nooit
+  // als item_number doorgaan. Als Claude dit toch meegeeft, zetten we het eventueel om naar po_line
+  // en weigeren we het als item_number.
+  const orderLineRe = /^\s*\d{4,8}-\d{1,4}\s*$/
+  if (itemNumber && orderLineRe.test(itemNumber)) {
+    if (!poLine) poLine = itemNumber.trim()
+    itemNumber = null
+  }
+
+  // Veiligheidscheck 2: Atlas Copco part numbers zijn 10 cijfers, soms met spaties. Als Claude
+  // een zuiver numerieke string van 10 cijfers gaf (met of zonder spaties) zetten we alvast de
+  // spaties weg zodat matching in de DB werkt.
+  if (itemNumber) {
+    const compact = itemNumber.replace(/\s+/g, '')
+    if (/^\d{10}$/.test(compact)) {
+      itemNumber = compact
+    } else {
+      itemNumber = itemNumber.trim()
+    }
+  }
+
+  // Veiligheidscheck 3: delivery_notice zoals "0", "0000000" of "Z01…" mag nooit per ongeluk als
+  // itemnummer gebruikt worden.
+  const deliveryNotice: string | null = parsed.delivery_notice || null
+  if (itemNumber && deliveryNotice && itemNumber.trim() === deliveryNotice.trim()) {
+    itemNumber = null
+  }
+
   return {
-    item_number: parsed.item_number ? parsed.item_number.replace(/[\s\-\.]/g, '') : null,
+    item_number: itemNumber,
     quantity: parsed.quantity != null ? Number(parsed.quantity) : null,
     description: parsed.description || null,
-    po_line: parsed.po_line || null,
+    po_line: poLine,
     supplier: parsed.supplier || null,
     date: parsed.date || null,
-    delivery_notice: parsed.delivery_notice || null,
+    delivery_notice: deliveryNotice,
     location: parsed.location || null,
     receiver: parsed.receiver || null,
   }

@@ -84,6 +84,7 @@ export default function CNHWorkflowPage() {
   const [loadOperatorCount, setLoadOperatorCount] = useState(1)
   const [selectedLoadMotors, setSelectedLoadMotors] = useState<Set<number>>(new Set())
   const [templates, setTemplates] = useState<CNHTemplate[]>([])
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null)
   const [loadLocation, setLoadLocation] = useState('')
   const [loadReference, setLoadReference] = useState('')
   const [containerNumber, setContainerNumber] = useState('')
@@ -93,8 +94,6 @@ export default function CNHWorkflowPage() {
   const [containerTarra, setContainerTarra] = useState('')
   const [containerPhotos, setContainerPhotos] = useState<File[]>([])
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([])
-  const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false)
-  const [templateName, setTemplateName] = useState('')
   const [editingMotor, setEditingMotor] = useState<CNHMotor | null>(null)
   const [pdfFile, setPdfFile] = useState<File | null>(null)
   const [parsingPdf, setParsingPdf] = useState(false)
@@ -883,84 +882,24 @@ export default function CNHWorkflowPage() {
 
   const applyTemplate = useCallback(
     (template: CNHTemplate) => {
-      if (template.load_location) setLoadLocation(template.load_location)
-      if (template.load_reference) setLoadReference(template.load_reference)
-      if (template.container_number) setContainerNumber(template.container_number)
-      if (template.truck_plate) setTruckPlate(template.truck_plate)
-      if (template.booking_ref) setBookingRef(template.booking_ref)
-      if (template.your_ref) setYourRef(template.your_ref)
-      if (template.container_tarra) setContainerTarra(template.container_tarra.toString())
+      setSelectedTemplateId(template.id)
+      setLoadLocation(template.load_location || '')
+      setLoadReference(template.load_reference || '')
+      setContainerNumber(template.container_number || '')
+      setTruckPlate(template.truck_plate || '')
+      setBookingRef(template.booking_ref || '')
+      setYourRef(template.your_ref || '')
+      setContainerTarra(
+        template.container_tarra !== undefined && template.container_tarra !== null
+          ? template.container_tarra.toString()
+          : ''
+      )
       showStatus(`Template "${template.name}" toegepast`, 'success')
     },
     [showStatus]
   )
 
-  const saveTemplate = useCallback(async () => {
-    if (!templateName.trim()) {
-      showStatus('Geef een naam voor de template', 'warning')
-      return
-    }
-
-    try {
-      const resp = await fetch('/api/cnh/templates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: templateName.trim(),
-          load_location: loadLocation.trim() || null,
-          load_reference: loadReference.trim() || null,
-          container_number: containerNumber.trim() || null,
-          truck_plate: truckPlate.trim() || null,
-          booking_ref: bookingRef.trim() || null,
-          your_ref: yourRef.trim() || null,
-          container_tarra: containerTarra ? parseFloat(containerTarra) : null,
-        }),
-      })
-      const data = await resp.json()
-      if (!resp.ok || !data.success) {
-        throw new Error(data.error || 'Fout bij opslaan template')
-      }
-      showStatus(`Template "${templateName}" opgeslagen`, 'success')
-      setShowSaveTemplateModal(false)
-      setTemplateName('')
-      fetchTemplates()
-    } catch (e: any) {
-      console.error(e)
-      showStatus('Fout bij opslaan template: ' + e.message, 'error')
-    }
-  }, [
-    templateName,
-    loadLocation,
-    loadReference,
-    containerNumber,
-    truckPlate,
-    bookingRef,
-    yourRef,
-    containerTarra,
-    showStatus,
-    fetchTemplates,
-  ])
-
-  const deleteTemplate = useCallback(
-    async (id: number) => {
-      if (!confirm('Weet je zeker dat je deze template wilt verwijderen?')) return
-      try {
-        const resp = await fetch(`/api/cnh/templates/${id}`, {
-          method: 'DELETE',
-        })
-        const data = await resp.json()
-        if (!resp.ok || !data.success) {
-          throw new Error(data.error || 'Fout bij verwijderen template')
-        }
-        showStatus('Template verwijderd', 'success')
-        fetchTemplates()
-      } catch (e: any) {
-        console.error(e)
-        showStatus('Fout bij verwijderen template: ' + e.message, 'error')
-      }
-    },
-    [showStatus, fetchTemplates]
-  )
+  // Template aanmaken/verwijderen gebeurt op /cnh/admin. Hier enkel selecteren.
 
   const startLoadSession = useCallback(async () => {
     if (!loadLocation.trim() || !loadReference.trim() || !containerNumber.trim()) {
@@ -975,6 +914,13 @@ export default function CNHWorkflowPage() {
         body: JSON.stringify({
           location: loadLocation,
           loading_persons: loadOperatorCount,
+          template_id: selectedTemplateId,
+          load_reference: loadReference,
+          container_no: containerNumber,
+          truck_plate: truckPlate,
+          booking_ref: bookingRef,
+          your_ref: yourRef,
+          container_tarra: containerTarra,
         }),
       })
       if (!resp.ok) throw new Error('Fout bij start load sessie')
@@ -1015,7 +961,20 @@ export default function CNHWorkflowPage() {
       console.error(e)
       showStatus('Fout bij begin laden: ' + e.message, 'error')
     }
-  }, [loadLocation, loadReference, containerNumber, loadOperatorCount, loadOperatorIdCounter, formatTime, showStatus])
+  }, [
+    loadLocation,
+    loadReference,
+    containerNumber,
+    truckPlate,
+    bookingRef,
+    yourRef,
+    containerTarra,
+    selectedTemplateId,
+    loadOperatorCount,
+    loadOperatorIdCounter,
+    formatTime,
+    showStatus,
+  ])
 
   const stopLoadSession = useCallback(async () => {
     if (!loadSessionId) {
@@ -1677,88 +1636,101 @@ export default function CNHWorkflowPage() {
         {activeTab === 'load' && (
           <div>
             <h2 className="text-2xl font-bold mb-4">Laad Workflow</h2>
-            {/* Templates */}
+            {/* Templates — kies een vooraf door bureau aangemaakte template */}
             <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Kies een laad-template:</label>
-              <div className="flex gap-2 mb-2">
-                <select
-                  onChange={(e) => {
-                    const template = templates.find((t) => t.id === parseInt(e.target.value))
-                    if (template) applyTemplate(template)
-                  }}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Selecteer template...</option>
-                  {templates.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  onClick={() => setShowSaveTemplateModal(true)}
-                  className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
-                >
-                  Opslaan
-                </button>
-              </div>
-              <div className="flex gap-2 mb-2">
-                <button
-                  onClick={() => {
-                    const chinaTemplate = templates.find((t) => t.load_location === 'China')
-                    if (chinaTemplate) applyTemplate(chinaTemplate)
-                    else setLoadLocation('China')
-                  }}
-                  className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-                >
-                  China
-                </button>
-                <button
-                  onClick={() => {
-                    const amTemplate = templates.find((t) => t.load_location === 'Amerika')
-                    if (amTemplate) applyTemplate(amTemplate)
-                    else setLoadLocation('Amerika')
-                  }}
-                  className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-                >
-                  Amerika
-                </button>
-                <button
-                  onClick={() => {
-                    const uzbTemplate = templates.find((t) => t.load_location === 'UZB')
-                    if (uzbTemplate) applyTemplate(uzbTemplate)
-                    else setLoadLocation('UZB')
-                  }}
-                  className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-                >
-                  UZB
-                </button>
-              </div>
-              {templates.length > 0 && (
-                <div className="mt-3">
-                  <h4 className="text-sm font-medium mb-2">Beschikbare templates:</h4>
-                  <div className="space-y-1 max-h-40 overflow-y-auto">
-                    {templates.map((t) => (
-                      <div key={t.id} className="flex justify-between items-center p-2 bg-white rounded border">
-                        <span>{t.name}</span>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => applyTemplate(t)}
-                            className="px-2 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
-                          >
-                            Toepassen
-                          </button>
-                          <button
-                            onClick={() => deleteTemplate(t.id)}
-                            className="px-2 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600"
-                          >
-                            Verwijderen
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+              <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
+                <div>
+                  <h3 className="text-base font-semibold text-gray-800">Kies een laad-template</h3>
+                  <p className="text-sm text-gray-600">
+                    Bureau stelt templates op met alle referenties. Selecteer hieronder welke lading je gaat laden,
+                    en alle velden worden automatisch ingevuld.
+                  </p>
                 </div>
+                <a
+                  href="/cnh/admin"
+                  className="text-sm px-3 py-1.5 bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                >
+                  Templates beheren →
+                </a>
+              </div>
+
+              {templates.length === 0 ? (
+                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
+                  Er zijn nog geen laad-templates aangemaakt. Vraag bureau om er een aan te maken via
+                  {' '}<a href="/cnh/admin" className="underline font-medium">CNH Admin → Laad-templates</a>.
+                </div>
+              ) : (
+                <>
+                  <select
+                    value={selectedTemplateId ?? ''}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      if (v === '') {
+                        setSelectedTemplateId(null)
+                        return
+                      }
+                      const template = templates.find((t) => t.id === parseInt(v))
+                      if (template) applyTemplate(template)
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3 text-base"
+                  >
+                    <option value="">— Selecteer template —</option>
+                    {templates.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                        {t.load_location ? ` · ${t.load_location}` : ''}
+                        {t.container_number ? ` · ${t.container_number}` : ''}
+                      </option>
+                    ))}
+                  </select>
+
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                    {templates.map((t) => {
+                      const isSelected = selectedTemplateId === t.id
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => applyTemplate(t)}
+                          className={`text-left p-3 rounded-md border transition-colors ${
+                            isSelected
+                              ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                              : 'bg-white border-gray-300 text-gray-800 hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className="font-medium text-sm leading-tight truncate">{t.name}</div>
+                          {t.load_location && (
+                            <div className={`text-xs mt-0.5 ${isSelected ? 'text-blue-100' : 'text-gray-500'}`}>
+                              {t.load_location}
+                            </div>
+                          )}
+                          {t.container_number && (
+                            <div className={`text-xs font-mono mt-0.5 truncate ${isSelected ? 'text-blue-100' : 'text-gray-500'}`}>
+                              {t.container_number}
+                            </div>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {selectedTemplateId !== null && (
+                    <div className="mt-3 text-sm text-gray-700 flex items-center justify-between bg-white border border-blue-200 rounded p-2">
+                      <span>
+                        Template <span className="font-medium">
+                          {templates.find((t) => t.id === selectedTemplateId)?.name}
+                        </span> toegepast. Je kan de velden hieronder nog manueel aanpassen indien nodig.
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTemplateId(null)}
+                        className="text-xs text-blue-700 hover:underline"
+                      >
+                        Selectie wissen
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -2211,41 +2183,6 @@ export default function CNHWorkflowPage() {
         </div>
       )}
 
-      {/* Save Template Modal */}
-      {showSaveTemplateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-xl font-bold mb-4">Template Opslaan</h3>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Template Naam</label>
-              <input
-                type="text"
-                value={templateName}
-                onChange={(e) => setTemplateName(e.target.value)}
-                placeholder="bv: China Standaard"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={saveTemplate}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                Opslaan
-              </button>
-              <button
-                onClick={() => {
-                  setShowSaveTemplateModal(false)
-                  setTemplateName('')
-                }}
-                className="flex-1 px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
-              >
-                Annuleren
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

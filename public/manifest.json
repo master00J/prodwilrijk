@@ -1,0 +1,11 @@
+{
+  "name": "Prodwilrijk V2",
+  "short_name": "Prodwilrijk",
+  "description": "Wood picking & stock count — werkt ook offline",
+  "start_url": "/wood/picking",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#b45309",
+  "icons": []
+}

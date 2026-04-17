@@ -6,11 +6,14 @@ import {
   ComposedChart,
   Line,
   Area,
+  Bar,
+  BarChart,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   Legend,
+  ReferenceLine,
   ResponsiveContainer,
 } from 'recharts'
 import {
@@ -29,6 +32,9 @@ import {
   CheckCircle2,
   ListOrdered,
   ChevronDown,
+  Flag,
+  AlertOctagon,
+  Target,
 } from 'lucide-react'
 import CollapsibleCard from '@/components/admin/prepack/CollapsibleCard'
 import { usePrepackStats } from './usePrepackStats'
@@ -57,16 +63,49 @@ interface KpiCardProps {
   icon: React.ReactNode
   accent: string
   sub?: string
+  trendPct?: number | null
+  positiveIsGood?: boolean
 }
 
-function KpiCard({ label, value, icon, accent, sub }: KpiCardProps) {
+function TrendBadge({
+  pct,
+  positiveIsGood = true,
+}: {
+  pct: number | null | undefined
+  positiveIsGood?: boolean
+}) {
+  if (pct == null || !Number.isFinite(pct)) return null
+  const rounded = Math.round(pct * 10) / 10
+  const isUp = rounded > 0
+  const isDown = rounded < 0
+  const isNeutral = rounded === 0
+  const isGood = isNeutral ? false : positiveIsGood ? isUp : isDown
+  const bg = isNeutral
+    ? 'bg-gray-100 text-gray-500'
+    : isGood
+      ? 'bg-emerald-50 text-emerald-700'
+      : 'bg-rose-50 text-rose-600'
+  const Arrow = isUp ? TrendingUp : isDown ? TrendingDown : null
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-[10px] font-semibold rounded-full px-1.5 py-0.5 ${bg}`}>
+      {Arrow && <Arrow className="w-3 h-3" />}
+      {isUp ? '+' : ''}
+      {rounded.toFixed(1)}%
+    </span>
+  )
+}
+
+function KpiCard({ label, value, icon, accent, sub, trendPct, positiveIsGood = true }: KpiCardProps) {
   return (
     <div className={`bg-white rounded-xl border-l-4 ${accent} shadow-sm p-4 flex flex-col gap-1`}>
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</span>
         <span className="opacity-60">{icon}</span>
       </div>
-      <div className="text-2xl font-bold text-gray-900 leading-tight">{value}</div>
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-2xl font-bold text-gray-900 leading-tight">{value}</div>
+        {trendPct !== undefined && <TrendBadge pct={trendPct ?? null} positiveIsGood={positiveIsGood} />}
+      </div>
       {sub && <div className="text-xs text-gray-400">{sub}</div>}
     </div>
   )
@@ -128,6 +167,7 @@ export default function PrepackMonitorPage() {
     formatSignedCurrency,
     handleRefresh,
     handleApplyPreset,
+    handleApplyComparePreset,
     handleExportExcel,
     openBomDetail,
     closeBomDetail,
@@ -137,12 +177,56 @@ export default function PrepackMonitorPage() {
     sortColumn,
     sortDir,
     handleSort,
+    aggregation,
+    updateAggregation,
+    aggregatedStats,
+    targets,
+    updateTargets,
+    trendDeltas,
+    topItems,
+    weekdayStats,
+    missingDataStats,
   } = api
 
   const grossMargin = totals ? totals.totalRevenue - totals.totalMaterialCost : null
 
   const [hourlyRate, setHourlyRate] = useState<number>(47)
   const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null)
+
+  // Persist hourlyRate tussen sessies
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem('prepack.hourlyRate.v1')
+      if (stored) {
+        const n = Number(stored)
+        if (Number.isFinite(n) && n > 0) setHourlyRate(n)
+      }
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('prepack.hourlyRate.v1', String(hourlyRate))
+    } catch {
+      // ignore
+    }
+  }, [hourlyRate])
+
+  // Gemiddelde target per bucket voor ReferenceLines in grafieken
+  const avgWorkingDaysPerBucket =
+    aggregatedStats.length > 0
+      ? aggregatedStats.reduce((s, b) => s + (b.workingDaysInBucket || 1), 0) / aggregatedStats.length
+      : 1
+  const targetItemsPerBucket =
+    targets.dailyItems != null
+      ? Math.round(targets.dailyItems * avgWorkingDaysPerBucket)
+      : null
+  const targetRevenuePerBucket =
+    targets.dailyRevenue != null
+      ? Math.round(targets.dailyRevenue * avgWorkingDaysPerBucket)
+      : null
 
   type StageKistenPayload = {
     totals: Record<string, number>
@@ -293,6 +377,63 @@ export default function PrepackMonitorPage() {
             </div>
           </div>
         ) : null}
+
+        {/* Kritieke items in wachtrij */}
+        {queueStats?.topCritical && queueStats.topCritical.length > 0 && (
+          <div className="mt-4 rounded-xl border border-orange-200 bg-orange-50/60 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertOctagon className="w-4 h-4 text-orange-500" />
+              <h3 className="text-sm font-semibold text-gray-800">Kritieke items (top 5)</h3>
+              <span className="text-xs text-gray-500">prioriteit + oudste eerst</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="text-xs uppercase tracking-wide text-gray-500">
+                  <tr>
+                    <th className="px-2 py-1.5 text-left">Item</th>
+                    <th className="px-2 py-1.5 text-left">Omschrijving</th>
+                    <th className="px-2 py-1.5 text-right">Aantal</th>
+                    <th className="px-2 py-1.5 text-right">Leeftijd</th>
+                    <th className="px-2 py-1.5 text-center">Prio</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-orange-100/70 bg-white/70">
+                  {queueStats.topCritical.map((item) => (
+                    <tr key={item.id} className="hover:bg-orange-50">
+                      <td className="px-2 py-1.5 font-mono font-medium text-gray-900 whitespace-nowrap">
+                        {item.item_number || '—'}
+                      </td>
+                      <td className="px-2 py-1.5 text-gray-700 max-w-md truncate" title={item.description ?? ''}>
+                        {item.description || '—'}
+                      </td>
+                      <td className="px-2 py-1.5 text-right tabular-nums text-gray-700">{item.amount}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                            item.workingDaysOld >= 5
+                              ? 'bg-red-100 text-red-700'
+                              : item.workingDaysOld >= 3
+                                ? 'bg-orange-100 text-orange-700'
+                                : 'bg-slate-100 text-slate-600'
+                          }`}
+                        >
+                          {item.workingDaysOld} wd
+                        </span>
+                      </td>
+                      <td className="px-2 py-1.5 text-center">
+                        {item.priority ? (
+                          <Flag className="w-4 h-4 text-amber-500 inline" />
+                        ) : (
+                          <span className="text-gray-300 text-xs">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Stagekisten (Airtec) — verwacht verbruik uit wachtrij-BOM */}
@@ -420,6 +561,33 @@ export default function PrepackMonitorPage() {
             </button>
           </div>
 
+          {/* Snelle vergelijk-presets */}
+          <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50/60 px-4 py-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide mr-1">
+                Snel vergelijken:
+              </span>
+              {(
+                [
+                  ['thisWeekVsLastWeek', 'Deze week vs vorige'],
+                  ['thisMonthVsLastMonth', 'Deze maand vs vorige'],
+                  ['thisMonthVsLastYearSameMonth', 'Deze maand YoY'],
+                  ['thisQuarterVsLastQuarter', 'Dit kwartaal vs vorige'],
+                  ['thisYearVsLastYear', 'Dit jaar vs vorig jaar'],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => handleApplyComparePreset(key as any)}
+                  className="text-xs font-medium text-blue-700 bg-white border border-blue-200 rounded-full px-3 py-1 hover:bg-blue-100"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="mb-4 flex flex-wrap gap-4 items-center rounded-lg border border-gray-200 px-4 py-3 bg-gray-50">
             <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
               <input
@@ -430,6 +598,62 @@ export default function PrepackMonitorPage() {
               />
               Toon enkel items zonder prijs of materiaalkost
             </label>
+
+            {/* Aggregation switcher */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-600">Aggregatie:</span>
+              <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden text-xs bg-white">
+                {(['day', 'week', 'month'] as const).map((opt, i) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => updateAggregation(opt)}
+                    className={`px-3 py-1.5 ${
+                      aggregation === opt
+                        ? 'bg-blue-600 text-white'
+                        : 'text-gray-600 hover:bg-gray-50'
+                    } ${i > 0 ? 'border-l border-gray-300' : ''}`}
+                  >
+                    {opt === 'day' ? 'Dag' : opt === 'week' ? 'Week' : 'Maand'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Targets */}
+            <div className="flex items-center gap-2">
+              <Target className="w-4 h-4 text-gray-400" />
+              <label className="text-sm font-medium text-gray-600 whitespace-nowrap">Doel items/dag:</label>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={targets.dailyItems ?? ''}
+                placeholder="—"
+                onChange={(e) => {
+                  const v = e.target.value.trim()
+                  updateTargets({ dailyItems: v === '' ? null : Math.max(0, Number(v)) })
+                }}
+                className="w-20 px-2 py-1 text-sm border border-gray-300 rounded-lg text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-600 whitespace-nowrap">Doel omzet/dag:</label>
+              <span className="text-sm text-gray-500">€</span>
+              <input
+                type="number"
+                min={0}
+                step={100}
+                value={targets.dailyRevenue ?? ''}
+                placeholder="—"
+                onChange={(e) => {
+                  const v = e.target.value.trim()
+                  updateTargets({ dailyRevenue: v === '' ? null : Math.max(0, Number(v)) })
+                }}
+                className="w-28 px-2 py-1 text-sm border border-gray-300 rounded-lg text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+              />
+            </div>
+
             <div className="flex items-center gap-2 ml-auto">
               <label className="text-sm font-medium text-gray-600 whitespace-nowrap">Uurloonkost:</label>
               <span className="text-sm text-gray-500">€</span>
@@ -610,36 +834,48 @@ export default function PrepackMonitorPage() {
               value={totals ? totals.totalIncoming.toLocaleString('nl-NL') : '—'}
               icon={<Layers className="w-5 h-5 text-slate-500" />}
               accent="border-slate-400"
+              trendPct={trendDeltas?.incoming}
+              positiveIsGood={true}
             />
             <KpiCard
               label="Items verpakt"
               value={totals ? totals.totalItemsPacked.toLocaleString('nl-NL') : '—'}
               icon={<Package className="w-5 h-5 text-blue-500" />}
               accent="border-blue-500"
+              trendPct={trendDeltas?.items}
+              positiveIsGood={true}
             />
             <KpiCard
               label="Totale manuren"
               value={totals ? `${totals.totalManHours.toFixed(2)} u` : '—'}
               icon={<Clock className="w-5 h-5 text-emerald-500" />}
               accent="border-emerald-500"
+              trendPct={trendDeltas?.manHours}
+              positiveIsGood={false}
             />
             <KpiCard
               label="Items / FTE"
               value={totals ? totals.averageItemsPerFte.toFixed(2) : '—'}
               icon={<BarChart2 className="w-5 h-5 text-indigo-500" />}
               accent="border-indigo-500"
+              trendPct={trendDeltas?.itemsPerFte}
+              positiveIsGood={true}
             />
             <KpiCard
               label="Totale omzet"
               value={totals ? formatCurrency(totals.totalRevenue) : '—'}
               icon={<Euro className="w-5 h-5 text-amber-500" />}
               accent="border-amber-500"
+              trendPct={trendDeltas?.revenue}
+              positiveIsGood={true}
             />
             <KpiCard
               label="Totale materiaalkost"
               value={totals ? formatCurrency(totals.totalMaterialCost) : '—'}
               icon={<TrendingDown className="w-5 h-5 text-rose-500" />}
               accent="border-rose-500"
+              trendPct={trendDeltas?.materialCost}
+              positiveIsGood={false}
             />
             <KpiCard
               label="Bruto marge"
@@ -647,6 +883,8 @@ export default function PrepackMonitorPage() {
               sub={grossMargin != null && totals && totals.totalRevenue > 0 ? `${((grossMargin / totals.totalRevenue) * 100).toFixed(1)}% van omzet` : undefined}
               icon={<TrendingUp className="w-5 h-5 text-teal-500" />}
               accent="border-teal-500"
+              trendPct={trendDeltas?.margin}
+              positiveIsGood={true}
             />
             <KpiCard
               label="Totale loonkost"
@@ -669,6 +907,52 @@ export default function PrepackMonitorPage() {
               accent="border-slate-300"
             />
           </div>
+
+          {/* Verloren-data waarschuwing */}
+          {missingDataStats.totalItemsInPeriod > 0 &&
+            (missingDataStats.itemsWithoutPrice > 0 || missingDataStats.itemsWithoutMaterialCost > 0) && (
+              <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 flex flex-wrap items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
+                <div className="text-sm text-amber-900 flex-1">
+                  <div className="font-semibold mb-1">Onvolledige data in deze periode</div>
+                  <ul className="list-disc list-inside space-y-0.5 text-xs">
+                    {missingDataStats.itemsWithoutPrice > 0 && (
+                      <li>
+                        <span className="font-semibold">{missingDataStats.itemsWithoutPrice}</span> item(s) zonder
+                        verkoopprijs (
+                        {Math.round(
+                          (missingDataStats.itemsWithoutPrice / missingDataStats.totalItemsInPeriod) * 100
+                        )}
+                        %)
+                        {missingDataStats.estimatedLostRevenueHint ? (
+                          <>
+                            {' '}— geschatte verborgen omzet:{' '}
+                            <span className="font-semibold">{missingDataStats.estimatedLostRevenueHint}</span>
+                          </>
+                        ) : null}
+                      </li>
+                    )}
+                    {missingDataStats.itemsWithoutMaterialCost > 0 && (
+                      <li>
+                        <span className="font-semibold">{missingDataStats.itemsWithoutMaterialCost}</span> item(s) zonder
+                        materiaalkost (
+                        {Math.round(
+                          (missingDataStats.itemsWithoutMaterialCost / missingDataStats.totalItemsInPeriod) * 100
+                        )}
+                        %)
+                      </li>
+                    )}
+                  </ul>
+                  <button
+                    type="button"
+                    onClick={() => setMissingCostOnly(true)}
+                    className="mt-2 text-xs font-semibold text-amber-800 underline hover:text-amber-900"
+                  >
+                    Filter onderstaande detaillijst op ontbrekende data →
+                  </button>
+                </div>
+              </div>
+            )}
 
           {/* Secundaire KPI's */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
@@ -696,18 +980,18 @@ export default function PrepackMonitorPage() {
         {/* Output & Manuren */}
         <CollapsibleCard
           id="chartOutput"
-          title="Output & Manuren"
-          subtitle="Items verpakt, manuren en FTE per dag"
+          title={`Output & Manuren${aggregation !== 'day' ? ` (per ${aggregation === 'week' ? 'week' : 'maand'})` : ''}`}
+          subtitle={`Items verpakt, manuren en FTE per ${aggregation === 'day' ? 'dag' : aggregation === 'week' ? 'week' : 'maand'}`}
           isCollapsed={collapsedSections.chartOutput}
           onToggle={() => toggleSection('chartOutput')}
         >
           {loading ? (
             <ChartSkeleton />
-          ) : dailyStats.length === 0 ? (
+          ) : aggregatedStats.length === 0 ? (
             <div className="text-center py-10 text-gray-400 text-sm">Geen data gevonden</div>
           ) : (
             <ResponsiveContainer width="100%" height={290}>
-              <ComposedChart data={dailyStats} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+              <ComposedChart data={aggregatedStats} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gradItems" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#2563eb" stopOpacity={0.15} />
@@ -715,11 +999,10 @@ export default function PrepackMonitorPage() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="date" tickFormatter={(v) => new Date(v).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })} angle={-30} textAnchor="end" height={55} tick={{ fontSize: 11 }} />
+                <XAxis dataKey="periodLabel" angle={-30} textAnchor="end" height={55} tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip
                   contentStyle={{ borderRadius: 8, fontSize: 12 }}
-                  labelFormatter={(v) => formatDate(v as string)}
                   formatter={(value: number, name: string) => {
                     if (name === 'Manuren') return [`${value.toFixed(2)} uur`, name]
                     if (name === 'FTE') return [value.toFixed(2), name]
@@ -730,6 +1013,19 @@ export default function PrepackMonitorPage() {
                 <Area type="monotone" dataKey="itemsPacked" stroke="#2563eb" fill="url(#gradItems)" strokeWidth={2} name="Items" dot={false} />
                 <Line type="monotone" dataKey="manHours" stroke="#10b981" strokeWidth={2} name="Manuren" dot={false} />
                 <Line type="monotone" dataKey="fte" stroke="#64748b" strokeWidth={1.5} strokeDasharray="4 3" name="FTE" dot={false} />
+                {targetItemsPerBucket != null && targetItemsPerBucket > 0 && (
+                  <ReferenceLine
+                    y={targetItemsPerBucket}
+                    stroke="#dc2626"
+                    strokeDasharray="5 3"
+                    label={{
+                      value: `Doel ${targetItemsPerBucket} items/${aggregation === 'day' ? 'dag' : aggregation === 'week' ? 'week' : 'maand'}`,
+                      fill: '#dc2626',
+                      fontSize: 10,
+                      position: 'insideTopRight',
+                    }}
+                  />
+                )}
               </ComposedChart>
             </ResponsiveContainer>
           )}
@@ -738,18 +1034,18 @@ export default function PrepackMonitorPage() {
         {/* Omzet + Materiaalkost gecombineerd */}
         <CollapsibleCard
           id="chartRevenue"
-          title="Omzet & Materiaalkost"
-          subtitle="Dagelijkse omzet en materiaalkost"
+          title={`Omzet & Materiaalkost${aggregation !== 'day' ? ` (per ${aggregation === 'week' ? 'week' : 'maand'})` : ''}`}
+          subtitle={`Omzet en materiaalkost per ${aggregation === 'day' ? 'dag' : aggregation === 'week' ? 'week' : 'maand'}`}
           isCollapsed={collapsedSections.chartRevenue}
           onToggle={() => toggleSection('chartRevenue')}
         >
           {loading ? (
             <ChartSkeleton />
-          ) : dailyStats.length === 0 ? (
+          ) : aggregatedStats.length === 0 ? (
             <div className="text-center py-10 text-gray-400 text-sm">Geen data gevonden</div>
           ) : (
             <ResponsiveContainer width="100%" height={290}>
-              <ComposedChart data={dailyStats} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+              <ComposedChart data={aggregatedStats} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gradRevenue" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.15} />
@@ -761,16 +1057,28 @@ export default function PrepackMonitorPage() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="date" tickFormatter={(v) => new Date(v).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })} angle={-30} textAnchor="end" height={55} tick={{ fontSize: 11 }} />
+                <XAxis dataKey="periodLabel" angle={-30} textAnchor="end" height={55} tick={{ fontSize: 11 }} />
                 <YAxis tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
                 <Tooltip
                   contentStyle={{ borderRadius: 8, fontSize: 12 }}
-                  labelFormatter={(v) => formatDate(v as string)}
                   formatter={(value: number, name: string) => [formatCurrency(value), name]}
                 />
                 <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
                 <Area type="monotone" dataKey="revenue" stroke="#f59e0b" fill="url(#gradRevenue)" strokeWidth={2.5} name="Omzet" dot={false} />
                 <Area type="monotone" dataKey="materialCost" stroke="#f43f5e" fill="url(#gradMaterial)" strokeWidth={2} name="Materiaalkost" dot={false} />
+                {targetRevenuePerBucket != null && targetRevenuePerBucket > 0 && (
+                  <ReferenceLine
+                    y={targetRevenuePerBucket}
+                    stroke="#dc2626"
+                    strokeDasharray="5 3"
+                    label={{
+                      value: `Doel €${targetRevenuePerBucket.toLocaleString('nl-NL')}/${aggregation === 'day' ? 'dag' : aggregation === 'week' ? 'wk' : 'mnd'}`,
+                      fill: '#dc2626',
+                      fontSize: 10,
+                      position: 'insideTopRight',
+                    }}
+                  />
+                )}
               </ComposedChart>
             </ResponsiveContainer>
           )}
@@ -779,18 +1087,18 @@ export default function PrepackMonitorPage() {
         {/* Productiviteit */}
         <CollapsibleCard
           id="productivity"
-          title="Productiviteit"
-          subtitle="Items per FTE per dag"
+          title={`Productiviteit${aggregation !== 'day' ? ` (per ${aggregation === 'week' ? 'week' : 'maand'})` : ''}`}
+          subtitle={`Items per FTE per ${aggregation === 'day' ? 'dag' : aggregation === 'week' ? 'week' : 'maand'}`}
           isCollapsed={collapsedSections.productivity}
           onToggle={() => toggleSection('productivity')}
         >
           {loading ? (
             <ChartSkeleton />
-          ) : dailyStats.length === 0 ? (
+          ) : aggregatedStats.length === 0 ? (
             <div className="text-center py-10 text-gray-400 text-sm">Geen data gevonden</div>
           ) : (
             <ResponsiveContainer width="100%" height={290}>
-              <ComposedChart data={dailyStats} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+              <ComposedChart data={aggregatedStats} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gradProd" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.15} />
@@ -798,11 +1106,10 @@ export default function PrepackMonitorPage() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="date" tickFormatter={(v) => new Date(v).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })} angle={-30} textAnchor="end" height={55} tick={{ fontSize: 11 }} />
+                <XAxis dataKey="periodLabel" angle={-30} textAnchor="end" height={55} tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip
                   contentStyle={{ borderRadius: 8, fontSize: 12 }}
-                  labelFormatter={(v) => formatDate(v as string)}
                   formatter={(value: number) => [`${value.toFixed(2)} items/FTE`, 'Productiviteit']}
                 />
                 <Area type="monotone" dataKey="itemsPerFte" stroke="#8b5cf6" fill="url(#gradProd)" strokeWidth={2.5} name="Items/FTE" dot={false} />
@@ -821,17 +1128,16 @@ export default function PrepackMonitorPage() {
         >
           {loading ? (
             <ChartSkeleton />
-          ) : dailyStats.length === 0 ? (
+          ) : aggregatedStats.length === 0 ? (
             <div className="text-center py-10 text-gray-400 text-sm">Geen data gevonden</div>
           ) : (
             <ResponsiveContainer width="100%" height={290}>
-              <ComposedChart data={dailyStats} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+              <ComposedChart data={aggregatedStats} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="date" tickFormatter={(v) => new Date(v).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })} angle={-30} textAnchor="end" height={55} tick={{ fontSize: 11 }} />
+                <XAxis dataKey="periodLabel" angle={-30} textAnchor="end" height={55} tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip
                   contentStyle={{ borderRadius: 8, fontSize: 12 }}
-                  labelFormatter={(v) => formatDate(v as string)}
                   formatter={(value: number, name: string) => {
                     if (name === 'FTE') return [value.toFixed(2), name]
                     return [value, name]
@@ -843,6 +1149,153 @@ export default function PrepackMonitorPage() {
                 <Line type="monotone" dataKey="fte" stroke="#64748b" strokeWidth={1.5} strokeDasharray="4 3" name="FTE" dot={false} />
               </ComposedChart>
             </ResponsiveContainer>
+          )}
+        </CollapsibleCard>
+      </div>
+
+      {/* Weekday pattern + Top items */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+        {/* Weekdag-patroon */}
+        <CollapsibleCard
+          id="weekday"
+          title="Weekdag-patroon"
+          subtitle="Gemiddelden per werkdag over de geselecteerde periode"
+          isCollapsed={collapsedSections.weekday}
+          onToggle={() => toggleSection('weekday')}
+        >
+          {loading ? (
+            <ChartSkeleton />
+          ) : weekdayStats.length === 0 || weekdayStats.every((w) => w.daysCounted === 0) ? (
+            <div className="text-center py-10 text-gray-400 text-sm">Geen data gevonden</div>
+          ) : (
+            <div className="space-y-4">
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={weekdayStats} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 8, fontSize: 12 }}
+                    formatter={(value: number, name: string) => {
+                      if (name === 'Manuren') return [`${value.toFixed(1)} u`, name]
+                      if (name === 'Items/FTE') return [value.toFixed(2), name]
+                      return [value, name]
+                    }}
+                  />
+                  <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="avgItemsPacked" fill="#2563eb" name="Items" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="avgManHours" fill="#10b981" name="Manuren" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="avgItemsPerFte" fill="#8b5cf6" name="Items/FTE" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+              <div className="text-xs text-gray-400">
+                Gebaseerd op {weekdayStats.reduce((s, w) => s + w.daysCounted, 0)} werkdagen.
+              </div>
+            </div>
+          )}
+        </CollapsibleCard>
+
+        {/* Top items */}
+        <CollapsibleCard
+          id="topItems"
+          title="Top items"
+          subtitle="Hoogste omzet en slechtste marge in deze periode"
+          isCollapsed={collapsedSections.topItems}
+          onToggle={() => toggleSection('topItems')}
+        >
+          {loading ? (
+            <div className="animate-pulse space-y-2 py-4">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="h-8 bg-gray-100 rounded" />
+              ))}
+            </div>
+          ) : topItems.byRevenue.length === 0 ? (
+            <div className="text-center py-10 text-gray-400 text-sm">Geen items gevonden</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  Hoogste omzet
+                </h4>
+                <div className="overflow-hidden rounded-lg border border-gray-100">
+                  <table className="min-w-full text-xs">
+                    <thead className="bg-gray-50 text-gray-500">
+                      <tr>
+                        <th className="px-2 py-1.5 text-left font-semibold">Item</th>
+                        <th className="px-2 py-1.5 text-right font-semibold">Stuks</th>
+                        <th className="px-2 py-1.5 text-right font-semibold">Omzet</th>
+                        <th className="px-2 py-1.5 text-right font-semibold">Marge</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 bg-white">
+                      {topItems.byRevenue.map((row) => (
+                        <tr
+                          key={row.item_number}
+                          onClick={() => openBomDetail(row.item_number)}
+                          className="hover:bg-blue-50 cursor-pointer"
+                        >
+                          <td className="px-2 py-1.5 font-mono text-gray-900">{row.item_number}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">{row.totalAmount}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums font-semibold text-amber-700">
+                            {formatCurrency(row.totalRevenue)}
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">
+                            {row.marginPct == null ? (
+                              <span className="text-gray-300">—</span>
+                            ) : (
+                              <span className={row.marginPct < 0 ? 'text-rose-600' : 'text-emerald-700'}>
+                                {row.marginPct.toFixed(1)}%
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div>
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  Slechtste marge
+                </h4>
+                {topItems.byMargin.length === 0 ? (
+                  <div className="text-xs text-gray-400 py-4">
+                    Onvoldoende prijsdata om marges te berekenen.
+                  </div>
+                ) : (
+                  <div className="overflow-hidden rounded-lg border border-gray-100">
+                    <table className="min-w-full text-xs">
+                      <thead className="bg-gray-50 text-gray-500">
+                        <tr>
+                          <th className="px-2 py-1.5 text-left font-semibold">Item</th>
+                          <th className="px-2 py-1.5 text-right font-semibold">Stuks</th>
+                          <th className="px-2 py-1.5 text-right font-semibold">Omzet</th>
+                          <th className="px-2 py-1.5 text-right font-semibold">Marge</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 bg-white">
+                        {topItems.byMargin.map((row) => (
+                          <tr
+                            key={row.item_number}
+                            onClick={() => openBomDetail(row.item_number)}
+                            className="hover:bg-rose-50 cursor-pointer"
+                          >
+                            <td className="px-2 py-1.5 font-mono text-gray-900">{row.item_number}</td>
+                            <td className="px-2 py-1.5 text-right tabular-nums">{row.totalAmount}</td>
+                            <td className="px-2 py-1.5 text-right tabular-nums text-amber-700">
+                              {formatCurrency(row.totalRevenue)}
+                            </td>
+                            <td className="px-2 py-1.5 text-right tabular-nums font-semibold text-rose-600">
+                              {row.marginPct != null ? `${row.marginPct.toFixed(1)}%` : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
           )}
         </CollapsibleCard>
       </div>
@@ -1333,7 +1786,7 @@ export default function PrepackMonitorPage() {
                 <thead>
                   <tr className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
                     <th className="px-4 py-3 text-left font-semibold">Datum</th>
-                    <th className="px-4 py-3 text-right font-semibold">Goedren binnen</th>
+                    <th className="px-4 py-3 text-right font-semibold">Goederen binnen</th>
                     <th className="px-4 py-3 text-right font-semibold">Verpakt</th>
                     <th className="px-4 py-3 text-right font-semibold">Manuren</th>
                     <th className="px-4 py-3 text-right font-semibold">FTE</th>

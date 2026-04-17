@@ -56,6 +56,49 @@ export type DetailSortColumn = keyof Pick<DetailedItem,
 
 export type CompareMode = 'previous' | 'lastYear' | 'custom' | 'selectedDays'
 
+export type Aggregation = 'day' | 'week' | 'month'
+
+export interface AggregatedStat extends DailyStat {
+  periodStart: string
+  periodEnd: string
+  periodLabel: string
+  periodKey: string
+  workingDaysInBucket: number
+}
+
+export interface TopItemStat {
+  item_number: string
+  description?: string | null
+  totalAmount: number
+  totalRevenue: number
+  totalMaterialCost: number
+  grossMargin: number
+  marginPct: number | null
+  missingPrice: boolean
+}
+
+export interface WeekdayStat {
+  weekdayIndex: number
+  label: string
+  avgItemsPacked: number
+  avgManHours: number
+  avgItemsPerFte: number
+  avgRevenue: number
+  daysCounted: number
+}
+
+export interface MissingDataStat {
+  itemsWithoutPrice: number
+  itemsWithoutMaterialCost: number
+  totalItemsInPeriod: number
+  estimatedLostRevenueHint: string | null
+}
+
+export interface PrepackTargets {
+  dailyItems: number | null
+  dailyRevenue: number | null
+}
+
 export type SectionKey =
   | 'filters'
   | 'chartOutput'
@@ -66,3 +109,5 @@ export type SectionKey =
   | 'people'
   | 'details'
   | 'daily'
+  | 'topItems'
+  | 'weekday'

@@ -89,11 +89,13 @@ export default function Navbar() {
 
   const isGroteInpakPage = pathname.startsWith('/grote-inpak')
 
-  const isWoodPage = 
+  const isWoodPage =
     pathname.startsWith('/wood/order') ||
     pathname.startsWith('/wood/open-orders') ||
     pathname.startsWith('/wood/receive') ||
     pathname.startsWith('/wood/picking') ||
+    pathname.startsWith('/wood/stock-count') ||
+    pathname.startsWith('/wood/add-wood') ||
     pathname.startsWith('/wood/consumption') ||
     pathname.startsWith('/wood/zaagplan')
 
@@ -478,6 +480,15 @@ export default function Navbar() {
                       Receive Wood
                     </Link>
                     <Link
+                      href="/wood/add-wood"
+                      onClick={() => setIsWoodOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/wood/add-wood') ? 'bg-amber-50 text-amber-600 font-medium border-l-4 border-amber-500' : 'text-gray-700'
+                      }`}
+                    >
+                      Add Wood (manueel)
+                    </Link>
+                    <Link
                       href="/wood/picking"
                       onClick={() => setIsWoodOpen(false)}
                       className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
@@ -485,6 +496,15 @@ export default function Navbar() {
                       }`}
                     >
                       Wood Picking
+                    </Link>
+                    <Link
+                      href="/wood/stock-count"
+                      onClick={() => setIsWoodOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/wood/stock-count') ? 'bg-amber-50 text-amber-600 font-medium border-l-4 border-amber-500' : 'text-gray-700'
+                      }`}
+                    >
+                      Stock Count (telronde)
                     </Link>
                     <Link
                       href="/wood/consumption"
@@ -922,7 +942,9 @@ export default function Navbar() {
                     <Link href="/wood/order" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Order Wood</Link>
                     <Link href="/wood/open-orders" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Open Orders</Link>
                     <Link href="/wood/receive" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Receive Wood</Link>
+                    <Link href="/wood/add-wood" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Add Wood (manueel)</Link>
                     <Link href="/wood/picking" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Wood Picking</Link>
+                    <Link href="/wood/stock-count" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Stock Count (telronde)</Link>
                     <Link href="/wood/consumption" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Wood Consumption</Link>
                     <Link href="/wood/zaagplan" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Zaagplan Optimizer</Link>
                   </div>

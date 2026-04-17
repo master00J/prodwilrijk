@@ -31,6 +31,33 @@ interface CNHLog {
   created_at?: string
 }
 
+interface CNHTemplate {
+  id: number
+  name: string
+  load_location?: string | null
+  load_reference?: string | null
+  container_number?: string | null
+  truck_plate?: string | null
+  booking_ref?: string | null
+  your_ref?: string | null
+  container_tarra?: number | null
+  created_at?: string
+  updated_at?: string
+}
+
+type TemplateDraft = Omit<CNHTemplate, 'id' | 'created_at' | 'updated_at'> & { id?: number }
+
+const EMPTY_TEMPLATE: TemplateDraft = {
+  name: '',
+  load_location: '',
+  load_reference: '',
+  container_number: '',
+  truck_plate: '',
+  booking_ref: '',
+  your_ref: '',
+  container_tarra: null,
+}
+
 export default function CNHAdminPage() {
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' | 'warning' | 'info' } | null>(null)
   const [bodemsStock, setBodemsStock] = useState<BodemStock[]>([])
@@ -38,6 +65,9 @@ export default function CNHAdminPage() {
   const [logs, setLogs] = useState<CNHLog[]>([])
   const [stockUpdate, setStockUpdate] = useState<Record<string, { quantity: number; operation: 'add' | 'subtract' | 'set' }>>({})
   const [editingMotor, setEditingMotor] = useState<CNHMotor | null>(null)
+  const [templates, setTemplates] = useState<CNHTemplate[]>([])
+  const [editingTemplate, setEditingTemplate] = useState<TemplateDraft | null>(null)
+  const [savingTemplate, setSavingTemplate] = useState(false)
 
   const showStatus = useCallback((text: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
     setStatusMessage({ text, type })
@@ -89,6 +119,84 @@ export default function CNHAdminPage() {
     }
   }, [])
 
+  // Fetch templates
+  const fetchTemplates = useCallback(async () => {
+    try {
+      const resp = await fetch('/api/cnh/templates')
+      const data = await resp.json()
+      if (resp.ok) {
+        setTemplates(data || [])
+      }
+    } catch (e) {
+      console.error('Error fetching templates:', e)
+    }
+  }, [])
+
+  const saveTemplate = useCallback(async () => {
+    if (!editingTemplate) return
+    if (!editingTemplate.name?.trim()) {
+      showStatus('Template naam is verplicht', 'warning')
+      return
+    }
+
+    setSavingTemplate(true)
+    try {
+      const payload = {
+        name: editingTemplate.name.trim(),
+        load_location: editingTemplate.load_location?.trim() || null,
+        load_reference: editingTemplate.load_reference?.trim() || null,
+        container_number: editingTemplate.container_number?.trim() || null,
+        truck_plate: editingTemplate.truck_plate?.trim() || null,
+        booking_ref: editingTemplate.booking_ref?.trim() || null,
+        your_ref: editingTemplate.your_ref?.trim() || null,
+        container_tarra:
+          editingTemplate.container_tarra === null || editingTemplate.container_tarra === undefined
+            ? null
+            : Number(editingTemplate.container_tarra),
+      }
+
+      const isEdit = typeof editingTemplate.id === 'number'
+      const url = isEdit ? `/api/cnh/templates/${editingTemplate.id}` : '/api/cnh/templates'
+      const method = isEdit ? 'PUT' : 'POST'
+      const resp = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const data = await resp.json()
+      if (!resp.ok || !data.success) {
+        throw new Error(data.error || 'Fout bij opslaan template')
+      }
+      showStatus(isEdit ? 'Template bijgewerkt' : 'Template aangemaakt', 'success')
+      setEditingTemplate(null)
+      fetchTemplates()
+    } catch (e: any) {
+      console.error(e)
+      showStatus('Fout bij opslaan template: ' + e.message, 'error')
+    } finally {
+      setSavingTemplate(false)
+    }
+  }, [editingTemplate, showStatus, fetchTemplates])
+
+  const deleteTemplate = useCallback(
+    async (id: number, name: string) => {
+      if (!confirm(`Template "${name}" verwijderen?`)) return
+      try {
+        const resp = await fetch(`/api/cnh/templates/${id}`, { method: 'DELETE' })
+        const data = await resp.json()
+        if (!resp.ok || !data.success) {
+          throw new Error(data.error || 'Fout bij verwijderen template')
+        }
+        showStatus('Template verwijderd', 'success')
+        fetchTemplates()
+      } catch (e: any) {
+        console.error(e)
+        showStatus('Fout bij verwijderen template: ' + e.message, 'error')
+      }
+    },
+    [showStatus, fetchTemplates]
+  )
+
   // Update bodem stock
   const updateBodemStock = useCallback(async (type: 'laag' | 'hoog', quantity: number, operation: 'add' | 'subtract' | 'set') => {
     try {
@@ -114,7 +222,8 @@ export default function CNHAdminPage() {
     fetchBodemsStock()
     fetchAllMotors()
     fetchLogs()
-  }, [fetchBodemsStock, fetchAllMotors, fetchLogs])
+    fetchTemplates()
+  }, [fetchBodemsStock, fetchAllMotors, fetchLogs, fetchTemplates])
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'N/A'
@@ -254,6 +363,95 @@ export default function CNHAdminPage() {
                 <tr>
                   <td colSpan={3} className="px-4 py-8 text-center text-gray-500">
                     Geen voorraad gevonden
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Laad-templates */}
+      <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
+          <div>
+            <h2 className="text-2xl font-bold">Laad-templates</h2>
+            <p className="text-sm text-gray-600 mt-1">
+              Maak hier op bureau de laad-templates aan. De mensen die de container laden
+              kunnen ze dan in één klik selecteren op de <span className="font-medium">/cnh/workflow</span>-pagina,
+              zonder zelf alle referenties te moeten overtypen.
+            </p>
+          </div>
+          <button
+            onClick={() => setEditingTemplate({ ...EMPTY_TEMPLATE })}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+          >
+            + Nieuwe template
+          </button>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="px-3 py-2 text-left border-b text-sm">Naam</th>
+                <th className="px-3 py-2 text-left border-b text-sm">Locatie</th>
+                <th className="px-3 py-2 text-left border-b text-sm">Laad-ref</th>
+                <th className="px-3 py-2 text-left border-b text-sm">Container</th>
+                <th className="px-3 py-2 text-left border-b text-sm">Truck</th>
+                <th className="px-3 py-2 text-left border-b text-sm">Booking</th>
+                <th className="px-3 py-2 text-left border-b text-sm">Your ref</th>
+                <th className="px-3 py-2 text-left border-b text-sm">Tarra</th>
+                <th className="px-3 py-2 text-right border-b text-sm">Acties</th>
+              </tr>
+            </thead>
+            <tbody>
+              {templates.map((t) => (
+                <tr key={t.id} className="border-b hover:bg-gray-50">
+                  <td className="px-3 py-2 font-medium">{t.name}</td>
+                  <td className="px-3 py-2">{t.load_location || '—'}</td>
+                  <td className="px-3 py-2 text-sm">{t.load_reference || '—'}</td>
+                  <td className="px-3 py-2 text-sm font-mono">{t.container_number || '—'}</td>
+                  <td className="px-3 py-2 text-sm font-mono">{t.truck_plate || '—'}</td>
+                  <td className="px-3 py-2 text-sm">{t.booking_ref || '—'}</td>
+                  <td className="px-3 py-2 text-sm">{t.your_ref || '—'}</td>
+                  <td className="px-3 py-2 text-sm text-right">
+                    {t.container_tarra !== null && t.container_tarra !== undefined ? t.container_tarra : '—'}
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        onClick={() =>
+                          setEditingTemplate({
+                            id: t.id,
+                            name: t.name,
+                            load_location: t.load_location || '',
+                            load_reference: t.load_reference || '',
+                            container_number: t.container_number || '',
+                            truck_plate: t.truck_plate || '',
+                            booking_ref: t.booking_ref || '',
+                            your_ref: t.your_ref || '',
+                            container_tarra: t.container_tarra ?? null,
+                          })
+                        }
+                        className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                      >
+                        Bewerken
+                      </button>
+                      <button
+                        onClick={() => deleteTemplate(t.id, t.name)}
+                        className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
+                      >
+                        Verwijderen
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {templates.length === 0 && (
+                <tr>
+                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
+                    Nog geen templates. Klik op &quot;+ Nieuwe template&quot; om er een aan te maken.
                   </td>
                 </tr>
               )}
@@ -502,6 +700,172 @@ export default function CNHAdminPage() {
                     className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                   >
                     Opslaan
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Template edit/create modal */}
+      {editingTemplate && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold">
+                  {typeof editingTemplate.id === 'number' ? 'Template bewerken' : 'Nieuwe template'}
+                </h2>
+                <button
+                  onClick={() => setEditingTemplate(null)}
+                  className="text-gray-500 hover:text-gray-700 text-2xl"
+                  disabled={savingTemplate}
+                >
+                  ×
+                </button>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  saveTemplate()
+                }}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Template naam <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={editingTemplate.name}
+                      onChange={(e) => setEditingTemplate({ ...editingTemplate, name: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="bv. China CNH januari"
+                      required
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Dit is de naam die de laders zien wanneer ze de template kiezen. Kies iets duidelijk zoals klantnaam + land + week.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Laad-locatie</label>
+                    <select
+                      value={editingTemplate.load_location || ''}
+                      onChange={(e) =>
+                        setEditingTemplate({ ...editingTemplate, load_location: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">—</option>
+                      <option value="China">China</option>
+                      <option value="Amerika">Amerika</option>
+                      <option value="UZB">UZB</option>
+                      <option value="Other">Anders</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Laadreferentie</label>
+                    <input
+                      type="text"
+                      value={editingTemplate.load_reference || ''}
+                      onChange={(e) =>
+                        setEditingTemplate({ ...editingTemplate, load_reference: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Container nummer</label>
+                    <input
+                      type="text"
+                      value={editingTemplate.container_number || ''}
+                      onChange={(e) =>
+                        setEditingTemplate({ ...editingTemplate, container_number: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Truck nummerplaat</label>
+                    <input
+                      type="text"
+                      value={editingTemplate.truck_plate || ''}
+                      onChange={(e) =>
+                        setEditingTemplate({ ...editingTemplate, truck_plate: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Booking reference</label>
+                    <input
+                      type="text"
+                      value={editingTemplate.booking_ref || ''}
+                      onChange={(e) =>
+                        setEditingTemplate({ ...editingTemplate, booking_ref: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Your reference</label>
+                    <input
+                      type="text"
+                      value={editingTemplate.your_ref || ''}
+                      onChange={(e) =>
+                        setEditingTemplate({ ...editingTemplate, your_ref: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Container tarra (kg)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={
+                        editingTemplate.container_tarra === null ||
+                        editingTemplate.container_tarra === undefined
+                          ? ''
+                          : editingTemplate.container_tarra
+                      }
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setEditingTemplate({
+                          ...editingTemplate,
+                          container_tarra: v === '' ? null : Number(v),
+                        })
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setEditingTemplate(null)}
+                    className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
+                    disabled={savingTemplate}
+                  >
+                    Annuleren
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                    disabled={savingTemplate}
+                  >
+                    {savingTemplate ? 'Bezig...' : 'Opslaan'}
                   </button>
                 </div>
               </form>
