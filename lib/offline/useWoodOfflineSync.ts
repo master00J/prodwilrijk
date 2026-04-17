@@ -68,6 +68,17 @@ async function sendOutboxItem(item: OutboxItem): Promise<{ ok: boolean; error?: 
       const fatal = res.status === 400
       return { ok: false, error: body?.error || `HTTP ${res.status}`, fatal }
     }
+    if (item.kind === 'edit') {
+      const res = await fetch('/api/wood/stock', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: item.stock_id, ...(item.patch || {}) }),
+      })
+      if (res.ok) return { ok: true }
+      const body = await res.json().catch(() => ({} as any))
+      const fatal = res.status === 404 || res.status === 400
+      return { ok: false, error: body?.error || `HTTP ${res.status}`, fatal }
+    }
     return { ok: false, error: `Onbekend type ${item.kind}`, fatal: true }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Netwerkfout' }
@@ -240,6 +251,16 @@ export function useWoodOfflineSync({ fetchStock, onChange }: UseWoodOfflineSyncO
     []
   )
 
+  const applyLocalEdit = useCallback(
+    async (stockId: number, patch: Partial<WoodStock>) => {
+      await patchCachedStock(stockId, patch)
+      setStock((prev) =>
+        prev.map((s) => (s.id === stockId ? ({ ...s, ...patch } as WoodStock) : s))
+      )
+    },
+    []
+  )
+
   return {
     state,
     stock,
@@ -249,6 +270,7 @@ export function useWoodOfflineSync({ fetchStock, onChange }: UseWoodOfflineSyncO
     fullSync,
     applyLocalPick,
     applyLocalCount,
+    applyLocalEdit,
     refreshPending,
   }
 }

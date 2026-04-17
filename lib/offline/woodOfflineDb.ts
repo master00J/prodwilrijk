@@ -11,7 +11,7 @@ const STORE_STOCK = 'wood_stock_cache'
 const STORE_OUTBOX = 'wood_outbox'
 const STORE_META = 'wood_meta'
 
-export type OutboxKind = 'pick' | 'count'
+export type OutboxKind = 'pick' | 'count' | 'edit'
 
 export interface OutboxItem {
   clientId: string
@@ -24,6 +24,16 @@ export interface OutboxItem {
   oud_aantal?: number
   reden?: string | null
   opmerking?: string | null
+  // voor edits: partial patch met alle wijzigbare velden
+  patch?: {
+    houtsoort?: string
+    pakketnummer?: string | null
+    dikte?: number
+    breedte?: number
+    lengte?: number
+    locatie?: string
+    aantal?: number
+  }
   // snapshot context (handig voor server-side logging wanneer stock_id ondertussen verdwenen is)
   snapshot?: {
     houtsoort?: string | null
