@@ -451,7 +451,7 @@ export default function CNHAdminPage() {
               {templates.length === 0 && (
                 <tr>
                   <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
-                    Nog geen templates. Klik op "+ Nieuwe template" om er een aan te maken.
+                    Nog geen templates. Klik op &quot;+ Nieuwe template&quot; om er een aan te maken.
                   </td>
                 </tr>
               )}
