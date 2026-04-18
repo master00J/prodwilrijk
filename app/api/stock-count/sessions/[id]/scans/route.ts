@@ -9,6 +9,7 @@ interface ScanBody {
   quantity?: number
   description?: string | null
   label_type?: string | null
+  receiver?: string | null
   source?: 'camera' | 'manual' | 'edit'
   raw_label?: unknown
   photo_data_url?: string | null
@@ -109,6 +110,7 @@ export async function POST(
       quantity: qty,
       description: body.description ?? null,
       label_type: body.label_type ?? null,
+      receiver: body.receiver ?? null,
       source: body.source ?? 'camera',
       raw_label: body.raw_label ?? null,
       photo_data_url: body.photo_data_url ?? null,

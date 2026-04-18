@@ -23,6 +23,7 @@ interface Scan {
   quantity: number
   description: string | null
   label_type: string | null
+  receiver: string | null
   source: string
   raw_label: Record<string, unknown> | null
   photo_data_url: string | null
@@ -41,6 +42,7 @@ interface ExtractedLabel {
   location: string | null
   shop_order: string | null
   date: string | null
+  receiver: string | null
   label_type: string
   raw_text_hint: string | null
 }
@@ -63,6 +65,7 @@ interface QueueItem {
     quantity: number
     description: string | null
     label_type: string | null
+    receiver: string | null
   } | null
 }
 
@@ -289,6 +292,7 @@ export default function StockTellingPage() {
         quantity: number
         description: string | null
         label_type: string | null
+        receiver: string | null
         source: 'camera' | 'manual' | 'edit'
         raw_label: unknown
         force?: boolean
@@ -350,6 +354,7 @@ export default function StockTellingPage() {
           quantity: label.quantity ?? 1,
           description: label.description,
           label_type: label.label_type,
+          receiver: label.receiver,
         }
 
         const result = await submitScan(session.id, {
@@ -485,6 +490,7 @@ export default function StockTellingPage() {
         quantity: qty,
         description: null,
         label_type: null,
+        receiver: null,
         source: 'manual',
         raw_label: null,
       })
@@ -502,6 +508,7 @@ export default function StockTellingPage() {
           quantity: qty,
           description: null,
           label_type: null,
+          receiver: null,
           source: 'manual',
           raw_label: null,
           force: true,
@@ -588,7 +595,7 @@ export default function StockTellingPage() {
 
     // Tabblad 1: alle scans (chronologisch)
     const allAoa: (string | number)[][] = [
-      ['Itemnummer', 'Palletnummer', 'Aantal', 'Omschrijving', 'Label-type', 'Bron', 'Gescand op', 'Door', 'Duplicaat van'],
+      ['Itemnummer', 'Palletnummer', 'Aantal', 'Omschrijving', 'Receiver', 'Label-type', 'Bron', 'Gescand op', 'Door', 'Duplicaat van'],
     ]
     for (const s of scans) {
       allAoa.push([
@@ -596,6 +603,7 @@ export default function StockTellingPage() {
         s.pallet_number ?? '',
         s.quantity,
         s.description ?? '',
+        s.receiver ?? '',
         s.label_type ?? '',
         s.source,
         formatDateTime(s.scanned_at),
@@ -605,7 +613,7 @@ export default function StockTellingPage() {
     }
     const wsAll = XLSX.utils.aoa_to_sheet(allAoa)
     wsAll['!cols'] = [
-      { wch: 16 }, { wch: 14 }, { wch: 8 }, { wch: 30 }, { wch: 12 }, { wch: 10 }, { wch: 18 }, { wch: 22 }, { wch: 14 },
+      { wch: 16 }, { wch: 14 }, { wch: 8 }, { wch: 30 }, { wch: 38 }, { wch: 12 }, { wch: 10 }, { wch: 18 }, { wch: 22 }, { wch: 14 },
     ]
 
     // Tabblad 2: aggregatie per (item, pallet)
@@ -1002,17 +1010,22 @@ function QueueCard({
           </p>
         )}
         {item.label && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-mono font-bold text-gray-900 text-sm">{item.label.item_number || '?'}</span>
-            {item.label.pallet_number && (
-              <span className="font-mono text-xs text-gray-600">pallet {item.label.pallet_number}</span>
+          <>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-mono font-bold text-gray-900 text-sm">{item.label.item_number || '?'}</span>
+              {item.label.pallet_number && (
+                <span className="font-mono text-xs text-gray-600">pallet {item.label.pallet_number}</span>
+              )}
+              <span className="text-gray-400">×</span>
+              <span className="font-semibold text-gray-700 text-sm">{item.label.quantity ?? '?'}</span>
+              {item.label.description && (
+                <span className="text-xs text-gray-500 truncate max-w-[180px]">{item.label.description}</span>
+              )}
+            </div>
+            {item.label.receiver && (
+              <p className="text-[11px] text-gray-500 mt-0.5 truncate">{item.label.receiver}</p>
             )}
-            <span className="text-gray-400">×</span>
-            <span className="font-semibold text-gray-700 text-sm">{item.label.quantity ?? '?'}</span>
-            {item.label.description && (
-              <span className="text-xs text-gray-500 truncate max-w-[180px]">{item.label.description}</span>
-            )}
-          </div>
+          </>
         )}
         {item.info && <p className="text-xs text-emerald-700 mt-1">{item.info}</p>}
         {item.error && <p className="text-xs text-red-700 mt-1">{item.error}</p>}
