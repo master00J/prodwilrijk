@@ -68,23 +68,43 @@ export function digitCount(value: string): number {
   return n
 }
 
+/** Verwijder een palletnummer dat per ongeluk in de itemcel is beland.
+ *  Komt voor bij oude opmetingen waar "itemnr palletnr" in één kolom staat. */
+export function stripPalletFromItem(item: string, pallet: string): string {
+  if (!item || !pallet) return item
+  const tokens = item.split(/\s+/).filter(Boolean)
+  if (tokens.length < 2) return item
+  const last = tokens[tokens.length - 1]
+  if (last === pallet) {
+    return tokens.slice(0, -1).join(' ')
+  }
+  return item
+}
+
 /** BC-export: kolom E (4) = item, P (15) = pallet.
- *  Pallets met > 6 cijfers worden uitgesloten (zitten toch niet in de WMS). */
+ *  - Pallets met > 6 cijfers worden uitgesloten (zitten toch niet in de WMS).
+ *  - Als itemcel eindigt op het palletnummer (oude opmetingen), wordt dat gestript. */
 export function extractFromBcSheet(
   rows: unknown[][]
-): { rows: ItemPalletRow[]; skipped: number; excludedTooLong: number } {
+): {
+  rows: ItemPalletRow[]
+  skipped: number
+  excludedTooLong: number
+  itemsCleaned: number
+} {
   const out: ItemPalletRow[] = []
   let skipped = 0
   let excludedTooLong = 0
+  let itemsCleaned = 0
   let start = 0
   if (rows.length > 0 && looksLikeBcHeader(rows[0] as unknown[])) start = 1
 
   for (let i = start; i < rows.length; i++) {
     const row = rows[i] as unknown[] | undefined
-    const item = normalizeCell(row?.[4])
+    const rawItem = normalizeCell(row?.[4])
     const pallet = normalizeCell(row?.[15])
-    if (!item && !pallet) continue
-    if (!item || !pallet) {
+    if (!rawItem && !pallet) continue
+    if (!rawItem || !pallet) {
       skipped += 1
       continue
     }
@@ -92,9 +112,15 @@ export function extractFromBcSheet(
       excludedTooLong += 1
       continue
     }
-    out.push({ item, pallet, excelRow: i + 1 })
+    const cleanedItem = stripPalletFromItem(rawItem, pallet)
+    if (cleanedItem !== rawItem) itemsCleaned += 1
+    if (!cleanedItem) {
+      skipped += 1
+      continue
+    }
+    out.push({ item: cleanedItem, pallet, excelRow: i + 1 })
   }
-  return { rows: out, skipped, excludedTooLong }
+  return { rows: out, skipped, excludedTooLong, itemsCleaned }
 }
 
 export type CompareResult = {

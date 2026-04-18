@@ -66,6 +66,7 @@ export default function WmsBcStatusPage() {
     name: string
     skipped: number
     excludedTooLong: number
+    itemsCleaned: number
   } | null>(null)
   const [result, setResult] = useState<ReturnType<typeof compareWmsAndBc> | null>(null)
   const [dedupeView, setDedupeView] = useState(true)
@@ -90,6 +91,7 @@ export default function WmsBcStatusPage() {
         name: bcFile.name,
         skipped: bcParsed.skipped,
         excludedTooLong: bcParsed.excludedTooLong,
+        itemsCleaned: bcParsed.itemsCleaned,
       })
       setResult(compareWmsAndBc(wmsParsed.rows, bcParsed.rows))
     } catch (e: unknown) {
@@ -172,6 +174,10 @@ export default function WmsBcStatusPage() {
             <li>
               BC-regels met een palletnummer van <strong>meer dan 6 cijfers</strong> worden automatisch
               uitgesloten (die staan toch niet in de WMS).
+            </li>
+            <li>
+              Als de BC-itemcel per ongeluk óók het palletnummer bevat (oude opmetingen, bv.{' '}
+              <code>&quot;2236114913 548745&quot;</code>), wordt dat er automatisch afgehaald.
             </li>
           </ul>
           <p className="mt-2 text-amber-900/90">
@@ -268,6 +274,11 @@ export default function WmsBcStatusPage() {
                 {bcMeta.excludedTooLong > 0 && (
                   <div className="text-xs text-gray-500 mt-1">
                     {bcMeta.excludedTooLong} BC-regel(s) uitgesloten: palletnummer &gt; 6 cijfers
+                  </div>
+                )}
+                {bcMeta.itemsCleaned > 0 && (
+                  <div className="text-xs text-gray-500">
+                    {bcMeta.itemsCleaned} BC-regel(s): palletnummer uit itemcel verwijderd
                   </div>
                 )}
               </div>
