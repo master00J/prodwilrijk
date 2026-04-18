@@ -357,6 +357,30 @@ export default function StockTellingPage() {
           receiver: label.receiver,
         }
 
+        // Safeguard: bij Atlas-labels is het aantal meestal klein (1–20). Als de AI een
+        // groot getal meegeeft, is het vaak NET WT (KG) — gewicht ipv aantal. Laat de
+        // gebruiker in dat geval manueel bevestigen.
+        const suspiciousQuantity =
+          label.label_type === 'atlas' && payload.quantity >= 50
+
+        if (suspiciousQuantity) {
+          setQueue((prev) =>
+            prev.map((q) =>
+              q.id === item.id
+                ? {
+                    ...q,
+                    status: 'needs_review',
+                    label,
+                    pendingPayload: payload,
+                    error: null,
+                    info: `Aantal ${payload.quantity} lijkt verdacht hoog — controleer of dit niet het gewicht (NET WT) is.`,
+                  }
+                : q
+            )
+          )
+          return
+        }
+
         const result = await submitScan(session.id, {
           ...payload,
           source: 'camera',
@@ -428,17 +452,24 @@ export default function StockTellingPage() {
   }, [queue, processItem])
 
   const handleForceAdd = useCallback(
-    async (qItem: QueueItem) => {
+    async (qItem: QueueItem, overrides?: { quantity?: number }) => {
       if (!session || !qItem.pendingPayload) return
+      const wasDuplicate = qItem.status === 'duplicate'
       setQueue((prev) =>
         prev.map((q) => (q.id === qItem.id ? { ...q, status: 'processing' } : q))
       )
       try {
-        const result = await submitScan(session.id, {
+        const finalPayload = {
           ...qItem.pendingPayload,
+          ...(overrides?.quantity !== undefined
+            ? { quantity: Math.max(0, Math.trunc(overrides.quantity)) }
+            : {}),
+        }
+        const result = await submitScan(session.id, {
+          ...finalPayload,
           source: 'camera',
           raw_label: qItem.label,
-          force: true,
+          force: wasDuplicate,
         })
         if (result.duplicate) throw new Error('Dubbele scan nog altijd geweigerd')
         setQueue((prev) =>
@@ -447,7 +478,11 @@ export default function StockTellingPage() {
               ? {
                   ...q,
                   status: 'done',
-                  info: 'Toch toegevoegd als extra regel',
+                  info: wasDuplicate
+                    ? 'Toch toegevoegd als extra regel'
+                    : `Toegevoegd: ${finalPayload.item_number} × ${finalPayload.quantity}${
+                        finalPayload.pallet_number ? ' (pallet ' + finalPayload.pallet_number + ')' : ''
+                      }`,
                 }
               : q
           )
@@ -924,7 +959,7 @@ export default function StockTellingPage() {
                     <QueueCard
                       key={q.id}
                       item={q}
-                      onForceAdd={() => void handleForceAdd(q)}
+                      onForceAdd={(overrides) => void handleForceAdd(q, overrides)}
                       onSkip={() => handleSkipDuplicate(q)}
                     />
                   ))}
@@ -1007,9 +1042,19 @@ function QueueCard({
   onSkip,
 }: {
   item: QueueItem
-  onForceAdd: () => void
+  onForceAdd: (overrides?: { quantity?: number }) => void
   onSkip: () => void
 }) {
+  const [reviewQty, setReviewQty] = useState<string>(
+    item.pendingPayload ? String(item.pendingPayload.quantity) : ''
+  )
+
+  useEffect(() => {
+    if (item.status === 'needs_review' && item.pendingPayload) {
+      setReviewQty(String(item.pendingPayload.quantity))
+    }
+  }, [item.status, item.pendingPayload])
+
   const tone =
     item.status === 'done'
       ? 'bg-emerald-50 border-emerald-200'
@@ -1069,10 +1114,41 @@ function QueueCard({
             </button>
             <button
               type="button"
-              onClick={onForceAdd}
+              onClick={() => onForceAdd()}
               className="text-xs px-2 py-1 rounded bg-amber-600 text-white hover:bg-amber-700"
             >
               Toch toevoegen
+            </button>
+          </div>
+        )}
+
+        {item.status === 'needs_review' && item.pendingPayload && (
+          <div className="mt-2 flex flex-wrap gap-2 items-center">
+            <label className="text-xs text-amber-800 flex items-center gap-1">
+              Aantal:
+              <input
+                type="number"
+                min={0}
+                value={reviewQty}
+                onChange={(e) => setReviewQty(e.target.value)}
+                className="w-20 px-2 py-1 border border-amber-300 rounded text-xs"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={onSkip}
+              className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-100"
+            >
+              Overslaan
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                onForceAdd({ quantity: Math.max(0, Math.trunc(Number(reviewQty) || 0)) })
+              }
+              className="text-xs px-2 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
+            >
+              Bevestigen
             </button>
           </div>
         )}

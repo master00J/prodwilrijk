@@ -82,9 +82,21 @@ REGELS voor receiver:
   tekst op 1 of 2 regels gecombineerd terug.
 - Layout B: null.
 
-REGELS voor quantity:
-- Layout A: waarde van "QUANTITY (Q)". Vaak 1 of 2.
-- Layout B: "Qty" of "QTY".
+REGELS voor quantity (zeer belangrijk — GEEN verwarring met GEWICHT):
+- Layout A: UITSLUITEND de waarde van het veld met label "QUANTITY (Q)" of "QTY (Q)".
+  * Dit veld heeft zijn eigen barcode eronder.
+  * Waarde is typisch een klein geheel getal (1, 2, 4, 10, ...). Vaak 1 of 2.
+- NOOIT de quantity halen uit deze velden (dit zijn GEEN aantallen):
+    * "NET WT (KG)" / "NET WEIGHT" — bv. 124, 87, 340. Dit is het GEWICHT IN KILOGRAM, niet het aantal.
+      Dit veld staat bovenaan in de rechter helft van het label, op dezelfde regel als
+      "GROSS WT (KG)" en "BOX TYPE". Gebruik deze waarde nooit als quantity.
+    * "GROSS WT (KG)" / "GROSS WEIGHT" — ook gewicht, geen aantal.
+    * "BOX TYPE" — bv. 999. Verpakkingstype, geen aantal.
+    * "LOCATION", "SUPPLIER CODE", "LABEL NUMBER", datums (20260413), barcodes.
+  VERIFICATIE: als het veld direct gelabeld is met "WT", "WEIGHT", "KG", "GEWICHT" of "BOX TYPE",
+  dan is dit GEEN quantity. Als je twijfelt tussen twee kandidaten, kies het getal dat
+  EXPLICIET onder een "QUANTITY" / "QTY" label staat, niet het grootste of meest opvallende getal.
+- Layout B: "Qty" of "QTY" veld.
 
 Geef ALLEEN het JSON-object terug, geen uitleg.`
 
