@@ -81,17 +81,30 @@ CRITICAL rules for quantity on Atlas Copco / airtec labels:
     * "L/W/H (CM)" — dimensions. Values like "607 X 443 X 383" are dimensions.
     * Any field containing "WT", "WEIGHT", "KG", "CM" → NOT quantity.
 
-CRITICAL rules for serial_numbers on Atlas Copco / airtec labels:
-- Look at the field "SERIALNR" or "SERIAL NR". It contains one OR multiple serial numbers,
-  space-separated on the same line. Format is almost always "AIA" followed by 7 digits
-  (e.g. "AIA3263118", "AIA3233780", "AIA3259530"). Some have a trailing letter ("AIA3259522W").
-- Some serials are printed twice on the label with a "2W" prefix as a barcode-friendly duplicate:
-  "AIA3263118" and "2WAIA3263118" refer to the same part. Return the "AIA..." form only; skip any
-  "2W..." duplicates so the returned list has no duplicates.
-- The number of serials should roughly correspond to QUANTITY (e.g. 3 serials for qty=3).
+CRITICAL rules for serial_numbers on Atlas Copco / airtec labels — READ CAREFULLY:
+- The "SERIALNR" (or "SERIAL NR") field is MANDATORY to read. Do not leave it empty unless the
+  field really does not exist on the label.
+- The field is located in the middle-right part of the label, to the right of the DESC/QUANTITY area,
+  usually printed in SMALL font (smaller than PART NR). Zoom in mentally and read every character.
+- Each serial almost always has the format: "AIA" + 7 digits, optionally followed by one trailing
+  letter. Concrete examples: "AIA3263118", "AIA3233780", "AIA3259530", "AIA3259522W", "AIA3272798".
+- Multiple serials on the same label are space-separated on the same line, for example:
+    "AIA3233780 AIA3259530 AIA3259520"
+    "AIA3263118 2WAIA3263118"
+    "AIA3259524 AIA3259527 AIA3259522W"
+  Return EACH serial as a separate array element, do NOT glue them together.
+- Some serials are printed twice on the label with a "2W" prefix (e.g. "AIA3263118" alongside
+  "2WAIA3263118"). These are duplicates of the same physical part — include both in the array;
+  the server will deduplicate. Do not skip one thinking it is redundant.
+- The NUMBER of distinct "AIA..."-prefixed serials on the label should roughly match QUANTITY.
+  If quantity = 3 but you see only 1 or 2 serials, LOOK AGAIN at the SERIALNR line — there is
+  almost certainly a third one you missed due to small font or low contrast.
+- Do a final OCR pass on the SERIALNR field before finalising the JSON. Prefer returning a best-guess
+  serial over returning nothing; an approximate serial still helps downstream matching.
 - Example correct outputs:
-    qty=1: ["AIA3263118"]
-    qty=3: ["AIA3233780", "AIA3259530", "AIA3259520"]
+    qty=1, 1 serial shown: ["AIA3263118"]
+    qty=1, with 2W duplicate: ["AIA3263118", "2WAIA3263118"]
+    qty=3 with 3 serials: ["AIA3233780", "AIA3259530", "AIA3259520"]
 
 Rules for cooler labels:
 - item_number is the number on the label (e.g. "1621700.301"), quantity from AANTAL.
