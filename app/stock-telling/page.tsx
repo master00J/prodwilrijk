@@ -585,7 +585,8 @@ export default function StockTellingPage() {
       (s) =>
         s.item_number.toLowerCase().includes(q) ||
         (s.pallet_number ?? '').toLowerCase().includes(q) ||
-        (s.description ?? '').toLowerCase().includes(q)
+        (s.description ?? '').toLowerCase().includes(q) ||
+        (s.receiver ?? '').toLowerCase().includes(q)
     )
   }, [scans, search])
 
@@ -617,7 +618,10 @@ export default function StockTellingPage() {
     ]
 
     // Tabblad 2: aggregatie per (item, pallet)
-    const aggMap = new Map<string, { item: string; pallet: string; qty: number; scans: number; lastAt: string }>()
+    const aggMap = new Map<
+      string,
+      { item: string; pallet: string; qty: number; scans: number; lastAt: string; receivers: Set<string> }
+    >()
     for (const s of scans) {
       const key = `${s.item_number}\t${s.pallet_number ?? ''}`
       const ex = aggMap.get(key)
@@ -625,6 +629,7 @@ export default function StockTellingPage() {
         ex.qty += s.quantity
         ex.scans += 1
         if (s.scanned_at > ex.lastAt) ex.lastAt = s.scanned_at
+        if (s.receiver) ex.receivers.add(s.receiver)
       } else {
         aggMap.set(key, {
           item: s.item_number,
@@ -632,6 +637,7 @@ export default function StockTellingPage() {
           qty: s.quantity,
           scans: 1,
           lastAt: s.scanned_at,
+          receivers: new Set(s.receiver ? [s.receiver] : []),
         })
       }
     }
@@ -639,13 +645,27 @@ export default function StockTellingPage() {
       a.item === b.item ? a.pallet.localeCompare(b.pallet) : a.item.localeCompare(b.item)
     )
     const aggAoa: (string | number)[][] = [
-      ['Itemnummer', 'Palletnummer', 'Aantal (som)', 'Scans', 'Laatst gescand'],
+      ['Itemnummer', 'Palletnummer', 'Aantal (som)', 'Scans', 'Receiver', 'Laatst gescand'],
     ]
     for (const r of aggRows) {
-      aggAoa.push([r.item, r.pallet, r.qty, r.scans, formatDateTime(r.lastAt)])
+      aggAoa.push([
+        r.item,
+        r.pallet,
+        r.qty,
+        r.scans,
+        Array.from(r.receivers).join(' | '),
+        formatDateTime(r.lastAt),
+      ])
     }
     const wsAgg = XLSX.utils.aoa_to_sheet(aggAoa)
-    wsAgg['!cols'] = [{ wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 8 }, { wch: 18 }]
+    wsAgg['!cols'] = [
+      { wch: 16 },
+      { wch: 14 },
+      { wch: 12 },
+      { wch: 8 },
+      { wch: 38 },
+      { wch: 18 },
+    ]
 
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, wsAgg, 'Overzicht')
@@ -934,6 +954,7 @@ export default function StockTellingPage() {
                         <th className="text-left px-3 py-2 font-medium text-gray-600">Pallet</th>
                         <th className="text-right px-3 py-2 font-medium text-gray-600">Aantal</th>
                         <th className="text-left px-3 py-2 font-medium text-gray-600">Omschrijving</th>
+                        <th className="text-left px-3 py-2 font-medium text-gray-600">Receiver</th>
                         <th className="text-left px-3 py-2 font-medium text-gray-600">Bron</th>
                         <th className="px-3 py-2" />
                       </tr>
@@ -1127,6 +1148,12 @@ function ScanRow({
       </td>
       <td className="px-3 py-2 text-xs text-gray-600 truncate max-w-[220px]">
         {scan.description ?? ''}
+      </td>
+      <td
+        className="px-3 py-2 text-xs text-gray-600 truncate max-w-[200px]"
+        title={scan.receiver ?? ''}
+      >
+        {scan.receiver ?? <span className="text-gray-400">—</span>}
       </td>
       <td className="px-3 py-2 text-xs">
         <span
