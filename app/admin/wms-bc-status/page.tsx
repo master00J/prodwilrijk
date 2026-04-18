@@ -30,15 +30,69 @@ function parseFirstSheetRows(file: File): Promise<unknown[][]> {
   })
 }
 
-function downloadRowsAsXlsx(
+function pairLookupKey(item: string, pallet: string) {
+  return `${item}\t${pallet}`
+}
+
+function formatDateNl(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return null
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const yyyy = d.getFullYear()
+  return `${dd}-${mm}-${yyyy}`
+}
+
+function buildCommentForBc(
+  row: ItemPalletRow,
+  lookup: Record<string, string | null> | null
+): string {
+  if (!lookup) return ''
+  const date = formatDateNl(lookup[pairLookupKey(row.item, row.pallet)] ?? null)
+  if (date) return `Verpakt op ${date}`
+  return 'Geen info in prodwilrijk en WMS'
+}
+
+function makeCommentSheet(
+  rows: ItemPalletRow[],
+  lookup: Record<string, string | null> | null
+) {
+  const aoa: (string | number)[][] = [['Itemnummer', 'Palletnummer', 'Commentaar']]
+  for (const r of rows) {
+    aoa.push([r.item, r.pallet, buildCommentForBc(r, lookup)])
+  }
+  const ws = XLSX.utils.aoa_to_sheet(aoa)
+  ws['!cols'] = [{ wch: 22 }, { wch: 18 }, { wch: 36 }]
+  return ws
+}
+
+function makeSimpleSheet(rows: ItemPalletRow[]) {
+  const aoa: (string | number)[][] = [['Itemnummer', 'Palletnummer']]
+  for (const r of rows) aoa.push([r.item, r.pallet])
+  const ws = XLSX.utils.aoa_to_sheet(aoa)
+  ws['!cols'] = [{ wch: 22 }, { wch: 18 }]
+  return ws
+}
+
+function downloadBcAsXlsx(
+  filename: string,
+  sheetName: string,
+  rows: ItemPalletRow[],
+  lookup: Record<string, string | null> | null
+) {
+  const ws = makeCommentSheet(rows, lookup)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31))
+  XLSX.writeFile(wb, filename)
+}
+
+function downloadWmsAsXlsx(
   filename: string,
   sheetName: string,
   rows: ItemPalletRow[]
 ) {
-  const aoa: (string | number)[][] = [['Excel-rij', 'Itemnummer', 'Palletnummer']]
-  for (const r of rows) aoa.push([r.excelRow, r.item, r.pallet])
-  const ws = XLSX.utils.aoa_to_sheet(aoa)
-  ws['!cols'] = [{ wch: 10 }, { wch: 22 }, { wch: 18 }]
+  const ws = makeSimpleSheet(rows)
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31))
   XLSX.writeFile(wb, filename)
@@ -70,10 +124,15 @@ export default function WmsBcStatusPage() {
   } | null>(null)
   const [result, setResult] = useState<ReturnType<typeof compareWmsAndBc> | null>(null)
   const [dedupeView, setDedupeView] = useState(true)
+  const [packedLookup, setPackedLookup] = useState<Record<string, string | null> | null>(null)
+  const [lookupBusy, setLookupBusy] = useState(false)
+  const [lookupError, setLookupError] = useState<string | null>(null)
 
   const runCompare = useCallback(async () => {
     setError(null)
     setResult(null)
+    setPackedLookup(null)
+    setLookupError(null)
     if (!wmsFile || !bcFile) {
       setError('Selecteer beide bestanden (WMS status en BC status).')
       return
@@ -93,7 +152,38 @@ export default function WmsBcStatusPage() {
         excludedTooLong: bcParsed.excludedTooLong,
         itemsCleaned: bcParsed.itemsCleaned,
       })
-      setResult(compareWmsAndBc(wmsParsed.rows, bcParsed.rows))
+      const cmp = compareWmsAndBc(wmsParsed.rows, bcParsed.rows)
+      setResult(cmp)
+
+      // Haal packed-info op voor de "Alleen in BC"-combinaties
+      const uniquePairs = dedupeByKey(cmp.onlyInBc).map((r) => ({
+        item: r.item,
+        pallet: r.pallet,
+      }))
+      if (uniquePairs.length > 0) {
+        setLookupBusy(true)
+        try {
+          const resp = await fetch('/api/admin/wms-bc-status/packed-lookup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pairs: uniquePairs }),
+          })
+          if (!resp.ok) throw new Error(`Lookup mislukt (HTTP ${resp.status})`)
+          const data = (await resp.json()) as {
+            results: Record<string, string | null>
+          }
+          setPackedLookup(data.results || {})
+        } catch (err: unknown) {
+          setLookupError(
+            err instanceof Error ? err.message : 'Lookup van verpakte items mislukt'
+          )
+          setPackedLookup({})
+        } finally {
+          setLookupBusy(false)
+        }
+      } else {
+        setPackedLookup({})
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Onbekende fout bij het lezen van de bestanden.')
     } finally {
@@ -113,16 +203,17 @@ export default function WmsBcStatusPage() {
 
   const downloadOnlyBc = () => {
     if (!onlyBcDisplay.length) return
-    downloadRowsAsXlsx(
+    downloadBcAsXlsx(
       'alleen-in-bc-niet-in-wms.xlsx',
       'Alleen in BC',
-      onlyBcDisplay
+      onlyBcDisplay,
+      packedLookup
     )
   }
 
   const downloadOnlyWms = () => {
     if (!onlyWmsDisplay.length) return
-    downloadRowsAsXlsx(
+    downloadWmsAsXlsx(
       'alleen-in-wms-niet-in-bc.xlsx',
       'Alleen in WMS',
       onlyWmsDisplay
@@ -132,15 +223,16 @@ export default function WmsBcStatusPage() {
   const downloadCombined = () => {
     if (!result) return
     const wb = XLSX.utils.book_new()
-    const makeSheet = (rows: ItemPalletRow[]) => {
-      const aoa: (string | number)[][] = [['Excel-rij', 'Itemnummer', 'Palletnummer']]
-      for (const r of rows) aoa.push([r.excelRow, r.item, r.pallet])
-      const ws = XLSX.utils.aoa_to_sheet(aoa)
-      ws['!cols'] = [{ wch: 10 }, { wch: 22 }, { wch: 18 }]
-      return ws
-    }
-    XLSX.utils.book_append_sheet(wb, makeSheet(onlyBcDisplay), 'Alleen in BC')
-    XLSX.utils.book_append_sheet(wb, makeSheet(onlyWmsDisplay), 'Alleen in WMS')
+    XLSX.utils.book_append_sheet(
+      wb,
+      makeCommentSheet(onlyBcDisplay, packedLookup),
+      'Alleen in BC'
+    )
+    XLSX.utils.book_append_sheet(
+      wb,
+      makeSimpleSheet(onlyWmsDisplay),
+      'Alleen in WMS'
+    )
     XLSX.writeFile(wb, 'wms-vs-bc-afwijkingen.xlsx')
   }
 
@@ -287,7 +379,18 @@ export default function WmsBcStatusPage() {
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
               <section className="border border-rose-200 rounded-lg overflow-hidden bg-white shadow-sm">
                 <div className="flex items-center justify-between gap-2 px-4 py-3 bg-rose-50 border-b border-rose-200">
-                  <h2 className="font-semibold text-rose-900">Alleen in BC (niet in WMS)</h2>
+                  <div>
+                    <h2 className="font-semibold text-rose-900">Alleen in BC (niet in WMS)</h2>
+                    <p className="text-xs text-rose-900/70 mt-0.5">
+                      {lookupBusy
+                        ? 'Verpakte items ophalen…'
+                        : lookupError
+                        ? `Lookup fout: ${lookupError}`
+                        : packedLookup
+                        ? 'Commentaar op basis van packed-items'
+                        : 'Nog geen commentaar'}
+                    </p>
+                  </div>
                   <button
                     type="button"
                     onClick={downloadOnlyBc}
@@ -304,16 +407,30 @@ export default function WmsBcStatusPage() {
                         <th className="text-left px-3 py-2 font-medium text-gray-600">Excel-rij</th>
                         <th className="text-left px-3 py-2 font-medium text-gray-600">Item</th>
                         <th className="text-left px-3 py-2 font-medium text-gray-600">Pallet</th>
+                        <th className="text-left px-3 py-2 font-medium text-gray-600">Commentaar</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {onlyBcDisplay.map((r) => (
-                        <tr key={`${r.excelRow}-${r.item}-${r.pallet}`} className="border-t border-gray-100">
-                          <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{r.excelRow}</td>
-                          <td className="px-3 py-2 font-mono text-xs">{r.item}</td>
-                          <td className="px-3 py-2 font-mono text-xs">{r.pallet}</td>
-                        </tr>
-                      ))}
+                      {onlyBcDisplay.map((r) => {
+                        const iso = packedLookup?.[pairLookupKey(r.item, r.pallet)] ?? null
+                        const date = formatDateNl(iso)
+                        return (
+                          <tr key={`${r.excelRow}-${r.item}-${r.pallet}`} className="border-t border-gray-100">
+                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{r.excelRow}</td>
+                            <td className="px-3 py-2 font-mono text-xs">{r.item}</td>
+                            <td className="px-3 py-2 font-mono text-xs">{r.pallet}</td>
+                            <td className="px-3 py-2 text-xs">
+                              {!packedLookup ? (
+                                <span className="text-gray-400">—</span>
+                              ) : date ? (
+                                <span className="text-emerald-700">Verpakt op {date}</span>
+                              ) : (
+                                <span className="text-gray-600">Geen info in prodwilrijk en WMS</span>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                   {!onlyBcDisplay.length && (
