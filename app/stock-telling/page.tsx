@@ -527,7 +527,10 @@ export default function StockTellingPage() {
 
   // ——— Scan acties (edit/delete) ——————————————————————————————————————
   const updateScan = useCallback(
-    async (scan: Scan, patch: Partial<Pick<Scan, 'item_number' | 'pallet_number' | 'quantity' | 'note'>>) => {
+    async (
+      scan: Scan,
+      patch: Partial<Pick<Scan, 'item_number' | 'pallet_number' | 'quantity' | 'note' | 'receiver'>>
+    ) => {
       try {
         const res = await fetch(`/api/stock-count/scans/${scan.id}`, {
           method: 'PATCH',
@@ -1084,18 +1087,22 @@ function ScanRow({
   onDelete,
 }: {
   scan: Scan
-  onUpdate: (patch: Partial<Pick<Scan, 'item_number' | 'pallet_number' | 'quantity' | 'note'>>) => void
+  onUpdate: (
+    patch: Partial<Pick<Scan, 'item_number' | 'pallet_number' | 'quantity' | 'note' | 'receiver'>>
+  ) => void
   onDelete: () => void
 }) {
   const [editing, setEditing] = useState(false)
   const [item, setItem] = useState(scan.item_number)
   const [pallet, setPallet] = useState(scan.pallet_number ?? '')
   const [qty, setQty] = useState(String(scan.quantity))
+  const [receiver, setReceiver] = useState(scan.receiver ?? '')
 
   useEffect(() => {
     setItem(scan.item_number)
     setPallet(scan.pallet_number ?? '')
     setQty(String(scan.quantity))
+    setReceiver(scan.receiver ?? '')
   }, [scan])
 
   const save = () => {
@@ -1103,6 +1110,7 @@ function ScanRow({
       item_number: item.trim(),
       pallet_number: pallet.trim() || null,
       quantity: Math.max(0, Math.trunc(Number(qty) || 0)),
+      receiver: receiver.trim() || null,
     })
     setEditing(false)
   }
@@ -1150,10 +1158,21 @@ function ScanRow({
         {scan.description ?? ''}
       </td>
       <td
-        className="px-3 py-2 text-xs text-gray-600 truncate max-w-[200px]"
+        className="px-3 py-2 text-xs text-gray-600 max-w-[220px]"
         title={scan.receiver ?? ''}
       >
-        {scan.receiver ?? <span className="text-gray-400">—</span>}
+        {editing ? (
+          <input
+            className="w-48 px-1 py-0.5 border rounded text-xs"
+            value={receiver}
+            onChange={(e) => setReceiver(e.target.value)}
+            placeholder="bv. ATLAS COPCO B2610 WILRIJK"
+          />
+        ) : (
+          <span className="block truncate">
+            {scan.receiver ?? <span className="text-gray-400">—</span>}
+          </span>
+        )}
       </td>
       <td className="px-3 py-2 text-xs">
         <span

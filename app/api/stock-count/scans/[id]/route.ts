@@ -18,6 +18,7 @@ export async function PATCH(
     quantity?: number
     note?: string | null
     description?: string | null
+    receiver?: string | null
   }
   const update: Record<string, unknown> = {}
   if (typeof body.item_number === 'string' && body.item_number.trim()) {
@@ -33,6 +34,12 @@ export async function PATCH(
   }
   if (body.note !== undefined) update.note = body.note
   if (body.description !== undefined) update.description = body.description
+  if (body.receiver !== undefined) {
+    update.receiver =
+      typeof body.receiver === 'string'
+        ? body.receiver.trim() || null
+        : null
+  }
 
   const { data, error } = await supabaseAdmin
     .from('stock_count_scans')
