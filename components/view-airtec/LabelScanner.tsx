@@ -50,6 +50,27 @@ function normalizeItemNumber(raw: string): string {
   return raw.replace(/[\s\-\.]/g, '').toUpperCase()
 }
 
+function normalizeSerial(raw: string): string {
+  return raw.replace(/[\s\-\._/]/g, '').toUpperCase()
+}
+
+/**
+ * Bepaal of een lot_number uit de database matcht met één van de serienummers op
+ * het label. Sommige lot_numbers bevatten meerdere serials (komma-/semicolon-
+ * gescheiden), dus we splitsen eerst. Na normalisatie accepteren we exacte
+ * gelijkheid of substring-match (om bv. "AIA12345" ↔ "12345" te dekken).
+ */
+function lotMatchesSerial(lot: string | null, serialsNorm: string[]): boolean {
+  if (!lot || serialsNorm.length === 0) return false
+  const lotParts = lot
+    .split(/[,;]/)
+    .map(p => normalizeSerial(p))
+    .filter(p => p.length > 0)
+  return lotParts.some(lp =>
+    serialsNorm.some(s => lp === s || lp.includes(s) || s.includes(lp))
+  )
+}
+
 let queueIdCounter = 0
 
 export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlistedAdded, onIncomingAdded }: LabelScannerProps) {
@@ -214,53 +235,93 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
           return
         }
 
-        // Selecteer alleen de rij(en) die bij DEZE scan horen, op basis van qty.
-        // Rijen die al door een eerdere scan in deze sessie zijn geclaimd overslaan.
+        // Selecteer alleen de rij(en) die bij DEZE scan horen.
+        // Strategie:
+        //   1. Eerst matchen op serienummer → lot_number (exacte pallet-match).
+        //   2. Voor het resterende aantal: qty-gebaseerde fallback uit de
+        //      overige rijen. Zo wordt een pallet met 12 stuks en slechts 3
+        //      serials op het label correct verdeeld: 3 rijen via serial,
+        //      de rest op basis van aantal.
         const claimed = claimedIdsRef.current
         const available = data.matches.filter(m => !claimed.has(m.id))
 
-        let picked: ScanMatch[] = []
         if (available.length === 0) {
-          // alle rijen reeds geclaimd — behandel als extra pallet
           setQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'action_needed', result: data, autoAction: null } : q))
           return
         }
 
-        // 1. Exacte qty-match
-        const exact = available.find(m => m.quantity === labelQty)
-        if (exact) {
-          picked = [exact]
-        } else {
-          // 2. Kleinste qty die ≥ labelQty
-          const geq = available
-            .filter(m => m.quantity >= labelQty)
-            .sort((a, b) => a.quantity - b.quantity)
-          if (geq.length > 0) {
-            picked = [geq[0]]
-          } else {
-            // 3. Greedy: combineer rijen (grootste eerst) tot som ≥ labelQty
-            const sorted = [...available].sort((a, b) => b.quantity - a.quantity)
-            let running = 0
-            for (const m of sorted) {
-              picked.push(m)
-              running += m.quantity
-              if (running >= labelQty) break
+        const serialsNorm = (data.label.serial_numbers || [])
+          .map(s => normalizeSerial(s))
+          .filter(s => s.length > 0)
+
+        const pickedBySerial: ScanMatch[] = []
+        const pickedByQty: ScanMatch[] = []
+
+        // Stap 1 — serial → lot_number
+        if (serialsNorm.length > 0) {
+          for (const m of available) {
+            if (lotMatchesSerial(m.lot_number, serialsNorm)) {
+              pickedBySerial.push(m)
             }
           }
         }
 
-        // Markeer als geclaimd voor volgende scans
+        let pickedQty = pickedBySerial.reduce((s, m) => s + m.quantity, 0)
+
+        // Stap 2 — top up op basis van aantal als nog niet genoeg gedekt
+        if (pickedQty < labelQty) {
+          const remainingNeeded = labelQty - pickedQty
+          const usedIds = new Set(pickedBySerial.map(m => m.id))
+          const rest = available.filter(m => !usedIds.has(m.id))
+
+          const exact = rest.find(m => m.quantity === remainingNeeded)
+          if (exact) {
+            pickedByQty.push(exact)
+          } else {
+            const geq = rest
+              .filter(m => m.quantity >= remainingNeeded)
+              .sort((a, b) => a.quantity - b.quantity)
+            if (geq.length > 0) {
+              pickedByQty.push(geq[0])
+            } else {
+              const sorted = [...rest].sort((a, b) => b.quantity - a.quantity)
+              let running = 0
+              for (const m of sorted) {
+                pickedByQty.push(m)
+                running += m.quantity
+                if (running >= remainingNeeded) break
+              }
+            }
+          }
+          pickedQty += pickedByQty.reduce((s, m) => s + m.quantity, 0)
+        }
+
+        const picked = [...pickedBySerial, ...pickedByQty]
+
+        if (picked.length === 0) {
+          setQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'action_needed', result: data, autoAction: null } : q))
+          return
+        }
+
         picked.forEach(m => claimed.add(m.id))
         onItemsMatched(picked.map(m => m.id))
 
         const pickedBoxes = Array.from(
           new Set(picked.map(m => m.kistnummer).filter((x): x is string => !!x))
         )
-        const qtySum = picked.reduce((s, m) => s + m.quantity, 0)
-        const mismatch = qtySum !== labelQty
-        const autoAction = mismatch
-          ? `${picked.length} regel(s) geselecteerd — ${qtySum} stuks in lijst vs ${labelQty} op label`
-          : `${picked.length} regel(s) geselecteerd`
+        const mismatch = pickedQty !== labelQty
+        const parts: string[] = []
+        if (pickedBySerial.length > 0) {
+          parts.push(`${pickedBySerial.length} via serial`)
+        }
+        if (pickedByQty.length > 0) {
+          parts.push(`${pickedByQty.length} via aantal`)
+        }
+        const breakdown = parts.length > 0 ? ` (${parts.join(', ')})` : ''
+        const qtyNote = mismatch
+          ? ` — ${pickedQty} stuks in lijst vs ${labelQty} op label`
+          : ''
+        const autoAction = `${picked.length} regel(s) geselecteerd${breakdown}${qtyNote}`
 
         setQueue(prev => prev.map(q => q.id === item.id ? {
           ...q,
