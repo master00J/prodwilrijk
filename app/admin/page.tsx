@@ -20,6 +20,14 @@ export default function AdminPage() {
       color: 'green',
     },
     {
+      title: 'WMS vs BC status',
+      description:
+        'Vergelijk WMS-export (kolom A/B) met BC-export (kolom E/P): snel zien wat niet meer in WMS staat maar wel in BC',
+      href: '/admin/wms-bc-status',
+      icon: '📋',
+      color: 'orange',
+    },
+    {
       title: 'Verkooporders Upload',
       description: 'Upload Excel bestand met verkooporders om prijzen in te laden voor omzet berekening',
       href: '/admin/sales-orders',
