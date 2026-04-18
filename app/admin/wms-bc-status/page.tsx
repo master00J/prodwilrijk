@@ -8,7 +8,6 @@ import {
   compareWmsAndBc,
   extractFromBcSheet,
   extractFromWmsSheet,
-  rowsToCsv,
   type ItemPalletRow,
 } from '@/lib/wms-bc-status/compare'
 
@@ -31,14 +30,18 @@ function parseFirstSheetRows(file: File): Promise<unknown[][]> {
   })
 }
 
-function triggerDownload(filename: string, content: string, mime: string) {
-  const blob = new Blob([content], { type: mime })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
+function downloadRowsAsXlsx(
+  filename: string,
+  sheetName: string,
+  rows: ItemPalletRow[]
+) {
+  const aoa: (string | number)[][] = [['Excel-rij', 'Itemnummer', 'Palletnummer']]
+  for (const r of rows) aoa.push([r.excelRow, r.item, r.pallet])
+  const ws = XLSX.utils.aoa_to_sheet(aoa)
+  ws['!cols'] = [{ wch: 10 }, { wch: 22 }, { wch: 18 }]
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31))
+  XLSX.writeFile(wb, filename)
 }
 
 function dedupeByKey(rows: ItemPalletRow[]): ItemPalletRow[] {
@@ -59,7 +62,11 @@ export default function WmsBcStatusPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [wmsMeta, setWmsMeta] = useState<{ name: string; skipped: number } | null>(null)
-  const [bcMeta, setBcMeta] = useState<{ name: string; skipped: number } | null>(null)
+  const [bcMeta, setBcMeta] = useState<{
+    name: string
+    skipped: number
+    excludedTooLong: number
+  } | null>(null)
   const [result, setResult] = useState<ReturnType<typeof compareWmsAndBc> | null>(null)
   const [dedupeView, setDedupeView] = useState(true)
 
@@ -79,7 +86,11 @@ export default function WmsBcStatusPage() {
       const wmsParsed = extractFromWmsSheet(wmsRaw)
       const bcParsed = extractFromBcSheet(bcRaw)
       setWmsMeta({ name: wmsFile.name, skipped: wmsParsed.skipped })
-      setBcMeta({ name: bcFile.name, skipped: bcParsed.skipped })
+      setBcMeta({
+        name: bcFile.name,
+        skipped: bcParsed.skipped,
+        excludedTooLong: bcParsed.excludedTooLong,
+      })
       setResult(compareWmsAndBc(wmsParsed.rows, bcParsed.rows))
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Onbekende fout bij het lezen van de bestanden.')
@@ -100,28 +111,35 @@ export default function WmsBcStatusPage() {
 
   const downloadOnlyBc = () => {
     if (!onlyBcDisplay.length) return
-    const csv = rowsToCsv(
-      ['excel_rij', 'itemnummer', 'palletnummer'],
-      onlyBcDisplay.map((r) => ({
-        excel_rij: r.excelRow,
-        itemnummer: r.item,
-        palletnummer: r.pallet,
-      }))
+    downloadRowsAsXlsx(
+      'alleen-in-bc-niet-in-wms.xlsx',
+      'Alleen in BC',
+      onlyBcDisplay
     )
-    triggerDownload('alleen-in-bc-niet-in-wms.csv', `\uFEFF${csv}`, 'text/csv;charset=utf-8')
   }
 
   const downloadOnlyWms = () => {
     if (!onlyWmsDisplay.length) return
-    const csv = rowsToCsv(
-      ['excel_rij', 'itemnummer', 'palletnummer'],
-      onlyWmsDisplay.map((r) => ({
-        excel_rij: r.excelRow,
-        itemnummer: r.item,
-        palletnummer: r.pallet,
-      }))
+    downloadRowsAsXlsx(
+      'alleen-in-wms-niet-in-bc.xlsx',
+      'Alleen in WMS',
+      onlyWmsDisplay
     )
-    triggerDownload('alleen-in-wms-niet-in-bc.csv', `\uFEFF${csv}`, 'text/csv;charset=utf-8')
+  }
+
+  const downloadCombined = () => {
+    if (!result) return
+    const wb = XLSX.utils.book_new()
+    const makeSheet = (rows: ItemPalletRow[]) => {
+      const aoa: (string | number)[][] = [['Excel-rij', 'Itemnummer', 'Palletnummer']]
+      for (const r of rows) aoa.push([r.excelRow, r.item, r.pallet])
+      const ws = XLSX.utils.aoa_to_sheet(aoa)
+      ws['!cols'] = [{ wch: 10 }, { wch: 22 }, { wch: 18 }]
+      return ws
+    }
+    XLSX.utils.book_append_sheet(wb, makeSheet(onlyBcDisplay), 'Alleen in BC')
+    XLSX.utils.book_append_sheet(wb, makeSheet(onlyWmsDisplay), 'Alleen in WMS')
+    XLSX.writeFile(wb, 'wms-vs-bc-afwijkingen.xlsx')
   }
 
   return (
@@ -150,6 +168,10 @@ export default function WmsBcStatusPage() {
             <li>
               <strong>BC status:</strong> kolom E &quot;Description&quot; = item, kolom P &quot;Atlas Pallet No.&quot; =
               pallet.
+            </li>
+            <li>
+              BC-regels met een palletnummer van <strong>meer dan 6 cijfers</strong> worden automatisch
+              uitgesloten (die staan toch niet in de WMS).
             </li>
           </ul>
           <p className="mt-2 text-amber-900/90">
@@ -199,6 +221,15 @@ export default function WmsBcStatusPage() {
             />
             Toon afwijkingen gegroepeerd (één rij per item+pallet)
           </label>
+          {result && (
+            <button
+              type="button"
+              onClick={downloadCombined}
+              className="ml-auto px-4 py-2 rounded-md bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700"
+            >
+              Excel: alle afwijkingen
+            </button>
+          )}
         </div>
 
         {error && (
@@ -234,6 +265,11 @@ export default function WmsBcStatusPage() {
                   BC: {result.bcRowCount}
                   {bcMeta.skipped ? ` (${bcMeta.skipped} rij(en) overgeslagen)` : ''}
                 </div>
+                {bcMeta.excludedTooLong > 0 && (
+                  <div className="text-xs text-gray-500 mt-1">
+                    {bcMeta.excludedTooLong} BC-regel(s) uitgesloten: palletnummer &gt; 6 cijfers
+                  </div>
+                )}
               </div>
             </div>
 
@@ -247,7 +283,7 @@ export default function WmsBcStatusPage() {
                     disabled={!onlyBcDisplay.length}
                     className="text-sm px-3 py-1 rounded border border-rose-300 text-rose-900 hover:bg-rose-100 disabled:opacity-40"
                   >
-                    CSV
+                    Excel
                   </button>
                 </div>
                 <div className="max-h-[420px] overflow-auto">
@@ -284,7 +320,7 @@ export default function WmsBcStatusPage() {
                     disabled={!onlyWmsDisplay.length}
                     className="text-sm px-3 py-1 rounded border border-sky-300 text-sky-900 hover:bg-sky-100 disabled:opacity-40"
                   >
-                    CSV
+                    Excel
                   </button>
                 </div>
                 <div className="max-h-[420px] overflow-auto">

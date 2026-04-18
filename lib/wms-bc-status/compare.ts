@@ -58,10 +58,24 @@ export function extractFromWmsSheet(rows: unknown[][]): { rows: ItemPalletRow[];
   return { rows: out, skipped }
 }
 
-/** BC-export: kolom E (4) = item, P (15) = pallet */
-export function extractFromBcSheet(rows: unknown[][]): { rows: ItemPalletRow[]; skipped: number } {
+/** Tel alleen numerieke karakters in een waarde (negeert scheidingstekens). */
+export function digitCount(value: string): number {
+  let n = 0
+  for (let i = 0; i < value.length; i++) {
+    const c = value.charCodeAt(i)
+    if (c >= 48 && c <= 57) n += 1
+  }
+  return n
+}
+
+/** BC-export: kolom E (4) = item, P (15) = pallet.
+ *  Pallets met > 6 cijfers worden uitgesloten (zitten toch niet in de WMS). */
+export function extractFromBcSheet(
+  rows: unknown[][]
+): { rows: ItemPalletRow[]; skipped: number; excludedTooLong: number } {
   const out: ItemPalletRow[] = []
   let skipped = 0
+  let excludedTooLong = 0
   let start = 0
   if (rows.length > 0 && looksLikeBcHeader(rows[0] as unknown[])) start = 1
 
@@ -74,9 +88,13 @@ export function extractFromBcSheet(rows: unknown[][]): { rows: ItemPalletRow[]; 
       skipped += 1
       continue
     }
+    if (digitCount(pallet) > 6) {
+      excludedTooLong += 1
+      continue
+    }
     out.push({ item, pallet, excelRow: i + 1 })
   }
-  return { rows: out, skipped }
+  return { rows: out, skipped, excludedTooLong }
 }
 
 export type CompareResult = {
