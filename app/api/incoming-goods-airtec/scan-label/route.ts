@@ -43,7 +43,7 @@ async function extractLabelWithClaude(base64Image: string, mediaType: string): P
               type: 'text',
               text: `Analyze this shipping/pallet label. It can be one of two types:
 
-TYPE 1 - Atlas Copco Airtec label (has fields like PART NR, DESCR, QUANTITY, AIA serial numbers)
+TYPE 1 - Atlas Copco Airtec label (has fields like PART NR, DESCR, QUANTITY (Q), NET WT, AIA serial numbers)
 TYPE 2 - Foresco cooler label (simple label with "FORESCO", a part number like "1621700.301", and "AANTAL: X")
 
 Return ONLY valid JSON:
@@ -57,14 +57,41 @@ Return ONLY valid JSON:
 }
 
 CRITICAL rules for item_number on Atlas Copco / airtec labels:
-- item_number MUST come from the field labeled "PART NR" (or "PART NO", "PARTNR"), printed with its own barcode.
-  On Atlas Copco labels this is a 10-digit number usually shown with spaces, e.g. "1616 7472 81".
-  Always return it WITHOUT spaces (e.g. "1616747281").
-- NEVER use values from fields labeled "NO-LINE NO", "LINE NO", "SALES ORDER", "ORDER NO", "DELIVERY NOTICE",
-  "PO", "PO LINE", "SERIAL" or "AIA". Those are order / line / serial numbers, NOT the item number.
-  Typical wrong formats to AVOID as item_number: "393603-001", "PO-LINE-…", "AIA…", anything that contains a hyphen
-  followed by a short numeric suffix (like "-001", "-002"). If the only candidate you see looks like that, return null.
-- Keep original digits/letters exactly as on the label; only strip spaces.
+- item_number MUST come from the field labeled "PART NR" (or "PART NO", "PARTNR"), printed with its own
+  wide barcode. On Atlas Copco labels this is ALWAYS a 10-digit number shown with spaces in a 4-4-2
+  grouping, e.g. "1616 7472 81", "1616 5803 81", "1616 7418 83". Return it WITHOUT spaces
+  (e.g. "1616747281").
+- NEVER use values from these fields — they are NOT the item number:
+    * "PO NO-LINE NO" / "NO-LINE NO" / "LINE NO" — format "501965-001", "507371-001", "489260-001"
+      (6 digits, hyphen, 3-digit suffix). ALWAYS has a hyphen.
+    * "SUPPLIER CODE (V)" — typically "10000", 4-6 digits.
+    * "PARCEL NR (S)" — 9-digit number like "058702896", "058703059".
+    * "DELIVERY NOTICE" — 7-digit number like "5019651", "5073711", "4892601".
+    * "SERIALNR" / "SERIAL NO" / "AIA..." — serial numbers of individual parts.
+    * "DESTINATION (2L)" — alphanumeric like "PACK-PCSOF", "PACK".
+- Any candidate that is not exactly 10 digits (after stripping spaces) is NOT a PART NR. If the only
+  candidate you see has a hyphen, or is shorter/longer than 10 digits, return null.
+
+CRITICAL rules for quantity on Atlas Copco / airtec labels:
+- quantity MUST come from the field labeled "QUANTITY (Q)" or "QTY (Q)". Its barcode is narrow.
+  Typical values: 1, 2, 3.
+- NEVER use values from these fields — they are NOT quantity:
+    * "NET WT (KG)" / "GROSS WT (KG)" — weight in KILOGRAM. Values like 99, 140, 240 are weight,
+      not quantity.
+    * "L/W/H (CM)" — dimensions. Values like "607 X 443 X 383" are dimensions.
+    * Any field containing "WT", "WEIGHT", "KG", "CM" → NOT quantity.
+
+CRITICAL rules for serial_numbers on Atlas Copco / airtec labels:
+- Look at the field "SERIALNR" or "SERIAL NR". It contains one OR multiple serial numbers,
+  space-separated on the same line. Format is almost always "AIA" followed by 7 digits
+  (e.g. "AIA3263118", "AIA3233780", "AIA3259530"). Some have a trailing letter ("AIA3259522W").
+- Some serials are printed twice on the label with a "2W" prefix as a barcode-friendly duplicate:
+  "AIA3263118" and "2WAIA3263118" refer to the same part. Return the "AIA..." form only; skip any
+  "2W..." duplicates so the returned list has no duplicates.
+- The number of serials should roughly correspond to QUANTITY (e.g. 3 serials for qty=3).
+- Example correct outputs:
+    qty=1: ["AIA3263118"]
+    qty=3: ["AIA3233780", "AIA3259530", "AIA3259520"]
 
 Rules for cooler labels:
 - item_number is the number on the label (e.g. "1621700.301"), quantity from AANTAL.
@@ -111,11 +138,39 @@ General:
     }
   }
 
+  // Strikte PART NR validatie: altijd exact 10 cijfers na het strippen van spaties.
+  // Alles anders is waarschijnlijk PO-LINE / parcel nr / delivery notice.
+  if (itemNumber && labelType === 'airtec') {
+    const digits = itemNumber.replace(/\s+/g, '')
+    if (!/^\d{10}$/.test(digits)) {
+      itemNumber = null
+    } else {
+      itemNumber = digits
+    }
+  }
+
+  // Serials opkuisen: "2W"-prefix strippen zodat "AIA3263118" en "2WAIA3263118" als 1 serial gelden.
+  const rawSerials: string[] = Array.isArray(parsed.serial_numbers) ? parsed.serial_numbers : []
+  const cleanedSerials: string[] = []
+  const seen = new Set<string>()
+  for (const s of rawSerials) {
+    if (typeof s !== 'string') continue
+    let v = s.trim()
+    if (!v) continue
+    // "2WAIA3263118" → "AIA3263118"
+    v = v.replace(/^2W/i, '')
+    // Dedup case-insensitive
+    const key = v.toUpperCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    cleanedSerials.push(v)
+  }
+
   return {
     item_number: itemNumber,
     quantity: parsed.quantity != null ? Number(parsed.quantity) : null,
     description: parsed.description || null,
-    serial_numbers: Array.isArray(parsed.serial_numbers) ? parsed.serial_numbers : [],
+    serial_numbers: cleanedSerials,
     label_type: labelType,
   }
 }
