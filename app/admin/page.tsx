@@ -28,6 +28,14 @@ export default function AdminPage() {
       color: 'orange',
     },
     {
+      title: 'Stock telling',
+      description:
+        'Scan pallet-labels met de camera, live totaal per telsessie, duplicaatwaarschuwing en Excel-export',
+      href: '/stock-telling',
+      icon: '📦',
+      color: 'green',
+    },
+    {
       title: 'Verkooporders Upload',
       description: 'Upload Excel bestand met verkooporders om prijzen in te laden voor omzet berekening',
       href: '/admin/sales-orders',
