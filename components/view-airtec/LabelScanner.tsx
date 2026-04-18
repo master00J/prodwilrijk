@@ -35,6 +35,8 @@ interface QueueItem {
   autoAction: string | null
   base64: string
   mediaType: string
+  // De rij(en) die deze scan effectief geselecteerd heeft (voor box-nr weergave)
+  selectedMatches: ScanMatch[]
 }
 
 interface LabelScannerProps {
@@ -57,6 +59,9 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
   const [cameraActive, setCameraActive] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
   const processingRef = useRef(false)
+  // Rijen die al door een eerdere scan zijn geclaimd, zodat een tweede scan van
+  // hetzelfde itemnummer niet opnieuw dezelfde rij selecteert.
+  const claimedIdsRef = useRef<Set<number>>(new Set())
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -116,7 +121,7 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
     const base64 = dataUrl.split(',')[1]
     const id = `scan-${++queueIdCounter}-${Date.now()}`
 
-    setQueue(prev => [{ id, preview: dataUrl, status: 'pending', result: null, error: null, autoAction: null, base64, mediaType: 'image/jpeg' }, ...prev])
+    setQueue(prev => [{ id, preview: dataUrl, status: 'pending', result: null, error: null, autoAction: null, base64, mediaType: 'image/jpeg', selectedMatches: [] }, ...prev])
   }, [])
 
   const handleFileCapture = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -130,7 +135,7 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
       const mediaType = file.type || 'image/jpeg'
       const id = `scan-${++queueIdCounter}-${Date.now()}`
 
-      setQueue(prev => [{ id, preview: dataUrl, status: 'pending', result: null, error: null, autoAction: null, base64, mediaType }, ...prev])
+      setQueue(prev => [{ id, preview: dataUrl, status: 'pending', result: null, error: null, autoAction: null, base64, mediaType, selectedMatches: [] }, ...prev])
     }
     reader.readAsDataURL(file)
     if (fileInputRef.current) fileInputRef.current.value = ''
@@ -206,10 +211,66 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
 
         if (isExtra) {
           setQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'action_needed', result: data, autoAction: null } : q))
-        } else {
-          onItemsMatched(data.matches.map(m => m.id))
-          setQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'done', result: data, autoAction: `${data.matches.length} item(s) geselecteerd` } : q))
+          return
         }
+
+        // Selecteer alleen de rij(en) die bij DEZE scan horen, op basis van qty.
+        // Rijen die al door een eerdere scan in deze sessie zijn geclaimd overslaan.
+        const claimed = claimedIdsRef.current
+        const available = data.matches.filter(m => !claimed.has(m.id))
+
+        let picked: ScanMatch[] = []
+        if (available.length === 0) {
+          // alle rijen reeds geclaimd — behandel als extra pallet
+          setQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'action_needed', result: data, autoAction: null } : q))
+          return
+        }
+
+        // 1. Exacte qty-match
+        const exact = available.find(m => m.quantity === labelQty)
+        if (exact) {
+          picked = [exact]
+        } else {
+          // 2. Kleinste qty die ≥ labelQty
+          const geq = available
+            .filter(m => m.quantity >= labelQty)
+            .sort((a, b) => a.quantity - b.quantity)
+          if (geq.length > 0) {
+            picked = [geq[0]]
+          } else {
+            // 3. Greedy: combineer rijen (grootste eerst) tot som ≥ labelQty
+            const sorted = [...available].sort((a, b) => b.quantity - a.quantity)
+            let running = 0
+            for (const m of sorted) {
+              picked.push(m)
+              running += m.quantity
+              if (running >= labelQty) break
+            }
+          }
+        }
+
+        // Markeer als geclaimd voor volgende scans
+        picked.forEach(m => claimed.add(m.id))
+        onItemsMatched(picked.map(m => m.id))
+
+        const pickedBoxes = Array.from(
+          new Set(picked.map(m => m.kistnummer).filter((x): x is string => !!x))
+        )
+        const qtySum = picked.reduce((s, m) => s + m.quantity, 0)
+        const mismatch = qtySum !== labelQty
+        const autoAction = mismatch
+          ? `${picked.length} regel(s) geselecteerd — ${qtySum} stuks in lijst vs ${labelQty} op label`
+          : `${picked.length} regel(s) geselecteerd`
+
+        setQueue(prev => prev.map(q => q.id === item.id ? {
+          ...q,
+          status: 'done',
+          result: data,
+          selectedMatches: picked,
+          autoAction: pickedBoxes.length > 0
+            ? `${autoAction} — Box ${pickedBoxes.join(', ')}`
+            : autoAction,
+        } : q))
         return
       }
 
@@ -272,6 +333,7 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
     setIsOpen(false)
     setQueue([])
     setScanTally({})
+    claimedIdsRef.current = new Set()
     setCameraError(null)
   }
 
@@ -477,6 +539,36 @@ function ScanCard({ item, onAddToUnlisted }: { item: QueueItem; onAddToUnlisted:
               )}
             </div>
           )}
+
+          {/* Box-nummer prominent tonen zodat de operator het op het label kan schrijven */}
+          {item.status === 'done' && (() => {
+            const boxes = Array.from(
+              new Set(
+                (item.selectedMatches.length > 0
+                  ? item.selectedMatches
+                  : item.result?.matches ?? []
+                )
+                  .map(m => m.kistnummer)
+                  .filter((x): x is string => !!x)
+              )
+            )
+            const coolerKist = item.result?.kistnummer
+            const allBoxes = boxes.length > 0 ? boxes : coolerKist ? [coolerKist] : []
+            if (allBoxes.length === 0) return null
+            return (
+              <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                <span className="text-xs text-gray-500">Box:</span>
+                {allBoxes.map(box => (
+                  <span
+                    key={box}
+                    className="inline-flex items-center px-2 py-0.5 rounded-md bg-indigo-600 text-white text-sm font-bold font-mono tracking-wide shadow-sm"
+                  >
+                    {box}
+                  </span>
+                ))}
+              </div>
+            )
+          })()}
 
           {item.autoAction && item.status === 'done' && (
             <p className="text-xs text-green-600 font-medium mt-0.5">{item.autoAction}</p>
