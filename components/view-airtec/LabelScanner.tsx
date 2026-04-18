@@ -55,44 +55,13 @@ function normalizeSerial(raw: string): string {
 }
 
 /**
- * Haalt het pure cijfer-deel uit een AIA-serial ("AIA3263118" → "3263118",
- * "AIA3259522W" → "3259522"). Dit is wat de AI/OCR vaak verkeerd heeft; door
- * hierop te vergelijken ipv op de volledige string zijn we robuuster.
- */
-function serialDigits(raw: string): string {
-  return raw.replace(/[^0-9]/g, '')
-}
-
-/**
- * Levenshtein-afstand (klassieke DP). Wordt alleen gebruikt op korte strings
- * (typisch 7 cijfers), dus geen performance-zorgen.
- */
-function levenshtein(a: string, b: string): number {
-  if (a === b) return 0
-  if (a.length === 0) return b.length
-  if (b.length === 0) return a.length
-  const prev = new Array(b.length + 1).fill(0).map((_, i) => i)
-  for (let i = 1; i <= a.length; i++) {
-    let curr = [i]
-    for (let j = 1; j <= b.length; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1
-      curr.push(Math.min(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost))
-    }
-    prev.splice(0, prev.length, ...curr)
-  }
-  return prev[b.length]
-}
-
-/**
  * Bepaal of een lot_number uit de database matcht met één van de serienummers op
  * het label. Sommige lot_numbers bevatten meerdere serials (komma-/semicolon-
- * gescheiden), dus we splitsen eerst.
+ * gescheiden), dus we splitsen eerst. Na normalisatie accepteren we exacte
+ * gelijkheid of substring-match (om bv. "AIA12345" ↔ "12345" te dekken).
  *
- * Strategie (in volgorde):
- *   1. Exacte gelijkheid na normalisatie.
- *   2. Substring-match (om "AIA12345" ↔ "12345" te dekken).
- *   3. Fuzzy match op het pure cijferdeel (Levenshtein ≤ 1) zodat een enkele
- *      OCR-fout (7 vs 1, 0 vs 8, ...) niet meteen een match breekt.
+ * GEEN fuzzy match: serials lopen vaak sequentieel (AIA3263118, AIA3263119, ...)
+ * dus een Levenshtein-tolerantie zou onterecht buurrijen matchen.
  */
 function lotMatchesSerial(lot: string | null, serialsNorm: string[]): boolean {
   if (!lot || serialsNorm.length === 0) return false
@@ -100,19 +69,9 @@ function lotMatchesSerial(lot: string | null, serialsNorm: string[]): boolean {
     .split(/[,;]/)
     .map(p => normalizeSerial(p))
     .filter(p => p.length > 0)
-
-  for (const lp of lotParts) {
-    for (const s of serialsNorm) {
-      if (lp === s || lp.includes(s) || s.includes(lp)) return true
-      const lpDigits = serialDigits(lp)
-      const sDigits = serialDigits(s)
-      if (lpDigits.length >= 6 && sDigits.length >= 6) {
-        // Levenshtein op cijferdeel: ≤ 1 OCR-fout toestaan.
-        if (levenshtein(lpDigits, sDigits) <= 1) return true
-      }
-    }
-  }
-  return false
+  return lotParts.some(lp =>
+    serialsNorm.some(s => lp === s || lp.includes(s) || s.includes(lp))
+  )
 }
 
 let queueIdCounter = 0
