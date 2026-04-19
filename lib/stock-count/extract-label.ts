@@ -10,7 +10,7 @@ export interface StockCountLabel {
   shop_order: string | null
   date: string | null
   receiver: string | null
-  label_type: 'atlas' | 'foresco' | 'unknown'
+  label_type: 'atlas' | 'foresco' | 'packed' | 'unknown'
   raw_text_hint: string | null
 }
 
@@ -30,6 +30,14 @@ LAYOUT B — prodwilrijk/Foresco/Alteco bestemmingslabel:
   "Pallet:", "Qty", "Dest", "Prepack", "QA", "BackOrderQty". Itemnummer is het grote vetgedrukte
   nummer, niet de P.O./Prepack/Dest waarde.
 
+LAYOUT C — interne packed-kist sticker (reeds verpakte kist bij ons in opslag):
+  Velden: "Item No.:" (bv. "PVAR00014" — interne variant-code, NIET het itemnummer),
+  "Variant Code" (bv. "V00029192"), "Description:" waarin het ECHTE itemnummer staat tussen haakjes
+  (bv. "480X430X340 KIST ISPM15 MPXM (1830116081)" → itemnummer = 1830116081),
+  "Owner Name:" (bv. "K4311 - Atlas Copco Airp.-Service Center EDI2 VC74905 AID"),
+  "Gross Weight (KG):", en drie dimensie-velden "Lengte [mm]", "Breedte [mm]", "Hoogte [mm]".
+  Elke kist = ALTIJD 1 stuk.
+
 Lever dit JSON-object aan, met null voor ontbrekende velden:
 
 {
@@ -42,7 +50,7 @@ Lever dit JSON-object aan, met null voor ontbrekende velden:
   "shop_order": "<SHOP ORDER NUMBER (2P) zoals Z017219486>",
   "date": "YYYYMMDD",
   "receiver": "<ontvanger linksboven, bv. 'ATLAS COPCO B2610 WILRIJK SERVICE CENTER'>",
-  "label_type": "atlas" | "foresco" | "unknown",
+  "label_type": "atlas" | "foresco" | "packed" | "unknown",
   "raw_text_hint": "<korte samenvatting voor debugging, max 80 tekens>"
 }
 
@@ -56,6 +64,12 @@ REGELS voor item_number (zeer belangrijk — GEEN verwarring met LABEL NUMBER):
   Geef terug zonder spaties: "2204209603".
 - Layout B: het grote vetgedrukte nummer met streepjes (bv. "2204-2311-78"). 10 cijfers met
   streepjes. Geef zonder streepjes terug: "2204231178".
+- Layout C (packed-kist): het 10-cijferig nummer dat TUSSEN HAAKJES in het "Description:"-veld staat.
+    Voorbeeld: "480X430X340 KIST ISPM15 MPXM (1830116081)" → item_number = "1830116081".
+    NIET gebruiken als item_number op layout C:
+      * "Item No.:" (PVAR...) — dit is een interne variant-template, GEEN itemnummer.
+      * "Variant Code" (V...) — instance-ID, GEEN itemnummer.
+      * De afmetingen (bv. "480X430X340") — dit is de kistgrootte, GEEN itemnummer.
 - NOOIT het item_number halen uit deze velden (dit zijn GEEN itemnummers):
     * LABEL NUMBER (S) — bv. "17211815", "267206103", "17211815". Meestal 7–9 cijfers en het
       veld staat linksonder, een stuk KLEINER dan PART NO, en is duidelijk gelabeld "LABEL NUMBER"
@@ -66,7 +80,8 @@ REGELS voor item_number (zeer belangrijk — GEEN verwarring met LABEL NUMBER):
     * SERIAL NUMBER / H / AIA — bv. "801724", "267206103", "147703057".
     * DELIVERY NOTICE — bv. "0000000", "D006906".
     * PALLET nummer, BackOrderQty, Prepack, Dest.
-  VERIFICATIE: als de kandidaat NIET exact 10 cijfers is, is het zeker geen PART NO. Zet dan
+    * PVAR-code of V-code van layout C.
+  VERIFICATIE: als de kandidaat NIET exact 10 cijfers is, is het zeker geen itemnummer. Zet dan
   item_number op null.
 
 REGELS voor pallet_number:
@@ -79,13 +94,17 @@ REGELS voor pallet_number:
   * Soms is er ook een losse witte sticker met "Pallet: <nummer>"; als die duidelijk aanwezig is,
     gebruik die in plaats van PARCEL NR.
   * Als PARCEL NR helemaal niet leesbaar is, null.
-- Retourneer cijfers zonder spaties/streepjes.
+- Op Layout C (packed-kist): gebruik de "Variant Code" (bv. "V00029192"). Dit is het unieke
+  instance-ID van de fysieke kist en dient zo als palletnummer. Retourneer de volledige code
+  (inclusief de "V"-prefix).
+- Retourneer cijfers zonder spaties/streepjes (voor layout C: prefix V blijft wél behouden).
 
 REGELS voor receiver:
 - Layout A: de eerste regel(s) linksboven, direct boven "P.O.NO-LINE". Typisch:
   "ATLAS COPCO B2610 WILRIJK SERVICE CENTER", "Power Tools Distribution Hasselt". Geef de volledige
   tekst op 1 of 2 regels gecombineerd terug.
 - Layout B: null.
+- Layout C: het "Owner Name:"-veld, bv. "K4311 - Atlas Copco Airp.-Service Center EDI2 VC74905 AID".
 
 REGELS voor quantity (zeer belangrijk — GEEN verwarring met GEWICHT):
 - Layout A: UITSLUITEND de waarde van het veld met label "QUANTITY (Q)" of "QTY (Q)".
@@ -98,10 +117,14 @@ REGELS voor quantity (zeer belangrijk — GEEN verwarring met GEWICHT):
     * "GROSS WT (KG)" / "GROSS WEIGHT" — ook gewicht, geen aantal.
     * "BOX TYPE" — bv. 999. Verpakkingstype, geen aantal.
     * "LOCATION", "SUPPLIER CODE", "LABEL NUMBER", datums (20260413), barcodes.
-  VERIFICATIE: als het veld direct gelabeld is met "WT", "WEIGHT", "KG", "GEWICHT" of "BOX TYPE",
-  dan is dit GEEN quantity. Als je twijfelt tussen twee kandidaten, kies het getal dat
-  EXPLICIET onder een "QUANTITY" / "QTY" label staat, niet het grootste of meest opvallende getal.
+    * "Lengte [mm]", "Breedte [mm]", "Hoogte [mm]" — dimensies op layout C, GEEN aantal.
+  VERIFICATIE: als het veld direct gelabeld is met "WT", "WEIGHT", "KG", "GEWICHT", "BOX TYPE",
+  "mm" of "Lengte/Breedte/Hoogte", dan is dit GEEN quantity. Als je twijfelt tussen twee kandidaten,
+  kies het getal dat EXPLICIET onder een "QUANTITY" / "QTY" label staat, niet het grootste of meest
+  opvallende getal.
 - Layout B: "Qty" of "QTY" veld.
+- Layout C (packed-kist): ALTIJD 1. Elke kist-sticker staat voor exact 1 stuk, ongeacht afmetingen
+  of gewicht.
 
 Geef ALLEEN het JSON-object terug, geen uitleg.`
 
@@ -162,31 +185,53 @@ export async function extractStockCountLabel(
 
   const parsed = JSON.parse(jsonMatch[0]) as Partial<StockCountLabel>
 
+  const labelType: StockCountLabel['label_type'] =
+    parsed.label_type === 'atlas' ||
+    parsed.label_type === 'foresco' ||
+    parsed.label_type === 'packed'
+      ? parsed.label_type
+      : 'unknown'
+
   let item = normalizeDigits(parsed.item_number ?? null)
-  const pallet = normalizeDigits(parsed.pallet_number ?? null)
 
   // Veiligheid 1: PO-line ("471814-001") nooit als item accepteren
   if (item && /^\d{4,8}-\d{1,4}$/.test(String(parsed.item_number || ''))) {
     item = null
   }
 
-  // Veiligheid 2: Atlas PART NO is ALTIJD exact 10 cijfers. Alles anders is waarschijnlijk
-  // LABEL NUMBER / SUPPLIER CODE / SERIAL NUMBER — weigeren.
+  // Fallback voor layout C: als de AI het itemnummer niet uit de haakjes in de description haalde,
+  // probeer het zelf uit parsed.description te extraheren. Format: "... (1830116081)".
+  if (!item && labelType === 'packed' && parsed.description) {
+    const m = String(parsed.description).match(/\((\d{10})\)/)
+    if (m) item = m[1]
+  }
+
+  // Veiligheid 2: itemnummers zijn ALTIJD exact 10 cijfers. Alles anders is waarschijnlijk
+  // LABEL NUMBER / SUPPLIER CODE / SERIAL NUMBER / PVAR / V-code — weigeren.
   if (item && !/^\d{10}$/.test(item)) {
     item = null
   }
 
-  const labelType: StockCountLabel['label_type'] =
-    parsed.label_type === 'atlas' || parsed.label_type === 'foresco'
-      ? parsed.label_type
-      : 'unknown'
+  // Pallet_number: voor layout C mag de V-prefix behouden blijven; voor andere layouts strippen.
+  let pallet: string | null
+  if (labelType === 'packed' && parsed.pallet_number) {
+    pallet = String(parsed.pallet_number).replace(/\s+/g, '').trim() || null
+  } else {
+    pallet = normalizeDigits(parsed.pallet_number ?? null)
+  }
+
+  // Layout C: aantal is altijd 1 (forceer, ook als AI iets anders gaf zoals gewicht/afmeting).
+  let quantity: number | null =
+    parsed.quantity != null && Number.isFinite(Number(parsed.quantity))
+      ? Number(parsed.quantity)
+      : null
+  if (labelType === 'packed') {
+    quantity = 1
+  }
 
   return {
     item_number: item,
-    quantity:
-      parsed.quantity != null && Number.isFinite(Number(parsed.quantity))
-        ? Number(parsed.quantity)
-        : null,
+    quantity,
     pallet_number: pallet,
     description: parsed.description || null,
     po_line: parsed.po_line || null,
