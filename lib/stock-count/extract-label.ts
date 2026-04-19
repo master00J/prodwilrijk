@@ -70,11 +70,16 @@ REGELS voor item_number (zeer belangrijk — GEEN verwarring met LABEL NUMBER):
   item_number op null.
 
 REGELS voor pallet_number:
-- Op Layout B: duidelijk het "Pallet:" veld (bv. "552908"), meestal 6 cijfers.
-- Op Layout A: vaak niet aanwezig op de hoofdsticker, soms op een kleinere witte sticker met de
-  tekst "Pallet" of "Pallet:" ernaast, of onderaan naast het itemnummer. Alleen extraheren als je
-  duidelijk "Pallet" ziet staan, anders null.
-- 6-cijferig nummer of met spatie; retourneer cijfers zonder spatie.
+- Op Layout B (prodwilrijk/Foresco): duidelijk het "Pallet:" veld (bv. "552908"), meestal 6 cijfers.
+- Op Layout A (Atlas Copco): GEBRUIK "PARCEL NR (S)" — dit is een uniek nummer dat de fysieke pallet/
+  colli identificeert. Format: meestal 9 cijfers, vaak beginnend met nullen (bv. "058702896",
+  "058703116", "058703117", "058703059"). Het staat linksonder het label, met een barcode eronder,
+  vlak boven of naast "SUPPLIER CODE (V)". Retourneer het nummer EXACT zoals het op het label staat,
+  inclusief eventuele voorloopnullen.
+  * Soms is er ook een losse witte sticker met "Pallet: <nummer>"; als die duidelijk aanwezig is,
+    gebruik die in plaats van PARCEL NR.
+  * Als PARCEL NR helemaal niet leesbaar is, null.
+- Retourneer cijfers zonder spaties/streepjes.
 
 REGELS voor receiver:
 - Layout A: de eerste regel(s) linksboven, direct boven "P.O.NO-LINE". Typisch:
