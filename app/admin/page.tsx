@@ -36,6 +36,14 @@ export default function AdminPage() {
       color: 'green',
     },
     {
+      title: 'Stock telling vs BC',
+      description:
+        'Vergelijk stock-telling Excel met BC-export: zie per item wat nog verstuurd moet worden en wat extra op voorraad ligt',
+      href: '/admin/stock-vs-bc',
+      icon: '⚖️',
+      color: 'orange',
+    },
+    {
       title: 'Verkooporders Upload',
       description: 'Upload Excel bestand met verkooporders om prijzen in te laden voor omzet berekening',
       href: '/admin/sales-orders',
