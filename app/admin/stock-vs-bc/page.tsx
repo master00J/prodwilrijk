@@ -186,7 +186,7 @@ export default function StockVsBcPage() {
               <li>
                 <strong>Stock-telling bestand</strong>: itemnummer in kolom{' '}
                 <code className="bg-white px-1 rounded">A</code>, aantal (som) in kolom{' '}
-                <code className="bg-white px-1 rounded">C</code>. Eerste tab of tab "Overzicht".
+                <code className="bg-white px-1 rounded">C</code>. Eerste tab of tab &quot;Overzicht&quot;.
               </li>
               <li>
                 Alles wat in BC zit maar niet (of minder) geteld is →{' '}
