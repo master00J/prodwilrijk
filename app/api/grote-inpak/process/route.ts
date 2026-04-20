@@ -389,19 +389,23 @@ async function buildOverview(
 
 function calculateTerm(caseType: string): number {
   if (!caseType) return 0
-  
-  const s = caseType.trim().toUpperCase()
-  
+
+  // V-kisten volgen exact dezelfde regels als K-kisten (V154 -> K154)
+  let s = caseType.trim().toUpperCase()
+  if (s.startsWith('V')) {
+    s = 'K' + s.substring(1)
+  }
+
   if (s.startsWith('C')) {
     const numberStr = s.substring(1).trim()
     const number = parseInt(numberStr, 10)
     if (!isNaN(number)) {
-      if ([791, 792, 794, 795, 796].includes(number)) {
-        return 10 // C791/C792/C794/C795/C796: 10 werkdagen
+      if (number === 999) {
+        return 10 // C999: 10 werkdagen
+      } else if (number >= 788 && number <= 799) {
+        return 10 // C788-C799: 10 werkdagen
       } else if (number >= 100 && number <= 998) {
-        return 1 // C kisten 100-998: 1 dag
-      } else if (number === 999) {
-        return 10 // C kisten 999: 10 dagen
+        return 1 // Overige C-kisten: 1 werkdag
       }
     }
   } else if (s.startsWith('K')) {
@@ -409,13 +413,15 @@ function calculateTerm(caseType: string): number {
     const number = parseInt(numberStr, 10)
     if (!isNaN(number)) {
       if (number >= 1 && number <= 99) {
-        return 10 // K kisten 1-99: 10 dagen
+        return 10 // K001-K099: 10 werkdagen
+      } else if (number >= 800 && number <= 810) {
+        return 10 // K800-K810: 10 werkdagen
       } else if (number >= 100 && number <= 999) {
-        return 4 // K kisten 100-999: 4 dagen
+        return 4 // Overige K-kisten (K100-K670 + niet-genoemde ranges): 4 werkdagen
       }
     }
   }
-  
+
   return 0
 }
 
