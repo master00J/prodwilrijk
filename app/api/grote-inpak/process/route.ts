@@ -417,7 +417,7 @@ function calculateTerm(caseType: string): number {
       } else if (number >= 800 && number <= 810) {
         return 10 // K800-K810: 10 werkdagen
       } else if (number >= 100 && number <= 999) {
-        return 4 // Overige K-kisten (K100-K670 + niet-genoemde ranges): 4 werkdagen
+        return 4 // Overige K-kisten (K101-K780 + niet-genoemde ranges): 4 werkdagen
       }
     }
   }

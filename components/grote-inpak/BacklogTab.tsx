@@ -90,7 +90,7 @@ export default function BacklogTab({ overview }: BacklogTabProps) {
         <div className="bg-orange-50 rounded-lg p-4">
           <p className="text-sm text-gray-600 mb-1">Backlog K (+ V)</p>
           <p className="text-3xl font-bold text-orange-600">{kCases.length}</p>
-          <p className="text-xs text-gray-500 mt-1">K001-K099 (10d), K101-K670 (4d), K800-K810 (10d)</p>
+          <p className="text-xs text-gray-500 mt-1">K001-K099 (10d), K101-K780 (4d), K800-K810 (10d)</p>
         </div>
         <div className="bg-red-50 rounded-lg p-4">
           <p className="text-sm text-gray-600 mb-1">Backlog C</p>
