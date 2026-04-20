@@ -235,18 +235,42 @@ export async function fetchLatestBomLinesByItemNumber(itemNumbers: string[]): Pr
   return buildLookupMapFromLinesAndCandidates(lines, rawUnique)
 }
 
+/**
+ * Boekt stage-kisten af in airtec_kisten_stock voor klaargemelde prepack-items.
+ *
+ * Voor sommige STAGE-nummers bestaan er 2 varianten:
+ *   - "195"     → Airtec-variant (bv. ERP GP005717)
+ *   - "195 klp" → Prepack-variant (bv. ERP GP005670)
+ * Omdat deze functie alleen vanuit de PREPACK klaarmeld-flow (items-to-pack)
+ * wordt aangeroepen, krijgt de "klp"-variant voorrang zodra die bestaat.
+ * Zonder klp-variant valt hij terug op de gewone kist (zoals voorheen).
+ */
 export async function consumeAirtecKistenStockForStageErpCodes(consumption: Map<string, number>) {
   for (const [erpOrKist, qty] of consumption) {
     if (!erpOrKist || qty <= 0) continue
     try {
       const code = String(erpOrKist).trim()
-      const { data: rows } = await supabaseAdmin
+
+      // 1) Zoek eerst naar een prepack-variant: kistnummer ILIKE "<code> klp" (spatie + klp/kip, case-insensitive)
+      let row: { id: number; kistnummer: string | null; huidige_voorraad: number | null } | null = null
+      const { data: prepackRows } = await supabaseAdmin
         .from('airtec_kisten_stock')
         .select('id, kistnummer, huidige_voorraad')
-        .or(`erp_code.eq.${code},kistnummer.eq.${code}`)
+        .or(`kistnummer.ilike.${code} klp,kistnummer.ilike.${code} kip`)
         .limit(1)
 
-      const row = rows?.[0]
+      if (prepackRows && prepackRows.length > 0) {
+        row = prepackRows[0] as typeof row
+      } else {
+        // 2) Fallback: zoek de gewone kist op kistnummer of erp_code
+        const { data: rows } = await supabaseAdmin
+          .from('airtec_kisten_stock')
+          .select('id, kistnummer, huidige_voorraad')
+          .or(`erp_code.eq.${code},kistnummer.eq.${code}`)
+          .limit(1)
+        row = (rows?.[0] as typeof row) ?? null
+      }
+
       if (!row?.id) continue
 
       const kist = String(row.kistnummer || code).trim()
