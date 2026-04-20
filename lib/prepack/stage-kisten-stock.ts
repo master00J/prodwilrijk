@@ -252,7 +252,9 @@ export async function consumeAirtecKistenStockForStageErpCodes(consumption: Map<
       const code = String(erpOrKist).trim()
 
       // 1) Zoek eerst naar een prepack-variant: kistnummer ILIKE "<code> klp" (spatie + klp/kip, case-insensitive)
-      let row: { id: number; kistnummer: string | null; huidige_voorraad: number | null } | null = null
+      type StockRow = { id: number; kistnummer: string | null; huidige_voorraad: number | null }
+      let row: StockRow | null = null
+
       const { data: prepackRows } = await supabaseAdmin
         .from('airtec_kisten_stock')
         .select('id, kistnummer, huidige_voorraad')
@@ -260,7 +262,7 @@ export async function consumeAirtecKistenStockForStageErpCodes(consumption: Map<
         .limit(1)
 
       if (prepackRows && prepackRows.length > 0) {
-        row = prepackRows[0] as typeof row
+        row = prepackRows[0] as unknown as StockRow
       } else {
         // 2) Fallback: zoek de gewone kist op kistnummer of erp_code
         const { data: rows } = await supabaseAdmin
@@ -268,7 +270,7 @@ export async function consumeAirtecKistenStockForStageErpCodes(consumption: Map<
           .select('id, kistnummer, huidige_voorraad')
           .or(`erp_code.eq.${code},kistnummer.eq.${code}`)
           .limit(1)
-        row = (rows?.[0] as typeof row) ?? null
+        row = (rows?.[0] as unknown as StockRow) ?? null
       }
 
       if (!row?.id) continue
