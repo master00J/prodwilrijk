@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import nodemailer from 'nodemailer'
 import { buildDailyOrderWorkbook } from '@/lib/grote-inpak/daily-order-excel'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { normalizeErpCode, normalizeKistnummer } from '@/lib/utils/erp-code-normalizer'
 
 export const dynamic = 'force-dynamic'
-
-const TO_EMAIL = 'prodwilrijk@foresco.eu'
 
 // Speciale C-kisten die op het K-tabblad verschijnen (geen standaard voorraadkisten)
 const SPECIALE_C_KISTEN = ['C791', 'C792', 'C794', 'C795', 'C796']
@@ -408,13 +405,7 @@ export async function POST(request: NextRequest) {
     const location = (locParam === 'Wilrijk' ? 'Wilrijk' : 'Genk') as 'Genk' | 'Wilrijk'
 
     if (!rows || rows.length === 0) {
-      return NextResponse.json({ error: 'Geen data om te versturen' }, { status: 400 })
-    }
-
-    const smtpUser = process.env.SMTP_USER || ''
-    const smtpPass = process.env.SMTP_PASSWORD || ''
-    if (!smtpUser || !smtpPass) {
-      return NextResponse.json({ error: 'SMTP configuratie ontbreekt' }, { status: 500 })
+      return NextResponse.json({ error: 'Geen data om te downloaden' }, { status: 400 })
     }
 
     const keyword = location.toLowerCase()
@@ -466,34 +457,14 @@ export async function POST(request: NextRequest) {
     const buffer = await wb.xlsx.writeBuffer() as ArrayBuffer
     const filename = `Daily_order_${location}_${dateStr}.xlsx`
 
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: { user: smtpUser, pass: smtpPass },
+    return new Response(Buffer.from(buffer) as BodyInit, {
+      headers: {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+      },
     })
-
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM || smtpUser,
-      to: TO_EMAIL,
-      subject: `Dagelijkse order C & K kisten ${location} ${today}`,
-      html: `
-        <p>Goedemorgen,</p>
-        <p>In bijlage status C en K kisten ${location} ${today}</p>
-        <p>Met vriendelijke groeten,<br/>Jason</p>
-      `,
-      attachments: [
-        {
-          filename,
-          content: Buffer.from(buffer),
-          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        },
-      ],
-    })
-
-    return NextResponse.json({ success: true, message: `E-mail verstuurd naar ${TO_EMAIL} (${location})` })
   } catch (error: any) {
-    console.error('Fout bij versturen daily order e-mail:', error)
-    return NextResponse.json({ error: error.message || 'Versturen mislukt' }, { status: 500 })
+    console.error('Fout bij genereren daily order excel:', error)
+    return NextResponse.json({ error: error.message || 'Genereren mislukt' }, { status: 500 })
   }
 }

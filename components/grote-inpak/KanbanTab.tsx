@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Download, RefreshCw, Plus, Pencil, Trash2, AlertTriangle, CheckCircle, Package, ShoppingCart, LayoutGrid, Mail, Search, ChevronDown, ChevronUp, TrendingUp, Zap, Upload, FileSpreadsheet } from 'lucide-react'
+import { Download, RefreshCw, Plus, Pencil, Trash2, AlertTriangle, CheckCircle, Package, ShoppingCart, LayoutGrid, Search, ChevronDown, ChevronUp, TrendingUp, Zap, Upload, FileSpreadsheet } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { BcItemCode } from '@/lib/bc-mapping/client'
 
@@ -280,7 +280,7 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
     }
   }
 
-  const handleSendEmail = async (location: 'Genk' | 'Wilrijk') => {
+  const handleDownloadDailyOrder = async (location: 'Genk' | 'Wilrijk') => {
     setIsSendingEmail(true)
     setEmailStatus(null)
     try {
@@ -289,11 +289,23 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rows: filteredBestel, alleenBestellen, location }),
       })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error)
-      setEmailStatus({ ok: true, msg: json.message || `E-mail verstuurd naar prodwilrijk@foresco.eu (${location})` })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json.error || `Status ${res.status}`)
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const dateStr = new Date().toISOString().split('T')[0]
+      a.download = `Daily_order_${location}_${dateStr}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      setEmailStatus({ ok: true, msg: `Daily order ${location} gedownload` })
     } catch (e: any) {
-      setEmailStatus({ ok: false, msg: `Versturen mislukt: ${e.message}` })
+      setEmailStatus({ ok: false, msg: `Download mislukt: ${e.message}` })
     } finally {
       setIsSendingEmail(false)
     }
@@ -495,20 +507,20 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
               {isExporting ? 'Exporteren...' : 'Exporteer C kisten daily order (ZIP: Genk + Wilrijk)'}
             </button>
             <button
-              onClick={() => handleSendEmail('Genk')}
+              onClick={() => handleDownloadDailyOrder('Genk')}
               disabled={isSendingEmail || bestelData.length === 0}
               className="flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50"
             >
-              <Mail className="w-4 h-4" />
-              {isSendingEmail ? 'Versturen...' : 'Mail Genk order'}
+              <Download className="w-4 h-4" />
+              {isSendingEmail ? 'Genereren...' : 'Download Genk order'}
             </button>
             <button
-              onClick={() => handleSendEmail('Wilrijk')}
+              onClick={() => handleDownloadDailyOrder('Wilrijk')}
               disabled={isSendingEmail || bestelData.length === 0}
               className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50"
             >
-              <Mail className="w-4 h-4" />
-              {isSendingEmail ? 'Versturen...' : 'Mail Wilrijk order'}
+              <Download className="w-4 h-4" />
+              {isSendingEmail ? 'Genereren...' : 'Download Wilrijk order'}
             </button>
           </div>
 
