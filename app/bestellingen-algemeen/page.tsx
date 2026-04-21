@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useBcMapping, resolveBcPair } from '@/lib/bc-mapping/client'
 
 type Artikel = {
   id: number
@@ -25,6 +26,7 @@ type OpenOrder = {
 }
 
 export default function BestellingenAlgemeenPage() {
+  const { toNew: bcToNew, toOld: bcToOld } = useBcMapping()
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [results, setResults] = useState<Artikel[]>([])
@@ -243,7 +245,8 @@ export default function BestellingenAlgemeenPage() {
                   />
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Omschrijving</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Artikelnummer</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Oude BC code</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nieuwe BC code</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aantal</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Besteld op</th>
               </tr>
@@ -251,35 +254,39 @@ export default function BestellingenAlgemeenPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {openLoading ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-gray-500">
+                  <td colSpan={6} className="px-4 py-6 text-center text-gray-500">
                     Openstaande bestellingen laden...
                   </td>
                 </tr>
               ) : openOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-gray-500">
+                  <td colSpan={6} className="px-4 py-6 text-center text-gray-500">
                     Geen openstaande bestellingen
                   </td>
                 </tr>
               ) : (
-                openOrders.map((order) => (
-                  <tr key={order.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedOpen.has(order.id)}
-                        onChange={(e) => handleToggleOpen(order.id, e.target.checked)}
-                        className="h-4 w-4"
-                      />
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{order.artikel_omschrijving}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{order.artikelnummer}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{order.aantal}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">
-                      {new Date(order.created_at).toLocaleDateString('nl-BE')}
-                    </td>
-                  </tr>
-                ))
+                openOrders.map((order) => {
+                  const { oldCode, newCode } = resolveBcPair(order.artikelnummer, bcToNew, bcToOld)
+                  return (
+                    <tr key={order.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedOpen.has(order.id)}
+                          onChange={(e) => handleToggleOpen(order.id, e.target.checked)}
+                          className="h-4 w-4"
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{order.artikel_omschrijving}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500 font-mono">{oldCode || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 font-mono font-medium">{newCode || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700">{order.aantal}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {new Date(order.created_at).toLocaleDateString('nl-BE')}
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>
@@ -309,7 +316,8 @@ export default function BestellingenAlgemeenPage() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Omschrijving</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Artikelnummer</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Oude BC code</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nieuwe BC code</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aantal</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actie</th>
               </tr>
@@ -317,38 +325,42 @@ export default function BestellingenAlgemeenPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {results.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-gray-500">
+                  <td colSpan={5} className="px-4 py-6 text-center text-gray-500">
                     {debouncedSearch ? 'Geen artikelen gevonden' : 'Gebruik de zoekbalk om artikelen te zoeken'}
                   </td>
                 </tr>
               ) : (
-                results.map((artikel) => (
-                  <tr key={artikel.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm text-gray-900">{artikel.volledige_omschrijving}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{artikel.artikelnummer}</td>
-                    <td className="px-4 py-3">
-                      <input
-                        type="number"
-                        min={1}
-                        defaultValue={1}
-                        className="w-24 px-3 py-2 border border-gray-300 rounded-lg"
-                        id={`qty-${artikel.id}`}
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => {
-                          const input = document.getElementById(`qty-${artikel.id}`) as HTMLInputElement | null
-                          const quantity = input ? Number(input.value) : 1
-                          handleAddToOrder(artikel, quantity)
-                        }}
-                        className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                      >
-                        Toevoegen
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                results.map((artikel) => {
+                  const { oldCode, newCode } = resolveBcPair(artikel.artikelnummer, bcToNew, bcToOld)
+                  return (
+                    <tr key={artikel.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm text-gray-900">{artikel.volledige_omschrijving}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500 font-mono">{oldCode || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 font-mono font-medium">{newCode || '—'}</td>
+                      <td className="px-4 py-3">
+                        <input
+                          type="number"
+                          min={1}
+                          defaultValue={1}
+                          className="w-24 px-3 py-2 border border-gray-300 rounded-lg"
+                          id={`qty-${artikel.id}`}
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => {
+                            const input = document.getElementById(`qty-${artikel.id}`) as HTMLInputElement | null
+                            const quantity = input ? Number(input.value) : 1
+                            handleAddToOrder(artikel, quantity)
+                          }}
+                          className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                        >
+                          Toevoegen
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>
@@ -365,7 +377,8 @@ export default function BestellingenAlgemeenPage() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Omschrijving</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Artikelnummer</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Oude BC code</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nieuwe BC code</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aantal</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actie</th>
               </tr>
@@ -373,26 +386,30 @@ export default function BestellingenAlgemeenPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {orderList.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-gray-500">
+                  <td colSpan={5} className="px-4 py-6 text-center text-gray-500">
                     Geen artikelen geselecteerd
                   </td>
                 </tr>
               ) : (
-                orderList.map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm text-gray-900">{item.description}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{item.articleNumber}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{item.quantity}</td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => handleRemove(item.id)}
-                        className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
-                      >
-                        Verwijderen
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                orderList.map((item) => {
+                  const { oldCode, newCode } = resolveBcPair(item.articleNumber, bcToNew, bcToOld)
+                  return (
+                    <tr key={item.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm text-gray-900">{item.description}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500 font-mono">{oldCode || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 font-mono font-medium">{newCode || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700">{item.quantity}</td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => handleRemove(item.id)}
+                          className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
+                        >
+                          Verwijderen
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import nodemailer from 'nodemailer'
+import { getBcMappingLookup } from '@/lib/bc-mapping/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,13 +42,29 @@ export async function POST(request: NextRequest) {
       tls: { rejectUnauthorized: false },
     })
 
-    const tableRows = data.map(r => `
-      <tr>
-        <td style="padding:6px 12px;border:1px solid #ddd;">${r.artikel_omschrijving}</td>
-        <td style="padding:6px 12px;border:1px solid #ddd;">${r.artikelnummer}</td>
-        <td style="padding:6px 12px;border:1px solid #ddd;text-align:center;">${r.aantal}</td>
-        <td style="padding:6px 12px;border:1px solid #ddd;">${new Date(r.created_at).toLocaleDateString('nl-BE')}</td>
-      </tr>`).join('')
+    // Vertaal de BC-codes: toon zowel oud (huidige ERP) als nieuw (BC36).
+    const bcMapping = await getBcMappingLookup()
+    const resolvePair = (raw: string | null | undefined) => {
+      const trimmed = raw == null ? '' : String(raw).trim()
+      if (!trimmed) return { oldCode: '', newCode: '' }
+      const asNew = bcMapping.toNew(trimmed)
+      if (asNew && asNew !== trimmed) return { oldCode: trimmed, newCode: asNew }
+      const asOld = bcMapping.toOld(trimmed)
+      if (asOld && asOld !== trimmed) return { oldCode: asOld, newCode: trimmed }
+      return { oldCode: trimmed, newCode: trimmed }
+    }
+
+    const tableRows = data.map(r => {
+      const { oldCode, newCode } = resolvePair(r.artikelnummer)
+      return `
+        <tr>
+          <td style="padding:6px 12px;border:1px solid #ddd;">${r.artikel_omschrijving ?? ''}</td>
+          <td style="padding:6px 12px;border:1px solid #ddd;font-family:monospace;color:#666;">${oldCode || '—'}</td>
+          <td style="padding:6px 12px;border:1px solid #ddd;font-family:monospace;font-weight:600;">${newCode || '—'}</td>
+          <td style="padding:6px 12px;border:1px solid #ddd;text-align:center;">${r.aantal}</td>
+          <td style="padding:6px 12px;border:1px solid #ddd;">${new Date(r.created_at).toLocaleDateString('nl-BE')}</td>
+        </tr>`
+    }).join('')
 
     const html = `
       <p>Beste,</p>
@@ -56,7 +73,8 @@ export async function POST(request: NextRequest) {
         <thead>
           <tr style="background:#f0f0f0;">
             <th style="padding:6px 12px;border:1px solid #ddd;text-align:left;">Omschrijving</th>
-            <th style="padding:6px 12px;border:1px solid #ddd;text-align:left;">Artikelnummer</th>
+            <th style="padding:6px 12px;border:1px solid #ddd;text-align:left;">Oude BC code</th>
+            <th style="padding:6px 12px;border:1px solid #ddd;text-align:left;">Nieuwe BC code</th>
             <th style="padding:6px 12px;border:1px solid #ddd;text-align:center;">Aantal</th>
             <th style="padding:6px 12px;border:1px solid #ddd;text-align:left;">Besteld op</th>
           </tr>
