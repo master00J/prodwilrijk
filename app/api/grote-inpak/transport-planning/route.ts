@@ -291,7 +291,7 @@ async function generateTransportPlanningExcel(
   const wilrijkData = aggregateForDestination('Wilrijk')
 
   const dateStr = formatDateNL(planDate)
-  const headers = ['TO', 'BC CODE', 'OMSCHRIJVING', 'AANTAL', 'STOCK GENK', 'GELADEN', 'OPMERKING']
+  const headers = ['oude code', 'BC CODE', 'OMSCHRIJVING', 'AANTAL', 'STOCK GENK', 'GELADEN', 'OPMERKING']
 
   let rowIndex = 1
 
@@ -357,9 +357,14 @@ async function generateTransportPlanningExcel(
   writeDataRow(['', '', 'Houtlijst', '', '', '', ''])
 
   if (planDate.getDay() === 3) {
-    writeDataRow(['', 'GP005642', 'SPIE876', '3 bak', '', '', ''])
-    writeDataRow(['', 'GP005639', 'SPIE221', '3 bak', '', '', ''])
-    writeDataRow(['', 'GP005640', 'SPIE222', '3 bak', '', '', ''])
+    const spieCodes: Array<[string, string]> = [
+      ['GP005642', 'SPIE876'],
+      ['GP005639', 'SPIE221'],
+      ['GP005640', 'SPIE222'],
+    ]
+    for (const [oldCode, label] of spieCodes) {
+      writeDataRow([oldCode, bcMapping.toNew(oldCode), label, '3 bak', '', '', ''])
+    }
   }
 
   wilrijkData.forEach((row) => {
