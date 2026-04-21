@@ -4,6 +4,7 @@ import Navbar from '@/components/Navbar'
 import AuthProvider from '@/components/AuthProvider'
 import NewFeaturePopup from '@/components/NewFeaturePopup'
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister'
+import { BcMappingProvider } from '@/lib/bc-mapping/client'
 
 export const metadata: Metadata = {
   title: 'Prodwilrijk V2',
@@ -26,10 +27,12 @@ export default function RootLayout({
     <html lang="nl">
       <body className="min-h-screen overflow-x-hidden">
         <AuthProvider>
-          <Navbar />
-          <NewFeaturePopup />
-          <ServiceWorkerRegister />
-          {children}
+          <BcMappingProvider>
+            <Navbar />
+            <NewFeaturePopup />
+            <ServiceWorkerRegister />
+            {children}
+          </BcMappingProvider>
         </AuthProvider>
       </body>
     </html>

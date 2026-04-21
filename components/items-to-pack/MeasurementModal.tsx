@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { ItemToPack } from '@/types/database'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 
 interface MeasurementModalProps {
   item: ItemToPack | null
@@ -146,7 +147,7 @@ export default function MeasurementModal({
 
         <div className="mb-4 p-4 bg-gray-50 rounded-lg">
           <p className="text-sm text-gray-600">
-            <span className="font-semibold">Item:</span> {item.item_number}
+            <span className="font-semibold">Item:</span> <BcItemCode value={item.item_number} />
           </p>
           <p className="text-sm text-gray-600">
             <span className="font-semibold">Pallet Number:</span> {item.po_number}

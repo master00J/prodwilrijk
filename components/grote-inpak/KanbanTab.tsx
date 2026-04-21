@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Download, RefreshCw, Plus, Pencil, Trash2, AlertTriangle, CheckCircle, Package, ShoppingCart, LayoutGrid, Mail, Search, ChevronDown, ChevronUp, TrendingUp, Zap, Upload, FileSpreadsheet } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 
 // ── Types ─────────────────────────────────────────────────────────────────
 interface KanbanConfig {
@@ -547,7 +548,9 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
               De volgende ERP-codes konden <em>niet</em> aan een kist gekoppeld worden (controleer ERP LINK):
               <ul className="mt-2 space-y-1 font-mono text-xs">
                 {debugInfo.stock_productie_niet_gematched.slice(0, 10).map((r: any, i: number) => (
-                  <li key={i}>{r.erp_code} (loc: {r.location}) → {r.productie} stuks</li>
+                  <li key={i}>
+                    <BcItemCode value={r.erp_code} /> (loc: {r.location}) → {r.productie} stuks
+                  </li>
                 ))}
                 {debugInfo.stock_productie_niet_gematched.length > 10 && (
                   <li className="text-orange-600">+ nog {debugInfo.stock_productie_niet_gematched.length - 10} anderen</li>

@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef, ReactNode, useCallback } from 'react'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 import {
   ComposedChart,
   Line,
@@ -760,7 +761,9 @@ export default function AirtecMonitorPage() {
                       })}
                     </td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">{item.kistnummer || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{item.item_number || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      {item.item_number ? <BcItemCode value={item.item_number} /> : '-'}
+                    </td>
                     <td className="px-4 py-3 text-sm text-gray-900">{item.quantity}</td>
                     <td className="px-4 py-3 text-sm text-gray-900">
                       {formatCurrency(item.price)}

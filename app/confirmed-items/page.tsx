@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { ConfirmedIncomingGood } from '@/types/database'
 import Pagination from '@/components/common/Pagination'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 
 interface ConfirmedItemsResponse {
   items: ConfirmedIncomingGood[]
@@ -289,7 +290,7 @@ export default function ConfirmedItemsPage() {
                     </td>
                     <td className="px-4 py-4 text-sm text-gray-900">{item.id}</td>
                     <td className="px-4 py-4 text-sm font-medium text-gray-900">
-                      {item.item_number}
+                      <BcItemCode value={item.item_number} />
                     </td>
                     <td className="px-4 py-4 text-sm text-gray-900">{item.po_number}</td>
                     <td className="px-4 py-4 text-sm text-gray-900">{item.amount}</td>

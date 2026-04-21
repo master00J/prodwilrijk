@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import AdminGuard from '@/components/AdminGuard'
 import { Euro, Package, Clock, TrendingUp, User, Wrench, FileDown } from 'lucide-react'
 import * as XLSX from 'xlsx'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 
 type StepHours = { step: string; hours: number }
 type EmployeeHours = { employee_name: string; hours: number }
@@ -205,7 +206,7 @@ export default function ProductionOrderKpiPage() {
                   className="flex flex-wrap items-center gap-4 py-3 px-4 bg-blue-50 rounded-lg border border-blue-100"
                 >
                   <span className="font-medium">{s.order_number}</span>
-                  <span className="text-gray-600">Item: {s.item_number || '–'}</span>
+                  <span className="text-gray-600">Item: {s.item_number ? <BcItemCode value={s.item_number} /> : '–'}</span>
                   <span className="flex items-center gap-1 text-gray-700">
                     <User className="w-4 h-4" />
                     {s.employee_name}
@@ -339,7 +340,7 @@ export default function ProductionOrderKpiPage() {
                           </td>
                           <td className="py-2 pr-4 whitespace-nowrap">{formatDate(r.date)}</td>
                           <td className="py-2 pr-4 font-medium">{r.order_number}</td>
-                          <td className="py-2 pr-4 font-medium">{r.item_number}</td>
+                          <td className="py-2 pr-4 font-medium"><BcItemCode value={r.item_number} /></td>
                           <td className="py-2 pr-4 max-w-[200px] truncate text-gray-600" title={r.description || ''}>
                             {r.description || '–'}
                           </td>

@@ -1,6 +1,7 @@
 'use client'
 
 import { ItemToPackAirtec } from '@/types/database'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 
 interface ItemsTableAirtecProps {
   items: ItemToPackAirtec[]
@@ -129,7 +130,7 @@ export default function ItemsTableAirtec({
                   <td className="print-col-id px-4 py-4 text-sm text-gray-900">{item.id}</td>
                   <td className="print-col-desc px-4 py-4 text-sm text-gray-900">{item.beschrijving || '-'}</td>
                   <td className="print-col-item px-4 py-4 text-sm font-medium text-gray-900">
-                    {item.item_number || '-'}
+                    {item.item_number ? <BcItemCode value={item.item_number} /> : '-'}
                   </td>
                   <td className="print-col-lot px-4 py-4 text-sm text-gray-900">{item.lot_number || '-'}</td>
                   <td className="print-col-date px-4 py-4 text-sm text-gray-900">

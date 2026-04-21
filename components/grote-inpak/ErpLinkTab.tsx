@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, Edit2, Trash2, Save, X, Upload, AlertCircle, Copy, RefreshCw } from 'lucide-react'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 
 interface ErpLinkEntry {
   id?: number
@@ -562,7 +563,7 @@ export default function ErpLinkTab() {
                     {entry.kistnummer}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {entry.erp_code || '-'}
+                    {entry.erp_code ? <BcItemCode value={entry.erp_code} /> : '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {entry.productielocatie || '-'}

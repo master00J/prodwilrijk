@@ -41,6 +41,7 @@ import PeriodCompareCard, { type CompareTotals } from '@/components/admin/shared
 import { getPreviousPeriodRange } from '@/lib/utils/periodPresets'
 import { usePrepackStats } from './usePrepackStats'
 import type { CompareMode } from './types'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 
 function ChartSkeleton() {
   return (
@@ -475,7 +476,7 @@ export default function PrepackMonitorPage() {
                   {queueStats.topCritical.map((item) => (
                     <tr key={item.id} className="hover:bg-orange-50">
                       <td className="px-2 py-1.5 font-mono font-medium text-gray-900 whitespace-nowrap">
-                        {item.item_number || '—'}
+                        {item.item_number ? <BcItemCode value={item.item_number} /> : '—'}
                       </td>
                       <td className="px-2 py-1.5 text-gray-700 max-w-md truncate" title={item.description ?? ''}>
                         {item.description || '—'}
@@ -1347,7 +1348,7 @@ export default function PrepackMonitorPage() {
                           onClick={() => openBomDetail(row.item_number)}
                           className="hover:bg-blue-50 cursor-pointer"
                         >
-                          <td className="px-2 py-1.5 font-mono text-gray-900">{row.item_number}</td>
+                          <td className="px-2 py-1.5 font-mono text-gray-900"><BcItemCode value={row.item_number} /></td>
                           <td className="px-2 py-1.5 text-right tabular-nums">{row.totalAmount}</td>
                           <td className="px-2 py-1.5 text-right tabular-nums font-semibold text-amber-700">
                             {formatCurrency(row.totalRevenue)}
@@ -1393,7 +1394,7 @@ export default function PrepackMonitorPage() {
                             onClick={() => openBomDetail(row.item_number)}
                             className="hover:bg-rose-50 cursor-pointer"
                           >
-                            <td className="px-2 py-1.5 font-mono text-gray-900">{row.item_number}</td>
+                            <td className="px-2 py-1.5 font-mono text-gray-900"><BcItemCode value={row.item_number} /></td>
                             <td className="px-2 py-1.5 text-right tabular-nums">{row.totalAmount}</td>
                             <td className="px-2 py-1.5 text-right tabular-nums text-amber-700">
                               {formatCurrency(row.totalRevenue)}
@@ -1577,7 +1578,7 @@ export default function PrepackMonitorPage() {
                                               <td className="px-3 py-2 text-gray-600 whitespace-nowrap">
                                                 {new Date(item.date_packed).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                                               </td>
-                                              <td className="px-3 py-2 font-medium text-gray-800">{item.item_number}</td>
+                                              <td className="px-3 py-2 font-medium text-gray-800"><BcItemCode value={item.item_number} /></td>
                                               <td className="px-3 py-2 text-gray-600 max-w-[180px]">
                                                 {item.description
                                                   ? <span title={item.description} className="truncate block text-xs">{item.description}</span>
@@ -1747,7 +1748,7 @@ export default function PrepackMonitorPage() {
                         hour: '2-digit', minute: '2-digit',
                       })}
                     </td>
-                    <td className="px-4 py-3 font-medium text-gray-900">{item.item_number}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900"><BcItemCode value={item.item_number} /></td>
                     <td className="px-4 py-3 text-gray-900">{item.po_number || '-'}</td>
                     <td className="px-4 py-3 text-gray-600 max-w-xs">
                       {item.description
@@ -1802,7 +1803,7 @@ export default function PrepackMonitorPage() {
               <div>
                 <div className="text-lg font-semibold">BOM detail</div>
                 <div className="text-sm text-gray-500">
-                  Itemnummer: {bomDetail.item_number}
+                  Itemnummer: <BcItemCode value={bomDetail.item_number} />
                 </div>
               </div>
               <button

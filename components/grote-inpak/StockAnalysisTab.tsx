@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Upload, Download, Warehouse, TrendingUp, AlertCircle } from 'lucide-react'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 
 export default function StockAnalysisTab() {
   const [stockData, setStockData] = useState<any[]>([])
@@ -317,7 +318,9 @@ export default function StockAnalysisTab() {
                       <span className="text-gray-400 italic">-</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{item.erp_code || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700">
+                    {item.erp_code ? <BcItemCode value={item.erp_code} /> : '-'}
+                  </td>
                   <td className="px-4 py-3 text-sm font-semibold text-gray-900">{item.total_quantity || 0}</td>
                   <td className="px-4 py-3 text-sm text-gray-700">
                     <div className="flex flex-wrap gap-1">

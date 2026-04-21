@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 
 interface PrepackUnlistedItem {
   id: number
@@ -44,7 +45,9 @@ function ItemTable({ items, onResolve, onDelete }: {
         <tbody>
           {items.map(item => (
             <tr key={item.id} className="border-t border-gray-200 hover:bg-gray-50">
-              <td className="px-3 py-2 font-mono font-bold text-gray-900">{item.item_number || '—'}</td>
+              <td className="px-3 py-2 font-mono font-bold text-gray-900">
+                {item.item_number ? <BcItemCode value={item.item_number} /> : '—'}
+              </td>
               <td className="px-3 py-2 text-gray-700 max-w-[200px] truncate" title={item.description || ''}>
                 {item.description || '—'}
               </td>

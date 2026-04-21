@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import * as XLSX from 'xlsx'
 import AdminGuard from '@/components/AdminGuard'
 import { parseProductionOrderXml } from '@/lib/production-order/parse-xml'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 
 export default function SalesOrdersUploadPage() {
   const [uploading, setUploading] = useState(false)
@@ -580,7 +581,7 @@ export default function SalesOrdersUploadPage() {
                     <tbody>
                       {(latestProductionOrder.materials || []).map((material: any) => (
                         <tr key={material.item_number} className="border-t">
-                          <td className="py-2 pr-4 font-medium">{material.item_number}</td>
+                          <td className="py-2 pr-4 font-medium"><BcItemCode value={material.item_number} /></td>
                           <td className="py-2 pr-4">{material.description || '-'}</td>
                           <td className="py-2 pr-4">
                             <input
@@ -649,7 +650,13 @@ export default function SalesOrdersUploadPage() {
                     <tbody>
                       {(latestProductionOrder.lines || []).map((line: any) => (
                         <tr key={`${line.id}-${line.line_no}`} className="border-t">
-                          <td className="py-2 pr-4">{line.item_number || line.item_no || '-'}</td>
+                          <td className="py-2 pr-4">
+                            {line.item_number || line.item_no ? (
+                              <BcItemCode value={line.item_number || line.item_no} />
+                            ) : (
+                              '-'
+                            )}
+                          </td>
                           <td className="py-2 pr-4">{line.description || '-'}</td>
                           <td className="py-2 pr-4">{line.quantity || 0}</td>
                           <td className="py-2 pr-4">€ {Number(line.cost_per_item || 0).toFixed(2)}</td>

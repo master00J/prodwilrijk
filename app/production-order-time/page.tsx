@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 
 interface Employee {
   id: number
@@ -461,7 +462,7 @@ export default function ProductionOrderTimePage() {
                         className="flex flex-wrap items-center justify-between gap-2 p-3 bg-gray-50 rounded-lg"
                       >
                         <div className="text-sm">
-                          <span className="font-medium">{log.employee_name}</span> – {log.item_number} · {log.step} ·{' '}
+                          <span className="font-medium">{log.employee_name}</span> – <BcItemCode value={log.item_number} /> · {log.step} ·{' '}
                           {formatElapsed(log.elapsed_seconds)}
                         </div>
                         <button
@@ -492,7 +493,7 @@ export default function ProductionOrderTimePage() {
                       {orderLines.map((line) => (
                         <tr key={line.id} className="border-t">
                           <td className="px-4 py-2 text-sm">
-                            {line.item_number || '-'}
+                            {line.item_number ? <BcItemCode value={line.item_number} /> : '-'}
                             {line.description ? ` · ${line.description}` : ''}
                           </td>
                           <td className="px-4 py-2 text-sm">{line.quantity}</td>

@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Search, Filter, Save, Download, Star, StarOff, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import type { GroteInpakCase } from '@/types/database'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 
 interface OverviewTabProps {
   overview: GroteInpakCase[]
@@ -676,7 +677,9 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                       )
                     })()}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{displayItem.item_number || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700">
+                    {displayItem.item_number ? <BcItemCode value={displayItem.item_number} /> : '-'}
+                  </td>
                   <td className="px-4 py-3 text-sm text-gray-700">{displayItem.productielocatie || '-'}</td>
                   <td className="px-4 py-3 text-sm">
                     <span className={`px-2 py-1 rounded-full text-xs ${displayItem.in_willebroek ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>

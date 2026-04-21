@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import AdminGuard from '@/components/AdminGuard'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 
 interface Measurement {
   id: number
@@ -140,7 +141,7 @@ export default function MeasurementsPage() {
             {list.map((measurement) => (
               <tr key={measurement.id} className="hover:bg-gray-50">
                 <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  {measurement.items_to_pack.item_number}
+                  <BcItemCode value={measurement.items_to_pack.item_number} />
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                   {measurement.items_to_pack.po_number}

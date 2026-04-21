@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
 import AdminGuard from '@/components/AdminGuard'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 import {
   buildSummary,
   compareTotals,
@@ -416,7 +417,9 @@ export default function StockVsBcPage() {
                     <tbody>
                       {filteredRows.map((r) => (
                         <tr key={r.item_number} className="border-t border-gray-100">
-                          <td className="px-3 py-2 font-mono text-gray-900">{r.item_number}</td>
+                          <td className="px-3 py-2 font-mono text-gray-900">
+                            <BcItemCode value={r.item_number} />
+                          </td>
                           <td className="px-3 py-2 text-right tabular-nums">{r.bc_qty}</td>
                           <td className="px-3 py-2 text-right tabular-nums">{r.telling_qty}</td>
                           <td

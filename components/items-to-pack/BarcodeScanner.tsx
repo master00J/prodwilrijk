@@ -2,6 +2,7 @@
 
 import { ItemToPack } from '@/types/database'
 import { useState, useRef, useEffect } from 'react'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 
 interface BarcodeScannerProps {
   items: ItemToPack[]
@@ -133,7 +134,7 @@ export default function BarcodeScanner({
                     className="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
                   >
                     <div>
-                      <div className="font-medium">{item.item_number}</div>
+                      <div className="font-medium"><BcItemCode value={item.item_number} /></div>
                       <div className="text-sm text-gray-600">
                         Pallet: {item.po_number} | Amount: {item.amount}
                       </div>

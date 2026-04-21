@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 
 interface PackedItem {
   id: number
@@ -200,7 +201,7 @@ export default function PackedItemsTable({
                       {item.id}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {item.item_number}
+                      <BcItemCode value={item.item_number} />
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                       {item.po_number}

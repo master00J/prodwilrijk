@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Download, FileSpreadsheet, Search, Save, LayoutGrid, List, AlertTriangle, CheckCircle, Clock, Truck, Flame, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import type { GroteInpakCase } from '@/types/database'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 
 interface TransportTabProps {
   transport: any[]
@@ -500,7 +501,9 @@ export default function TransportTab({ transport, overview }: TransportTabProps)
                     return (
                       <tr key={group.case_type} className={`hover:bg-gray-50 ${group.overdue > 0 ? 'bg-red-50/40' : ''}`}>
                         <td className="px-5 py-3 font-medium text-gray-900">{group.case_type}</td>
-                        <td className="px-5 py-3 text-sm text-gray-600 font-mono">{group.erp_code}</td>
+                        <td className="px-5 py-3 text-sm text-gray-600 font-mono">
+                          {group.erp_code ? <BcItemCode value={group.erp_code} /> : ''}
+                        </td>
                         <td className="px-4 py-3 text-center text-sm text-gray-600">{group.stapel}</td>
                         <td className="px-4 py-3 text-center font-semibold text-gray-800">{group.total}</td>
                         <td className="px-4 py-3 text-center">
@@ -633,7 +636,9 @@ export default function TransportTab({ transport, overview }: TransportTabProps)
                           </td>
                           <td className="px-4 py-3 font-bold text-gray-900">{group.case_type}</td>
                           <td className="px-4 py-3 text-gray-600 text-xs">{group.description || '—'}</td>
-                          <td className="px-4 py-3 text-gray-500 font-mono text-xs">{group.erp_code || '—'}</td>
+                          <td className="px-4 py-3 text-gray-500 font-mono text-xs">
+                            {group.erp_code ? <BcItemCode value={group.erp_code} /> : '—'}
+                          </td>
                           <td className="px-4 py-3 text-center text-gray-600">{group.stapel}</td>
                           <td className="px-4 py-3 text-center font-bold text-gray-900">{group.total_count}</td>
                           <td className="px-4 py-3">
@@ -776,7 +781,9 @@ export default function TransportTab({ transport, overview }: TransportTabProps)
                       <tr key={item.case_label} className="hover:bg-gray-50">
                         <td className="px-4 py-2.5 text-sm font-medium text-gray-900">{di.case_label}</td>
                         <td className="px-4 py-2.5 text-sm text-gray-700">{di.case_type || '-'}</td>
-                        <td className="px-4 py-2.5 text-sm text-gray-500 font-mono">{di.erp_code || '-'}</td>
+                        <td className="px-4 py-2.5 text-sm text-gray-500 font-mono">
+                          {di.erp_code ? <BcItemCode value={di.erp_code} /> : '-'}
+                        </td>
                         <td className={`px-4 py-2.5 text-sm ${urgCls}`}>
                           {di.arrival_date ? new Date(di.arrival_date).toLocaleDateString('nl-NL') : '-'}
                         </td>

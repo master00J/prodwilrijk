@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 import {
   Bar,
   CartesianGrid,
@@ -723,7 +724,7 @@ function ProductieordersSlide({ orders, title }: { orders: ProductionOrder[]; ti
                   <tbody>
                     {order.lines.map((line, i) => (
                       <tr key={i} style={{ borderTop: '1px solid #1a5c4750' }}>
-                        <td className="px-4 py-2 font-mono font-bold text-white">{line.item_number}</td>
+                        <td className="px-4 py-2 font-mono font-bold text-white"><BcItemCode value={line.item_number} /></td>
                         <td className="px-4 py-2" style={{ color: '#a0c4b8' }}>{line.description || '—'}</td>
                         <td className="px-4 py-2 text-right font-bold text-white">{line.quantity}</td>
                       </tr>
@@ -745,7 +746,9 @@ function ProductieordersSlide({ orders, title }: { orders: ProductionOrder[]; ti
                     <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: '#4ade80' }} />
                     <span className="text-sm font-semibold text-white">{timer.employee_name}</span>
                     <span className="text-sm" style={{ color: '#80bfaa' }}>—</span>
-                    <span className="text-sm font-mono" style={{ color: '#80bfaa' }}>{timer.production_item_number}</span>
+                    <span className="text-sm font-mono" style={{ color: '#80bfaa' }}>
+                      <BcItemCode value={timer.production_item_number} />
+                    </span>
                     {timer.item_description && (
                       <span className="text-xs" style={{ color: '#4a8a74' }}>({timer.item_description})</span>
                     )}

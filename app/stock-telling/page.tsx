@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
 import { useAuth } from '@/components/AuthProvider'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 
 interface Session {
   id: number
@@ -1325,7 +1326,9 @@ function QueueCard({
         {item.label && (
           <>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-mono font-bold text-gray-900 text-sm">{item.label.item_number || '?'}</span>
+              <span className="font-mono font-bold text-gray-900 text-sm">
+                {item.label.item_number ? <BcItemCode value={item.label.item_number} /> : '?'}
+              </span>
               {item.label.pallet_number && (
                 <span className="font-mono text-xs text-gray-600">pallet {item.label.pallet_number}</span>
               )}
@@ -1448,7 +1451,7 @@ function ScanRow({
             onChange={(e) => setItem(e.target.value)}
           />
         ) : (
-          scan.item_number
+          <BcItemCode value={scan.item_number} />
         )}
       </td>
       <td className="px-3 py-2 font-mono text-xs">

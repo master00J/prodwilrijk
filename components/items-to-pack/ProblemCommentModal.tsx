@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { ItemToPack } from '@/types/database'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 
 interface ProblemCommentModalProps {
   itemId: number
@@ -53,7 +54,7 @@ export default function ProblemCommentModal({
             <div className="mb-4 p-4 bg-gray-50 rounded-lg">
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div><strong>ID:</strong> {item.id}</div>
-                <div><strong>Item Number:</strong> {item.item_number}</div>
+                <div><strong>Item Number:</strong> <BcItemCode value={item.item_number} /></div>
                 <div><strong>Pallet Number:</strong> {item.po_number}</div>
                 <div><strong>Amount:</strong> {item.amount}</div>
               </div>

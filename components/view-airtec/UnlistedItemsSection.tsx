@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { AirtecUnlistedItem } from '@/types/database'
 import Link from 'next/link'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 
 const DEFAULT_EMAIL = 'prodwilrijk@foresco.eu'
 
@@ -521,7 +522,9 @@ export default function UnlistedItemsSection({ refreshKey }: { refreshKey?: numb
                               </td>
                             )}
                             <td className="px-3 py-2 text-sm">{item.beschrijving}</td>
-                            <td className="px-3 py-2 text-sm">{item.item_number || '–'}</td>
+                            <td className="px-3 py-2 text-sm">
+                              {item.item_number ? <BcItemCode value={item.item_number} /> : '–'}
+                            </td>
                             <td className="px-3 py-2 text-sm">{item.lot_number || '–'}</td>
                             <td className="px-3 py-2 text-sm">{formatDate(item.datum_opgestuurd)}</td>
                             <td className="px-3 py-2 text-sm">{item.kistnummer || '–'}</td>

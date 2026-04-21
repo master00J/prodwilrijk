@@ -3,6 +3,7 @@
 import { ItemToPack } from '@/types/database'
 import { useState } from 'react'
 import Image from 'next/image'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 
 interface ItemsTableProps {
   items: ItemToPack[]
@@ -150,7 +151,7 @@ export default function ItemsTable({
                     </td>
                     <td className="px-2 sm:px-4 py-3 sm:py-4 text-xs sm:text-sm text-gray-900">{item.id}</td>
                     <td className="px-2 sm:px-4 py-3 sm:py-4 text-xs sm:text-sm text-gray-900 font-medium break-all">
-                      {item.item_number}
+                      <BcItemCode value={item.item_number} />
                     </td>
                     <td className="px-2 sm:px-4 py-3 sm:py-4 text-xs sm:text-sm text-gray-900 break-all">{item.po_number}</td>
                     <td className="px-2 sm:px-4 py-3 sm:py-4 text-xs sm:text-sm text-gray-900">{item.amount}</td>

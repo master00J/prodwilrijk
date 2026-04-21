@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import AdminGuard from '@/components/AdminGuard'
 import { parseProductionOrderXml } from '@/lib/production-order/parse-xml'
 import { processSalesOrderExcel } from '@/lib/sales-orders/parse-excel'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 
 export default function ProductionOrderUploadPage() {
   const [xmlFile, setXmlFile] = useState<File | null>(null)
@@ -425,7 +426,9 @@ export default function ProductionOrderUploadPage() {
                 <tbody>
                   {latestOrder.lines.map((line: any) => (
                     <tr key={line.id} className="border-t">
-                      <td className="py-2 pr-4 font-medium">{line.item_number || '-'}</td>
+                      <td className="py-2 pr-4 font-medium">
+                        {line.item_number ? <BcItemCode value={line.item_number} /> : '-'}
+                      </td>
                       <td className="py-2 pr-4">{line.description || '-'}</td>
                       <td className="py-2 pr-4">{line.quantity}</td>
                       <td className="py-2 pr-4">
@@ -492,7 +495,7 @@ export default function ProductionOrderUploadPage() {
                 <tbody>
                   {(orderDetails.materials || []).map((material: any) => (
                     <tr key={material.item_number} className="border-t">
-                      <td className="py-2 pr-4 font-medium">{material.item_number}</td>
+                      <td className="py-2 pr-4 font-medium"><BcItemCode value={material.item_number} /></td>
                       <td className="py-2 pr-4">{material.description || '-'}</td>
                       <td className="py-2 pr-4">
                         <input

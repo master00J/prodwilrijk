@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { PackedItemAirtec } from '@/types/database'
 import Pagination from '@/components/common/Pagination'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 
 interface PackedItemsTableAirtecProps {
   items: PackedItemAirtec[]
@@ -131,7 +132,7 @@ export default function PackedItemsTableAirtec({
                     {item.beschrijving || '-'}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {item.item_number || '-'}
+                    {item.item_number ? <BcItemCode value={item.item_number} /> : '-'}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                     {item.lot_number || '-'}

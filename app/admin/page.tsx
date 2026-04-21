@@ -85,6 +85,14 @@ export default function AdminPage() {
       icon: '🎯',
       color: 'green',
     },
+    {
+      title: 'BC artikelnummer mapping',
+      description:
+        'Vertaaltabel tussen oude en nieuwe Business Central nummers. Upload de Excel om alle flows automatisch naar de nieuwe nummers te laten tonen.',
+      href: '/admin/bc-mappings',
+      icon: '🔄',
+      color: 'purple',
+    },
   ]
 
   const getColorClasses = (color: string) => {

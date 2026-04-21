@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { ItemToPack } from '@/types/database'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 
 interface MarkProblemModalProps {
   items: ItemToPack[]
@@ -48,7 +49,7 @@ export default function MarkProblemModal({
             <div className="space-y-1 text-sm">
               {items.slice(0, 5).map((item) => (
                 <div key={item.id} className="text-gray-700">
-                  • {item.item_number} (Pallet: {item.po_number})
+                  • <BcItemCode value={item.item_number} /> (Pallet: {item.po_number})
                 </div>
               ))}
               {items.length > 5 && (

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 
 interface ScanMatch {
   id: number
@@ -462,7 +463,9 @@ function ScanCard({ item, onAddToUnlisted }: { item: QueueItem; onAddToUnlisted:
 
           {label && (
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-mono font-bold text-gray-900 text-sm">{label.item_number || '?'}</span>
+              <span className="font-mono font-bold text-gray-900 text-sm">
+                {label.item_number ? <BcItemCode value={label.item_number} /> : '?'}
+              </span>
               <span className="text-gray-400">&times;</span>
               <span className="font-bold text-gray-700 text-sm">{label.quantity ?? '?'}</span>
               {labelType && (
