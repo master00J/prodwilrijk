@@ -3,6 +3,65 @@
 import { useState, useEffect, useRef } from 'react'
 import { WoodOrder } from '@/types/database'
 
+// Types voor PDF-import (CMR Summary van Foresco).
+interface ForescoPackage {
+  pakketnummer: string
+  houtsoort: string | null
+  dikte: number | null
+  breedte: number | null
+  exacte_lengte: number | null
+  planken_per_pak: number | null
+  raw_hint: string | null
+}
+
+type ImportRowStatus = 'ready' | 'matched' | 'no_match' | 'skip' | 'saving' | 'done' | 'error' | 'duplicate'
+
+interface ImportRow {
+  key: string
+  pkg: ForescoPackage
+  orderId: number | null
+  status: ImportRowStatus
+  message: string | null
+  candidates: WoodOrder[]
+  // Overschrijfbare velden voor registratie
+  pakketnummer: string
+  exacte_dikte: string
+  exacte_breedte: string
+  exacte_lengte: string
+  planken_per_pak: string
+}
+
+// Match een Foresco-pakket tegen de openstaande orders.
+// Regels:
+//  - Match op houtsoort (case-insensitief) + dikte + breedte.
+//  - Bij meerdere kandidaten: kies degene met de kleinste absolute afwijking t.o.v. de
+//    gescande lengte (min_lengte vs exacte_lengte). Bij gelijke afwijking: prioriteer
+//    orders waar min_lengte <= exacte_lengte en de laagste open_pakken eerst wegboekt.
+function matchCandidates(pkg: ForescoPackage, orders: WoodOrder[]): WoodOrder[] {
+  if (!pkg.houtsoort || pkg.dikte == null || pkg.breedte == null) return []
+  const hs = pkg.houtsoort.toLowerCase()
+  const hits = orders.filter(
+    (o) =>
+      o.open_pakken > 0 &&
+      (o.houtsoort || '').toLowerCase() === hs &&
+      Number(o.dikte) === Number(pkg.dikte) &&
+      Number(o.breedte) === Number(pkg.breedte)
+  )
+  if (pkg.exacte_lengte == null) return hits
+  const target = pkg.exacte_lengte
+  return [...hits].sort((a, b) => {
+    const da = Math.abs(Number(a.min_lengte) - target)
+    const db = Math.abs(Number(b.min_lengte) - target)
+    if (da !== db) return da - db
+    // Bij gelijke afwijking: eerst orders waarvan min_lengte <= target (exacte lengte
+    // is groter of gelijk dan besteld → acceptabel), daarna oplopend open_pakken.
+    const aOk = Number(a.min_lengte) <= target ? 0 : 1
+    const bOk = Number(b.min_lengte) <= target ? 0 : 1
+    if (aOk !== bOk) return aOk - bOk
+    return a.open_pakken - b.open_pakken
+  })
+}
+
 // Editable Cell Component
 interface EditableCellProps {
   orderId: number
@@ -147,6 +206,13 @@ export default function OpenOrdersPage() {
     planken_per_pak: '',
     opmerking: '',
   })
+
+  // PDF-import (CMR Summary van Foresco)
+  const pdfInputRef = useRef<HTMLInputElement>(null)
+  const [importingPdf, setImportingPdf] = useState(false)
+  const [importRows, setImportRows] = useState<ImportRow[]>([])
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [savingImport, setSavingImport] = useState(false)
 
   const fetchOrders = async () => {
     try {
@@ -535,6 +601,130 @@ export default function OpenOrdersPage() {
     }
   }
 
+  // ——— PDF IMPORT (Foresco CMR Summary) ————————————————————————————————
+  const handlePdfImportSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (pdfInputRef.current) pdfInputRef.current.value = ''
+    if (!file) return
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      alert('Selecteer een PDF-bestand.')
+      return
+    }
+
+    setImportingPdf(true)
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(((reader.result as string).split(',')[1] || '').trim())
+        reader.onerror = () => reject(new Error('PDF lezen mislukt'))
+        reader.readAsDataURL(file)
+      })
+
+      const res = await fetch('/api/wood/parse-foresco-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pdf: base64 }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || `PDF-scan mislukt (${res.status})`)
+      }
+      const data = (await res.json()) as { packages: ForescoPackage[] }
+      const pkgs = Array.isArray(data.packages) ? data.packages : []
+      if (pkgs.length === 0) {
+        alert('Geen pakketten gevonden in de PDF.')
+        return
+      }
+
+      const rows: ImportRow[] = pkgs.map((pkg, idx) => {
+        const candidates = matchCandidates(pkg, orders)
+        const best = candidates[0] ?? null
+        return {
+          key: `imp-${idx}-${pkg.pakketnummer}`,
+          pkg,
+          orderId: best?.id ?? null,
+          status: best ? 'matched' : 'no_match',
+          message: best
+            ? null
+            : `Geen open order met ${pkg.houtsoort ?? '?'} ${pkg.dikte ?? '?'}x${pkg.breedte ?? '?'}`,
+          candidates,
+          pakketnummer: pkg.pakketnummer,
+          exacte_dikte: pkg.dikte != null ? String(pkg.dikte) : '',
+          exacte_breedte: pkg.breedte != null ? String(pkg.breedte) : '',
+          exacte_lengte: pkg.exacte_lengte != null ? String(pkg.exacte_lengte) : '',
+          planken_per_pak: pkg.planken_per_pak != null ? String(pkg.planken_per_pak) : '',
+        }
+      })
+      setImportRows(rows)
+      setShowImportModal(true)
+    } catch (err) {
+      console.error('PDF-import fout:', err)
+      alert(err instanceof Error ? err.message : 'PDF-import mislukt')
+    } finally {
+      setImportingPdf(false)
+    }
+  }
+
+  const updateImportRow = (key: string, patch: Partial<ImportRow>) => {
+    setImportRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)))
+  }
+
+  const handleImportSaveAll = async () => {
+    const toSave = importRows.filter(
+      (r) => r.status !== 'skip' && r.status !== 'done' && r.orderId != null
+    )
+    if (toSave.length === 0) {
+      alert('Geen pakketten om te registreren.')
+      return
+    }
+
+    setSavingImport(true)
+    // Sequentieel afhandelen zodat de telling per order correct bijblijft.
+    for (const row of toSave) {
+      const order = orders.find((o) => o.id === row.orderId)
+      if (!order) {
+        updateImportRow(row.key, { status: 'error', message: 'Order niet meer beschikbaar' })
+        continue
+      }
+      updateImportRow(row.key, { status: 'saving', message: null })
+      try {
+        const res = await fetch('/api/wood/packages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            order_id: order.id,
+            pakketnummer: row.pakketnummer,
+            houtsoort: order.houtsoort,
+            exacte_dikte: row.exacte_dikte,
+            exacte_breedte: row.exacte_breedte,
+            exacte_lengte: row.exacte_lengte,
+            planken_per_pak: row.planken_per_pak,
+            opmerking: null,
+          }),
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          const msg = (data?.error as string) || `Registratie mislukt (${res.status})`
+          // "Package number already exists" behandelen we als duplicaat, niet als hard error
+          const isDup = /already exists/i.test(msg)
+          updateImportRow(row.key, {
+            status: isDup ? 'duplicate' : 'error',
+            message: msg,
+          })
+          continue
+        }
+        updateImportRow(row.key, { status: 'done', message: 'Geregistreerd' })
+      } catch (err) {
+        updateImportRow(row.key, {
+          status: 'error',
+          message: err instanceof Error ? err.message : 'Registratie mislukt',
+        })
+      }
+    }
+    setSavingImport(false)
+    await fetchOrders()
+  }
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-6">
@@ -584,6 +774,21 @@ export default function OpenOrdersPage() {
             className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
             {deletingOrders ? 'Deleting...' : '🗑️ Delete Selected'}
+          </button>
+          <input
+            ref={pdfInputRef}
+            type="file"
+            accept="application/pdf,.pdf"
+            onChange={handlePdfImportSelect}
+            className="hidden"
+          />
+          <button
+            onClick={() => pdfInputRef.current?.click()}
+            disabled={importingPdf}
+            className="px-4 py-2 bg-rose-500 text-white rounded-lg hover:bg-rose-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+            title="Upload een Foresco CMR Summary PDF. De lijnen worden gematcht met open orders en Register Package wordt automatisch voorgesteld."
+          >
+            {importingPdf ? 'PDF lezen...' : '📄 Import PDF'}
           </button>
         </div>
       </div>
@@ -886,6 +1091,243 @@ export default function OpenOrdersPage() {
                 className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-medium"
               >
                 Register Package
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PDF Import Modal (Foresco CMR Summary → Register Package batch) */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] flex flex-col">
+            <div className="flex justify-between items-center p-6 border-b">
+              <div>
+                <h2 className="text-2xl font-bold">PDF Import — Register Packages</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Elk pakket uit de PDF is gematcht met een openstaande order op basis van houtsoort
+                  + dikte + breedte. Lengte wordt als tiebreaker gebruikt. Kies een andere order of
+                  zet op "Overslaan" als het niet klopt.
+                </p>
+              </div>
+              <button
+                onClick={() => !savingImport && setShowImportModal(false)}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-auto p-6">
+              <div className="mb-3 flex flex-wrap gap-3 text-xs text-gray-600">
+                <span>Totaal: <strong>{importRows.length}</strong></span>
+                <span>Gematcht: <strong className="text-green-600">{importRows.filter(r => r.status === 'matched' || r.status === 'ready').length}</strong></span>
+                <span>Geen match: <strong className="text-amber-600">{importRows.filter(r => r.status === 'no_match').length}</strong></span>
+                <span>Opgeslagen: <strong className="text-blue-600">{importRows.filter(r => r.status === 'done').length}</strong></span>
+                <span>Fout/duplicaat: <strong className="text-red-600">{importRows.filter(r => r.status === 'error' || r.status === 'duplicate').length}</strong></span>
+              </div>
+
+              <div className="overflow-x-auto border rounded-lg">
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium text-gray-600">Pakketnr</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-600">Hout</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-600">D×B×L (mm)</th>
+                      <th className="px-3 py-2 text-right font-medium text-gray-600">Planken</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-600">Match met order</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-600">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-100">
+                    {importRows.map((row) => {
+                      const toneClass =
+                        row.status === 'done'
+                          ? 'bg-emerald-50'
+                          : row.status === 'error'
+                          ? 'bg-red-50'
+                          : row.status === 'duplicate'
+                          ? 'bg-amber-50'
+                          : row.status === 'no_match'
+                          ? 'bg-amber-50'
+                          : row.status === 'skip'
+                          ? 'bg-gray-100 opacity-60'
+                          : ''
+                      const selectedOrder = row.orderId ? orders.find((o) => o.id === row.orderId) : null
+                      return (
+                        <tr key={row.key} className={toneClass}>
+                          <td className="px-3 py-2 font-mono text-xs">
+                            <input
+                              type="text"
+                              value={row.pakketnummer}
+                              onChange={(e) => updateImportRow(row.key, { pakketnummer: e.target.value })}
+                              disabled={row.status === 'done' || row.status === 'saving' || row.status === 'skip'}
+                              className="w-32 px-2 py-1 border border-gray-300 rounded text-xs font-mono"
+                            />
+                          </td>
+                          <td className="px-3 py-2">{row.pkg.houtsoort ?? '?'}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-xs">
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                value={row.exacte_dikte}
+                                onChange={(e) => updateImportRow(row.key, { exacte_dikte: e.target.value })}
+                                disabled={row.status === 'done' || row.status === 'saving' || row.status === 'skip'}
+                                className="w-14 px-1 py-1 border border-gray-300 rounded"
+                              />
+                              <span>×</span>
+                              <input
+                                type="number"
+                                value={row.exacte_breedte}
+                                onChange={(e) => updateImportRow(row.key, { exacte_breedte: e.target.value })}
+                                disabled={row.status === 'done' || row.status === 'saving' || row.status === 'skip'}
+                                className="w-14 px-1 py-1 border border-gray-300 rounded"
+                              />
+                              <span>×</span>
+                              <input
+                                type="number"
+                                value={row.exacte_lengte}
+                                onChange={(e) => updateImportRow(row.key, { exacte_lengte: e.target.value })}
+                                disabled={row.status === 'done' || row.status === 'saving' || row.status === 'skip'}
+                                className="w-16 px-1 py-1 border border-gray-300 rounded"
+                              />
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <input
+                              type="number"
+                              value={row.planken_per_pak}
+                              onChange={(e) => updateImportRow(row.key, { planken_per_pak: e.target.value })}
+                              disabled={row.status === 'done' || row.status === 'saving' || row.status === 'skip'}
+                              className="w-16 px-1 py-1 border border-gray-300 rounded text-right text-xs"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <select
+                              value={row.orderId ?? ''}
+                              onChange={(e) => {
+                                const v = e.target.value
+                                const newId = v === '' ? null : Number(v)
+                                updateImportRow(row.key, {
+                                  orderId: newId,
+                                  status: newId ? 'matched' : 'no_match',
+                                  message: newId ? null : 'Geen order geselecteerd',
+                                })
+                              }}
+                              disabled={row.status === 'done' || row.status === 'saving' || row.status === 'skip'}
+                              className="max-w-[280px] px-2 py-1 border border-gray-300 rounded text-xs"
+                            >
+                              <option value="">— Geen match —</option>
+                              {/* Kandidaten (zelfde houtsoort+dikte+breedte), gesorteerd op lengte-afwijking */}
+                              {row.candidates.length > 0 && (
+                                <optgroup label="Kandidaten (houtsoort+dikte+breedte)">
+                                  {row.candidates.map((o) => (
+                                    <option key={o.id} value={o.id}>
+                                      #{o.id} {o.houtsoort} {o.dikte}×{o.breedte}×{o.min_lengte} — open {o.open_pakken}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              )}
+                              {/* Alle overige open orders voor handmatige override */}
+                              <optgroup label="Alle open orders">
+                                {orders
+                                  .filter((o) => o.open_pakken > 0 && !row.candidates.some((c) => c.id === o.id))
+                                  .map((o) => (
+                                    <option key={o.id} value={o.id}>
+                                      #{o.id} {o.houtsoort} {o.dikte}×{o.breedte}×{o.min_lengte} — open {o.open_pakken}
+                                    </option>
+                                  ))}
+                              </optgroup>
+                            </select>
+                            {selectedOrder && row.pkg.exacte_lengte != null && Number(selectedOrder.min_lengte) !== row.pkg.exacte_lengte && (
+                              <div className="text-[10px] text-amber-700 mt-1">
+                                Lengte order {selectedOrder.min_lengte} ≠ PDF {row.pkg.exacte_lengte}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-xs whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={
+                                  row.status === 'done'
+                                    ? 'text-emerald-700 font-semibold'
+                                    : row.status === 'error'
+                                    ? 'text-red-700 font-semibold'
+                                    : row.status === 'duplicate'
+                                    ? 'text-amber-700 font-semibold'
+                                    : row.status === 'no_match'
+                                    ? 'text-amber-700'
+                                    : row.status === 'skip'
+                                    ? 'text-gray-500'
+                                    : row.status === 'saving'
+                                    ? 'text-blue-700'
+                                    : 'text-gray-700'
+                                }
+                              >
+                                {row.status === 'matched'
+                                  ? 'Klaar'
+                                  : row.status === 'no_match'
+                                  ? 'Geen match'
+                                  : row.status === 'saving'
+                                  ? 'Opslaan…'
+                                  : row.status === 'done'
+                                  ? '✓ OK'
+                                  : row.status === 'duplicate'
+                                  ? 'Duplicaat'
+                                  : row.status === 'skip'
+                                  ? 'Overgeslagen'
+                                  : row.status === 'error'
+                                  ? 'Fout'
+                                  : row.status}
+                              </span>
+                              {row.status !== 'done' && row.status !== 'saving' && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateImportRow(row.key, {
+                                      status: row.status === 'skip' ? (row.orderId ? 'matched' : 'no_match') : 'skip',
+                                      message: null,
+                                    })
+                                  }
+                                  className="text-[10px] text-gray-500 hover:text-gray-800 underline"
+                                >
+                                  {row.status === 'skip' ? 'terug' : 'skip'}
+                                </button>
+                              )}
+                            </div>
+                            {row.message && (
+                              <div className="text-[10px] text-gray-500 mt-0.5 max-w-[260px] truncate" title={row.message}>
+                                {row.message}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 p-4 border-t bg-gray-50">
+              <button
+                onClick={() => !savingImport && setShowImportModal(false)}
+                disabled={savingImport}
+                className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 font-medium disabled:opacity-50"
+              >
+                {importRows.every((r) => r.status === 'done') ? 'Sluiten' : 'Annuleren'}
+              </button>
+              <button
+                onClick={handleImportSaveAll}
+                disabled={
+                  savingImport ||
+                  importRows.every((r) => r.status === 'done' || r.status === 'skip' || r.orderId == null)
+                }
+                className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-medium disabled:bg-gray-300"
+              >
+                {savingImport
+                  ? 'Bezig…'
+                  : `Registreer ${importRows.filter((r) => r.status !== 'skip' && r.status !== 'done' && r.orderId != null).length} pakket(ten)`}
               </button>
             </div>
           </div>
