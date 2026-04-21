@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import ExcelJS from 'exceljs'
+import { getBcMappingLookup } from '@/lib/bc-mapping/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -158,6 +159,7 @@ export async function POST(request: NextRequest) {
 
     const wb = new ExcelJS.Workbook()
     const today = new Date().toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    const bcMapping = await getBcMappingLookup()
 
     // ── Sheet 1: Overzicht per kisttype ──────────────────────────────────
     const wsOverview = wb.addWorksheet('Urgentielijst Genk')
@@ -165,7 +167,8 @@ export async function POST(request: NextRequest) {
       { width: 12 }, // Rang
       { width: 14 }, // Kisttype
       { width: 30 }, // Omschrijving
-      { width: 14 }, // ERP Code
+      { width: 14 }, // BC CODE
+      { width: 14 }, // oude BC CODE
       { width: 10 }, // Stapel
       { width: 10 }, // Aantal
       { width: 16 }, // Vroegste datum
@@ -180,7 +183,7 @@ export async function POST(request: NextRequest) {
     const border = { top: thin, left: thin, bottom: thin, right: thin }
 
     const titleRow = wsOverview.addRow([`Urgentielijst K-kisten Genk — ${today}`])
-    wsOverview.mergeCells(1, 1, 1, 12)
+    wsOverview.mergeCells(1, 1, 1, 13)
     titleRow.getCell(1).style = {
       font: { bold: true, size: 14 },
       fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } },
@@ -192,7 +195,7 @@ export async function POST(request: NextRequest) {
 
     wsOverview.addRow([]) // lege rij
 
-    const headers = ['Rang', 'Kisttype', 'Omschrijving', 'ERP Code', 'Stapel', 'Aantal', 'Vroegste datum', 'Overdue', 'Stock Genk', 'Stock Willebroek', 'Stock Wilrijk', 'In productie']
+    const headers = ['Rang', 'Kisttype', 'Omschrijving', 'BC CODE', 'oude BC CODE', 'Stapel', 'Aantal', 'Vroegste datum', 'Overdue', 'Stock Genk', 'Stock Willebroek', 'Stock Wilrijk', 'In productie']
     const hRow = wsOverview.addRow(headers)
     hRow.eachCell(cell => {
       cell.style = {
@@ -209,11 +212,14 @@ export async function POST(request: NextRequest) {
       const maxOverdue = Math.max(0, ...(row.cases || []).map((c: any) => c.dagen_te_laat || 0))
       const fgColor = isOverdue ? 'FFFFF2CC' : i % 2 === 0 ? 'FFFFFFFF' : 'FFF2F2F2'
 
+      const oldErp = row.erp_code || ''
+      const newErp = oldErp ? bcMapping.toNew(oldErp) : ''
       const dataRow = wsOverview.addRow([
         i + 1,
         row.case_type,
         row.description || '',
-        row.erp_code || '',
+        newErp,
+        oldErp,
         row.stapel || 1,
         row.total_count,
         row.oldest_arrival ? new Date(row.oldest_arrival).toLocaleDateString('nl-NL') : '—',

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { withAdmin } from '@/lib/api/with-auth'
+import { invalidateBcMappingCache } from '@/lib/bc-mapping/server'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -94,6 +95,7 @@ export const POST = withAdmin(async (request: NextRequest) => {
       inserted += chunk.length
     }
 
+    invalidateBcMappingCache()
     return NextResponse.json({ success: true, count: inserted })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Server error'
@@ -114,6 +116,7 @@ export const DELETE = withAdmin(async (request: NextRequest) => {
         .delete()
         .neq('old_code', '__never_matches__')
       if (error) throw error
+      invalidateBcMappingCache()
       return NextResponse.json({ success: true, cleared: true })
     }
 
@@ -126,6 +129,7 @@ export const DELETE = withAdmin(async (request: NextRequest) => {
       .delete()
       .eq('old_code', oldCode)
     if (error) throw error
+    invalidateBcMappingCache()
     return NextResponse.json({ success: true })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Server error'

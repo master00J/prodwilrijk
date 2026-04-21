@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import ExcelJS from 'exceljs'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { getBcMappingLookup } from '@/lib/bc-mapping/server'
 
 export const dynamic = 'force-dynamic'
 import { normalizeErpCode, normalizeKistnummer } from '@/lib/utils/erp-code-normalizer'
@@ -104,6 +105,7 @@ export async function POST(request: NextRequest) {
       'grote_inpak_transfer',
       'kistnummer, erp_code, quantity'
     )
+    const bcMapping = await getBcMappingLookup()
 
     const pilsLabels = new Set(
       (casesData || []).map((row: CaseRow) => String(row.case_label || '').trim()).filter(Boolean)
@@ -263,11 +265,11 @@ export async function POST(request: NextRequest) {
       })
       legendaWs.columns = [{ width: 14 }, { width: 70 }]
       const ws = wb.addWorksheet('Forecast')
-      ws.addRow(['GP CODE', 'kist', 'productielocatie', 'Totaal al in productie order', 'Totaal nog in productie order te leggen', 'productie genk', 'productie wilrijk', 'productie willebroek', 'Totaal forecast', 'op stock', 'stock genk', 'stock wilrijk', 'stock willebroek', 'in transfer', 'in inkooporder'])
+      ws.addRow(['BC CODE', 'oude BC CODE', 'kist', 'productielocatie', 'Totaal al in productie order', 'Totaal nog in productie order te leggen', 'productie genk', 'productie wilrijk', 'productie willebroek', 'Totaal forecast', 'op stock', 'stock genk', 'stock wilrijk', 'stock willebroek', 'in transfer', 'in inkooporder'])
       const header = ws.getRow(1)
       header.font = { bold: true }
       header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'D9D9D9' } }
-      ws.views = [{ state: 'frozen', xSplit: 3, ySplit: 1 }]
+      ws.views = [{ state: 'frozen', xSplit: 4, ySplit: 1 }]
       ws.columns.forEach((col) => {
         col.width = 14
       })
@@ -305,7 +307,9 @@ export async function POST(request: NextRequest) {
     counts.forEach((map, caseType) => {
       const row: Record<string, string | number> & { _stockCoverage?: Map<string, number>; _prodCoverage?: Map<string, number> } = {}
       const normalizedCaseType = normalizeCaseType(caseType)
-      row['GP CODE'] = erpByCase.get(normalizedCaseType)?.erp_code || 'Special'
+      const erpCodeRaw = erpByCase.get(normalizedCaseType)?.erp_code || 'Special'
+      row['BC CODE'] = erpCodeRaw === 'Special' ? 'Special' : bcMapping.toNew(erpCodeRaw)
+      row['oude BC CODE'] = erpCodeRaw === 'Special' ? '' : erpCodeRaw
       row['kist'] = normalizedCaseType
       row['productielocatie'] = erpByCase.get(normalizedCaseType)?.productielocatie || 'Wilrijk'
       dateCols.forEach((date) => {
@@ -366,7 +370,8 @@ export async function POST(request: NextRequest) {
       })
       .map((row) => {
         const output: Record<string, string | number> & { _stockCoverage?: Map<string, number>; _prodCoverage?: Map<string, number> } = {}
-        output['GP CODE'] = row['GP CODE']
+        output['BC CODE'] = row['BC CODE']
+        output['oude BC CODE'] = row['oude BC CODE'] ?? ''
         output['kist'] = row['kist']
         output['productielocatie'] = row['productielocatie'] ?? ''
         output['Totaal al in productie order'] = row['Totaal al in productie order'] ?? 0
@@ -428,7 +433,8 @@ export async function POST(request: NextRequest) {
     const ws = wb.addWorksheet('Forecast')
 
     const forecastColumns = [
-      'GP CODE',
+      'BC CODE',
+      'oude BC CODE',
       'kist',
       'productielocatie',
       'Totaal al in productie order',
@@ -486,7 +492,7 @@ export async function POST(request: NextRequest) {
         }
       })
     })
-    ws.views = [{ state: 'frozen', xSplit: 3, ySplit: 1 }]
+    ws.views = [{ state: 'frozen', xSplit: 4, ySplit: 1 }]
     ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: forecastColumns.length } }
     ws.columns.forEach((col) => {
       col.width = 14
@@ -495,6 +501,7 @@ export async function POST(request: NextRequest) {
     const statusSheet = wb.addWorksheet('Status')
     const statusColumns = [
       'BC CODE',
+      'oude BC CODE',
       'case type',
       'productielocatie',
       'forecast aantal',
@@ -551,8 +558,10 @@ export async function POST(request: NextRequest) {
       const prodWillebroek = prodMap?.get('Willebroek') || 0
       const inInkoop = inkoopByCase.get(normalizedCase) || 0
       const nettoNodig = Math.max(0, opPils - (opStock + inTransfer + inInkoop))
+      const statusErpRaw = erpByCase.get(normalizedCase)?.erp_code || 'Special'
       statusRows.push({
-        'BC CODE': erpByCase.get(normalizedCase)?.erp_code || 'Special',
+        'BC CODE': statusErpRaw === 'Special' ? 'Special' : bcMapping.toNew(statusErpRaw),
+        'oude BC CODE': statusErpRaw === 'Special' ? '' : statusErpRaw,
         'case type': normalizedCase,
         productielocatie: loc,
         'forecast aantal': forecastAantal,
@@ -614,6 +623,7 @@ export async function POST(request: NextRequest) {
       'tekort',
       'productielocatie',
       'BC CODE',
+      'oude BC CODE',
     ]
 
     const pilsGrouped = new Map<string, { count: number; arrival: string | null; loc: string }>()
@@ -672,7 +682,14 @@ export async function POST(request: NextRequest) {
         'totaal beschikbaar': total,
         tekort: Math.max(0, data.count - total),
         productielocatie: data.loc,
-        'BC CODE': erpByCase.get(caseType)?.erp_code || 'Special',
+        'BC CODE': (() => {
+          const raw = erpByCase.get(caseType)?.erp_code || 'Special'
+          return raw === 'Special' ? 'Special' : bcMapping.toNew(raw)
+        })(),
+        'oude BC CODE': (() => {
+          const raw = erpByCase.get(caseType)?.erp_code || ''
+          return raw === 'Special' ? '' : raw
+        })(),
       })
     })
 
