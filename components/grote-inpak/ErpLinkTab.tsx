@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, Edit2, Trash2, Save, X, Upload, AlertCircle, Copy, RefreshCw } from 'lucide-react'
-import { BcItemCode, useBcMapping } from '@/lib/bc-mapping/client'
+import { useBcMapping } from '@/lib/bc-mapping/client'
 
 interface ErpLinkEntry {
   id?: number
@@ -15,8 +15,32 @@ interface ErpLinkEntry {
   updated_at?: string
 }
 
+/**
+ * Leidt oud + nieuw BC-nummer af uit een ruwe waarde.
+ * - Als `raw` een oude code is (match in oud→nieuw map) → oud=raw, nieuw=vertaling.
+ * - Als `raw` een nieuwe code is (match in nieuw→oud map) → nieuw=raw, oud=vertaling.
+ * - Geen match: toon `raw` in beide kolommen (we weten het niet).
+ */
+function resolveBcPair(
+  raw: string,
+  toNew: (c: string) => string,
+  toOld: (c: string) => string
+): { oldCode: string; newCode: string } {
+  if (!raw) return { oldCode: '', newCode: '' }
+  const trimmed = raw.trim()
+  const maybeNew = toNew(trimmed)
+  if (maybeNew && maybeNew !== trimmed) {
+    return { oldCode: trimmed, newCode: maybeNew }
+  }
+  const maybeOld = toOld(trimmed)
+  if (maybeOld && maybeOld !== trimmed) {
+    return { oldCode: maybeOld, newCode: trimmed }
+  }
+  return { oldCode: trimmed, newCode: trimmed }
+}
+
 export default function ErpLinkTab() {
-  const { toNew: bcToNew } = useBcMapping()
+  const { toNew: bcToNew, toOld: bcToOld } = useBcMapping()
   const [entries, setEntries] = useState<ErpLinkEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -292,9 +316,11 @@ export default function ErpLinkTab() {
   const copyColumn = async (field: 'kistnummer' | 'erp_code' | 'new_bc_code' | 'productielocatie' | 'description' | 'stapel') => {
     const values = filteredEntries.map((entry) => {
       if (field === 'stapel') return String(entry.stapel ?? 1)
-      if (field === 'new_bc_code') {
+      if (field === 'erp_code' || field === 'new_bc_code') {
         const raw = entry.erp_code ? String(entry.erp_code).trim() : ''
-        return raw ? bcToNew(raw) : ''
+        if (!raw) return ''
+        const { oldCode, newCode } = resolveBcPair(raw, bcToNew, bcToOld)
+        return field === 'new_bc_code' ? newCode : oldCode
       }
       const v = entry[field]
       return v != null && String(v).trim() !== '' ? String(v).trim() : ''
@@ -434,15 +460,18 @@ export default function ErpLinkTab() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                ERP Code
+                BC Code
               </label>
               <input
                 type="text"
                 value={formData.erp_code || ''}
                 onChange={(e) => setFormData({ ...formData, erp_code: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Bijv. GP006311"
+                placeholder="Bijv. FP006311 (of oude GP006311)"
               />
+              <p className="text-xs text-gray-500 mt-1">
+                Nieuwe items: voer het <strong>nieuwe</strong> BC36-nummer in. De oude code wordt automatisch getoond via de mapping.
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -573,16 +602,23 @@ export default function ErpLinkTab() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredEntries.map((entry) => (
+              {filteredEntries.map((entry) => {
+                const raw = entry.erp_code ? String(entry.erp_code).trim() : ''
+                const { oldCode, newCode } = resolveBcPair(raw, bcToNew, bcToOld)
+                const sameCode = raw && oldCode === newCode
+                return (
                 <tr key={entry.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {entry.kistnummer}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
-                    {entry.erp_code || '-'}
+                    {oldCode || '-'}
+                    {sameCode && (
+                      <span className="ml-1 text-[10px] text-amber-600" title="Geen mapping gevonden — mogelijk al een nieuwe code ingevoerd">⚠</span>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono font-medium">
-                    {entry.erp_code ? <BcItemCode value={entry.erp_code} /> : '-'}
+                    {newCode || '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {entry.productielocatie || '-'}
@@ -610,7 +646,8 @@ export default function ErpLinkTab() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>
