@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, Edit2, Trash2, Save, X, Upload, AlertCircle, Copy, RefreshCw } from 'lucide-react'
-import { BcItemCode } from '@/lib/bc-mapping/client'
+import { BcItemCode, useBcMapping } from '@/lib/bc-mapping/client'
 
 interface ErpLinkEntry {
   id?: number
@@ -16,6 +16,7 @@ interface ErpLinkEntry {
 }
 
 export default function ErpLinkTab() {
+  const { toNew: bcToNew } = useBcMapping()
   const [entries, setEntries] = useState<ErpLinkEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -281,15 +282,20 @@ export default function ErpLinkTab() {
 
   const columnLabels: Record<string, string> = {
     kistnummer: 'Kistnummer',
-    erp_code: 'ERP Code',
+    erp_code: 'Oude BC Code',
+    new_bc_code: 'Nieuwe BC Code',
     productielocatie: 'Productielocatie',
     description: 'Beschrijving',
     stapel: 'Stapel',
   }
 
-  const copyColumn = async (field: 'kistnummer' | 'erp_code' | 'productielocatie' | 'description' | 'stapel') => {
+  const copyColumn = async (field: 'kistnummer' | 'erp_code' | 'new_bc_code' | 'productielocatie' | 'description' | 'stapel') => {
     const values = filteredEntries.map((entry) => {
       if (field === 'stapel') return String(entry.stapel ?? 1)
+      if (field === 'new_bc_code') {
+        const raw = entry.erp_code ? String(entry.erp_code).trim() : ''
+        return raw ? bcToNew(raw) : ''
+      }
       const v = entry[field]
       return v != null && String(v).trim() !== '' ? String(v).trim() : ''
     })
@@ -518,7 +524,17 @@ export default function ErpLinkTab() {
                     className="inline-flex items-center gap-1.5 hover:text-blue-600 hover:bg-blue-50 rounded px-1 -ml-1 transition-colors"
                     title="Klik om hele kolom te kopiëren"
                   >
-                    ERP Code <Copy className="w-3.5 h-3.5 opacity-60" />
+                    Oude BC Code <Copy className="w-3.5 h-3.5 opacity-60" />
+                  </button>
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <button
+                    type="button"
+                    onClick={() => copyColumn('new_bc_code')}
+                    className="inline-flex items-center gap-1.5 hover:text-blue-600 hover:bg-blue-50 rounded px-1 -ml-1 transition-colors"
+                    title="Klik om hele kolom te kopiëren"
+                  >
+                    Nieuwe BC Code <Copy className="w-3.5 h-3.5 opacity-60" />
                   </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -562,7 +578,10 @@ export default function ErpLinkTab() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {entry.kistnummer}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
+                    {entry.erp_code || '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono font-medium">
                     {entry.erp_code ? <BcItemCode value={entry.erp_code} /> : '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
