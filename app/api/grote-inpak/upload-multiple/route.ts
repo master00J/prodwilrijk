@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
 import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
+import { getBcMappingLookup } from '@/lib/bc-mapping/server'
 
 // Increase body size limit for Vercel
 export const maxDuration = 60
@@ -22,9 +23,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check total size to prevent 413 errors
+    // Check total size to prevent 413 errors.
+    // BC-exports met duizenden items zonder filter kunnen al snel 3-6 MB groot zijn,
+    // dus houden we 10 MB ruimte aan. Vercel serverless function body-limit is 4.5 MB
+    // voor hobby/pro plans, maar via de formData streaming komt deze limiet pas in
+    // beeld bij het uitlezen — bij één grote file per request is dat normaal prima.
     const totalSize = files.reduce((sum, file) => sum + file.size, 0)
-    const MAX_SIZE = 4 * 1024 * 1024 // 4MB limit per request
+    const MAX_SIZE = 10 * 1024 * 1024 // 10 MB totale request
     if (totalSize > MAX_SIZE && files.length > 1) {
       return NextResponse.json(
         { error: `Total file size too large (${Math.round(totalSize / 1024 / 1024)}MB). Please upload files one at a time.` },
@@ -40,6 +45,10 @@ export async function POST(request: NextRequest) {
         .from('grote_inpak_erp_link')
         .select('kistnummer, erp_code')
 
+      // Laad BC item mapping zodat ook nieuwe BC36 codes (FP...) kunnen matchen
+      // op ERP LINK entries die nog op oude codes (GP...) staan.
+      const bcMapping = await getBcMappingLookup()
+
       const erpToKist = new Map<string, string>()
       if (erpLinkData && erpLinkData.length > 0) {
         erpLinkData.forEach((row: any) => {
@@ -51,6 +60,17 @@ export async function POST(request: NextRequest) {
             const numPart = normalized.replace(/^GP/i, '')
             const asNum = parseInt(numPart, 10)
             if (!isNaN(asNum)) erpToKist.set(String(asNum), kist)
+          }
+          // Indexeer ook op de tegenhanger (oud ↔ nieuw) zodat een stock-file
+          // met FP-codes matcht met een ERP LINK entry die GP-code heeft,
+          // en omgekeerd.
+          const altNew = bcMapping.toNew(normalized)
+          if (altNew && altNew.toUpperCase() !== normalized) {
+            erpToKist.set(altNew.toUpperCase(), kist)
+          }
+          const altOld = bcMapping.toOld(normalized)
+          if (altOld && altOld.toUpperCase() !== normalized) {
+            erpToKist.set(altOld.toUpperCase(), kist)
           }
         })
       }
@@ -118,6 +138,19 @@ export async function POST(request: NextRequest) {
                     if (normalized && erpToKist.has(normalized)) {
                       kistnummer = erpToKist.get(normalized) || null
                     }
+                    // Probeer ook de vertaalde variant via BC-mapping (oud ↔ nieuw).
+                    if (!kistnummer && normalized) {
+                      const altNew = bcMapping.toNew(normalized)
+                      if (altNew && altNew.toUpperCase() !== normalized && erpToKist.has(altNew.toUpperCase())) {
+                        kistnummer = erpToKist.get(altNew.toUpperCase()) || null
+                      }
+                      if (!kistnummer) {
+                        const altOld = bcMapping.toOld(normalized)
+                        if (altOld && altOld.toUpperCase() !== normalized && erpToKist.has(altOld.toUpperCase())) {
+                          kistnummer = erpToKist.get(altOld.toUpperCase()) || null
+                        }
+                      }
+                    }
                     if (!kistnummer && /^\d{4,8}$/.test(String(item.erp_code || ''))) {
                       kistnummer = erpToKist.get(String(item.erp_code)) || null
                     }
@@ -135,36 +168,51 @@ export async function POST(request: NextRequest) {
               }
               
               const uniqueDataArray = Array.from(uniqueData.values())
-              console.log(`Inserting ${uniqueDataArray.length} unique stock items for location ${location} (${processedData.length} total rows parsed)`)
-              
+
+              // Pre-filter voor insert: enkel items die uiteindelijk zichtbaar zullen
+              // zijn in de /grote-inpak tabs hebben we nodig. Dat zijn items met een
+              // geldig kistnummer (K/C/V-prefix). Alle andere items komen uit een
+              // ongefilterde BC-export en zouden de DB alleen maar vervuilen — de
+              // GET-endpoint filtert ze toch weer weg.
+              // Hierdoor kan de gebruiker de volledige BC-items-lijst uploaden
+              // (10k+ rijen) zonder dat we die allemaal moeten opslaan.
+              const relevantForInsert = uniqueDataArray.filter((item: any) => {
+                const kist = item.kistnummer ? String(item.kistnummer).toUpperCase() : ''
+                return kist && /^[KCV]/.test(kist)
+              })
+              const skippedNoLink = uniqueDataArray.length - relevantForInsert.length
+              console.log(`Location ${location}: ${processedData.length} rijen geparsed → ${uniqueDataArray.length} uniek → ${relevantForInsert.length} match met ERP LINK (skipped: ${skippedNoLink} zonder kistnummer)`)
+
               // Insert new stock data for this location
               // Stock files: kolom A = ERP code, kolom C = quantity
               // Use empty string for item_number if column is NOT NULL, otherwise null
               // Negatieve waarden op 0 zetten
               const clamp = (v: any) => Math.max(0, Number(v) || 0)
-              const { error: insertError } = await supabaseAdmin
-                .from('grote_inpak_stock')
-                .insert(
-                  uniqueDataArray.map(item => ({
-                    erp_code: item.erp_code,
-                    kistnummer: item.kistnummer,
-                    location: item.location,
-                    quantity: clamp(item.quantity),
-                    stock: clamp(item.stock),
-                    inkoop: clamp(item.inkoop),
-                    productie: clamp(item.productie),
-                    in_transfer: clamp(item.in_transfer),
-                    item_number: '', // Use empty string instead of null to avoid NOT NULL constraint
-                  }))
-                )
+              const { error: insertError } = relevantForInsert.length === 0
+                ? { error: null }
+                : await supabaseAdmin
+                    .from('grote_inpak_stock')
+                    .insert(
+                      relevantForInsert.map((item: any) => ({
+                        erp_code: item.erp_code,
+                        kistnummer: item.kistnummer,
+                        location: item.location,
+                        quantity: clamp(item.quantity),
+                        stock: clamp(item.stock),
+                        inkoop: clamp(item.inkoop),
+                        productie: clamp(item.productie),
+                        in_transfer: clamp(item.in_transfer),
+                        item_number: '', // Use empty string instead of null to avoid NOT NULL constraint
+                      }))
+                    )
 
               if (insertError) {
                 console.error(`Error saving stock data for ${file.name}:`, insertError)
                 errors.push(`${file.name}: ${insertError.message}`)
               } else {
-                totalProcessed += uniqueDataArray.length
+                totalProcessed += relevantForInsert.length
                 filesProcessed++
-                console.log(`Successfully saved ${uniqueDataArray.length} stock items for location ${location}`)
+                console.log(`Successfully saved ${relevantForInsert.length} stock items for location ${location}`)
               }
             }
           }
