@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import urllib.request
 from typing import Dict, Iterable, List, Tuple
@@ -125,6 +126,61 @@ def read_codes(excel_path: str, column: str, sheet: str | None = None) -> List[s
     return codes
 
 
+_SPLIT_RE = re.compile(r"^([A-Za-z]*)(\d+)$")
+
+
+def _parse_code(code: str) -> Tuple[str, int, int] | None:
+    """Splits 'FP003007' → ('FP', 3007, 6). Returnt None als het niet in dat patroon past."""
+    m = _SPLIT_RE.match(code)
+    if not m:
+        return None
+    prefix, digits = m.group(1), m.group(2)
+    return prefix, int(digits), len(digits)
+
+
+def compress_to_ranges(codes: List[str]) -> List[str]:
+    """Trekt opeenvolgende codes samen tot 'FP001..FP005' ranges.
+
+    - Alleen codes met patroon <letters><digits> worden samengevoegd (consistente width per prefix).
+    - Codes zonder dat patroon blijven los staan.
+    - Resultaat behoudt de alfabetische volgorde van de input.
+    """
+    # Groepeer per (prefix, width) voor range-detectie.
+    by_group: Dict[Tuple[str, int], List[Tuple[int, str]]] = {}
+    loose: List[str] = []
+    for c in codes:
+        parsed = _parse_code(c)
+        if parsed is None:
+            loose.append(c)
+            continue
+        prefix, num, width = parsed
+        by_group.setdefault((prefix, width), []).append((num, c))
+
+    tokens: List[Tuple[str, str]] = []  # (sort_key, token)
+
+    for (prefix, width), entries in by_group.items():
+        entries.sort(key=lambda t: t[0])
+        i = 0
+        while i < len(entries):
+            start_num, start_code = entries[i]
+            j = i
+            while j + 1 < len(entries) and entries[j + 1][0] == entries[j][0] + 1:
+                j += 1
+            end_num, end_code = entries[j]
+            if end_num == start_num:
+                tokens.append((start_code, start_code))
+            else:
+                tokens.append((start_code, f"{start_code}..{end_code}"))
+            i = j + 1
+
+    # "Losse" codes (zonder cijferpatroon) ook sorteren op zichzelf.
+    for c in loose:
+        tokens.append((c, c))
+
+    tokens.sort(key=lambda t: t[0])
+    return [tok for _, tok in tokens]
+
+
 def translate(
     codes: List[str], mapping: Dict[str, str]
 ) -> Tuple[List[str], List[str], List[str]]:
@@ -163,6 +219,13 @@ def main() -> int:
     parser.add_argument("--output", default=None, help="Pad voor output .txt (default: naast input bestand)")
     parser.add_argument("--separator", default="|", help='Separator voor de output (default: "|")')
     parser.add_argument("--keep-unmapped", action="store_true", help="Onbekende codes tóch opnemen (ongewijzigd)")
+    parser.add_argument(
+        "--no-ranges",
+        action="store_true",
+        help="Geen range-compressie (FP001..FP005) toepassen — schrijf alle codes los. "
+             "Standaard worden opeenvolgende codes samengetrokken; dat is VEEL sneller "
+             "in Business Central (één BETWEEN ipv 100+ OR's).",
+    )
     args = parser.parse_args()
 
     if not os.path.isfile(args.excel):
@@ -198,25 +261,37 @@ def main() -> int:
                 new_codes.append(u)
                 seen.add(u.upper())
 
-    filter_string = args.separator.join(new_codes)
+    mapped_count = len(new_codes)
+    if args.no_ranges:
+        filter_tokens = sorted(new_codes)
+    else:
+        filter_tokens = compress_to_ranges(new_codes)
+    filter_string = args.separator.join(filter_tokens)
 
     out_path = args.output or os.path.splitext(args.excel)[0] + "_bc36_filter.txt"
     with open(out_path, "w", encoding="utf-8") as f:
         f.write(filter_string)
 
     # Rapport naar stderr zodat stdout puur de filter-string blijft.
+    gemapt = mapped_count - (len(unmapped) if args.keep_unmapped else 0)
     print("", file=sys.stderr)
     print("========= RESULTAAT =========", file=sys.stderr)
     print(f"  Unieke oude codes ingelezen : {len(codes) - len(duplicates)}", file=sys.stderr)
     print(f"  Dubbelen in input           : {len(duplicates)}", file=sys.stderr)
-    print(f"  Gemapt → nieuw              : {len(new_codes) - (len(unmapped) if args.keep_unmapped else 0)}", file=sys.stderr)
+    print(f"  Gemapt -> nieuw             : {gemapt}", file=sys.stderr)
     print(f"  Niet gemapt                 : {len(unmapped)}", file=sys.stderr)
     if unmapped:
         preview = ", ".join(unmapped[:15])
         suffix = " ..." if len(unmapped) > 15 else ""
-        print(f"    → voorbeeld: {preview}{suffix}", file=sys.stderr)
+        print(f"    -> voorbeeld: {preview}{suffix}", file=sys.stderr)
     print(f"  Output geschreven naar      : {out_path}", file=sys.stderr)
-    print(f"  Totaal in filter            : {len(new_codes)} codes, {len(filter_string)} tekens", file=sys.stderr)
+    if args.no_ranges:
+        print(f"  Tokens in filter            : {len(filter_tokens)} losse codes, {len(filter_string)} tekens", file=sys.stderr)
+    else:
+        ranges = sum(1 for t in filter_tokens if ".." in t)
+        singles = len(filter_tokens) - ranges
+        print(f"  Range-compressie            : {mapped_count} codes -> {len(filter_tokens)} tokens ({ranges} ranges + {singles} losse)", file=sys.stderr)
+        print(f"  Totaal in filter            : {len(filter_string)} tekens", file=sys.stderr)
     print("=============================", file=sys.stderr)
     print("", file=sys.stderr)
 
