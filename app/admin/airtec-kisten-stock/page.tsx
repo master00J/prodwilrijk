@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import AdminGuard from '@/components/AdminGuard'
+import { useBcMapping, resolveBcPair } from '@/lib/bc-mapping/client'
 
 interface KistStock {
   id: number
@@ -40,6 +41,7 @@ interface ConsumptionRow {
 type Tab = 'stock' | 'verbruik' | 'bestellen'
 
 export default function AirtecKistenStockPage() {
+  const { toNew: bcToNew, toOld: bcToOld } = useBcMapping()
   const [activeTab, setActiveTab] = useState<Tab>('stock')
   const [stock, setStock] = useState<KistStock[]>([])
   const [loading, setLoading] = useState(true)
@@ -104,7 +106,12 @@ export default function AirtecKistenStockPage() {
 
   const filtered = stock.filter(s => {
     const term = searchTerm.toLowerCase()
-    return !term || s.kistnummer.toLowerCase().includes(term) || (s.erp_code || '').toLowerCase().includes(term)
+    if (!term) return true
+    if (s.kistnummer.toLowerCase().includes(term)) return true
+    if ((s.erp_code || '').toLowerCase().includes(term)) return true
+    // Ook op de nieuwe BC-code kunnen zoeken
+    const { oldCode, newCode } = resolveBcPair(s.erp_code, bcToNew, bcToOld)
+    return oldCode.toLowerCase().includes(term) || newCode.toLowerCase().includes(term)
   })
 
   const itemsToOrder = stock.filter(s => s.te_bestellen > 0).sort((a, b) => b.te_bestellen - a.te_bestellen)
@@ -326,20 +333,27 @@ export default function AirtecKistenStockPage() {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="text-left text-gray-500 border-b">
-                            <th className="pb-2 pr-4">Kist</th><th className="pb-2 pr-4">ERP</th><th className="pb-2 pr-4">Beschrijving</th>
+                            <th className="pb-2 pr-4">Kist</th>
+                            <th className="pb-2 pr-4">Oude BC</th>
+                            <th className="pb-2 pr-4">Nieuwe BC</th>
+                            <th className="pb-2 pr-4">Beschrijving</th>
                             <th className="pb-2 pr-4 text-right">Geleverd</th><th className="pb-2 text-right">Stock</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {cmrMatched.map((m, i) => (
-                            <tr key={i} className="border-b border-gray-100">
-                              <td className="py-2 pr-4 font-mono font-bold">{m.kistnummer}</td>
-                              <td className="py-2 pr-4 text-gray-600">{m.erp_code}</td>
-                              <td className="py-2 pr-4 text-gray-500 text-xs">{m.description || '—'}</td>
-                              <td className="py-2 pr-4 text-right font-bold text-green-700">+{m.amount}</td>
-                              <td className="py-2 text-right text-gray-500">{m.current_stock} &rarr; {m.current_stock + m.amount}</td>
-                            </tr>
-                          ))}
+                          {cmrMatched.map((m, i) => {
+                            const { oldCode, newCode } = resolveBcPair(m.erp_code, bcToNew, bcToOld)
+                            return (
+                              <tr key={i} className="border-b border-gray-100">
+                                <td className="py-2 pr-4 font-mono font-bold">{m.kistnummer}</td>
+                                <td className="py-2 pr-4 text-gray-500 font-mono text-xs">{oldCode}</td>
+                                <td className="py-2 pr-4 text-gray-900 font-mono text-xs font-medium">{newCode}</td>
+                                <td className="py-2 pr-4 text-gray-500 text-xs">{m.description || '—'}</td>
+                                <td className="py-2 pr-4 text-right font-bold text-green-700">+{m.amount}</td>
+                                <td className="py-2 text-right text-gray-500">{m.current_stock} &rarr; {m.current_stock + m.amount}</td>
+                              </tr>
+                            )
+                          })}
                         </tbody>
                       </table>
                       {!cmrDone && (
@@ -354,11 +368,19 @@ export default function AirtecKistenStockPage() {
                     <div>
                       <h3 className="text-sm font-medium text-amber-700 mb-2">Niet-herkend ({cmrUnmatched.length})</h3>
                       <div className="space-y-1">
-                        {cmrUnmatched.map((u, i) => (
-                          <div key={i} className="text-sm text-gray-500 flex gap-4">
-                            <span className="font-mono">{u.erp_code}</span><span>{u.description || '—'}</span><span className="text-gray-400">({u.amount}x)</span>
-                          </div>
-                        ))}
+                        {cmrUnmatched.map((u, i) => {
+                          const { oldCode, newCode, matched } = resolveBcPair(u.erp_code, bcToNew, bcToOld)
+                          return (
+                            <div key={i} className="text-sm text-gray-500 flex gap-4">
+                              <span className="font-mono text-gray-400">{oldCode}</span>
+                              {matched && newCode !== oldCode && (
+                                <span className="font-mono font-medium text-gray-700">{newCode}</span>
+                              )}
+                              <span>{u.description || '—'}</span>
+                              <span className="text-gray-400">({u.amount}x)</span>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
                   )}
@@ -378,7 +400,9 @@ export default function AirtecKistenStockPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-gray-50 text-left text-gray-600 text-xs uppercase tracking-wide">
-                        <th className="px-4 py-3">Kist</th><th className="px-4 py-3">ERP Code</th>
+                        <th className="px-4 py-3">Kist</th>
+                        <th className="px-4 py-3">Oude BC Code</th>
+                        <th className="px-4 py-3">Nieuwe BC Code</th>
                         <th className="px-4 py-3 text-right">Voorraad</th><th className="px-4 py-3 text-right">Minimum</th>
                         <th className="px-4 py-3 text-right">Te bestellen</th><th className="px-4 py-3 text-right">Acties</th>
                       </tr>
@@ -387,10 +411,17 @@ export default function AirtecKistenStockPage() {
                       {filtered.map((item) => {
                         const isLow = item.huidige_voorraad < item.minimum_voorraad
                         const isEmpty = item.huidige_voorraad === 0 && item.minimum_voorraad > 0
+                        const { oldCode, newCode, matched } = resolveBcPair(item.erp_code, bcToNew, bcToOld)
                         return (
                           <tr key={item.id} className={`border-t ${isEmpty ? 'bg-red-50' : isLow ? 'bg-amber-50' : ''} hover:bg-gray-50`}>
                             <td className="px-4 py-3 font-mono font-bold">{item.kistnummer}</td>
-                            <td className="px-4 py-3 text-gray-600 font-mono text-xs">{item.erp_code || '—'}</td>
+                            <td className="px-4 py-3 text-gray-500 font-mono text-xs">
+                              {oldCode || '—'}
+                              {item.erp_code && !matched && (
+                                <span className="ml-1 text-[10px] text-amber-600" title="Geen mapping gevonden">⚠</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-gray-900 font-mono text-xs font-medium">{newCode || '—'}</td>
                             <td className={`px-4 py-3 text-right font-bold ${isEmpty ? 'text-red-600' : isLow ? 'text-amber-600' : 'text-gray-900'}`}>{item.huidige_voorraad}</td>
                             <td className="px-4 py-3 text-right text-gray-600">{item.minimum_voorraad}</td>
                             <td className="px-4 py-3 text-right">
@@ -428,23 +459,29 @@ export default function AirtecKistenStockPage() {
                   <table className="w-full text-sm mb-6">
                     <thead>
                       <tr className="bg-gray-50 text-left text-gray-600 text-xs uppercase tracking-wide">
-                        <th className="px-4 py-3">Kist</th><th className="px-4 py-3">ERP Code</th>
+                        <th className="px-4 py-3">Kist</th>
+                        <th className="px-4 py-3">Oude BC Code</th>
+                        <th className="px-4 py-3">Nieuwe BC Code</th>
                         <th className="px-4 py-3 text-right">Te bestellen</th><th className="px-4 py-3 text-right">Huidige stock</th>
                         <th className="px-4 py-3 text-right">Min. voorraad</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {itemsToOrder.map(item => (
-                        <tr key={item.id} className="border-t">
-                          <td className="px-4 py-3 font-mono font-bold">{item.kistnummer}</td>
-                          <td className="px-4 py-3 text-gray-600 font-mono text-xs">{item.erp_code || '—'}</td>
-                          <td className="px-4 py-3 text-right font-bold text-red-600">{item.te_bestellen}</td>
-                          <td className="px-4 py-3 text-right text-gray-600">{item.huidige_voorraad}</td>
-                          <td className="px-4 py-3 text-right text-gray-600">{item.minimum_voorraad}</td>
-                        </tr>
-                      ))}
+                      {itemsToOrder.map(item => {
+                        const { oldCode, newCode } = resolveBcPair(item.erp_code, bcToNew, bcToOld)
+                        return (
+                          <tr key={item.id} className="border-t">
+                            <td className="px-4 py-3 font-mono font-bold">{item.kistnummer}</td>
+                            <td className="px-4 py-3 text-gray-500 font-mono text-xs">{oldCode || '—'}</td>
+                            <td className="px-4 py-3 text-gray-900 font-mono text-xs font-medium">{newCode || '—'}</td>
+                            <td className="px-4 py-3 text-right font-bold text-red-600">{item.te_bestellen}</td>
+                            <td className="px-4 py-3 text-right text-gray-600">{item.huidige_voorraad}</td>
+                            <td className="px-4 py-3 text-right text-gray-600">{item.minimum_voorraad}</td>
+                          </tr>
+                        )
+                      })}
                       <tr className="border-t-2 border-gray-300 font-bold">
-                        <td className="px-4 py-3" colSpan={2}>Totaal</td>
+                        <td className="px-4 py-3" colSpan={3}>Totaal</td>
                         <td className="px-4 py-3 text-right text-red-600">{totalTeBestellen}</td>
                         <td colSpan={2}></td>
                       </tr>
@@ -568,9 +605,18 @@ export default function AirtecKistenStockPage() {
                       className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="bijv. 192" disabled={!!editingId} />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">ERP Code</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">BC Code</label>
                     <input type="text" value={formData.erp_code} onChange={(e) => setFormData(f => ({ ...f, erp_code: e.target.value }))}
-                      className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="bijv. GP005700" />
+                      className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="bijv. FP005700 (of oude GP005700)" />
+                    {formData.erp_code.trim() && (() => {
+                      const { oldCode, newCode, matched } = resolveBcPair(formData.erp_code, bcToNew, bcToOld)
+                      if (!matched) return <p className="mt-1 text-xs text-amber-600">Geen mapping gevonden — code wordt opgeslagen zoals ingevoerd.</p>
+                      return (
+                        <p className="mt-1 text-xs text-gray-500">
+                          Oud: <span className="font-mono">{oldCode}</span> · Nieuw: <span className="font-mono font-medium">{newCode}</span>
+                        </p>
+                      )
+                    })()}
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>

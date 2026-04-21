@@ -156,6 +156,31 @@ export function useBcMapping(): BcMappingContextValue {
 }
 
 /**
+ * Leidt het oude én nieuwe BC-nummer af uit een willekeurige ruwe invoer.
+ * Werkt ongeacht of `raw` de oude (GP...) of nieuwe (FP...) variant is.
+ * - Match in oud→nieuw: returned `{ oldCode: raw, newCode: vertaling }`.
+ * - Match in nieuw→oud: returned `{ oldCode: vertaling, newCode: raw }`.
+ * - Geen match: beide velden krijgen `raw` (we kennen de tegenhanger niet).
+ */
+export function resolveBcPair(
+  raw: string | null | undefined,
+  toNew: (c: string | null | undefined) => string,
+  toOld: (c: string | null | undefined) => string
+): { oldCode: string; newCode: string; matched: boolean } {
+  const trimmed = raw == null ? '' : String(raw).trim()
+  if (!trimmed) return { oldCode: '', newCode: '', matched: false }
+  const maybeNew = toNew(trimmed)
+  if (maybeNew && maybeNew !== trimmed) {
+    return { oldCode: trimmed, newCode: maybeNew, matched: true }
+  }
+  const maybeOld = toOld(trimmed)
+  if (maybeOld && maybeOld !== trimmed) {
+    return { oldCode: maybeOld, newCode: trimmed, matched: true }
+  }
+  return { oldCode: trimmed, newCode: trimmed, matched: false }
+}
+
+/**
  * Rendert het NIEUWE BC-artikelnummer met het oude als tooltip.
  * - `value` mag het oude of het nieuwe nummer zijn; we proberen eerst oud→nieuw.
  * - Als er geen mapping bekend is, tonen we gewoon de input zonder tooltip.

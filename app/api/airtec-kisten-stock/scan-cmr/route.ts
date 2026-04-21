@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { withAuth } from '@/lib/api/with-auth'
+import { getBcMappingLookup } from '@/lib/bc-mapping/server'
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
 
@@ -115,19 +116,38 @@ export const POST = withAuth(async (request) => {
       return NextResponse.json({ error: 'Fout bij ophalen stock data. Is de tabel al aangemaakt?' }, { status: 500 })
     }
 
+    // Laad de BC-mapping zodat we zowel oude (GP...) als nieuwe (FP...) codes
+    // op elkaar kunnen matchen: een CMR met FP-codes moet ook een stock-rij
+    // met de overeenkomstige GP-code kunnen vinden (en omgekeerd).
+    const bcMapping = await getBcMappingLookup()
+
     const erpToStock = new Map<string, any>()
     ;(stockRows || []).forEach((row: any) => {
-      if (row.erp_code) erpToStock.set(row.erp_code.toUpperCase().trim(), row)
+      if (!row.erp_code) return
+      const raw = String(row.erp_code).toUpperCase().trim()
+      erpToStock.set(raw, row)
+      // indexeer ook op de tegenhanger zodat lookup van beide kanten werkt
+      const alt = bcMapping.toNew(raw)
+      if (alt && alt.toUpperCase() !== raw) erpToStock.set(alt.toUpperCase(), row)
+      const altOld = bcMapping.toOld(raw)
+      if (altOld && altOld.toUpperCase() !== raw) erpToStock.set(altOld.toUpperCase(), row)
     })
 
     const matched: any[] = []
     const unmatched: any[] = []
 
     cmrItems.forEach((item) => {
-      const stockRow = erpToStock.get(item.erp_code.toUpperCase().trim())
+      const raw = item.erp_code.toUpperCase().trim()
+      let stockRow = erpToStock.get(raw)
+      // fallback: probeer expliciet de oud/nieuw variant
+      if (!stockRow) {
+        const asNew = bcMapping.toNew(raw).toUpperCase()
+        const asOld = bcMapping.toOld(raw).toUpperCase()
+        stockRow = erpToStock.get(asNew) || erpToStock.get(asOld)
+      }
       if (stockRow) {
         matched.push({
-          erp_code: item.erp_code,
+          erp_code: stockRow.erp_code || item.erp_code,
           kistnummer: stockRow.kistnummer,
           description: item.description,
           amount: item.amount,

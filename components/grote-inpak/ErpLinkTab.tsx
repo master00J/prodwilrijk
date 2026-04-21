@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, Edit2, Trash2, Save, X, Upload, AlertCircle, Copy, RefreshCw } from 'lucide-react'
-import { useBcMapping } from '@/lib/bc-mapping/client'
+import { useBcMapping, resolveBcPair } from '@/lib/bc-mapping/client'
 
 interface ErpLinkEntry {
   id?: number
@@ -13,30 +13,6 @@ interface ErpLinkEntry {
   stapel?: number | null
   created_at?: string
   updated_at?: string
-}
-
-/**
- * Leidt oud + nieuw BC-nummer af uit een ruwe waarde.
- * - Als `raw` een oude code is (match in oud→nieuw map) → oud=raw, nieuw=vertaling.
- * - Als `raw` een nieuwe code is (match in nieuw→oud map) → nieuw=raw, oud=vertaling.
- * - Geen match: toon `raw` in beide kolommen (we weten het niet).
- */
-function resolveBcPair(
-  raw: string,
-  toNew: (c: string) => string,
-  toOld: (c: string) => string
-): { oldCode: string; newCode: string } {
-  if (!raw) return { oldCode: '', newCode: '' }
-  const trimmed = raw.trim()
-  const maybeNew = toNew(trimmed)
-  if (maybeNew && maybeNew !== trimmed) {
-    return { oldCode: trimmed, newCode: maybeNew }
-  }
-  const maybeOld = toOld(trimmed)
-  if (maybeOld && maybeOld !== trimmed) {
-    return { oldCode: maybeOld, newCode: trimmed }
-  }
-  return { oldCode: trimmed, newCode: trimmed }
 }
 
 export default function ErpLinkTab() {
