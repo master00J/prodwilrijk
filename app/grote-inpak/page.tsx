@@ -19,6 +19,10 @@ export default function GroteInpakPage() {
   const [pilsFile, setPilsFile] = useState<File | null>(null)
   const [erpLinkFile, setErpLinkFile] = useState<File | null>(null)
   const [stockFiles, setStockFiles] = useState<File[]>([])
+  // BC-overgang: markeer welke BC-omgeving een stock-upload komt van.
+  // 'legacy' = oude BC (GP-codes), 'bc36' = nieuwe BC36 (FP-codes).
+  // Beide kunnen tegelijk in de DB leven en worden per kist opgeteld.
+  const [stockBcSource, setStockBcSource] = useState<'legacy' | 'bc36'>('legacy')
   const [transferFiles, setTransferFiles] = useState<File[]>([])
   const [transferUploading, setTransferUploading] = useState(false)
   const [transferFiles_DB, setTransferFiles_DB] = useState<any[]>([])
@@ -303,6 +307,7 @@ export default function GroteInpakPage() {
           const stockFormData = new FormData()
           stockFormData.append('files', file)
           stockFormData.append('fileType', 'stock')
+          stockFormData.append('bcSource', stockBcSource)
 
           const stockResponse = await fetch('/api/grote-inpak/upload-multiple', {
             method: 'POST',
@@ -384,7 +389,8 @@ export default function GroteInpakPage() {
           successParts.push(`ERP LINK: ${erpCount} items toegevoegd`)
         }
         if (stockUploaded > 0) {
-          successParts.push(`Stock: ${stockUploaded} bestand(en), ${stockItemsProcessed} items verwerkt`)
+          const sourceLabel = stockBcSource === 'bc36' ? 'BC36' : 'Oude BC'
+          successParts.push(`Stock (${sourceLabel}): ${stockUploaded} bestand(en), ${stockItemsProcessed} items verwerkt`)
           setStockUploadTrigger((k) => k + 1)
         }
         if (successParts.length > 0) {
@@ -397,7 +403,7 @@ export default function GroteInpakPage() {
         // The stock data is already saved to the database
         setDataLoaded(true)
         setStockUploadTrigger((k) => k + 1)
-        setSuccess(`✅ Stock bestanden succesvol geüpload! ${stockUploaded} bestand(en), ${stockItemsProcessed} items verwerkt.`)
+        setSuccess(`✅ Stock bestanden succesvol geüpload (${stockBcSource === 'bc36' ? 'BC36' : 'Oude BC'})! ${stockUploaded} bestand(en), ${stockItemsProcessed} items verwerkt.`)
         setTimeout(() => setSuccess(null), 5000)
       }
     } catch (err: any) {
@@ -595,6 +601,62 @@ export default function GroteInpakPage() {
           <label className="block text-sm font-medium text-gray-700 mb-2">
             📦 Stock Bestanden (Optioneel - Meerdere bestanden mogelijk)
           </label>
+
+          {/* BC-omgeving toggle: bron van deze upload.
+              Oude en nieuwe uploads blijven naast elkaar in de DB bestaan
+              en worden per kist opgeteld in de overzichten. */}
+          <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <p className="text-sm font-medium text-amber-900 mb-2">
+              🔄 BC-omgeving van deze upload
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <label
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 cursor-pointer transition-colors ${
+                  stockBcSource === 'legacy'
+                    ? 'border-amber-500 bg-white shadow-sm'
+                    : 'border-transparent bg-white/60 hover:bg-white'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="stockBcSource"
+                  value="legacy"
+                  checked={stockBcSource === 'legacy'}
+                  onChange={() => setStockBcSource('legacy')}
+                  className="accent-amber-600"
+                />
+                <span className="text-sm text-gray-800">
+                  <span className="font-semibold">Oude BC</span>
+                  <span className="text-gray-500"> (GP-codes)</span>
+                </span>
+              </label>
+              <label
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 cursor-pointer transition-colors ${
+                  stockBcSource === 'bc36'
+                    ? 'border-amber-500 bg-white shadow-sm'
+                    : 'border-transparent bg-white/60 hover:bg-white'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="stockBcSource"
+                  value="bc36"
+                  checked={stockBcSource === 'bc36'}
+                  onChange={() => setStockBcSource('bc36')}
+                  className="accent-amber-600"
+                />
+                <span className="text-sm text-gray-800">
+                  <span className="font-semibold">Nieuwe BC36</span>
+                  <span className="text-gray-500"> (FP-codes)</span>
+                </span>
+              </label>
+            </div>
+            <p className="text-xs text-amber-800 mt-2">
+              Tijdens de overgang kan je zowel een oude als nieuwe stock-file uploaden voor dezelfde locatie.
+              Ze worden apart bijgehouden en per kist opgeteld in de overzichten.
+            </p>
+          </div>
+
           <div
             className={`border-2 border-dashed rounded-lg p-6 text-center transition-all ${
               dragActiveStock

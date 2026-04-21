@@ -15,6 +15,11 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData()
     const fileType = formData.get('fileType') as string
     const files = formData.getAll('files') as File[]
+    // Tijdens de BC-overgang: 'legacy' = oude BC-omgeving (GP-codes),
+    // 'bc36' = nieuwe omgeving (FP-codes). Ze bestaan tegelijk in de DB en
+    // worden opgeteld per kist bij het aggregeren.
+    const rawSource = (formData.get('bcSource') as string | null)?.trim().toLowerCase()
+    const bcSource: 'legacy' | 'bc36' = rawSource === 'bc36' ? 'bc36' : 'legacy'
 
     if (!files || files.length === 0) {
       return NextResponse.json(
@@ -100,19 +105,21 @@ export async function POST(request: NextRequest) {
           const processedData = await parseStockExcel(workbook, location, /regels/i.test(file.name))
 
           if (processedData.length > 0) {
-            // Delete existing stock for this specific location first (overwrite behavior)
-            // Also delete by erp_code + location to handle any edge cases
+            // Delete existing stock voor deze combinatie (location, bc_source).
+            // Tijdens de overgang willen we niet dat een upload uit de ene
+            // BC-omgeving de rijen van de andere omgeving overschrijft.
             const { error: deleteError, count: deleteCount } = await supabaseAdmin
               .from('grote_inpak_stock')
               .delete({ count: 'exact' })
               .eq('location', location)
+              .eq('bc_source', bcSource)
               .not('erp_code', 'is', null) // Only delete rows with erp_code (stock file rows)
 
             if (deleteError) {
               console.error(`Error deleting existing stock for ${location}:`, deleteError)
               errors.push(`${file.name}: Error deleting existing stock for ${location}: ${deleteError.message}`)
             } else {
-              console.log(`Deleted ${deleteCount || 0} existing stock records for location ${location} (overwriting with new data)`)
+              console.log(`Deleted ${deleteCount || 0} existing stock records for location ${location} / source ${bcSource} (overwriting with new data)`)
               
               // Remove duplicates by erp_code before inserting (in case Excel has duplicate rows)
               const uniqueData = new Map<string, any>()
@@ -202,6 +209,7 @@ export async function POST(request: NextRequest) {
                         inkoop: clamp(item.inkoop),
                         productie: clamp(item.productie),
                         in_transfer: clamp(item.in_transfer),
+                        bc_source: bcSource,
                         item_number: '', // Use empty string instead of null to avoid NOT NULL constraint
                       }))
                     )
