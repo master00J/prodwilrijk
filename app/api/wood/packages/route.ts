@@ -17,6 +17,10 @@ export async function POST(request: NextRequest) {
       exacte_lengte,
       planken_per_pak,
       opmerking,
+      // force=true omzeilt de "already fully received"-blokkade. Gebruikt bij
+      // PDF-import waar meerdere pakketten aan dezelfde order worden gekoppeld
+      // en ontvangen_pakken tijdelijk het bestelde aantal kan overschrijden.
+      force,
     } = body
 
     if (!pakketnummer || !houtsoort || !exacte_dikte || !exacte_breedte || !exacte_lengte || !planken_per_pak) {
@@ -57,7 +61,7 @@ export async function POST(request: NextRequest) {
       }
 
       const received = orderRow.ontvangen_pakken || 0
-      if (received >= orderRow.aantal_pakken) {
+      if (received >= orderRow.aantal_pakken && !force) {
         return NextResponse.json(
           { error: 'Order already fully received' },
           { status: 400 }

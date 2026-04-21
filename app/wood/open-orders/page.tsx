@@ -700,6 +700,9 @@ export default function OpenOrdersPage() {
             exacte_lengte: row.exacte_lengte,
             planken_per_pak: row.planken_per_pak,
             opmerking: null,
+            // PDF-import mag meer pakketten registreren dan besteld (order raakt
+            // "fully received" tijdens de batch maar we willen toch doorgaan).
+            force: true,
           }),
         })
         if (!res.ok) {
@@ -1218,6 +1221,15 @@ export default function OpenOrdersPage() {
                               className="max-w-[280px] px-2 py-1 border border-gray-300 rounded text-xs"
                             >
                               <option value="">— Geen match —</option>
+                              {/* Geselecteerde order altijd tonen, ook als ze inmiddels fully
+                                  received is (dan wordt de rij als "done" geregistreerd). */}
+                              {selectedOrder &&
+                                selectedOrder.open_pakken === 0 &&
+                                !row.candidates.some((c) => c.id === selectedOrder.id) && (
+                                  <option value={selectedOrder.id}>
+                                    #{selectedOrder.id} {selectedOrder.houtsoort} {selectedOrder.dikte}×{selectedOrder.breedte}×{selectedOrder.min_lengte} — vol
+                                  </option>
+                                )}
                               {/* Kandidaten (zelfde houtsoort+dikte+breedte), gesorteerd op lengte-afwijking */}
                               {row.candidates.length > 0 && (
                                 <optgroup label="Kandidaten (houtsoort+dikte+breedte)">
