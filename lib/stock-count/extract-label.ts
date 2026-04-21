@@ -243,3 +243,171 @@ export async function extractStockCountLabel(
     raw_text_hint: parsed.raw_text_hint || null,
   }
 }
+
+// ————————————————————————————————————————————————————————————————————————
+// PDF-variant: één PDF (vaak met meerdere gescande pallet-labels) → array van
+// herkende labels. Claude krijgt het PDF-document rechtstreeks (geen lokale
+// rendering nodig) en moet per zichtbaar label één JSON-object teruggeven.
+// ————————————————————————————————————————————————————————————————————————
+
+const PDF_PROMPT = `Je krijgt een PDF-document (vaak een scan van een Konica Minolta / Sbizhub multi-function
+printer) waarop één of meerdere pallet-/kist-labels staan afgebeeld. Op één PDF-pagina kunnen
+meerdere labels naast/onder elkaar staan. Analyseer het volledige document en geef ÉÉN JSON-object
+terug met veld "labels", een array waarin elk element exact één fysiek label beschrijft.
+
+De regels per label zijn IDENTIEK aan deze voor de foto-variant (Atlas Copco / prodwilrijk-Foresco /
+packed-kist). Korte herhaling van de belangrijkste regels:
+
+- LAYOUT A (Atlas Copco supplier/pallet label):
+    * item_number = waarde van "PART NO (P)" — ALTIJD 10 cijfers, zonder spaties. Dit is het
+      grootste vetgedrukte nummer, vaak getoond in 4-4-2 groepering (bv. "2204 2096 03").
+    * quantity = waarde van "QUANTITY (Q)" / "QTY (Q)". NOOIT "NET WT (KG)" of "GROSS WT (KG)" of
+      "BOX TYPE".
+    * pallet_number = "PARCEL NR (S)" (meestal 9 cijfers met voorloopnullen, bv. "058702896"), tenzij
+      er een aparte witte "Pallet: <nummer>" sticker op staat.
+    * receiver = de eerste regel(s) linksboven, bv. "ATLAS COPCO B2610 WILRIJK SERVICE CENTER".
+    * label_type = "atlas".
+- LAYOUT B (prodwilrijk/Foresco/Alteco): grote itemnummer met streepjes (bv. "2204-2311-78"),
+  "Pallet:"-veld, "Qty". label_type = "foresco". receiver = null.
+- LAYOUT C (interne packed-kist): itemnummer staat TUSSEN HAAKJES in het "Description:"-veld
+  (bv. "(1830116081)"). pallet_number = de "Variant Code" met V-prefix. quantity = ALTIJD 1.
+  receiver = "Owner Name:". label_type = "packed".
+
+VERBODEN als item_number: LABEL NUMBER (S), SUPPLIER CODE (V), P.O.NO-LINE, SHOP ORDER NUMBER,
+SERIAL NUMBER, DELIVERY NOTICE, PVAR-code, V-code, afmetingen. Als de kandidaat niet exact 10 cijfers
+is, zet item_number op null.
+
+Retourneer EXACT dit formaat (geen uitleg, geen markdown, geen code fences):
+
+{
+  "labels": [
+    {
+      "item_number": "<10 cijfers of null>",
+      "quantity": <integer of null>,
+      "pallet_number": "<palletnummer of null>",
+      "description": "<omschrijving of null>",
+      "po_line": "<P.O.NO-LINE of null>",
+      "location": "<locatiecode of null>",
+      "shop_order": "<shop order of null>",
+      "date": "YYYYMMDD of null",
+      "receiver": "<ontvanger of null>",
+      "label_type": "atlas" | "foresco" | "packed" | "unknown",
+      "raw_text_hint": "<korte samenvatting, max 80 tekens>"
+    }
+  ]
+}
+
+Regels voor de lijst:
+- Geef één element per fysiek label dat je ziet, in leesvolgorde (links-naar-rechts, boven-naar-onder,
+  pagina voor pagina).
+- Dubbele afdrukken van hetzelfde label op dezelfde pagina (bv. een kleine "Pallet:"-sticker naast het
+  grote label dat bij hetzelfde pallet hoort) tellen als ÉÉN label — combineer de info.
+- Als een pagina leeg is of geen leesbaar label bevat, neem je niets op voor die pagina.
+- Als je geen enkel label kunt lezen, geef "labels": [].`
+
+export async function extractStockCountLabelsFromPdf(
+  base64Pdf: string
+): Promise<StockCountLabel[]> {
+  if (!ANTHROPIC_API_KEY) {
+    throw new Error('ANTHROPIC_API_KEY niet geconfigureerd')
+  }
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      // PDF-analyse is zwaarder dan één foto: gebruik het grotere sonnet-model
+      // zodat we alle labels op één pagina betrouwbaar kunnen lezen.
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 8192,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'document',
+              source: {
+                type: 'base64',
+                media_type: 'application/pdf',
+                data: base64Pdf,
+              },
+            },
+            { type: 'text', text: PDF_PROMPT },
+          ],
+        },
+      ],
+    }),
+  })
+
+  if (!response.ok) {
+    const errBody = await response.text()
+    throw new Error(`Claude API error ${response.status}: ${errBody.slice(0, 300)}`)
+  }
+
+  const result = await response.json()
+  const text: string = result?.content?.[0]?.text || ''
+  const jsonMatch = text.match(/\{[\s\S]*\}/)
+  if (!jsonMatch) {
+    throw new Error('Claude gaf geen geldige JSON terug')
+  }
+
+  const parsedRoot = JSON.parse(jsonMatch[0]) as { labels?: Array<Partial<StockCountLabel>> }
+  const rawLabels = Array.isArray(parsedRoot.labels) ? parsedRoot.labels : []
+
+  return rawLabels.map((parsed) => {
+    const labelType: StockCountLabel['label_type'] =
+      parsed.label_type === 'atlas' ||
+      parsed.label_type === 'foresco' ||
+      parsed.label_type === 'packed'
+        ? parsed.label_type
+        : 'unknown'
+
+    let item = normalizeDigits(parsed.item_number ?? null)
+
+    if (item && /^\d{4,8}-\d{1,4}$/.test(String(parsed.item_number || ''))) {
+      item = null
+    }
+
+    if (!item && labelType === 'packed' && parsed.description) {
+      const m = String(parsed.description).match(/\((\d{10})\)/)
+      if (m) item = m[1]
+    }
+
+    if (item && !/^\d{10}$/.test(item)) {
+      item = null
+    }
+
+    let pallet: string | null
+    if (labelType === 'packed' && parsed.pallet_number) {
+      pallet = String(parsed.pallet_number).replace(/\s+/g, '').trim() || null
+    } else {
+      pallet = normalizeDigits(parsed.pallet_number ?? null)
+    }
+
+    let quantity: number | null =
+      parsed.quantity != null && Number.isFinite(Number(parsed.quantity))
+        ? Number(parsed.quantity)
+        : null
+    if (labelType === 'packed') {
+      quantity = 1
+    }
+
+    return {
+      item_number: item,
+      quantity,
+      pallet_number: pallet,
+      description: parsed.description || null,
+      po_line: parsed.po_line || null,
+      location: parsed.location || null,
+      shop_order: parsed.shop_order || null,
+      date: parsed.date || null,
+      receiver: parsed.receiver ? String(parsed.receiver).trim() : null,
+      label_type: labelType,
+      raw_text_hint: parsed.raw_text_hint || null,
+    }
+  })
+}

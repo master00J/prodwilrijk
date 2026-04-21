@@ -71,6 +71,16 @@ interface QueueItem {
 
 let queueIdCounter = 0
 
+// Kleine PDF-iconografie als data-URL voor previews in de scan-queue.
+const PDF_PREVIEW_DATA_URL =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'>
+      <rect x='8' y='4' width='32' height='40' rx='3' fill='#fee2e2' stroke='#ef4444' stroke-width='2'/>
+      <text x='24' y='30' font-family='Arial' font-size='10' font-weight='700' fill='#b91c1c' text-anchor='middle'>PDF</text>
+    </svg>`
+  )
+
 function formatTime(iso: string) {
   try {
     return new Date(iso).toLocaleTimeString('nl-BE', {
@@ -113,7 +123,9 @@ export default function StockTellingPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const pdfInputRef = useRef<HTMLInputElement>(null)
   const processingRef = useRef(false)
+  const [pdfBusy, setPdfBusy] = useState(false)
 
   // ——— Load/poll session + scans ————————————————————————————————————————
   const refreshScans = useCallback(async (sessionId: number) => {
@@ -283,6 +295,219 @@ export default function StockTellingPage() {
     if (fileInputRef.current) fileInputRef.current.value = ''
   }, [enqueueImage])
 
+  // ——— PDF inlezen (batch: meerdere labels via één Claude call) ———————————
+  const handlePdfSelect = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      if (pdfInputRef.current) pdfInputRef.current.value = ''
+      if (!file) return
+      if (!session) {
+        setGlobalError('Start eerst een telsessie voor je een PDF uploadt.')
+        return
+      }
+      if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+        setGlobalError('Selecteer een PDF-bestand.')
+        return
+      }
+
+      setGlobalError(null)
+      setPdfBusy(true)
+
+      let base64 = ''
+      try {
+        base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => {
+            const dataUrl = reader.result as string
+            resolve((dataUrl.split(',')[1] || '').trim())
+          }
+          reader.onerror = () => reject(new Error('PDF lezen mislukt'))
+          reader.readAsDataURL(file)
+        })
+      } catch (err: unknown) {
+        setGlobalError(err instanceof Error ? err.message : 'PDF lezen mislukt')
+        setPdfBusy(false)
+        return
+      }
+
+      // Eén globale "bezig"-kaart in de queue terwijl Claude het document leest.
+      const batchId = `pdfbatch-${++queueIdCounter}-${Date.now()}`
+      setQueue((prev) => [
+        {
+          id: batchId,
+          preview: PDF_PREVIEW_DATA_URL,
+          base64: '',
+          mediaType: 'application/pdf',
+          status: 'processing',
+          label: null,
+          error: null,
+          info: `PDF lezen… (${file.name})`,
+          existing: [],
+          pendingPayload: null,
+        },
+        ...prev,
+      ])
+
+      try {
+        const res = await fetch('/api/stock-count/extract-labels-pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pdf: base64 }),
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          throw new Error(data.error || `PDF-scan mislukt (${res.status})`)
+        }
+        const data = (await res.json()) as { labels: ExtractedLabel[] }
+        const labels = Array.isArray(data.labels) ? data.labels : []
+
+        if (labels.length === 0) {
+          setQueue((prev) =>
+            prev.map((q) =>
+              q.id === batchId
+                ? { ...q, status: 'error', error: 'Geen labels gevonden in de PDF.' }
+                : q
+            )
+          )
+          return
+        }
+
+        // Batch-kaart vervangen door samenvatting; per label apart kaartje.
+        setQueue((prev) =>
+          prev.map((q) =>
+            q.id === batchId
+              ? {
+                  ...q,
+                  status: 'done',
+                  info: `PDF gelezen: ${labels.length} label${labels.length === 1 ? '' : 's'} gevonden (${file.name}).`,
+                }
+              : q
+          )
+        )
+
+        for (const label of labels) {
+          const qId = `pdf-${++queueIdCounter}-${Date.now()}`
+          setQueue((prev) => [
+            {
+              id: qId,
+              preview: PDF_PREVIEW_DATA_URL,
+              base64: '',
+              mediaType: 'application/pdf',
+              status: 'processing',
+              label,
+              error: null,
+              info: null,
+              existing: [],
+              pendingPayload: null,
+            },
+            ...prev,
+          ])
+
+          if (!label.item_number) {
+            setQueue((prev) =>
+              prev.map((q) =>
+                q.id === qId
+                  ? { ...q, status: 'needs_review', error: 'Geen itemnummer gelezen' }
+                  : q
+              )
+            )
+            continue
+          }
+
+          const payload = {
+            item_number: label.item_number,
+            pallet_number: label.pallet_number,
+            quantity: label.quantity ?? 1,
+            description: label.description,
+            label_type: label.label_type,
+            receiver: label.receiver,
+          }
+
+          const suspiciousQuantity =
+            label.label_type === 'atlas' && payload.quantity >= 50
+
+          if (suspiciousQuantity) {
+            setQueue((prev) =>
+              prev.map((q) =>
+                q.id === qId
+                  ? {
+                      ...q,
+                      status: 'needs_review',
+                      pendingPayload: payload,
+                      info: `Aantal ${payload.quantity} lijkt verdacht hoog — controleer of dit niet het gewicht (NET WT) is.`,
+                    }
+                  : q
+              )
+            )
+            continue
+          }
+
+          try {
+            const result = await submitScan(session.id, {
+              ...payload,
+              source: 'pdf',
+              raw_label: label,
+            })
+            if (result.duplicate) {
+              setQueue((prev) =>
+                prev.map((q) =>
+                  q.id === qId
+                    ? {
+                        ...q,
+                        status: 'duplicate',
+                        existing: result.existing,
+                        pendingPayload: payload,
+                        info: `Al gescand: ${label.item_number}${
+                          label.pallet_number ? ' / pallet ' + label.pallet_number : ''
+                        }`,
+                      }
+                    : q
+                )
+              )
+            } else {
+              setQueue((prev) =>
+                prev.map((q) =>
+                  q.id === qId
+                    ? {
+                        ...q,
+                        status: 'done',
+                        info: `Toegevoegd: ${label.item_number} × ${payload.quantity}${
+                          label.pallet_number ? ' (pallet ' + label.pallet_number + ')' : ''
+                        }`,
+                      }
+                    : q
+                )
+              )
+            }
+          } catch (err: unknown) {
+            setQueue((prev) =>
+              prev.map((q) =>
+                q.id === qId
+                  ? {
+                      ...q,
+                      status: 'error',
+                      error: err instanceof Error ? err.message : 'Opslaan mislukt',
+                    }
+                  : q
+              )
+            )
+          }
+        }
+
+        await refreshScans(session.id)
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'PDF inlezen mislukt'
+        setQueue((prev) =>
+          prev.map((q) => (q.id === batchId ? { ...q, status: 'error', error: msg } : q))
+        )
+        setGlobalError(msg)
+      } finally {
+        setPdfBusy(false)
+      }
+    },
+    [session, submitScan, refreshScans]
+  )
+
   const submitScan = useCallback(
     async (
       sessionId: number,
@@ -293,7 +518,7 @@ export default function StockTellingPage() {
         description: string | null
         label_type: string | null
         receiver: string | null
-        source: 'camera' | 'manual' | 'edit'
+        source: 'camera' | 'manual' | 'edit' | 'pdf'
         raw_label: unknown
         force?: boolean
       }
@@ -465,9 +690,11 @@ export default function StockTellingPage() {
             ? { quantity: Math.max(0, Math.trunc(overrides.quantity)) }
             : {}),
         }
+        const scanSource: 'camera' | 'pdf' =
+          qItem.mediaType === 'application/pdf' ? 'pdf' : 'camera'
         const result = await submitScan(session.id, {
           ...finalPayload,
-          source: 'camera',
+          source: scanSource,
           raw_label: qItem.label,
           force: wasDuplicate,
         })
@@ -737,8 +964,9 @@ export default function StockTellingPage() {
 
         <h1 className="text-2xl font-bold text-gray-900 mb-1">Stock telling</h1>
         <p className="text-sm text-gray-600 mb-4">
-          Scan pallet-labels met de camera. Itemnummer, palletnummer en aantal worden automatisch
-          herkend en aan de telling toegevoegd. Dubbele combinaties krijgen een waarschuwing.
+          Scan pallet-labels met de camera of upload een gescande PDF (bv. vanuit de Sbizhub-scanner).
+          Itemnummer, palletnummer en aantal worden automatisch herkend en aan de telling toegevoegd.
+          Dubbele combinaties krijgen een waarschuwing.
         </p>
 
         {globalError && (
@@ -889,12 +1117,28 @@ export default function StockTellingPage() {
                   onChange={handleFileSelect}
                   className="hidden"
                 />
+                <input
+                  ref={pdfInputRef}
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  onChange={handlePdfSelect}
+                  className="hidden"
+                />
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   className="px-3 py-1.5 text-sm rounded border border-indigo-300 text-indigo-700 hover:bg-indigo-50"
                 >
                   Foto uit bestand
+                </button>
+                <button
+                  type="button"
+                  onClick={() => pdfInputRef.current?.click()}
+                  disabled={pdfBusy}
+                  className="px-3 py-1.5 text-sm rounded border border-rose-300 text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                  title="Upload een gescande PDF met één of meer pallet-labels. Claude leest alle labels uit en voegt ze toe aan de telling."
+                >
+                  {pdfBusy ? 'PDF lezen…' : 'PDF inlezen'}
                 </button>
                 <button
                   type="button"
@@ -1255,6 +1499,8 @@ function ScanRow({
           className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${
             scan.source === 'manual'
               ? 'bg-purple-100 text-purple-700'
+              : scan.source === 'pdf'
+              ? 'bg-rose-100 text-rose-700'
               : 'bg-blue-100 text-blue-700'
           }`}
         >

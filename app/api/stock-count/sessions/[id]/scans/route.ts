@@ -10,7 +10,7 @@ interface ScanBody {
   description?: string | null
   label_type?: string | null
   receiver?: string | null
-  source?: 'camera' | 'manual' | 'edit'
+  source?: 'camera' | 'manual' | 'edit' | 'pdf'
   raw_label?: unknown
   photo_data_url?: string | null
   note?: string | null
