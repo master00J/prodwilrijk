@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Download, FileSpreadsheet, Search, Save, LayoutGrid, List, AlertTriangle, CheckCircle, Clock, Truck, Flame, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import type { GroteInpakCase } from '@/types/database'
-import { BcItemCode } from '@/lib/bc-mapping/client'
+import { BcItemCode, useBcMapping } from '@/lib/bc-mapping/client'
 
 interface TransportTabProps {
   transport: any[]
@@ -62,6 +62,7 @@ function urgencyBadge(arrivalDate: string | null | undefined, inWillebroek: bool
 }
 
 export default function TransportTab({ transport, overview }: TransportTabProps) {
+  const { toNew: bcToNew } = useBcMapping()
   const [viewMode, setViewMode] = useState<'planning' | 'urgency' | 'detail'>('planning')
   const [filterStatus, setFilterStatus] = useState<'Alle' | 'In Willebroek' | 'Niet in Willebroek'>('Niet in Willebroek')
   const [searchQuery, setSearchQuery] = useState('')
@@ -349,10 +350,12 @@ export default function TransportTab({ transport, overview }: TransportTabProps)
     const rows = filteredTransport.map(item => ({
       'Case Label': item.case_label,
       'Case Type': item.case_type,
-      'ERP Code': item.erp_code || '',
+      'BC CODE': item.erp_code ? bcToNew(item.erp_code) : '',
+      'oude BC CODE': item.erp_code || '',
       'Stapel': item.stapel || 1,
       'Arrival Date': item.arrival_date ? new Date(item.arrival_date).toLocaleDateString('nl-NL') : '',
-      'Item Number': item.item_number,
+      'Item Number': item.item_number ? bcToNew(item.item_number) : '',
+      'oud Item Number': item.item_number || '',
       'In Willebroek': item.in_willebroek ? 'Ja' : 'Nee',
       'Stock Location': item.stock_location,
       'Status': item.status,
@@ -604,7 +607,7 @@ export default function TransportTab({ transport, overview }: TransportTabProps)
                     <th className="px-3 py-3 text-center w-10">#</th>
                     <th className="px-4 py-3 text-left">Kisttype</th>
                     <th className="px-4 py-3 text-left">Omschrijving</th>
-                    <th className="px-4 py-3 text-left">ERP Code</th>
+                    <th className="px-4 py-3 text-left">BC Code</th>
                     <th className="px-4 py-3 text-center">Stapel</th>
                     <th className="px-4 py-3 text-center">Aantal</th>
                     <th className="px-4 py-3 text-left">Vroegste datum</th>

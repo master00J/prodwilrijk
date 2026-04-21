@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import ExcelJS from 'exceljs'
+import { getBcMappingLookup } from '@/lib/bc-mapping/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -100,6 +101,7 @@ async function generateTransportPlanningExcel(
 ): Promise<Uint8Array> {
   const wb = new ExcelJS.Workbook()
   const ws = wb.addWorksheet('Transportplanning')
+  const bcMapping = await getBcMappingLookup()
 
   ws.columns = [
     { width: 18 },
@@ -267,9 +269,11 @@ async function generateTransportPlanningExcel(
         const stockLabel = genkStock > 0
           ? inTransfer > 0 ? `${genkStock} (${inTransfer} in transfer)` : String(genkStock)
           : inTransfer > 0 ? `Geen stock (${inTransfer} in transfer)` : 'Geen stock'
+        const oldErp = group.erp_code || ''
+        const newErp = oldErp ? bcMapping.toNew(oldErp) : ''
         result.push({
-          TO: '',
-          'BC CODE': group.erp_code || '',
+          TO: oldErp,
+          'BC CODE': newErp,
           OMSCHRIJVING: normalizedCaseType,
           AANTAL: `${adjusted}st`,
           'STOCK GENK': stockLabel,
@@ -336,7 +340,10 @@ async function generateTransportPlanningExcel(
   })
 
   if (planDate.getDay() === 4) {
-    writeDataRow(['', '101944', 'Grote OSB platen', '2 pakken', '', '', ''])
+    const osbRaw = '101944'
+    const osbNew = bcMapping.toNew(osbRaw)
+    const osbOld = osbNew === osbRaw ? bcMapping.toOld(osbRaw) : osbRaw
+    writeDataRow([osbOld, osbNew, 'Grote OSB platen', '2 pakken', '', '', ''])
   }
 
   // Spacer
