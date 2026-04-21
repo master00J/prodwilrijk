@@ -1107,7 +1107,7 @@ export default function OpenOrdersPage() {
                 <p className="text-sm text-gray-500 mt-1">
                   Elk pakket uit de PDF is gematcht met een openstaande order op basis van houtsoort
                   + dikte + breedte. Lengte wordt als tiebreaker gebruikt. Kies een andere order of
-                  zet op "Overslaan" als het niet klopt.
+                  zet op &quot;Overslaan&quot; als het niet klopt.
                 </p>
               </div>
               <button
