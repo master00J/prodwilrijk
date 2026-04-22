@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs'
+import type { EndingDateEntry } from './production-orders'
 
 const thin = { style: 'thin' as const }
 const border = { top: thin, left: thin, bottom: thin, right: thin }
@@ -39,7 +40,7 @@ function addDailyOrderSheet(
   data: any[],
   today: string,
   variant: 'c' | 'k' = 'c',
-  endingDatesByKist?: Map<string, string[]>
+  endingDatesByKist?: Map<string, EndingDateEntry[]>
 ) {
   const headers = variant === 'k' ? headersK : headersC
   const numCols = headers.length
@@ -48,11 +49,11 @@ function addDailyOrderSheet(
   ws.columns = variant === 'k'
     ? [
         { width: 10 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 13 }, { width: 14 },
-        { width: 11 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 10 }, { width: 22 }, { width: 22 }, { width: 20 }, { width: 16 }, { width: 28 },
+        { width: 11 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 10 }, { width: 22 }, { width: 22 }, { width: 24 }, { width: 16 }, { width: 28 },
       ]
     : [
         { width: 10 }, { width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 13 },
-        { width: 11 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 12 }, { width: 22 }, { width: 22 }, { width: 20 }, { width: 16 },
+        { width: 11 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 12 }, { width: 22 }, { width: 22 }, { width: 24 }, { width: 16 },
       ]
 
   const titleRow = ws.addRow([`${titleLabel} — ${today}`])
@@ -76,12 +77,16 @@ function addDailyOrderSheet(
   const lookupEinddatum = (caseType: string | null | undefined): string => {
     if (!endingDatesByKist || !caseType) return ''
     const key = String(caseType).toUpperCase().trim()
-    const isoList = endingDatesByKist.get(key)
-    if (!isoList || isoList.length === 0) return ''
-    return isoList
-      .map(iso => {
-        const d = new Date(iso)
-        return isNaN(d.getTime()) ? '' : d.toLocaleDateString('nl-BE')
+    const list = endingDatesByKist.get(key)
+    if (!list || list.length === 0) return ''
+    // Formaat per regel: "DD/MM/YYYY (qty)" — qty = openstaand aantal op de PO-lijn(en)
+    // voor dat kisttype op die einddatum.
+    return list
+      .map(({ date, qty }) => {
+        const d = new Date(date)
+        if (isNaN(d.getTime())) return ''
+        const label = d.toLocaleDateString('nl-BE')
+        return qty > 0 ? `${label} (${qty})` : label
       })
       .filter(Boolean)
       .join('\n')
@@ -167,11 +172,11 @@ function addDailyOrderSheet(
       }
       if (col === colEinddatum && endingDatesByKist) {
         const key = row.case_type ? String(row.case_type).toUpperCase().trim() : ''
-        const isoList = key ? endingDatesByKist.get(key) : undefined
-        if (isoList && isoList.length > 0) {
+        const list = key ? endingDatesByKist.get(key) : undefined
+        if (list && list.length > 0) {
           const now = Date.now()
-          const anyOverdue = isoList.some(iso => {
-            const t = new Date(iso).getTime()
+          const anyOverdue = list.some(({ date }) => {
+            const t = new Date(date).getTime()
             return !isNaN(t) && t < now
           })
           // Line-wrap zodat meerdere datums onder elkaar staan.
@@ -183,7 +188,7 @@ function addDailyOrderSheet(
             cell.font = { bold: true, color: { argb: 'FF1F497D' } }
           }
           // Rij-hoogte opschalen afhankelijk van aantal datums (min 18, +14 per extra lijn).
-          const needed = 18 + Math.max(0, isoList.length - 1) * 14
+          const needed = 18 + Math.max(0, list.length - 1) * 14
           if (!dRow.height || dRow.height < needed) dRow.height = needed
         } else {
           cell.font = { color: { argb: 'FF999999' } }
@@ -305,12 +310,13 @@ export function buildDailyOrderWorkbook(
     kKisten?: any[]
     overdueKisten?: any[]
     /**
-     * Map van kistnummer (UPPERCASE) → ALLE `ending_date` (ISO) van lopende
-     * productie-orders in Business Central, gesorteerd oplopend. Wordt getoond
-     * in een aparte kolom "Einddatum productie" (meerdere datums onder elkaar).
+     * Map van kistnummer (UPPERCASE) → array van `{ date, qty }` van lopende
+     * productie-orders in Business Central, gesorteerd oplopend op datum.
+     * Wordt getoond in een aparte kolom "Einddatum productie" als één regel
+     * per datum in het formaat `DD/MM/YYYY (qty)`.
      * Rood als minstens één datum al voorbij is.
      */
-    endingDatesByKist?: Map<string, string[]>
+    endingDatesByKist?: Map<string, EndingDateEntry[]>
   }
 ) {
   const wb = new ExcelJS.Workbook()
