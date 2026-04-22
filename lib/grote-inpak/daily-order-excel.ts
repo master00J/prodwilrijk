@@ -20,8 +20,8 @@ function mapStatusForDisplay(status: string, inProductie: number): string {
   return status || ''
 }
 
-const headersC = ['Prioriteit', 'Kisttype', 'Prod.locatie', 'Max voorraad', 'Stock in rek', 'Stock Genk', 'Stock Wilrijk', 'Prod. Genk', 'Prod. Wilrijk', 'Prod. Willebroek', 'In transfer', 'Op PILS', 'Productie nog aanmaken', 'Effectief te produceren', 'Status']
-const headersK = ['Prioriteit', 'Kisttype', 'Prod.locatie', 'Stock Genk', 'Stock Wilrijk', 'Stock Willebroek', 'Prod. Genk', 'Prod. Wilrijk', 'Prod. Willebroek', 'In transfer', 'Op PILS', 'Productie nog aanmaken', 'Effectief te produceren', 'Status', 'Info']
+const headersC = ['Prioriteit', 'Kisttype', 'Prod.locatie', 'Max voorraad', 'Stock in rek', 'Stock Genk', 'Stock Wilrijk', 'Prod. Genk', 'Prod. Wilrijk', 'Prod. Willebroek', 'In transfer', 'Op PILS', 'Productie nog aanmaken', 'Effectief te produceren', 'Einddatum productie', 'Status']
+const headersK = ['Prioriteit', 'Kisttype', 'Prod.locatie', 'Stock Genk', 'Stock Wilrijk', 'Stock Willebroek', 'Prod. Genk', 'Prod. Wilrijk', 'Prod. Willebroek', 'In transfer', 'Op PILS', 'Productie nog aanmaken', 'Effectief te produceren', 'Einddatum productie', 'Status', 'Info']
 
 // Bereken hoeveel stuks er nog een nieuwe productie-order voor aangemaakt moet worden
 // = effectieve behoefte − wat al op een productie-order staat (in productie totaal)
@@ -38,7 +38,8 @@ function addDailyOrderSheet(
   titleLabel: string,
   data: any[],
   today: string,
-  variant: 'c' | 'k' = 'c'
+  variant: 'c' | 'k' = 'c',
+  endingDateByKist?: Map<string, string>
 ) {
   const headers = variant === 'k' ? headersK : headersC
   const numCols = headers.length
@@ -47,11 +48,11 @@ function addDailyOrderSheet(
   ws.columns = variant === 'k'
     ? [
         { width: 10 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 13 }, { width: 14 },
-        { width: 11 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 10 }, { width: 22 }, { width: 22 }, { width: 16 }, { width: 28 },
+        { width: 11 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 10 }, { width: 22 }, { width: 22 }, { width: 16 }, { width: 16 }, { width: 28 },
       ]
     : [
         { width: 10 }, { width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 13 },
-        { width: 11 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 12 }, { width: 22 }, { width: 22 }, { width: 16 },
+        { width: 11 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 12 }, { width: 22 }, { width: 22 }, { width: 16 }, { width: 16 },
       ]
 
   const titleRow = ws.addRow([`${titleLabel} — ${today}`])
@@ -72,26 +73,37 @@ function addDailyOrderSheet(
   })
   hRow.height = 18
 
+  const lookupEinddatum = (caseType: string | null | undefined): string => {
+    if (!endingDateByKist || !caseType) return ''
+    const key = String(caseType).toUpperCase().trim()
+    const iso = endingDateByKist.get(key)
+    if (!iso) return ''
+    const d = new Date(iso)
+    return isNaN(d.getTime()) ? '' : d.toLocaleDateString('nl-BE')
+  }
+
   const rowValuesC = (row: any, i: number) => {
     const status = mapStatusForDisplay(row.status || '', row.in_productie ?? 0)
     const effectief = row.bestel_aantal ?? row.tekort ?? 0
     const nogAanmaken = computeNogAanmaken(row, effectief)
+    const einddatum = lookupEinddatum(row.case_type)
     return [
       row.priority_rank ?? i + 1, row.case_type, row.productielocatie || '—',
       row.max_voorraad, row.stock_in_rek, row.stock_genk ?? 0, row.stock_wilrijk ?? 0,
       row.in_productie_genk ?? 0, row.in_productie_wilrijk ?? 0, row.in_productie_willebroek ?? 0,
-      row.in_transfer ?? 0, row.op_pils ?? 0, nogAanmaken, effectief, status,
+      row.in_transfer ?? 0, row.op_pils ?? 0, nogAanmaken, effectief, einddatum, status,
     ]
   }
   const rowValuesK = (row: any, i: number) => {
     const status = mapStatusForDisplay(row.status || '', row.in_productie ?? 0)
     const effectief = row.tekort ?? 0
     const nogAanmaken = computeNogAanmaken(row, effectief)
+    const einddatum = lookupEinddatum(row.case_type)
     return [
       row.priority_rank ?? i + 1, row.case_type, row.productielocatie || '—',
       row.stock_genk ?? 0, row.stock_wilrijk ?? 0, row.stock_willebroek ?? row.stock_in_rek ?? 0,
       row.in_productie_genk ?? 0, row.in_productie_wilrijk ?? 0, row.in_productie_willebroek ?? 0,
-      row.in_transfer ?? 0, row.op_pils ?? 0, nogAanmaken, effectief, status,
+      row.in_transfer ?? 0, row.op_pils ?? 0, nogAanmaken, effectief, einddatum, status,
       row.info || '',
     ]
   }
@@ -105,9 +117,10 @@ function addDailyOrderSheet(
     const colStockWillebroek = variant === 'k' ? 6 : 0
     const colNogAanmaken = variant === 'k' ? 12 : 13
     const colEffectief = variant === 'k' ? 13 : 14
-    const colStatus = variant === 'k' ? 14 : 15
+    const colEinddatum = variant === 'k' ? 14 : 15
+    const colStatus = variant === 'k' ? 15 : 16
 
-    const colInfo = variant === 'k' ? 15 : 0
+    const colInfo = variant === 'k' ? 16 : 0
     dRow.eachCell((cell, col) => {
       const isTextCol = col === 2 || col === 3 || col === colInfo
       cell.style = {
@@ -145,6 +158,24 @@ function addDailyOrderSheet(
         if (nogAanmaken > 0) {
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE699' } }
           cell.font = { bold: true, color: { argb: 'FFCC0000' } }
+        }
+      }
+      if (col === colEinddatum && endingDateByKist) {
+        const key = row.case_type ? String(row.case_type).toUpperCase().trim() : ''
+        const iso = key ? endingDateByKist.get(key) : undefined
+        if (iso) {
+          const d = new Date(iso)
+          if (!isNaN(d.getTime())) {
+            const overdue = d.getTime() < Date.now()
+            if (overdue) {
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFC7CE' } }
+              cell.font = { bold: true, color: { argb: 'FFCC0000' } }
+            } else {
+              cell.font = { bold: true, color: { argb: 'FF1F497D' } }
+            }
+          }
+        } else {
+          cell.font = { color: { argb: 'FF999999' } }
         }
       }
       if (col === colInfo && row.info) {
@@ -259,7 +290,16 @@ export function buildDailyOrderWorkbook(
   locatieLabel: string,
   data: any[],
   today: string,
-  options?: { kKisten?: any[]; overdueKisten?: any[] }
+  options?: {
+    kKisten?: any[]
+    overdueKisten?: any[]
+    /**
+     * Map van kistnummer (UPPERCASE) → vroegste `ending_date` (ISO) van een lopende
+     * productie-order in Business Central. Wordt getoond in een aparte kolom
+     * "Einddatum productie". Rood als die datum al voorbij is.
+     */
+    endingDateByKist?: Map<string, string>
+  }
 ) {
   const wb = new ExcelJS.Workbook()
   addDailyOrderSheet(
@@ -267,7 +307,9 @@ export function buildDailyOrderWorkbook(
     `C kisten daily order ${locatieLabel}`,
     `C kisten daily order ${locatieLabel}`,
     data,
-    today
+    today,
+    'c',
+    options?.endingDateByKist,
   )
   if (options?.kKisten && options.kKisten.length > 0) {
     addDailyOrderSheet(
@@ -276,7 +318,8 @@ export function buildDailyOrderWorkbook(
       `K kisten daily order ${locatieLabel}`,
       options.kKisten,
       today,
-      'k'
+      'k',
+      options?.endingDateByKist,
     )
   }
   if (options?.overdueKisten && options.overdueKisten.length > 0) {

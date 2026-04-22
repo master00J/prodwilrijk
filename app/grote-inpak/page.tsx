@@ -10,6 +10,7 @@ import StockAnalysisTab from '@/components/grote-inpak/StockAnalysisTab'
 import BacklogTab from '@/components/grote-inpak/BacklogTab'
 import ErpLinkTab from '@/components/grote-inpak/ErpLinkTab'
 import KanbanTab from '@/components/grote-inpak/KanbanTab'
+import ProductieOrdersTab from '@/components/grote-inpak/ProductieOrdersTab'
 import UploadLogTab from '@/components/grote-inpak/UploadLogTab'
 
 export default function GroteInpakPage() {
@@ -51,6 +52,7 @@ export default function GroteInpakPage() {
     { id: 5, label: '📦 Kanban Rekken', icon: '📦' },
     { id: 6, label: '⏰ Backlog', icon: '⏰' },
     { id: 7, label: '🔗 ERP LINK', icon: '🔗' },
+    { id: 9, label: '🏭 Productie-orders', icon: '🏭' },
     { id: 8, label: '📜 Upload historiek', icon: '📜' },
   ]
 
@@ -839,8 +841,9 @@ export default function GroteInpakPage() {
           {activeTab === 5 && <KanbanTab stockUploadTrigger={stockUploadTrigger} />}
           {activeTab === 6 && dataLoaded && <BacklogTab overview={overviewData} />}
           {activeTab === 7 && <ErpLinkTab />}
+          {activeTab === 9 && <ProductieOrdersTab />}
           {activeTab === 8 && <UploadLogTab refreshTrigger={uploadLogTrigger} />}
-          {activeTab !== 4 && activeTab !== 5 && activeTab !== 7 && activeTab !== 8 && !dataLoaded && (
+          {activeTab !== 4 && activeTab !== 5 && activeTab !== 7 && activeTab !== 8 && activeTab !== 9 && !dataLoaded && (
             <div className="text-center py-12 text-gray-500">
               Upload bestanden en klik op &apos;Verwerken&apos; om deze tab te gebruiken.
             </div>
