@@ -89,6 +89,13 @@ export default function ProductieOrdersTab() {
       const parts: string[] = [
         `${json.ingevoegd} productie-orderlijnen geïmporteerd`,
       ]
+      if (json.bronnen && json.bronnen.length > 0) {
+        const bronLabels = (json.bronnen as string[]).map(b => b === 'legacy' ? 'Oude BC' : 'BC36').join(' + ')
+        const detail = json.per_bron
+          ? ` (${Object.entries(json.per_bron as Record<string, number>).filter(([, v]) => v > 0).map(([k, v]) => `${k === 'legacy' ? 'Oude BC' : 'BC36'}: ${v}`).join(', ')})`
+          : ''
+        parts.push(`bron: ${bronLabels}${detail}`)
+      }
       if (json.overgeslagen_locatie) parts.push(`${json.overgeslagen_locatie} rijen buiten Genk/Wilrijk/Willebroek genegeerd`)
       if (json.overgeslagen_niet_in_erp) parts.push(`${json.overgeslagen_niet_in_erp} rijen niet in ERP LINK`)
       setSuccess(parts.join(' · '))
@@ -125,7 +132,8 @@ export default function ProductieOrdersTab() {
           </h2>
           <p className="text-sm text-gray-600 mt-1">
             Upload de <code className="bg-gray-100 px-1 py-0.5 rounded text-xs">Prod. Order Line List</code> export uit Business Central.
-            Alleen lijnen voor <strong>Genk (GENK_EIK)</strong>, <strong>Wilrijk</strong> en <strong>Willebroek</strong> én met een match in de ERP LINK worden opgeslagen.
+            Beide BC-omgevingen worden ondersteund: <strong>BC36</strong> (locaties <em>GENK_EIK / Wilrijk / Willebroek</em>) en de <strong>oude BC</strong> (locaties <em>PACK-GENK / PACK-WILR / PACK-WILL</em>).
+            Alleen items met een match in de ERP LINK worden bewaard — alle andere locaties en items worden genegeerd.
           </p>
         </div>
         <div className="flex items-center gap-2">

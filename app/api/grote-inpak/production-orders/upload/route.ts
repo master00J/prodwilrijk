@@ -13,33 +13,52 @@ export const maxDuration = 60
  * Kolommen (1-based Excel-notatie):
  *   A  Status           index 0
  *   B  Prod. Order No.  index 1
- *   C  Item No. (FP)    index 2
+ *   C  Item No. (FP/GP) index 2
  *   D  Description      index 3
  *   E  Location Code    index 4
- *   K  Finished Qty     index 10
+ *   K  Finished Piece   index 10
  *   L  Quantity         index 11
- *   M  Remaining Qty    index 12
+ *   M  Remaining Unit   index 12
  *   Q  Due Date         index 16
  *   R  Starting Date-T  index 17
  *   S  Ending Date-T    index 18
  *
- * Filter:
- *   - Locaties: GENK_EIK → Genk, Wilrijk → Wilrijk, Willebroek → Willebroek
- *     (al de rest: GENK_WNTRB, SKW_DREEF, SKW_MECH … wordt genegeerd)
- *   - Item moet terug te vinden zijn in grote_inpak_erp_link via FP→GP mapping
- *     (items die niet in onze ERP link staan zijn niet relevant voor grote inpak)
+ * Tijdens de BC-overgang ondersteunen we BEIDE exports naast elkaar:
+ *   - BC36 (nieuw):  item_no = FP-code, locaties = "GENK_EIK" / "Wilrijk" / "Willebroek"
+ *   - Legacy (oud):  item_no = GP-code, locaties = "PACK-GENK" / "PACK-WILR" / "PACK-WILL"
+ * Bron wordt per rij automatisch gedetecteerd via de location-code.
  *
- * Policy: elke upload vervangt ALLE bestaande productie-orders (truncate + insert).
- * BC is daarbij steeds de single source of truth van de huidige open PO's.
+ * Filter:
+ *   - Locaties buiten de drie relevante (Genk/Wilrijk/Willebroek) worden genegeerd
+ *     (GENK_WNTRB, SKW_DREEF, SKW_MECH, PACK-MERK, PACK-APER, ... )
+ *   - Item moet terug te vinden zijn in grote_inpak_erp_link (via FP→GP→erp_link
+ *     voor BC36 of direct GP→erp_link voor legacy).
+ *
+ * Policy: de upload vervangt enkel de rijen van de BC-bron(nen) die in het
+ * bestand voorkomen. Zo blijven bijvoorbeeld de legacy-rijen staan als je
+ * enkel een nieuw bc36-bestand opnieuw upload.
  */
 
-const LOCATION_MAP: Record<string, 'Genk' | 'Wilrijk' | 'Willebroek'> = {
-  GENK_EIK: 'Genk',
-  WILRIJK: 'Wilrijk',
-  WILLEBROEK: 'Willebroek',
+type Locatie = 'Genk' | 'Wilrijk' | 'Willebroek'
+type BcSource = 'legacy' | 'bc36'
+
+interface LocInfo {
+  productielocatie: Locatie
+  bc_source: BcSource
 }
 
-function mapLocation(raw: string | null | undefined): 'Genk' | 'Wilrijk' | 'Willebroek' | null {
+const LOCATION_MAP: Record<string, LocInfo> = {
+  // Nieuwe BC36 (FP-codes)
+  GENK_EIK:    { productielocatie: 'Genk',       bc_source: 'bc36' },
+  WILRIJK:     { productielocatie: 'Wilrijk',    bc_source: 'bc36' },
+  WILLEBROEK:  { productielocatie: 'Willebroek', bc_source: 'bc36' },
+  // Oude BC (GP-codes) — PACK-* locaties
+  'PACK-GENK': { productielocatie: 'Genk',       bc_source: 'legacy' },
+  'PACK-WILR': { productielocatie: 'Wilrijk',    bc_source: 'legacy' },
+  'PACK-WILL': { productielocatie: 'Willebroek', bc_source: 'legacy' },
+}
+
+function mapLocation(raw: string | null | undefined): LocInfo | null {
   if (!raw) return null
   const key = String(raw).trim().toUpperCase()
   return LOCATION_MAP[key] ?? null
@@ -97,8 +116,9 @@ export async function POST(request: NextRequest) {
       item_no: string
       description: string | null
       location_code: string
-      productielocatie: 'Genk' | 'Wilrijk' | 'Willebroek'
+      productielocatie: Locatie
       kistnummer: string
+      bc_source: BcSource
       quantity: number | null
       finished_quantity: number | null
       remaining_quantity: number | null
@@ -112,11 +132,13 @@ export async function POST(request: NextRequest) {
     const seen = new Set<string>()
     let skippedLocation = 0
     let skippedNoMatch = 0
-    const unmatchedFps = new Set<string>()
+    const unmatchedItems = new Set<string>()
+    const sourcesInFile = new Set<BcSource>()
+    const perSourceCount: Record<BcSource, number> = { legacy: 0, bc36: 0 }
 
-    // Headerdetectie: we detecteren rijen die een echte PO-No bevatten.
-    // Echte PO's beginnen met PO (POF..., POI..., POS..., POT...) — al dan niet met jaarprefix.
-    const poPattern = /^PO[A-Z]?\d/i
+    // Echte PO's beginnen met PO/PSO/PFO/PVO/POF/POI/POS/POT, … — minstens twee
+    // hoofdletters gevolgd door een cijfer. Alles anders zijn header/totalrijen.
+    const poPattern = /^P[A-Z]{1,3}\d/i
 
     for (const row of rows) {
       const rawPoNo = String(row[1] ?? '').trim()
@@ -126,31 +148,34 @@ export async function POST(request: NextRequest) {
       if (!rawPoNo || !poPattern.test(rawPoNo)) continue
       if (!rawItem) continue
 
-      const productielocatie = mapLocation(rawLoc)
-      if (!productielocatie) {
+      const locInfo = mapLocation(rawLoc)
+      if (!locInfo) {
         skippedLocation++
         continue
       }
 
-      // FP → GP via bc-mapping, GP → kistnummer via ERP link.
-      // Als het al een GP-code is kan normalizeErpCode dat ook hanteren.
-      const fpNorm = normalizeErpCode(rawItem)
+      // Match item → kistnummer. Voor FP-codes (bc36) gaan we via bc-mapping
+      // naar de GP-code; voor GP-codes (legacy) kunnen we direct lookuppen.
+      const norm = normalizeErpCode(rawItem)
       let kist: string | null = null
-      if (fpNorm) {
-        const gpCandidate = normalizeErpCode(bcLookup.toOld(fpNorm)) || fpNorm
-        kist = gpToKist.get(gpCandidate) || gpToKist.get(fpNorm) || null
+      if (norm) {
+        const gpCandidate = normalizeErpCode(bcLookup.toOld(norm)) || norm
+        kist = gpToKist.get(gpCandidate) || gpToKist.get(norm) || null
       }
 
       if (!kist) {
         skippedNoMatch++
-        if (fpNorm) unmatchedFps.add(fpNorm)
+        if (norm) unmatchedItems.add(norm)
         continue
       }
 
-      // Dedup binnen het bestand (PO + item is uniek in één export).
-      const key = `${rawPoNo}::${rawItem}`
+      // Dedup binnen het bestand: zelfde PO-lijn mag niet dubbel voorkomen.
+      const key = `${rawPoNo}::${rawItem}::${locInfo.bc_source}`
       if (seen.has(key)) continue
       seen.add(key)
+
+      sourcesInFile.add(locInfo.bc_source)
+      perSourceCount[locInfo.bc_source]++
 
       parsed.push({
         status: String(row[0] ?? '').trim() || null,
@@ -158,8 +183,9 @@ export async function POST(request: NextRequest) {
         item_no: rawItem,
         description: String(row[3] ?? '').trim() || null,
         location_code: rawLoc,
-        productielocatie,
+        productielocatie: locInfo.productielocatie,
         kistnummer: kist,
+        bc_source: locInfo.bc_source,
         finished_quantity: parseNumber(row[10]),
         quantity: parseNumber(row[11]),
         remaining_quantity: parseNumber(row[12]),
@@ -170,15 +196,17 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Volledige replace: BC is de bron van waarheid voor open PO's.
-    const { error: delError } = await supabaseAdmin
-      .from('grote_inpak_production_orders')
-      .delete()
-      .neq('id', 0) // alles verwijderen zonder filter lukt niet in supabase-js zonder neq trick
-    if (delError) throw delError
+    // Alleen de bronnen wissen die in deze upload voorkomen, zodat de andere
+    // BC-omgeving (die je vorige upload vulde) ongemoeid blijft.
+    if (sourcesInFile.size > 0) {
+      const { error: delError } = await supabaseAdmin
+        .from('grote_inpak_production_orders')
+        .delete()
+        .in('bc_source', Array.from(sourcesInFile))
+      if (delError) throw delError
+    }
 
     if (parsed.length > 0) {
-      // In batches van 500 inserten om payload-limieten te vermijden.
       const CHUNK = 500
       for (let i = 0; i < parsed.length; i += CHUNK) {
         const chunk = parsed.slice(i, i + CHUNK)
@@ -193,10 +221,12 @@ export async function POST(request: NextRequest) {
       success: true,
       file: file.name,
       ingevoegd: parsed.length,
+      bronnen: Array.from(sourcesInFile),
+      per_bron: perSourceCount,
       overgeslagen_locatie: skippedLocation,
       overgeslagen_niet_in_erp: skippedNoMatch,
-      unmatched_fp_preview: Array.from(unmatchedFps).slice(0, 10),
-      unmatched_fp_total: unmatchedFps.size,
+      unmatched_preview: Array.from(unmatchedItems).slice(0, 10),
+      unmatched_total: unmatchedItems.size,
     })
   } catch (error: any) {
     console.error('Prod order upload error:', error)
