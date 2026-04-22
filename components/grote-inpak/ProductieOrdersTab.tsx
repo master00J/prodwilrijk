@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Upload, RefreshCw, AlertCircle, CheckCircle2, Factory, Clock, CalendarDays, Package } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import { BcItemCode } from '@/lib/bc-mapping/client'
+import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
 
 interface ProductionOrder {
   id: number
@@ -57,6 +59,7 @@ export default function ProductieOrdersTab() {
   const [locationFilter, setLocationFilter] = useState<LocationFilter>('all')
   const [onlyOpen, setOnlyOpen] = useState(true)
   const [search, setSearch] = useState('')
+  const [uploadProgress, setUploadProgress] = useState<string>('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -80,14 +83,136 @@ export default function ProductieOrdersTab() {
     setUploading(true)
     setError(null)
     setSuccess(null)
+    setUploadProgress('Excel wordt ingelezen...')
+
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const res = await fetch('/api/grote-inpak/production-orders/upload', { method: 'POST', body: fd })
+      // 1. Parse de Excel in de browser zodat we enkel de relevante rijen
+      //    doorsturen. Dit omzeilt de 4.5 MB body-limiet van Vercel.
+      const buffer = await file.arrayBuffer()
+      const wb = XLSX.read(buffer, { type: 'array', cellDates: true })
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      const raw = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }) as any[][]
+
+      setUploadProgress(`${raw.length.toLocaleString('nl-BE')} rijen ingelezen, ERP LINK wordt opgehaald...`)
+
+      // 2. Haal ERP LINK en BC-mapping parallel op.
+      const [erpRes, bcRes] = await Promise.all([
+        fetch('/api/grote-inpak/erp-link').then(r => r.json()),
+        fetch('/api/bc-mappings').then(r => r.json()),
+      ])
+      const erpEntries: Array<{ kistnummer: string; erp_code: string | null }> = erpRes.data || []
+      const mappings: Array<{ old_code: string; new_code: string }> = bcRes.mappings || []
+
+      // GP-code (oude BC) → kistnummer
+      const gpToKist = new Map<string, string>()
+      for (const e of erpEntries) {
+        const code = normalizeErpCode(e.erp_code)
+        if (code && e.kistnummer) gpToKist.set(code, String(e.kistnummer).toUpperCase().trim())
+      }
+      // FP-code (nieuwe BC) → GP-code
+      const newToOld = new Map<string, string>()
+      for (const m of mappings) {
+        if (m.new_code) newToOld.set(String(m.new_code).toUpperCase().trim(), String(m.old_code || '').trim())
+      }
+
+      setUploadProgress('Matches met ERP LINK worden berekend...')
+
+      // 3. Filter + match. Locatie-codes:
+      //    - Nieuwe BC: GENK_EIK / Wilrijk / Willebroek
+      //    - Oude BC:   PACK-GENK / PACK-WILR / PACK-WILL
+      type Locatie = 'Genk' | 'Wilrijk' | 'Willebroek'
+      type BcSource = 'legacy' | 'bc36'
+      const locMap: Record<string, { productielocatie: Locatie; bc_source: BcSource }> = {
+        GENK_EIK:    { productielocatie: 'Genk',       bc_source: 'bc36' },
+        WILRIJK:     { productielocatie: 'Wilrijk',    bc_source: 'bc36' },
+        WILLEBROEK:  { productielocatie: 'Willebroek', bc_source: 'bc36' },
+        'PACK-GENK': { productielocatie: 'Genk',       bc_source: 'legacy' },
+        'PACK-WILR': { productielocatie: 'Wilrijk',    bc_source: 'legacy' },
+        'PACK-WILL': { productielocatie: 'Willebroek', bc_source: 'legacy' },
+      }
+      const poPattern = /^P[A-Z]{1,3}\d/i
+
+      const parseDate = (v: any): string | null => {
+        if (v === null || v === undefined || v === '') return null
+        if (v instanceof Date) return isNaN(v.getTime()) ? null : v.toISOString()
+        if (typeof v === 'number') {
+          const epoch = new Date(Date.UTC(1899, 11, 30))
+          const d = new Date(epoch.getTime() + v * 86400000)
+          return isNaN(d.getTime()) ? null : d.toISOString()
+        }
+        const d = new Date(String(v))
+        return isNaN(d.getTime()) ? null : d.toISOString()
+      }
+      const parseNum = (v: any): number | null => {
+        if (v === null || v === undefined || v === '') return null
+        const n = Number(v)
+        return isNaN(n) ? null : n
+      }
+
+      const parsed: any[] = []
+      let skippedLocation = 0
+      let skippedNoMatch = 0
+      const unmatched = new Set<string>()
+      const sourcesInFile = new Set<BcSource>()
+
+      for (const row of raw) {
+        const rawPoNo = String(row[1] ?? '').trim()
+        const rawItem = String(row[2] ?? '').trim()
+        const rawLoc = String(row[4] ?? '').trim()
+
+        if (!rawPoNo || !poPattern.test(rawPoNo)) continue
+        if (!rawItem) continue
+
+        const locInfo = locMap[rawLoc.toUpperCase()]
+        if (!locInfo) { skippedLocation++; continue }
+
+        const norm = normalizeErpCode(rawItem)
+        let kist: string | null = null
+        if (norm) {
+          // FP → GP fallback via bc_item_mapping
+          const mapped = newToOld.get(norm)
+          const gpCandidate = (mapped && normalizeErpCode(mapped)) || norm
+          kist = gpToKist.get(gpCandidate) || gpToKist.get(norm) || null
+        }
+        if (!kist) {
+          skippedNoMatch++
+          if (norm) unmatched.add(norm)
+          continue
+        }
+
+        sourcesInFile.add(locInfo.bc_source)
+
+        parsed.push({
+          status: String(row[0] ?? '').trim() || null,
+          prod_order_no: rawPoNo,
+          item_no: rawItem,
+          description: String(row[3] ?? '').trim() || null,
+          location_code: rawLoc,
+          productielocatie: locInfo.productielocatie,
+          kistnummer: kist,
+          bc_source: locInfo.bc_source,
+          finished_quantity: parseNum(row[10]),
+          quantity: parseNum(row[11]),
+          remaining_quantity: parseNum(row[12]),
+          due_date: parseDate(row[16])?.slice(0, 10) ?? null,
+          starting_date: parseDate(row[17]),
+          ending_date: parseDate(row[18]),
+        })
+      }
+
+      setUploadProgress(`${parsed.length.toLocaleString('nl-BE')} matches gevonden — uploaden naar server...`)
+
+      // 4. POST JSON met de (kleine) payload van gematchte rijen.
+      const res = await fetch('/api/grote-inpak/production-orders/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: parsed, source_file: file.name }),
+      })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Upload mislukt')
+
       const parts: string[] = [
-        `${json.ingevoegd} productie-orderlijnen geïmporteerd`,
+        `${json.ingevoegd.toLocaleString('nl-BE')} productie-orderlijnen geïmporteerd`,
       ]
       if (json.bronnen && json.bronnen.length > 0) {
         const bronLabels = (json.bronnen as string[]).map(b => b === 'legacy' ? 'Oude BC' : 'BC36').join(' + ')
@@ -96,14 +221,20 @@ export default function ProductieOrdersTab() {
           : ''
         parts.push(`bron: ${bronLabels}${detail}`)
       }
-      if (json.overgeslagen_locatie) parts.push(`${json.overgeslagen_locatie} rijen buiten Genk/Wilrijk/Willebroek genegeerd`)
-      if (json.overgeslagen_niet_in_erp) parts.push(`${json.overgeslagen_niet_in_erp} rijen niet in ERP LINK`)
+      if (skippedLocation) parts.push(`${skippedLocation.toLocaleString('nl-BE')} rijen buiten Genk/Wilrijk/Willebroek genegeerd`)
+      if (skippedNoMatch) parts.push(`${skippedNoMatch.toLocaleString('nl-BE')} rijen niet in ERP LINK`)
+      if (unmatched.size > 0) {
+        const preview = Array.from(unmatched).slice(0, 5).join(', ')
+        parts.push(`voorbeelden niet-gematcht: ${preview}${unmatched.size > 5 ? '…' : ''}`)
+      }
       setSuccess(parts.join(' · '))
       await load()
     } catch (err: any) {
+      console.error('Upload fout:', err)
       setError(err.message || 'Upload mislukt')
     } finally {
       setUploading(false)
+      setUploadProgress('')
     }
   }
 
@@ -152,6 +283,11 @@ export default function ProductieOrdersTab() {
               }}
             />
           </label>
+          {uploadProgress && (
+            <span className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded px-2 py-1">
+              {uploadProgress}
+            </span>
+          )}
           <button
             onClick={load}
             disabled={loading}
