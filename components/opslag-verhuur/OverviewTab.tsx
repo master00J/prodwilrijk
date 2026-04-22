@@ -1,6 +1,8 @@
 'use client'
 
 import { AlertTriangle, ArrowUpRight, Calendar, Medal, TrendingUp } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { getItemRevenueInRange } from '@/lib/opslag-verhuur/revenue'
 import type {
   StorageRentalCustomer,
   StorageRentalItem,
@@ -13,12 +15,13 @@ type Props = {
   items: StorageRentalItem[]
   activeItems: StorageRentalItem[]
   revenuePerCustomer: Map<number, { revenue: number; activeCount: number; totalCount: number }>
-  monthlyRevenueTrend: Array<{ key: string; label: string; revenue: number }>
   expiringItems: StorageRentalItem[]
   onGoToItems: () => void
   onGoToCustomers: () => void
   onGoToReport: () => void
 }
+
+type Period = 3 | 6 | 12 | 24
 
 const eur = (v: number) =>
   v.toLocaleString('nl-BE', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 })
@@ -31,12 +34,44 @@ export default function OverviewTab({
   items,
   activeItems,
   revenuePerCustomer,
-  monthlyRevenueTrend,
   expiringItems,
   onGoToItems,
   onGoToCustomers,
   onGoToReport,
 }: Props) {
+  const [chartPeriod, setChartPeriod] = useState<Period>(12)
+  const [chartCustomerId, setChartCustomerId] = useState<string>('')
+
+  // Trend opnieuw berekenen op basis van de gekozen filters. Hiermee kun je
+  // inzoomen op één klant, of een kortere/langere periode dan 12 maanden zien.
+  const filteredTrend = useMemo(() => {
+    const now = new Date()
+    const relevantItems = chartCustomerId
+      ? items.filter((i) => String(i.customer_id) === chartCustomerId)
+      : items
+    const months: Array<{ key: string; label: string; revenue: number }> = []
+    for (let i = chartPeriod - 1; i >= 0; i--) {
+      const monthDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1))
+      const monthEnd = new Date(
+        Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0)
+      )
+      const todayUtc = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+      )
+      const effectiveEnd = monthEnd.getTime() > todayUtc.getTime() ? todayUtc : monthEnd
+      const revenue = relevantItems.reduce(
+        (sum, item) => sum + getItemRevenueInRange(item, monthDate, effectiveEnd),
+        0
+      )
+      const label = monthDate.toLocaleDateString('nl-BE', { month: 'short', year: '2-digit' })
+      const key = `${monthDate.getUTCFullYear()}-${String(monthDate.getUTCMonth() + 1).padStart(2, '0')}`
+      months.push({ key, label, revenue })
+    }
+    return months
+  }, [items, chartCustomerId, chartPeriod])
+
+  const trendTotal = filteredTrend.reduce((s, m) => s + m.revenue, 0)
+
   const topCustomers = Array.from(revenuePerCustomer.entries())
     .map(([id, v]) => {
       const c = customers.find((x) => x.id === id)
@@ -45,23 +80,31 @@ export default function OverviewTab({
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 5)
 
-  const maxMonthRevenue = Math.max(1, ...monthlyRevenueTrend.map((m) => m.revenue))
+  const maxMonthRevenue = Math.max(1, ...filteredTrend.map((m) => m.revenue))
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
+
+  const PERIOD_OPTIONS: Period[] = [3, 6, 12, 24]
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       {/* Rendement-evolutie */}
       <section className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-start justify-between gap-4 mb-4 flex-wrap">
           <div>
             <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-emerald-600" />
-              Rendement per maand (laatste 12 maanden)
+              Rendement per maand
             </h3>
             <p className="text-xs text-gray-500 mt-0.5">
               Geprorrateerd per dag. Huidige maand loopt tot vandaag.
+              {trendTotal > 0 && (
+                <>
+                  {' '}· Totaal in selectie:{' '}
+                  <span className="font-semibold text-emerald-700">{eurDetail(trendTotal)}</span>
+                </>
+              )}
             </p>
           </div>
           <button
@@ -72,40 +115,93 @@ export default function OverviewTab({
             Naar rapport <ArrowUpRight className="w-3 h-3" />
           </button>
         </div>
-        {monthlyRevenueTrend.every((m) => m.revenue === 0) ? (
+
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs text-gray-500">Periode</label>
+            <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden text-xs">
+              {PERIOD_OPTIONS.map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => setChartPeriod(opt)}
+                  className={`px-2.5 py-1 font-medium transition-colors ${
+                    chartPeriod === opt
+                      ? 'bg-gray-900 text-white'
+                      : 'bg-white text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {opt}M
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs text-gray-500">Klant</label>
+            <select
+              value={chartCustomerId}
+              onChange={(e) => setChartCustomerId(e.target.value)}
+              className="px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white min-w-[160px]"
+            >
+              <option value="">Alle klanten</option>
+              {customers
+                .slice()
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+        </div>
+
+        {filteredTrend.every((m) => m.revenue === 0) ? (
           <p className="text-sm text-gray-400 text-center py-12">
-            Nog geen rendement-data in de laatste 12 maanden.
+            Geen rendement in deze selectie.
           </p>
         ) : (
-          <div className="flex items-end gap-2 h-40">
-            {monthlyRevenueTrend.map((m, i) => {
-              const heightPct = (m.revenue / maxMonthRevenue) * 100
-              const isLast = i === monthlyRevenueTrend.length - 1
-              return (
-                <div key={m.key} className="flex-1 flex flex-col items-center gap-1 group">
+          <div>
+            {/* Chart area: iedere kolom is h-full en lijnt naar onder uit */}
+            <div className="flex items-end gap-1.5 h-40 border-b border-gray-100 pb-0.5">
+              {filteredTrend.map((m, i) => {
+                const heightPct =
+                  maxMonthRevenue > 0 ? (m.revenue / maxMonthRevenue) * 100 : 0
+                const isLast = i === filteredTrend.length - 1
+                return (
                   <div
-                    className="relative w-full flex items-end justify-center"
-                    style={{ height: '100%' }}
+                    key={m.key}
+                    className="flex-1 h-full flex flex-col justify-end items-center relative group"
                   >
                     <div
                       className={`w-full rounded-t transition-all ${
                         isLast
                           ? 'bg-emerald-500 group-hover:bg-emerald-600'
-                          : 'bg-emerald-200 group-hover:bg-emerald-300'
+                          : 'bg-emerald-200 group-hover:bg-emerald-400'
                       }`}
-                      style={{ height: `${Math.max(2, heightPct)}%` }}
+                      style={{ height: `${Math.max(heightPct, m.revenue > 0 ? 2 : 0)}%` }}
                       title={`${m.label}: ${eurDetail(m.revenue)}`}
                     />
-                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-medium text-gray-500 opacity-0 group-hover:opacity-100 whitespace-nowrap bg-gray-900 text-white px-1.5 py-0.5 rounded pointer-events-none">
+                    <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 text-[10px] font-medium whitespace-nowrap bg-gray-900 text-white px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
                       {eur(m.revenue)}
                     </div>
                   </div>
-                  <div className="text-[10px] text-gray-500 capitalize whitespace-nowrap">
-                    {m.label.replace('.', '')}
-                  </div>
+                )
+              })}
+            </div>
+            {/* X-as labels */}
+            <div className="flex gap-1.5 mt-1.5">
+              {filteredTrend.map((m) => (
+                <div
+                  key={m.key}
+                  className="flex-1 text-[10px] text-gray-500 text-center whitespace-nowrap capitalize"
+                  title={m.label}
+                >
+                  {m.label.replace('.', '')}
                 </div>
-              )
-            })}
+              ))}
+            </div>
           </div>
         )}
       </section>

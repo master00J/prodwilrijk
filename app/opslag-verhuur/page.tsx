@@ -148,7 +148,6 @@ export default function StorageRentalsPage() {
             items={api.items}
             activeItems={api.activeItems}
             revenuePerCustomer={api.revenuePerCustomer}
-            monthlyRevenueTrend={api.monthlyRevenueTrend}
             expiringItems={api.expiringItems}
             onGoToItems={() => setMainTab('opslagen')}
             onGoToCustomers={() => setMainTab('klanten')}
