@@ -58,7 +58,7 @@ export default function StorageDashboardCards({
         <div className="text-2xl font-semibold text-green-700 mt-1">
           {totalRevenue.toLocaleString('nl-BE', { style: 'currency', currency: 'EUR' })}
         </div>
-        <div className="text-xs text-gray-400 mt-0.5">Tot vandaag (geprorrateerd)</div>
+        <div className="text-xs text-gray-400 mt-0.5">Actief + gestopt, tot vandaag (geprorrateerd)</div>
       </div>
       <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
         <div className="flex items-center gap-2 text-sm text-gray-500">

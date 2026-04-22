@@ -213,9 +213,12 @@ export function useStorageRentals() {
     () => activeItems.reduce((sum, item) => sum + getEffectiveM2(item), 0),
     [activeItems]
   )
+  // Totaal rendement over ALLE items (actief + gestopt) tot vandaag.
+  // Voor actieve items wordt er geprorrateerd tot vandaag, voor gestopte
+  // items tot hun `end_date` (zie getItemRevenue in lib/opslag-verhuur/revenue).
   const totalRevenue = useMemo(
-    () => activeItems.reduce((sum, item) => sum + getItemRevenue(item), 0),
-    [activeItems]
+    () => items.reduce((sum, item) => sum + getItemRevenue(item), 0),
+    [items]
   )
   const totalCapacityM2 = useMemo(
     () =>
