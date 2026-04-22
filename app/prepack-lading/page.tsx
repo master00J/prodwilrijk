@@ -23,6 +23,12 @@ type Entry = {
   note: string
   /** Is deze scan al bevestigd door de server? */
   synced: boolean
+  /**
+   * True als deze entry uit de periode VÓÓR de offline-first update komt
+   * (had dus geen client_id). Voor deze entries moet eerst gecheckt worden of
+   * ze al in de DB staan, anders riskeren we duplicaten.
+   */
+  legacy?: boolean
 }
 
 const STORAGE_KEY = 'prepack_lading_entries_v1'
@@ -66,26 +72,37 @@ export default function PrepackLadingPage() {
   )
   const [isSyncing, setIsSyncing] = useState(false)
   const [lastSyncError, setLastSyncError] = useState<string | null>(null)
+  const [reconcileStatus, setReconcileStatus] = useState<
+    | { state: 'idle' }
+    | { state: 'running' }
+    | { state: 'done'; matched: number; remaining: number }
+    | { state: 'error'; message: string }
+  >({ state: 'idle' })
   const inputRef = useRef<HTMLInputElement>(null)
   const syncInFlightRef = useRef(false)
+  const reconcileInFlightRef = useRef(false)
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY)
       if (raw) {
         const parsed: Array<Partial<Entry>> = JSON.parse(raw)
-        // Migreer oude entries zonder client_id / synced vlag: we markeren ze
-        // als nog-niet-gesynced zodat ze alsnog naar de server gaan zodra het
-        // netwerk weer up is. Beter één duplicate dan verloren data.
-        const migrated: Entry[] = parsed.map((e) => ({
-          id: String(e.id || createId()),
-          client_id: String(e.client_id || createClientId()),
-          ts: String(e.ts ?? ''),
-          code: String(e.code ?? ''),
-          location: String(e.location ?? ''),
-          note: String(e.note ?? ''),
-          synced: e.synced === true,
-        }))
+        // Entries van vóór deze update hebben geen client_id. We markeren ze
+        // als "legacy" zodat we éérst bij de server kunnen checken of ze al
+        // in de DB staan (zie reconcileLegacy) voordat we ze opnieuw uploaden.
+        const migrated: Entry[] = parsed.map((e) => {
+          const wasLegacy = !e.client_id
+          return {
+            id: String(e.id || createId()),
+            client_id: String(e.client_id || createClientId()),
+            ts: String(e.ts ?? ''),
+            code: String(e.code ?? ''),
+            location: String(e.location ?? ''),
+            note: String(e.note ?? ''),
+            synced: e.synced === true,
+            legacy: wasLegacy ? true : undefined,
+          }
+        })
         setEntries(migrated)
       }
     } catch {}
@@ -127,6 +144,7 @@ export default function PrepackLadingPage() {
   const totalCount = entries.length
   const uniqueCount = useMemo(() => new Set(entries.map((e) => e.code)).size, [entries])
   const pendingCount = useMemo(() => entries.filter((e) => !e.synced).length, [entries])
+  const legacyCount = useMemo(() => entries.filter((e) => e.legacy).length, [entries])
 
   const playBeep = () => {
     if (!beepEnabled) return
@@ -150,13 +168,79 @@ export default function PrepackLadingPage() {
   }
 
   /**
+   * Checkt voor alle legacy entries (uit de periode vóór de offline-first update)
+   * of ze al in de database staan o.b.v. ts + code + location. Zo ja, markeren
+   * we ze lokaal als synced zonder opnieuw te uploaden — geen duplicaten dus.
+   */
+  const reconcileLegacy = useCallback(async () => {
+    if (reconcileInFlightRef.current) return
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    const legacy = entries.filter((e) => e.legacy)
+    if (legacy.length === 0) return
+
+    reconcileInFlightRef.current = true
+    setReconcileStatus({ state: 'running' })
+    try {
+      const res = await fetch('/api/prepack/reconcile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          entries: legacy.map((e) => ({ ts: e.ts, code: e.code, location: e.location })),
+        }),
+      })
+      if (!res.ok) {
+        setReconcileStatus({ state: 'error', message: `Server gaf status ${res.status}` })
+        return
+      }
+      const data = (await res.json()) as {
+        matched?: Array<{ ts: string; code: string; location: string | null }>
+      }
+      const matchedSet = new Set<string>(
+        (data.matched || []).map((m) => `${m.ts}||${m.code}||${m.location ?? ''}`)
+      )
+      let matchedCount = 0
+      let remainingCount = 0
+      setEntries((prev) =>
+        prev.map((e) => {
+          if (!e.legacy) return e
+          const key = `${e.ts}||${e.code}||${e.location ?? ''}`
+          if (matchedSet.has(key)) {
+            matchedCount++
+            return { ...e, synced: true, legacy: undefined }
+          }
+          remainingCount++
+          return { ...e, legacy: undefined }
+        })
+      )
+      setReconcileStatus({ state: 'done', matched: matchedCount, remaining: remainingCount })
+      // Resterende echt-nog-niet-gesynced legacy entries zullen bij de volgende
+      // syncPending-call (online-event of periodieke retry) worden opgeladen.
+    } catch (err) {
+      setReconcileStatus({
+        state: 'error',
+        message: err instanceof Error ? err.message : 'Reconcile mislukt',
+      })
+    } finally {
+      reconcileInFlightRef.current = false
+    }
+  }, [entries])
+
+  /**
    * Probeert alle niet-gesynced entries in één batch naar de server te sturen.
    * Idempotent dankzij client_id: als het server-side al bestaat doet de upsert niets.
    * Wordt stil uitgevoerd (geen throws), status komt via state naar de UI.
+   *
+   * We wachten expliciet tot legacy-entries eerst gereconcileerd zijn, anders
+   * zouden die opnieuw worden geüpload en duplicaten veroorzaken.
    */
   const syncPending = useCallback(async () => {
     if (syncInFlightRef.current) return
     if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    // Zolang er nog niet-gereconcileerde legacy-entries zijn eerst reconcilen.
+    if (entries.some((e) => e.legacy)) {
+      await reconcileLegacy()
+      return
+    }
     const pending = entries.filter((e) => !e.synced)
     if (pending.length === 0) return
 
@@ -197,7 +281,7 @@ export default function PrepackLadingPage() {
       setIsSyncing(false)
       syncInFlightRef.current = false
     }
-  }, [entries])
+  }, [entries, reconcileLegacy])
 
   // Luister naar online/offline en probeer meteen te syncen wanneer het netwerk
   // terugkomt. Een periodieke retry dekt het geval waarin de tablet net niet
@@ -224,12 +308,19 @@ export default function PrepackLadingPage() {
     return () => clearInterval(t)
   }, [pendingCount, syncPending])
 
-  // Bij mount direct één syncpoging doen voor oude entries uit vorige sessie.
+  // Zodra de entries uit localStorage geladen zijn: eerst reconcilen (als er
+  // legacy-entries zijn), dan een gewone syncpoging doen.
+  const initialSyncDoneRef = useRef(false)
   useEffect(() => {
+    if (initialSyncDoneRef.current) return
     if (entries.length === 0) return
-    void syncPending()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    initialSyncDoneRef.current = true
+    if (entries.some((e) => e.legacy)) {
+      void reconcileLegacy()
+    } else {
+      void syncPending()
+    }
+  }, [entries, reconcileLegacy, syncPending])
 
   const addEntry = async () => {
     const code = sanitizeCode(barcode)
@@ -410,6 +501,53 @@ export default function PrepackLadingPage() {
           </button>
         )}
       </div>
+
+      {/* Reconcile-banner voor legacy scans uit vorige sessies */}
+      {(legacyCount > 0 || reconcileStatus.state !== 'idle') && (
+        <div
+          className="mb-6 rounded-xl border px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-sm bg-indigo-50 border-indigo-200 text-indigo-900"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <RefreshCw
+              className={`w-4 h-4 flex-shrink-0 ${
+                reconcileStatus.state === 'running' ? 'animate-spin' : ''
+              }`}
+            />
+            <span className="font-medium">
+              {reconcileStatus.state === 'running'
+                ? `Controle met database…${legacyCount > 0 ? ` (${legacyCount} scans)` : ''}`
+                : reconcileStatus.state === 'done'
+                  ? `${reconcileStatus.matched} scan${
+                      reconcileStatus.matched === 1 ? '' : 's'
+                    } stonden al in de database${
+                      reconcileStatus.remaining > 0
+                        ? `, ${reconcileStatus.remaining} worden nog geüpload`
+                        : ''
+                    }`
+                  : reconcileStatus.state === 'error'
+                    ? `Controle mislukt: ${reconcileStatus.message}`
+                    : `${legacyCount} scan${
+                        legacyCount === 1 ? '' : 's'
+                      } uit vorige sessies — worden vergeleken met database`}
+            </span>
+          </div>
+          {(legacyCount > 0 || reconcileStatus.state === 'error') && (
+            <button
+              type="button"
+              onClick={() => void reconcileLegacy()}
+              disabled={reconcileStatus.state === 'running' || !isOnline}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-white border border-indigo-200 hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <RefreshCw
+                className={`w-3.5 h-3.5 ${reconcileStatus.state === 'running' ? 'animate-spin' : ''}`}
+              />
+              {reconcileStatus.state === 'running' ? 'Bezig…' : 'Controleer opnieuw'}
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="bg-white rounded-xl shadow p-4 md:p-6 mb-6">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 items-end">
