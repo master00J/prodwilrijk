@@ -5,6 +5,8 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 type Entry = {
+  /** Stabiele UUID vanuit de client, gebruikt voor idempotente upsert. */
+  client_id?: string | null
   ts?: string
   code: string
   location?: string
@@ -22,23 +24,53 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Geen entries' }, { status: 400 })
     }
 
-    const rows = entries.map((e) => ({
-      ts: e.ts || null,
-      code: String(e.code || '').trim(),
-      location: e.location || null,
-      note: e.note || null,
-      employee_id: employeeId ? Number(employeeId) : null,
-      session_id: sessionId ? Number(sessionId) : null,
-      created_at: new Date().toISOString(),
-    })).filter((r) => r.code)
+    const rows = entries
+      .map((e) => ({
+        client_id: e.client_id ? String(e.client_id) : null,
+        ts: e.ts || null,
+        code: String(e.code || '').trim(),
+        location: e.location || null,
+        note: e.note || null,
+        employee_id: employeeId ? Number(employeeId) : null,
+        session_id: sessionId ? Number(sessionId) : null,
+        created_at: new Date().toISOString(),
+      }))
+      .filter((r) => r.code)
 
-    const { error } = await supabaseAdmin.from('prepack_scans').insert(rows)
-    if (error) {
-      console.error('prepack/batch insert error:', error)
-      return NextResponse.json({ success: false }, { status: 500 })
+    if (rows.length === 0) {
+      return NextResponse.json({ success: true, inserted: 0, synced_client_ids: [] })
     }
 
-    return NextResponse.json({ success: true, inserted: rows.length })
+    // Wanneer de client een client_id meestuurt gebruiken we upsert zodat een
+    // retry na een mislukte response (waarbij de insert wel al gelukt was)
+    // geen dubbele rij oplevert. Rijen zonder client_id vallen terug op een
+    // normale insert (oud gedrag).
+    const rowsWithId = rows.filter((r) => r.client_id)
+    const rowsWithoutId = rows.filter((r) => !r.client_id)
+
+    if (rowsWithId.length > 0) {
+      const { error } = await supabaseAdmin
+        .from('prepack_scans')
+        .upsert(rowsWithId, { onConflict: 'client_id', ignoreDuplicates: false })
+      if (error) {
+        console.error('prepack/batch upsert error:', error)
+        return NextResponse.json({ success: false }, { status: 500 })
+      }
+    }
+
+    if (rowsWithoutId.length > 0) {
+      const { error } = await supabaseAdmin.from('prepack_scans').insert(rowsWithoutId)
+      if (error) {
+        console.error('prepack/batch insert error:', error)
+        return NextResponse.json({ success: false }, { status: 500 })
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      inserted: rows.length,
+      synced_client_ids: rowsWithId.map((r) => r.client_id),
+    })
   } catch (error) {
     console.error('prepack/batch error:', error)
     return NextResponse.json({ success: false }, { status: 500 })
