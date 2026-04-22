@@ -20,8 +20,17 @@ function mapStatusForDisplay(status: string, inProductie: number): string {
   return status || ''
 }
 
-const headersC = ['Prioriteit', 'Kisttype', 'Prod.locatie', 'Max voorraad', 'Stock in rek', 'Stock Genk', 'Stock Wilrijk', 'Prod. Genk', 'Prod. Wilrijk', 'Prod. Willebroek', 'In transfer', 'Op PILS', 'Tekort', 'Effectief te produceren', 'Status']
-const headersK = ['Prioriteit', 'Kisttype', 'Prod.locatie', 'Stock Genk', 'Stock Wilrijk', 'Stock Willebroek', 'Prod. Genk', 'Prod. Wilrijk', 'Prod. Willebroek', 'In transfer', 'Op PILS', 'Tekort', 'Effectief te produceren', 'Status', 'Info']
+const headersC = ['Prioriteit', 'Kisttype', 'Prod.locatie', 'Max voorraad', 'Stock in rek', 'Stock Genk', 'Stock Wilrijk', 'Prod. Genk', 'Prod. Wilrijk', 'Prod. Willebroek', 'In transfer', 'Op PILS', 'Productie nog aanmaken', 'Effectief te produceren', 'Status']
+const headersK = ['Prioriteit', 'Kisttype', 'Prod.locatie', 'Stock Genk', 'Stock Wilrijk', 'Stock Willebroek', 'Prod. Genk', 'Prod. Wilrijk', 'Prod. Willebroek', 'In transfer', 'Op PILS', 'Productie nog aanmaken', 'Effectief te produceren', 'Status', 'Info']
+
+// Bereken hoeveel stuks er nog een nieuwe productie-order voor aangemaakt moet worden
+// = effectieve behoefte − wat al op een productie-order staat (in productie totaal)
+function computeNogAanmaken(row: any, effectief: number): number {
+  const inProdTotaal = row.in_productie != null
+    ? Number(row.in_productie)
+    : (Number(row.in_productie_genk ?? 0) + Number(row.in_productie_wilrijk ?? 0) + Number(row.in_productie_willebroek ?? 0))
+  return Math.max(0, Number(effectief ?? 0) - inProdTotaal)
+}
 
 function addDailyOrderSheet(
   wb: ExcelJS.Workbook,
@@ -38,11 +47,11 @@ function addDailyOrderSheet(
   ws.columns = variant === 'k'
     ? [
         { width: 10 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 13 }, { width: 14 },
-        { width: 11 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 10 }, { width: 10 }, { width: 22 }, { width: 16 }, { width: 28 },
+        { width: 11 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 10 }, { width: 22 }, { width: 22 }, { width: 16 }, { width: 28 },
       ]
     : [
         { width: 10 }, { width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 13 },
-        { width: 11 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 12 }, { width: 10 }, { width: 22 }, { width: 16 },
+        { width: 11 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 12 }, { width: 22 }, { width: 22 }, { width: 16 },
       ]
 
   const titleRow = ws.addRow([`${titleLabel} — ${today}`])
@@ -65,21 +74,24 @@ function addDailyOrderSheet(
 
   const rowValuesC = (row: any, i: number) => {
     const status = mapStatusForDisplay(row.status || '', row.in_productie ?? 0)
-    const effectief = row.bestel_aantal ?? row.tekort
+    const effectief = row.bestel_aantal ?? row.tekort ?? 0
+    const nogAanmaken = computeNogAanmaken(row, effectief)
     return [
       row.priority_rank ?? i + 1, row.case_type, row.productielocatie || '—',
       row.max_voorraad, row.stock_in_rek, row.stock_genk ?? 0, row.stock_wilrijk ?? 0,
       row.in_productie_genk ?? 0, row.in_productie_wilrijk ?? 0, row.in_productie_willebroek ?? 0,
-      row.in_transfer ?? 0, row.op_pils ?? 0, row.tekort, effectief, status,
+      row.in_transfer ?? 0, row.op_pils ?? 0, nogAanmaken, effectief, status,
     ]
   }
   const rowValuesK = (row: any, i: number) => {
     const status = mapStatusForDisplay(row.status || '', row.in_productie ?? 0)
+    const effectief = row.tekort ?? 0
+    const nogAanmaken = computeNogAanmaken(row, effectief)
     return [
       row.priority_rank ?? i + 1, row.case_type, row.productielocatie || '—',
       row.stock_genk ?? 0, row.stock_wilrijk ?? 0, row.stock_willebroek ?? row.stock_in_rek ?? 0,
       row.in_productie_genk ?? 0, row.in_productie_wilrijk ?? 0, row.in_productie_willebroek ?? 0,
-      row.in_transfer ?? 0, row.op_pils ?? 0, row.tekort, row.tekort, status,
+      row.in_transfer ?? 0, row.op_pils ?? 0, nogAanmaken, effectief, status,
       row.info || '',
     ]
   }
@@ -91,6 +103,7 @@ function addDailyOrderSheet(
     const colStockGenk = variant === 'k' ? 4 : 6
     const colStockWilrijk = variant === 'k' ? 5 : 7
     const colStockWillebroek = variant === 'k' ? 6 : 0
+    const colNogAanmaken = variant === 'k' ? 12 : 13
     const colEffectief = variant === 'k' ? 13 : 14
     const colStatus = variant === 'k' ? 14 : 15
 
@@ -123,8 +136,16 @@ function addDailyOrderSheet(
         }
       }
       if (col === colEffectief) {
-        const effectief = variant === 'c' ? (row.bestel_aantal ?? row.tekort) : row.tekort
+        const effectief = variant === 'c' ? (row.bestel_aantal ?? row.tekort ?? 0) : (row.tekort ?? 0)
         if (effectief > 0) cell.font = { bold: true, color: { argb: 'FFCC0000' } }
+      }
+      if (col === colNogAanmaken) {
+        const effectiefVal = variant === 'c' ? (row.bestel_aantal ?? row.tekort ?? 0) : (row.tekort ?? 0)
+        const nogAanmaken = computeNogAanmaken(row, effectiefVal)
+        if (nogAanmaken > 0) {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE699' } }
+          cell.font = { bold: true, color: { argb: 'FFCC0000' } }
+        }
       }
       if (col === colInfo && row.info) {
         const infoStr = String(row.info)
