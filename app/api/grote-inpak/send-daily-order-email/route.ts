@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { buildDailyOrderWorkbook } from '@/lib/grote-inpak/daily-order-excel'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { normalizeErpCode, normalizeKistnummer } from '@/lib/utils/erp-code-normalizer'
-import { getEndingDateByKist } from '@/lib/grote-inpak/production-orders'
+import { getEndingDatesByKist } from '@/lib/grote-inpak/production-orders'
 
 export const dynamic = 'force-dynamic'
 
@@ -453,9 +453,9 @@ export async function POST(request: NextRequest) {
 
     const kKisten = await fetchKKistenForExcel(location, productieAndereLoc)
     const overdueKisten = await fetchOverdueKisten(location)
-    const endingDateByKist = await getEndingDateByKist()
+    const endingDatesByKist = await getEndingDatesByKist()
 
-    const wb = buildDailyOrderWorkbook(location, renumbered, today, { kKisten, overdueKisten, endingDateByKist })
+    const wb = buildDailyOrderWorkbook(location, renumbered, today, { kKisten, overdueKisten, endingDatesByKist })
     const buffer = await wb.xlsx.writeBuffer() as ArrayBuffer
     const filename = `Daily_order_${location}_${dateStr}.xlsx`
 

@@ -39,7 +39,7 @@ function addDailyOrderSheet(
   data: any[],
   today: string,
   variant: 'c' | 'k' = 'c',
-  endingDateByKist?: Map<string, string>
+  endingDatesByKist?: Map<string, string[]>
 ) {
   const headers = variant === 'k' ? headersK : headersC
   const numCols = headers.length
@@ -48,11 +48,11 @@ function addDailyOrderSheet(
   ws.columns = variant === 'k'
     ? [
         { width: 10 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 13 }, { width: 14 },
-        { width: 11 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 10 }, { width: 22 }, { width: 22 }, { width: 16 }, { width: 16 }, { width: 28 },
+        { width: 11 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 10 }, { width: 22 }, { width: 22 }, { width: 20 }, { width: 16 }, { width: 28 },
       ]
     : [
         { width: 10 }, { width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 13 },
-        { width: 11 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 12 }, { width: 22 }, { width: 22 }, { width: 16 }, { width: 16 },
+        { width: 11 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 12 }, { width: 22 }, { width: 22 }, { width: 20 }, { width: 16 },
       ]
 
   const titleRow = ws.addRow([`${titleLabel} — ${today}`])
@@ -74,12 +74,17 @@ function addDailyOrderSheet(
   hRow.height = 18
 
   const lookupEinddatum = (caseType: string | null | undefined): string => {
-    if (!endingDateByKist || !caseType) return ''
+    if (!endingDatesByKist || !caseType) return ''
     const key = String(caseType).toUpperCase().trim()
-    const iso = endingDateByKist.get(key)
-    if (!iso) return ''
-    const d = new Date(iso)
-    return isNaN(d.getTime()) ? '' : d.toLocaleDateString('nl-BE')
+    const isoList = endingDatesByKist.get(key)
+    if (!isoList || isoList.length === 0) return ''
+    return isoList
+      .map(iso => {
+        const d = new Date(iso)
+        return isNaN(d.getTime()) ? '' : d.toLocaleDateString('nl-BE')
+      })
+      .filter(Boolean)
+      .join('\n')
   }
 
   const rowValuesC = (row: any, i: number) => {
@@ -160,20 +165,26 @@ function addDailyOrderSheet(
           cell.font = { bold: true, color: { argb: 'FFCC0000' } }
         }
       }
-      if (col === colEinddatum && endingDateByKist) {
+      if (col === colEinddatum && endingDatesByKist) {
         const key = row.case_type ? String(row.case_type).toUpperCase().trim() : ''
-        const iso = key ? endingDateByKist.get(key) : undefined
-        if (iso) {
-          const d = new Date(iso)
-          if (!isNaN(d.getTime())) {
-            const overdue = d.getTime() < Date.now()
-            if (overdue) {
-              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFC7CE' } }
-              cell.font = { bold: true, color: { argb: 'FFCC0000' } }
-            } else {
-              cell.font = { bold: true, color: { argb: 'FF1F497D' } }
-            }
+        const isoList = key ? endingDatesByKist.get(key) : undefined
+        if (isoList && isoList.length > 0) {
+          const now = Date.now()
+          const anyOverdue = isoList.some(iso => {
+            const t = new Date(iso).getTime()
+            return !isNaN(t) && t < now
+          })
+          // Line-wrap zodat meerdere datums onder elkaar staan.
+          cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+          if (anyOverdue) {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFC7CE' } }
+            cell.font = { bold: true, color: { argb: 'FFCC0000' } }
+          } else {
+            cell.font = { bold: true, color: { argb: 'FF1F497D' } }
           }
+          // Rij-hoogte opschalen afhankelijk van aantal datums (min 18, +14 per extra lijn).
+          const needed = 18 + Math.max(0, isoList.length - 1) * 14
+          if (!dRow.height || dRow.height < needed) dRow.height = needed
         } else {
           cell.font = { color: { argb: 'FF999999' } }
         }
@@ -294,11 +305,12 @@ export function buildDailyOrderWorkbook(
     kKisten?: any[]
     overdueKisten?: any[]
     /**
-     * Map van kistnummer (UPPERCASE) → vroegste `ending_date` (ISO) van een lopende
-     * productie-order in Business Central. Wordt getoond in een aparte kolom
-     * "Einddatum productie". Rood als die datum al voorbij is.
+     * Map van kistnummer (UPPERCASE) → ALLE `ending_date` (ISO) van lopende
+     * productie-orders in Business Central, gesorteerd oplopend. Wordt getoond
+     * in een aparte kolom "Einddatum productie" (meerdere datums onder elkaar).
+     * Rood als minstens één datum al voorbij is.
      */
-    endingDateByKist?: Map<string, string>
+    endingDatesByKist?: Map<string, string[]>
   }
 ) {
   const wb = new ExcelJS.Workbook()
@@ -309,7 +321,7 @@ export function buildDailyOrderWorkbook(
     data,
     today,
     'c',
-    options?.endingDateByKist,
+    options?.endingDatesByKist,
   )
   if (options?.kKisten && options.kKisten.length > 0) {
     addDailyOrderSheet(
@@ -319,7 +331,7 @@ export function buildDailyOrderWorkbook(
       options.kKisten,
       today,
       'k',
-      options?.endingDateByKist,
+      options?.endingDatesByKist,
     )
   }
   if (options?.overdueKisten && options.overdueKisten.length > 0) {
