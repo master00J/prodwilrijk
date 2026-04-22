@@ -68,3 +68,36 @@ export function getOverlapDays(
   if (endMs < startMs) return 0
   return Math.floor((endMs - startMs) / MS_PER_DAY) + 1
 }
+
+/**
+ * Geprorrateerde opbrengst van één item binnen een specifiek datumbereik
+ * (bv. "deze maand", "dit jaar"). Houdt rekening met bare/verpakt-splitsing
+ * via `packed_at` zodat de m² van vóór en ná het verpakken correct gewogen
+ * worden. `rangeStart` en `rangeEnd` zijn UTC-dagen (inclusief beide).
+ */
+export function getItemRevenueInRange(
+  item: StorageRentalItem,
+  rangeStart: Date,
+  rangeEnd: Date
+): number {
+  const start = item.start_date ? toUtcDate(item.start_date) : null
+  if (!start) return 0
+  const price = Number(item.price_per_m2 || 0)
+  if (!price) return 0
+  const end = item.end_date && item.end_date.trim() ? toUtcDate(item.end_date) : null
+  const m2Bare = Number(item.m2_bare ?? item.m2 ?? 0)
+  const m2Verpakt = Number(item.m2_verpakt ?? item.m2 ?? 0)
+  const packedAt = item.packed_at ? toUtcDate(item.packed_at) : null
+
+  if (item.packing_status === 'verpakt' && packedAt && m2Bare > 0 && m2Verpakt > 0) {
+    const bareEnd = new Date(packedAt.getTime() - MS_PER_DAY)
+    const daysBare = getOverlapDays(start, bareEnd, rangeStart, rangeEnd)
+    const daysVerpakt = getOverlapDays(packedAt, end, rangeStart, rangeEnd)
+    return (m2Bare * price * daysBare + m2Verpakt * price * daysVerpakt) / 365
+  }
+
+  const m2 = getEffectiveM2(item)
+  const days = getOverlapDays(start, end, rangeStart, rangeEnd)
+  if (days <= 0) return 0
+  return (m2 * price * days) / 365
+}

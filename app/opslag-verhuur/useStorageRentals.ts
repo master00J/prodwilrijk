@@ -3,6 +3,7 @@
 import {
   getEffectiveM2,
   getItemRevenue,
+  getItemRevenueInRange,
   getOverlapDays,
   MS_PER_DAY,
   toUtcDate,
@@ -102,6 +103,8 @@ export function useStorageRentals() {
   const [itemsSortCol, setItemsSortCol] = useState<string>('start_date')
   const [itemsSortDir, setItemsSortDir] = useState<'asc' | 'desc'>('desc')
   const [itemsPage, setItemsPage] = useState(1)
+  const [locationFilter, setLocationFilter] = useState<string>('')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'bare' | 'verpakt'>('all')
 
   const [savingCustomer, setSavingCustomer] = useState(false)
   const [savingLocation, setSavingLocation] = useState(false)
@@ -166,17 +169,25 @@ export function useStorageRentals() {
   const displayedItems = useMemo(() => {
     const list = itemsTab === 'actief' ? activeItems : stoppedItems
     const q = itemsSearchDebounced.trim().toLowerCase()
-    let filtered = q
-      ? list.filter(
-          (item) =>
-            (item.or_number || '').toLowerCase().includes(q) ||
-            (item.customer_description || '').toLowerCase().includes(q) ||
-            (item.foresco_id || '').toLowerCase().includes(q) ||
-            (item.description || '').toLowerCase().includes(q) ||
-            (item.customer?.name || '').toLowerCase().includes(q) ||
-            (item.location?.name || '').toLowerCase().includes(q)
-        )
-      : list
+    let filtered = list
+    if (q) {
+      filtered = filtered.filter(
+        (item) =>
+          (item.or_number || '').toLowerCase().includes(q) ||
+          (item.customer_description || '').toLowerCase().includes(q) ||
+          (item.foresco_id || '').toLowerCase().includes(q) ||
+          (item.description || '').toLowerCase().includes(q) ||
+          (item.customer?.name || '').toLowerCase().includes(q) ||
+          (item.location?.name || '').toLowerCase().includes(q)
+      )
+    }
+    if (locationFilter) {
+      const locId = Number(locationFilter)
+      filtered = filtered.filter((item) => item.location_id === locId)
+    }
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter((item) => (item.packing_status || 'bare') === statusFilter)
+    }
     const sorted = [...filtered].sort((a, b) => {
       const aVal =
         itemsSortCol === 'customer'
@@ -201,7 +212,7 @@ export function useStorageRentals() {
         : (bVal as number) - (aVal as number)
     })
     return sorted
-  }, [itemsTab, activeItems, stoppedItems, itemsSearchDebounced, itemsSortCol, itemsSortDir])
+  }, [itemsTab, activeItems, stoppedItems, itemsSearchDebounced, itemsSortCol, itemsSortDir, locationFilter, statusFilter])
 
   const paginatedItems = useMemo(() => {
     const start = (itemsPage - 1) * ITEMS_PER_PAGE
@@ -232,6 +243,84 @@ export function useStorageRentals() {
     () => customers.filter((c) => c.active !== false).length,
     [customers]
   )
+  const totalCustomersCount = customers.length
+
+  // Opbrengst van deze maand (1e van de maand t/m vandaag), over ALLE items.
+  const revenueThisMonth = useMemo(() => {
+    const now = new Date()
+    const rangeStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+    const rangeEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+    return items.reduce((sum, item) => sum + getItemRevenueInRange(item, rangeStart, rangeEnd), 0)
+  }, [items])
+
+  // Rendement per klant (geprorrateerd tot vandaag) + aantal opslagen per klant.
+  const revenuePerCustomer = useMemo(() => {
+    const map = new Map<number, { revenue: number; activeCount: number; totalCount: number }>()
+    for (const item of items) {
+      if (item.customer_id == null) continue
+      const existing = map.get(item.customer_id) ?? { revenue: 0, activeCount: 0, totalCount: 0 }
+      existing.revenue += getItemRevenue(item)
+      existing.totalCount += 1
+      if (item.active !== false) existing.activeCount += 1
+      map.set(item.customer_id, existing)
+    }
+    return map
+  }, [items])
+
+  // Bezet m² + aantal actieve opslagen per locatie.
+  const usagePerLocation = useMemo(() => {
+    const map = new Map<number, { usedM2: number; activeCount: number }>()
+    for (const item of activeItems) {
+      if (item.location_id == null) continue
+      const existing = map.get(item.location_id) ?? { usedM2: 0, activeCount: 0 }
+      existing.usedM2 += getEffectiveM2(item)
+      existing.activeCount += 1
+      map.set(item.location_id, existing)
+    }
+    return map
+  }, [activeItems])
+
+  // Items waarvan de einddatum binnen 30 dagen verloopt (actieve items).
+  const expiringItems = useMemo(() => {
+    const now = new Date()
+    now.setUTCHours(0, 0, 0, 0)
+    const horizon = new Date(now.getTime() + 30 * MS_PER_DAY)
+    return activeItems
+      .filter((item) => {
+        if (!item.end_date) return false
+        const end = toUtcDate(item.end_date)
+        return end.getTime() >= now.getTime() && end.getTime() <= horizon.getTime()
+      })
+      .sort((a, b) => (a.end_date || '').localeCompare(b.end_date || ''))
+  }, [activeItems])
+
+  // Rendement-evolutie per maand (laatste 12 kalendermaanden, incl. huidige).
+  const monthlyRevenueTrend = useMemo(() => {
+    const now = new Date()
+    const months: Array<{ key: string; label: string; revenue: number }> = []
+    for (let i = 11; i >= 0; i--) {
+      const monthDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1))
+      const monthStart = monthDate
+      const monthEnd = new Date(
+        Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0)
+      )
+      // Voor de huidige maand loopt de range maar tot vandaag, anders zouden we
+      // toekomstige dagen meetellen die nog niet gefactureerd kunnen worden.
+      const today = new Date()
+      const effectiveEnd =
+        monthEnd.getTime() > Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())
+          ? new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()))
+          : monthEnd
+      const revenue = items.reduce(
+        (sum, item) => sum + getItemRevenueInRange(item, monthStart, effectiveEnd),
+        0
+      )
+      const label = monthDate.toLocaleDateString('nl-BE', { month: 'short', year: '2-digit' })
+      const key = `${monthDate.getUTCFullYear()}-${String(monthDate.getUTCMonth() + 1).padStart(2, '0')}`
+      months.push({ key, label, revenue })
+    }
+    return months
+  }, [items])
 
   const reportSummary = useMemo<ReportSummaryResult | null>(() => {
     const hasCustomerSelection = reportCustomerIds.length > 0
@@ -704,9 +793,7 @@ export function useStorageRentals() {
       item.description || '-',
       getEffectiveM2(item).toFixed(2),
       item.price_per_m2 ? Number(item.price_per_m2).toFixed(2) : '-',
-      itemsTab === 'gestopt'
-        ? getItemRevenue(item).toFixed(2)
-        : (getEffectiveM2(item) * Number(item.price_per_m2 || 0)).toFixed(2),
+      getItemRevenue(item).toFixed(2),
       item.start_date || '-',
       item.end_date || '-',
     ])
@@ -784,9 +871,15 @@ export function useStorageRentals() {
     stoppedItems,
     totalUsedM2,
     totalRevenue,
+    revenueThisMonth,
+    monthlyRevenueTrend,
+    revenuePerCustomer,
+    usagePerLocation,
+    expiringItems,
     totalCapacityM2,
     occupancy,
     activeCustomersCount,
+    totalCustomersCount,
     reportSummary,
     reportCustomerIds,
     setReportCustomerIds,
@@ -865,6 +958,10 @@ export function useStorageRentals() {
     itemsPage,
     setItemsPage,
     toggleSort,
+    locationFilter,
+    setLocationFilter,
+    statusFilter,
+    setStatusFilter,
     displayedItems,
     paginatedItems,
     totalItemsPages,

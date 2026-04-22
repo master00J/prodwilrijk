@@ -5,13 +5,14 @@ export const dynamic = 'force-dynamic'
 import ConfirmModal from '@/components/opslag-verhuur/ConfirmModal'
 import ItemsTab from '@/components/opslag-verhuur/ItemsTab'
 import LocationsTab from '@/components/opslag-verhuur/LocationsTab'
+import OverviewTab from '@/components/opslag-verhuur/OverviewTab'
 import PhotoModal from '@/components/opslag-verhuur/PhotoModal'
 import ReportTab from '@/components/opslag-verhuur/ReportTab'
 import StorageDashboardCards from '@/components/opslag-verhuur/StorageDashboardCards'
 import CustomersTab from '@/components/opslag-verhuur/CustomersTab'
 import AdminGuard from '@/components/AdminGuard'
 import { RefreshCw } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useStorageRentals } from './useStorageRentals'
 
@@ -30,10 +31,21 @@ export default function StorageRentalsPage() {
   const mainTab = isTab(tabParam) ? tabParam : 'overzicht'
 
   const [unsavedTabSwitch, setUnsavedTabSwitch] = useState<Tab | null>(null)
+  const [itemDrawerOpen, setItemDrawerOpen] = useState(false)
   const bareInputRef = useRef<HTMLInputElement>(null)
   const verpaktInputRef = useRef<HTMLInputElement>(null)
+  const savingItemPrevRef = useRef(false)
 
   const api = useStorageRentals()
+
+  // Sluit de opslag-drawer automatisch na een succesvolle save. We detecteren
+  // dit via de overgang van savingItem=true → false zonder validatie-errors.
+  useEffect(() => {
+    if (!api.savingItem && savingItemPrevRef.current) {
+      if (!api.itemCustomerError && !api.itemM2Error) setItemDrawerOpen(false)
+    }
+    savingItemPrevRef.current = api.savingItem
+  }, [api.savingItem, api.itemCustomerError, api.itemM2Error])
 
   const setTabToUrl = (tab: Tab) => {
     const params = new URLSearchParams(searchParams.toString())
@@ -76,19 +88,20 @@ export default function StorageRentalsPage() {
 
   return (
     <AdminGuard>
-      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-7xl space-y-4 sm:space-y-6">
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-7xl space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Opslagverhuur</h1>
             <p className="text-sm text-gray-600 mt-0.5">
-              Beheer klanten en opslagruimte los van WMS-projecten.
+              Beheer klanten, locaties en opslagruimte.{' '}
+              <span className="text-gray-400">Los van WMS-projecten.</span>
             </p>
           </div>
           <button
             type="button"
             onClick={() => api.fetchAll()}
             disabled={api.loading}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-60 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-60 transition-colors text-sm"
             aria-label="Ververs gegevens"
           >
             <RefreshCw className={`w-4 h-4 ${api.loading ? 'animate-spin' : ''}`} />
@@ -99,8 +112,10 @@ export default function StorageRentalsPage() {
         <StorageDashboardCards
           loading={api.loading}
           activeCustomersCount={api.activeCustomersCount}
+          totalCustomersCount={api.totalCustomersCount}
           totalUsedM2={api.totalUsedM2}
           totalRevenue={api.totalRevenue}
+          revenueThisMonth={api.revenueThisMonth}
           totalCapacityM2={api.totalCapacityM2}
           occupancy={api.occupancy}
         />
@@ -127,29 +142,18 @@ export default function StorageRentalsPage() {
         </nav>
 
         {mainTab === 'overzicht' && !api.loading && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Overzicht</h2>
-            <p className="text-gray-600 mb-4">
-              Gebruik de tabbladen hierboven om klanten, locaties en opslagen te beheren. Het rapport
-              laat je opbrengsten per periode exporteren.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <strong className="text-gray-900">Klanten:</strong> {api.customers.length} totaal (
-                {api.activeCustomersCount} actief)
-              </div>
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <strong className="text-gray-900">Locaties:</strong> {api.locations.length} totaal (
-                {api.locations.filter((l) => l.active !== false).length} actief)
-              </div>
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <strong className="text-gray-900">Actieve opslagen:</strong> {api.activeItems.length}
-              </div>
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <strong className="text-gray-900">Gestopte opslagen:</strong> {api.stoppedItems.length}
-              </div>
-            </div>
-          </div>
+          <OverviewTab
+            customers={api.customers}
+            locations={api.locations}
+            items={api.items}
+            activeItems={api.activeItems}
+            revenuePerCustomer={api.revenuePerCustomer}
+            monthlyRevenueTrend={api.monthlyRevenueTrend}
+            expiringItems={api.expiringItems}
+            onGoToItems={() => setMainTab('opslagen')}
+            onGoToCustomers={() => setMainTab('klanten')}
+            onGoToReport={() => setMainTab('rapport')}
+          />
         )}
 
         {mainTab === 'klanten' && (
@@ -168,6 +172,7 @@ export default function StorageRentalsPage() {
             handleDelete={api.handleDelete}
             toggleCustomerActive={api.toggleCustomerActive}
             customerNameError={api.customerNameError}
+            revenuePerCustomer={api.revenuePerCustomer}
           />
         )}
 
@@ -193,6 +198,7 @@ export default function StorageRentalsPage() {
             toggleLocationActive={api.toggleLocationActive}
             locationNameError={api.locationNameError}
             locationCapacityError={api.locationCapacityError}
+            usagePerLocation={api.usagePerLocation}
           />
         )}
 
@@ -291,6 +297,15 @@ export default function StorageRentalsPage() {
               handleExportItemsExcel={api.handleExportItemsExcel}
               itemCustomerError={api.itemCustomerError}
               itemM2Error={api.itemM2Error}
+              drawerOpen={itemDrawerOpen}
+              setDrawerOpen={(open) => {
+                setItemDrawerOpen(open)
+                if (!open) api.resetItemForm()
+              }}
+              locationFilter={api.locationFilter}
+              setLocationFilter={api.setLocationFilter}
+              statusFilter={api.statusFilter}
+              setStatusFilter={api.setStatusFilter}
             />
             {api.photoPanelItemId != null && (
               <PhotoModal
