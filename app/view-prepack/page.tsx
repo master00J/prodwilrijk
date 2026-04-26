@@ -210,10 +210,9 @@ export default function ViewPrepackPage() {
 
   return (
     <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6 max-w-7xl">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold">View Prepack - Incoming Goods</h1>
-        <LabelScanner onItemsMatched={handleScanMatched} onUnlistedAdded={handleUnlistedAdded} />
-      </div>
+      <h1 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6">View Prepack - Incoming Goods</h1>
+
+      <LabelScanner onItemsMatched={handleScanMatched} onUnlistedAdded={handleUnlistedAdded} />
 
       <ViewPrepackFilters
         searchTerm={searchTerm}
