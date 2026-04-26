@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { scanLabelSchema, validateBody, isErrorResponse } from '@/lib/api/validation'
+import { callOpenAIVision, type LabelProvider } from '@/lib/labels/openai-vision'
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
 
@@ -16,32 +17,7 @@ interface LabelData {
   label_type: 'airtec' | 'cooler' | 'unknown'
 }
 
-async function extractLabelWithClaude(base64Image: string, mediaType: string): Promise<LabelData> {
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': ANTHROPIC_API_KEY!,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: mediaType,
-                data: base64Image,
-              },
-            },
-            {
-              type: 'text',
-              text: `Analyze this shipping/pallet label. It can be one of two types:
+const AIRTEC_PROMPT = `Analyze this shipping/pallet label. It can be one of two types:
 
 TYPE 1 - Atlas Copco Airtec label (has fields like PART NR, DESCR, QUANTITY (Q), NET WT, AIA serial numbers)
 TYPE 2 - Foresco cooler label (simple label with "FORESCO", a part number like "1621700.301", and "AANTAL: X")
@@ -112,30 +88,12 @@ Rules for cooler labels:
 General:
 - quantity must be an integer.
 - If a field is not readable or rules forbid the only visible candidate, use null.
-- Return ONLY the JSON object.`,
-            },
-          ],
-        },
-      ],
-    }),
-  })
+- Return ONLY the JSON object.`
 
-  if (!response.ok) {
-    const errBody = await response.text()
-    throw new Error(`Claude API error ${response.status}: ${errBody}`)
-  }
-
-  const result = await response.json()
-  const text = result.content?.[0]?.text || ''
-
-  const jsonMatch = text.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) {
-    throw new Error('Claude returned no valid JSON')
-  }
-
-  const parsed = JSON.parse(jsonMatch[0])
+function postProcessAirtec(parsed: any): LabelData {
   let itemNumber: string | null = parsed.item_number || null
-  const labelType = parsed.label_type === 'cooler' ? 'cooler' : parsed.label_type === 'airtec' ? 'airtec' : 'unknown'
+  const labelType: LabelData['label_type'] =
+    parsed.label_type === 'cooler' ? 'cooler' : parsed.label_type === 'airtec' ? 'airtec' : 'unknown'
 
   if (itemNumber && labelType === 'cooler') {
     itemNumber = itemNumber.replace(/\./g, '')
@@ -170,9 +128,7 @@ General:
     if (typeof s !== 'string') continue
     let v = s.trim()
     if (!v) continue
-    // "2WAIA3263118" → "AIA3263118"
     v = v.replace(/^2W/i, '')
-    // Dedup case-insensitive
     const key = v.toUpperCase()
     if (seen.has(key)) continue
     seen.add(key)
@@ -186,6 +142,68 @@ General:
     serial_numbers: cleanedSerials,
     label_type: labelType,
   }
+}
+
+async function extractLabelWithClaude(base64Image: string, mediaType: string): Promise<LabelData> {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_API_KEY!,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1024,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: mediaType,
+                data: base64Image,
+              },
+            },
+            { type: 'text', text: AIRTEC_PROMPT },
+          ],
+        },
+      ],
+    }),
+  })
+
+  if (!response.ok) {
+    const errBody = await response.text()
+    throw new Error(`Claude API error ${response.status}: ${errBody}`)
+  }
+
+  const result = await response.json()
+  const text = result.content?.[0]?.text || ''
+
+  const jsonMatch = text.match(/\{[\s\S]*\}/)
+  if (!jsonMatch) {
+    throw new Error('Claude returned no valid JSON')
+  }
+
+  return postProcessAirtec(JSON.parse(jsonMatch[0]))
+}
+
+async function extractLabelWithOpenAI(base64Image: string, mediaType: string): Promise<LabelData> {
+  const parsed = (await callOpenAIVision(AIRTEC_PROMPT, base64Image, mediaType)) as any
+  return postProcessAirtec(parsed)
+}
+
+async function extractLabel(
+  provider: LabelProvider,
+  base64Image: string,
+  mediaType: string
+): Promise<LabelData> {
+  if (provider === 'gpt5') {
+    return extractLabelWithOpenAI(base64Image, mediaType)
+  }
+  return extractLabelWithClaude(base64Image, mediaType)
 }
 
 async function lookupKistnummer(itemNumber: string): Promise<string | null> {
@@ -224,16 +242,21 @@ async function lookupKistnummer(itemNumber: string): Promise<string | null> {
 }
 
 export async function POST(request: Request) {
-  if (!ANTHROPIC_API_KEY) {
-    return NextResponse.json({ error: 'Server configuratie fout' }, { status: 500 })
-  }
-
   try {
     const parsed = await validateBody(request, scanLabelSchema)
     if (isErrorResponse(parsed)) return parsed
 
-    const { image, mediaType } = parsed
-    const labelData = await extractLabelWithClaude(image, mediaType)
+    const { image, mediaType, provider } = parsed
+    const activeProvider: LabelProvider = provider || 'haiku'
+
+    if (activeProvider === 'haiku' && !ANTHROPIC_API_KEY) {
+      return NextResponse.json({ error: 'ANTHROPIC_API_KEY niet geconfigureerd' }, { status: 500 })
+    }
+    if (activeProvider === 'gpt5' && !process.env.OPENAI_API_KEY) {
+      return NextResponse.json({ error: 'OPENAI_API_KEY niet geconfigureerd' }, { status: 500 })
+    }
+
+    const labelData = await extractLabel(activeProvider, image, mediaType)
 
     if (!labelData.item_number) {
       return NextResponse.json({
@@ -241,6 +264,7 @@ export async function POST(request: Request) {
         matches: [],
         warning: 'Kon geen item nummer uitlezen van het label',
         kistnummer: null,
+        provider: activeProvider,
       })
     }
 
@@ -255,6 +279,7 @@ export async function POST(request: Request) {
         matches: [],
         warning: null,
         kistnummer,
+        provider: activeProvider,
       })
     }
 
@@ -296,6 +321,7 @@ export async function POST(request: Request) {
       })),
       warning,
       kistnummer,
+      provider: activeProvider,
     })
   } catch (err) {
     console.error('Scan label error:', err)

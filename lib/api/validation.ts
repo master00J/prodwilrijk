@@ -39,6 +39,7 @@ export function isErrorResponse(result: unknown): result is NextResponse {
 export const scanLabelSchema = z.object({
   image: z.string().max(10_000_000, 'Afbeelding te groot (max ~7.5MB)'),
   mediaType: z.string().regex(/^image\/(jpeg|png|webp|gif)$/, 'Ongeldig afbeeldingsformaat'),
+  provider: z.enum(['haiku', 'gpt5']).optional().default('haiku'),
 })
 
 export const changeRoleSchema = z.object({

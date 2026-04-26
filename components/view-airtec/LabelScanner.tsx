@@ -76,12 +76,29 @@ function lotMatchesSerial(lot: string | null, serialsNorm: string[]): boolean {
 
 let queueIdCounter = 0
 
+type LabelProvider = 'haiku' | 'gpt5'
+const PROVIDER_STORAGE_KEY = 'labelScannerProvider'
+
 export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlistedAdded, onIncomingAdded }: LabelScannerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [queue, setQueue] = useState<QueueItem[]>([])
   const [scanTally, setScanTally] = useState<Record<string, { scanned: number; inList: number }>>({})
   const [cameraActive, setCameraActive] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
+  const [provider, setProvider] = useState<LabelProvider>('haiku')
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const stored = window.localStorage.getItem(PROVIDER_STORAGE_KEY)
+    if (stored === 'haiku' || stored === 'gpt5') setProvider(stored)
+  }, [])
+
+  const changeProvider = useCallback((next: LabelProvider) => {
+    setProvider(next)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(PROVIDER_STORAGE_KEY, next)
+    }
+  }, [])
   const processingRef = useRef(false)
   // Rijen die al door een eerdere scan zijn geclaimd, zodat een tweede scan van
   // hetzelfde itemnummer niet opnieuw dezelfde rij selecteert.
@@ -204,7 +221,7 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
       const res = await fetch('/api/incoming-goods-airtec/scan-label', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: item.base64, mediaType: item.mediaType }),
+        body: JSON.stringify({ image: item.base64, mediaType: item.mediaType, provider }),
       })
 
       if (!res.ok) {
@@ -343,7 +360,7 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
     } catch (err: any) {
       setQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'error', error: err.message || 'Scan mislukt' } : q))
     }
-  }, [onItemsMatched, addCoolerToIncoming])
+  }, [onItemsMatched, addCoolerToIncoming, provider])
 
   useEffect(() => {
     if (processingRef.current) return
@@ -440,11 +457,14 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
             </span>
           )}
         </div>
-        <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 p-1">
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-2">
+          <ProviderToggle provider={provider} onChange={changeProvider} />
+          <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 p-1">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Live camera viewfinder */}
@@ -531,6 +551,31 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
       {queue.length === 0 && (
         <p className="text-center text-gray-400 text-sm py-2">Richt de camera op een label en druk op de knop</p>
       )}
+    </div>
+  )
+}
+
+function ProviderToggle({ provider, onChange }: { provider: LabelProvider; onChange: (p: LabelProvider) => void }) {
+  return (
+    <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5" title="Kies welk AI-model labels analyseert">
+      <button
+        type="button"
+        onClick={() => onChange('haiku')}
+        className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+          provider === 'haiku' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+        }`}
+      >
+        Claude Haiku
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange('gpt5')}
+        className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+          provider === 'gpt5' ? 'bg-white text-emerald-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+        }`}
+      >
+        GPT-5.4 mini
+      </button>
     </div>
   )
 }

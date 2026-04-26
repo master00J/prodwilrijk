@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { callOpenAIVision, isLabelProvider, type LabelProvider } from '@/lib/labels/openai-vision'
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
 
@@ -19,32 +20,7 @@ interface LabelData {
   receiver: string | null
 }
 
-async function extractLabelWithClaude(base64Image: string, mediaType: string): Promise<LabelData> {
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': ANTHROPIC_API_KEY!,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: mediaType,
-                data: base64Image,
-              },
-            },
-            {
-              type: 'text',
-              text: `Analyze this shipping/pallet label. Labels come in several layouts:
+const PREPACK_PROMPT = `Analyze this shipping/pallet label. Labels come in several layouts:
 
 LAYOUT A - Atlas Copco / supplier pallet label (most common):
   Contains labelled fields such as "PART NO (P)", "QUANTITY (Q)", "P.O.NO-LINE (K)" or "O.NO-LINE (K)",
@@ -96,29 +72,9 @@ Rules for other fields:
 - description: the item description (DESCR on layout A, or the item text like "PIPE" / "CONNECTION").
 - If a field is not readable or not present, use null.
 
-Return ONLY the JSON object, nothing else`,
-            },
-          ],
-        },
-      ],
-    }),
-  })
+Return ONLY the JSON object, nothing else`
 
-  if (!response.ok) {
-    const errBody = await response.text()
-    throw new Error(`Claude API error ${response.status}: ${errBody}`)
-  }
-
-  const result = await response.json()
-  const text = result.content?.[0]?.text || ''
-
-  const jsonMatch = text.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) {
-    throw new Error('Claude returned no valid JSON')
-  }
-
-  const parsed = JSON.parse(jsonMatch[0])
-
+function postProcessPrepack(parsed: any): LabelData {
   let itemNumber: string | null = parsed.item_number || null
   let poLine: string | null = parsed.po_line || null
 
@@ -163,6 +119,64 @@ Return ONLY the JSON object, nothing else`,
   }
 }
 
+async function extractLabelWithClaude(base64Image: string, mediaType: string): Promise<LabelData> {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_API_KEY!,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1024,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: { type: 'base64', media_type: mediaType, data: base64Image },
+            },
+            { type: 'text', text: PREPACK_PROMPT },
+          ],
+        },
+      ],
+    }),
+  })
+
+  if (!response.ok) {
+    const errBody = await response.text()
+    throw new Error(`Claude API error ${response.status}: ${errBody}`)
+  }
+
+  const result = await response.json()
+  const text = result.content?.[0]?.text || ''
+
+  const jsonMatch = text.match(/\{[\s\S]*\}/)
+  if (!jsonMatch) {
+    throw new Error('Claude returned no valid JSON')
+  }
+
+  return postProcessPrepack(JSON.parse(jsonMatch[0]))
+}
+
+async function extractLabelWithOpenAI(base64Image: string, mediaType: string): Promise<LabelData> {
+  const parsed = (await callOpenAIVision(PREPACK_PROMPT, base64Image, mediaType)) as any
+  return postProcessPrepack(parsed)
+}
+
+async function extractLabel(
+  provider: LabelProvider,
+  base64Image: string,
+  mediaType: string
+): Promise<LabelData> {
+  if (provider === 'gpt5') {
+    return extractLabelWithOpenAI(base64Image, mediaType)
+  }
+  return extractLabelWithClaude(base64Image, mediaType)
+}
+
 function detectLabelType(label: LabelData): 'prepack' | 'powertools' | 'd_nummer' {
   if (label.delivery_notice && /^D\d+$/i.test(label.delivery_notice.trim())) {
     return 'd_nummer'
@@ -182,19 +196,24 @@ function detectLabelType(label: LabelData): 'prepack' | 'powertools' | 'd_nummer
 }
 
 export async function POST(request: Request) {
-  if (!ANTHROPIC_API_KEY) {
-    return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
-  }
-
   try {
     const body = await request.json()
-    const { image, mediaType } = body
+    const { image, mediaType, provider: providerRaw } = body
 
     if (!image || !mediaType) {
       return NextResponse.json({ error: 'Missing image or mediaType' }, { status: 400 })
     }
 
-    const labelData = await extractLabelWithClaude(image, mediaType)
+    const activeProvider: LabelProvider = isLabelProvider(providerRaw) ? providerRaw : 'haiku'
+
+    if (activeProvider === 'haiku' && !ANTHROPIC_API_KEY) {
+      return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
+    }
+    if (activeProvider === 'gpt5' && !process.env.OPENAI_API_KEY) {
+      return NextResponse.json({ error: 'OPENAI_API_KEY not configured' }, { status: 500 })
+    }
+
+    const labelData = await extractLabel(activeProvider, image, mediaType)
     const labelType = detectLabelType(labelData)
 
     if (!labelData.item_number) {
@@ -203,6 +222,7 @@ export async function POST(request: Request) {
         labelType,
         matches: [],
         warning: 'Kon geen item nummer uitlezen van het label',
+        provider: activeProvider,
       })
     }
 
@@ -212,6 +232,7 @@ export async function POST(request: Request) {
         labelType,
         matches: [],
         warning: null,
+        provider: activeProvider,
       })
     }
 
@@ -221,6 +242,7 @@ export async function POST(request: Request) {
         labelType,
         matches: [],
         warning: null,
+        provider: activeProvider,
       })
     }
 
@@ -259,6 +281,7 @@ export async function POST(request: Request) {
         date_added: m.date_added,
       })),
       warning,
+      provider: activeProvider,
     })
   } catch (err: any) {
     console.error('Scan label error:', err)
