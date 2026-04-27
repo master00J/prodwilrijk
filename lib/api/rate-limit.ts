@@ -72,6 +72,7 @@ export function checkRateLimit(key: string, config: RateLimitConfig): RateLimitR
 export const RATE_LIMITS = {
   general: { windowMs: 60_000, maxRequests: 100 },
   ai_scan: { windowMs: 60_000, maxRequests: 100 },
+  ai_chat: { windowMs: 60_000, maxRequests: 20 },
   email: { windowMs: 60_000, maxRequests: 5 },
   auth: { windowMs: 60_000, maxRequests: 15 },
   admin_write: { windowMs: 60_000, maxRequests: 30 },

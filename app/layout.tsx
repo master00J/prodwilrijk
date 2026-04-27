@@ -5,6 +5,7 @@ import AuthProvider from '@/components/AuthProvider'
 import NewFeaturePopup from '@/components/NewFeaturePopup'
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister'
 import { BcMappingProvider } from '@/lib/bc-mapping/client'
+import AiChatWidget from '@/components/AiChatWidget'
 
 export const metadata: Metadata = {
   title: 'Prodwilrijk V2',
@@ -32,6 +33,7 @@ export default function RootLayout({
             <NewFeaturePopup />
             <ServiceWorkerRegister />
             {children}
+            <AiChatWidget />
           </BcMappingProvider>
         </AuthProvider>
       </body>
