@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { logApiError } from '@/lib/api/log-error'
 
 export const dynamic = 'force-dynamic'
 
@@ -97,7 +98,7 @@ export async function POST(request: NextRequest) {
       count: overview.length,
     })
   } catch (error: any) {
-    console.error('Process error:', error)
+    logApiError(error, { route: '/api/grote-inpak/process', method: 'POST' })
     return NextResponse.json(
       { error: error.message || 'Error processing data' },
       { status: 500 }

@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import * as XLSX from 'xlsx'
-
-export const dynamic = 'force-dynamic'
+import { logApiError } from '@/lib/api/log-error'
 import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
 import { getBcMappingLookup } from '@/lib/bc-mapping/server'
+
+export const dynamic = 'force-dynamic'
 
 // Increase body size limit for Vercel
 export const maxDuration = 60
@@ -307,7 +308,7 @@ export async function POST(request: NextRequest) {
       filesProcessed: files.length,
     })
   } catch (error: any) {
-    console.error('Upload error:', error)
+    logApiError(error, { route: '/api/grote-inpak/upload-multiple', method: 'POST' })
     return NextResponse.json(
       { error: error.message || 'Error processing files' },
       { status: 500 }

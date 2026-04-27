@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
-import { calculateGroteInpakAutoStatus } from '@/lib/grote-inpak/auto-status'
+import { allocateGroteInpakAutoStatus, type GroteInpakStatusAllocationPool } from '@/lib/grote-inpak/auto-status'
+import { logApiError } from '@/lib/api/log-error'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,6 +9,19 @@ function stripAutomaticStatus(updates: Record<string, any>) {
   const allowedUpdates = { ...updates }
   delete allowedUpdates.status
   return allowedUpdates
+}
+
+function allocationKey(caseType: unknown) {
+  const kt = String(caseType || '').trim().toUpperCase()
+  if (!kt) return ''
+  return kt.startsWith('V') ? `K${kt.substring(1)}` : kt
+}
+
+function sortCasesForAllocation(a: any, b: any) {
+  const aDate = a.arrival_date ? new Date(a.arrival_date).getTime() : Number.MAX_SAFE_INTEGER
+  const bDate = b.arrival_date ? new Date(b.arrival_date).getTime() : Number.MAX_SAFE_INTEGER
+  if (aDate !== bDate) return aDate - bDate
+  return String(a.case_label || '').localeCompare(String(b.case_label || ''))
 }
 
 export async function GET(request: NextRequest) {
@@ -124,11 +138,11 @@ export async function GET(request: NextRequest) {
         })
       }
 
-      filteredData = filteredData.map((item: any) => {
+      const enrichedData = filteredData.map((item: any) => {
         const kt = String(item.case_type || '').trim().toUpperCase()
         const ktAlt = kt.startsWith('V') ? 'K' + kt.substring(1) : null
         const lookup = (m: Map<string, number>) => (m.get(kt) ?? 0) || (ktAlt ? (m.get(ktAlt) ?? 0) : 0)
-        const enrichedItem = {
+        return {
           ...item,
           forecast_date:       forecastMap.get(item.case_label) ?? null,
           stock_willebroek:    lookup(stockWillebroekMap),
@@ -137,10 +151,41 @@ export async function GET(request: NextRequest) {
           in_productie_qty:    lookup(inProductieMap),
           in_transfer_qty:     lookup(inTransferMap),
         }
+      })
 
+      const pools = new Map<string, GroteInpakStatusAllocationPool>()
+      for (const item of enrichedData) {
+        const key = allocationKey(item.case_type)
+        if (!key || pools.has(key)) continue
+        pools.set(key, {
+          stock_willebroek: Number(item.stock_willebroek) || 0,
+          stock_genk: Number(item.stock_genk) || 0,
+          stock_wilrijk: Number(item.stock_wilrijk) || 0,
+          in_transfer_qty: Number(item.in_transfer_qty) || 0,
+          in_productie_qty: Number(item.in_productie_qty) || 0,
+        })
+      }
+
+      const allocatedByCase = new Map<string, { status: string; reason: string }>()
+      ;[...enrichedData].sort(sortCasesForAllocation).forEach((item: any) => {
+        const key = allocationKey(item.case_type)
+        const pool = key ? pools.get(key) : null
+        if (!pool) {
+          allocatedByCase.set(item.case_label, {
+            status: 'Nog te produceren',
+            reason: 'Geen kisttype gevonden om stock of productie te matchen',
+          })
+          return
+        }
+        allocatedByCase.set(item.case_label, allocateGroteInpakAutoStatus(pool))
+      })
+
+      filteredData = enrichedData.map((item: any) => {
+        const allocated = allocatedByCase.get(item.case_label)
         return {
-          ...enrichedItem,
-          status: calculateGroteInpakAutoStatus(enrichedItem),
+          ...item,
+          status: allocated?.status ?? 'Nog te produceren',
+          status_reason: allocated?.reason ?? 'Geen statusallocatie gevonden',
         }
       })
     }
@@ -166,7 +211,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ data: filteredData, count: filteredData.length })
   } catch (error: any) {
-    console.error('Error fetching cases:', error)
+    logApiError(error, { route: '/api/grote-inpak/cases', method: 'GET' })
     return NextResponse.json(
       { error: error.message || 'Error fetching cases' },
       { status: 500 }
@@ -205,7 +250,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ success: true, data })
   } catch (error: any) {
-    console.error('Error updating case:', error)
+    logApiError(error, { route: '/api/grote-inpak/cases', method: 'PATCH' })
     return NextResponse.json(
       { error: error.message || 'Error updating case' },
       { status: 500 }
@@ -244,7 +289,7 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({ success: true, updated: updates.length })
   } catch (error: any) {
-    console.error('Error bulk updating cases:', error)
+    logApiError(error, { route: '/api/grote-inpak/cases', method: 'PUT' })
     return NextResponse.json(
       { error: error.message || 'Error bulk updating cases' },
       { status: 500 }

@@ -817,10 +817,15 @@ export default function TransportTab({ transport, overview }: TransportTabProps)
                         <td className="px-4 py-2.5">
                           <span
                             className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${statusBadgeClass(di.status)}`}
-                            title="Automatisch bepaald op basis van stock, transfer en productie"
+                            title={di.status_reason || 'Automatisch bepaald op basis van stock, transfer en productie'}
                           >
                             {di.status || 'Onbekend'}
                           </span>
+                          {di.status_reason && (
+                            <p className="mt-1 max-w-[12rem] truncate text-xs text-gray-500" title={di.status_reason}>
+                              {di.status_reason}
+                            </p>
+                          )}
                         </td>
                         <td className="px-4 py-2.5">
                           <input

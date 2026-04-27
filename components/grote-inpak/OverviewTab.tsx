@@ -903,10 +903,15 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                   <td className="px-2 py-2 whitespace-nowrap">
                     <span
                       className={`inline-flex items-center rounded-full border px-2 py-1 text-xs font-semibold ${getStatusBadgeClass(displayItem.status)}`}
-                      title="Automatisch bepaald op basis van stock, transfer en productie"
+                      title={displayItem.status_reason || 'Automatisch bepaald op basis van stock, transfer en productie'}
                     >
                       {displayItem.status || 'Onbekend'}
                     </span>
+                    {displayItem.status_reason && (
+                      <p className="mt-1 max-w-[12rem] truncate text-xs text-slate-500" title={displayItem.status_reason}>
+                        {displayItem.status_reason}
+                      </p>
+                    )}
                   </td>
                   <td className="px-2 py-2 min-w-[8rem] max-w-xs">
                     <input

@@ -45,6 +45,7 @@ export interface GroteInpakCase {
   stock_wilrijk?: number | null
   in_productie_qty?: number | null
   in_transfer_qty?: number | null
+  status_reason?: string | null
 }
 
 export interface GroteInpakTransport {
