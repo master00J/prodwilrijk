@@ -44,8 +44,8 @@ export default function AdminPage() {
       color: 'orange',
     },
     {
-      title: 'Weert Stockbeheer',
-      description: 'Beheer stock voor locatie Weert, inclusief klanten, rek/locatie, status en opmerkingen',
+      title: 'Weert Min/Max Voorraad',
+      description: 'Beheer min/max voorraad voor locatie Weert, inclusief klanten, huidige stock en besteladvies',
       href: '/admin/weert-stock',
       icon: '🏬',
       color: 'purple',

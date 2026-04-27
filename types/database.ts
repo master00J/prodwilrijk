@@ -94,6 +94,10 @@ export interface WeertStockItem {
   description: string
   pallet_or_package?: string | null
   quantity: number
+  min_stock: number
+  max_stock: number
+  reorder_shortage?: number
+  reorder_quantity?: number
   unit: string
   location?: string | null
   status: 'in_stock' | 'reserved' | 'shipped' | 'damaged'

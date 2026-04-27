@@ -63,6 +63,13 @@ export const GET = withAdmin(async (request) => {
     const customerMap = new Map((customers || []).map((customer: any) => [customer.id, customer]))
     const enrichedItems = (items || []).map((item: any) => ({
       ...item,
+      min_stock: Number(item.min_stock) || 0,
+      max_stock: Number(item.max_stock) || 0,
+      reorder_shortage: Math.max(0, (Number(item.min_stock) || 0) - (Number(item.quantity) || 0)),
+      reorder_quantity:
+        (Number(item.quantity) || 0) < (Number(item.min_stock) || 0)
+          ? Math.max(0, (Number(item.max_stock) || 0) - (Number(item.quantity) || 0))
+          : 0,
       customer: item.customer_id ? customerMap.get(item.customer_id) || null : null,
     }))
 
@@ -70,10 +77,12 @@ export const GET = withAdmin(async (request) => {
       (acc: any, item: any) => {
         acc.totalLines += 1
         acc.totalQuantity += Number(item.quantity) || 0
+        acc.totalToOrder += Number(item.reorder_quantity) || 0
+        if ((Number(item.reorder_quantity) || 0) > 0) acc.linesToOrder += 1
         acc.byStatus[item.status] = (acc.byStatus[item.status] || 0) + (Number(item.quantity) || 0)
         return acc
       },
-      { totalLines: 0, totalQuantity: 0, byStatus: {} }
+      { totalLines: 0, totalQuantity: 0, totalToOrder: 0, linesToOrder: 0, byStatus: {} }
     )
 
     return NextResponse.json({ customers: customers || [], items: enrichedItems, summary })
@@ -126,6 +135,8 @@ export const POST = withAdmin(async (request) => {
           description,
           pallet_or_package: text(body.pallet_or_package),
           quantity: positiveNumber(body.quantity),
+          min_stock: positiveNumber(body.min_stock),
+          max_stock: positiveNumber(body.max_stock),
           unit: text(body.unit) || 'stuks',
           location: text(body.location),
           status: normalizeStatus(body.status),
@@ -179,6 +190,8 @@ export const PUT = withAdmin(async (request) => {
       if (body.description !== undefined) update.description = text(body.description)
       if (body.pallet_or_package !== undefined) update.pallet_or_package = text(body.pallet_or_package)
       if (body.quantity !== undefined) update.quantity = positiveNumber(body.quantity)
+      if (body.min_stock !== undefined) update.min_stock = positiveNumber(body.min_stock)
+      if (body.max_stock !== undefined) update.max_stock = positiveNumber(body.max_stock)
       if (body.unit !== undefined) update.unit = text(body.unit) || 'stuks'
       if (body.location !== undefined) update.location = text(body.location)
       if (body.status !== undefined) update.status = normalizeStatus(body.status)
