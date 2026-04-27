@@ -24,6 +24,27 @@ function shouldHide(pathname: string | null) {
   return HIDDEN_PATHS.some(path => pathname.startsWith(path))
 }
 
+function renderMessageContent(content: string) {
+  const parts = content.split(/(\[[^\]]+\]\(https?:\/\/[^)\s]+\))/g)
+  return parts.map((part, index) => {
+    const match = part.match(/^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/)
+    if (!match) return <span key={index}>{part}</span>
+
+    const [, label, href] = match
+    return (
+      <a
+        key={index}
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-medium underline underline-offset-2"
+      >
+        {label}
+      </a>
+    )
+  })
+}
+
 export default function AiChatWidget() {
   const pathname = usePathname()
   const { user, loading, isVerified } = useAuth()
@@ -107,7 +128,7 @@ export default function AiChatWidget() {
                     : 'mr-8 bg-slate-100 text-slate-800'
                 }`}
               >
-                {message.content}
+                {renderMessageContent(message.content)}
               </div>
             ))}
 

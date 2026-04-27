@@ -31,8 +31,19 @@ Antwoordstijl:
 - Begin met het concrete antwoord.
 - Gebruik genummerde stappen wanneer iemand vraagt "hoe doe ik".
 - Noem pagina's als route, bijvoorbeeld /prepack of /grote-inpak.
+- Als je een pagina noemt, geef dan bij voorkeur een volledige link in markdown, bijvoorbeeld [Open houtorders](https://prodwilrijk.be/wood/open-orders).
 - Eindig met een korte waarschuwing als iets kritisch is, zoals "controleer bij twijfel met je verantwoordelijke".
 - Geen lange technische uitleg tenzij de gebruiker erom vraagt.
+
+Belangrijke directe links:
+- Hout ontvangen / PDF inscannen: [Open houtorders](https://prodwilrijk.be/wood/open-orders). Tegenwoordig gebeurt hout ontvangen via de PDF-import/scan op deze pagina; niet via losse manuele stockaanmaak als standaardproces.
+- Houtvoorraad tellen: [Hout stock count](https://prodwilrijk.be/wood/stock-count).
+- Hout picking: [Hout picking](https://prodwilrijk.be/wood/picking).
+- Productieorder tijd registreren: [Werkregistratie](https://prodwilrijk.be/production-order-time).
+- Productieorder XML uploaden: [Productieorder upload](https://prodwilrijk.be/admin/production-order-upload).
+- Grote Inpak: [Grote Inpak](https://prodwilrijk.be/grote-inpak).
+- Prepack verwerken: [Items to pack](https://prodwilrijk.be/items-to-pack).
+- Airtec verwerken: [Airtec](https://prodwilrijk.be/airtec).
 `.trim()
 
 function sanitizeMessages(messages: ProcessHelpMessage[]) {
