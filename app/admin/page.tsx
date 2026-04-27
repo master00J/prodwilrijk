@@ -44,6 +44,13 @@ export default function AdminPage() {
       color: 'orange',
     },
     {
+      title: 'Weert Stockbeheer',
+      description: 'Beheer stock voor locatie Weert, inclusief klanten, rek/locatie, status en opmerkingen',
+      href: '/admin/weert-stock',
+      icon: '🏬',
+      color: 'purple',
+    },
+    {
       title: 'Verkooporders Upload',
       description: 'Upload Excel bestand met verkooporders om prijzen in te laden voor omzet berekening',
       href: '/admin/sales-orders',

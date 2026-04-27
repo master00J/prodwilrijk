@@ -753,6 +753,15 @@ export default function Navbar() {
                       Airtec Kisten Stock
                     </Link>
                     <Link
+                      href="/admin/weert-stock"
+                      onClick={() => setIsAdminOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/admin/weert-stock') ? 'bg-purple-50 text-purple-600 font-medium border-l-4 border-purple-500' : 'text-gray-700'
+                      }`}
+                    >
+                      Weert Stockbeheer
+                    </Link>
+                    <Link
                       href="/tv-admin"
                       onClick={() => setIsAdminOpen(false)}
                       className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
@@ -1006,6 +1015,7 @@ export default function Navbar() {
                       <Link href="/admin/users" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">User Management</Link>
                       <Link href="/admin/airtec-prices" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Airtec Prices</Link>
                       <Link href="/admin/airtec-kisten-stock" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Airtec Kisten Stock</Link>
+                      <Link href="/admin/weert-stock" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Weert Stockbeheer</Link>
                       <Link href="/admin/prepack-airtec" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Prepack + Airtec</Link>
                       <Link href="/opslag-verhuur" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Opslagverhuur</Link>
                       <Link href="/admin/bc-codes" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">BC Codes</Link>

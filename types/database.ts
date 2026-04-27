@@ -74,6 +74,36 @@ export interface GroteInpakStock {
   updated_at: string
 }
 
+export interface WeertCustomer {
+  id: number
+  name: string
+  contact_name?: string | null
+  email?: string | null
+  phone?: string | null
+  notes?: string | null
+  active: boolean
+  created_at?: string
+  updated_at?: string
+}
+
+export interface WeertStockItem {
+  id: number
+  customer_id?: number | null
+  customer?: WeertCustomer | null
+  item_code?: string | null
+  description: string
+  pallet_or_package?: string | null
+  quantity: number
+  unit: string
+  location?: string | null
+  status: 'in_stock' | 'reserved' | 'shipped' | 'damaged'
+  received_at?: string | null
+  last_counted_at?: string | null
+  notes?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
 export interface GroteInpakForecast {
   id: number
   item_number?: string | null

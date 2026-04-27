@@ -12,7 +12,7 @@ type ChatMessage = {
 
 type GuidedWorkflow = {
   type: 'wood-receive'
-  step: 1 | 2 | 3
+  step: 1 | 2 | 3 | 4
 }
 
 const HIDDEN_PATHS = ['/login', '/signup', '/pending-verification', '/tv-display']
@@ -40,7 +40,10 @@ function isWoodReceiveQuestion(question: string) {
       normalized.includes('levering') ||
       normalized.includes('pdf') ||
       normalized.includes('inscannen') ||
-      normalized.includes('scan')
+      normalized.includes('scan') ||
+      normalized.includes('rek') ||
+      normalized.includes('locatie') ||
+      normalized.includes('stock')
     )
   )
 }
@@ -51,9 +54,9 @@ function woodReceiveStepMessage(step: GuidedWorkflow['step']) {
       'We begeleiden het ontvangen van hout stap voor stap.',
       '',
       'Stap 1: open [Open houtorders](https://prodwilrijk.be/wood/open-orders).',
-      'Upload of scan daar de PDF van de houtlevering.',
+      'Registreer daar de pakketten op de open order, of gebruik "Import PDF" voor de Foresco CMR Summary.',
       '',
-      'Klik daarna hier op "PDF is geüpload".',
+      'Klik daarna hier op "Pakketten geregistreerd".',
     ].join('\n')
   }
 
@@ -66,17 +69,26 @@ function woodReceiveStepMessage(step: GuidedWorkflow['step']) {
       '- houtsoort',
       '- dikte, breedte en lengte',
       '- aantal planken per pak',
-      '- locatie',
       '',
-      'Klik pas verder als deze gegevens overeenkomen met de levering.',
+      'Klik pas verder als deze gegevens overeenkomen met de levering. De locatie/rekpositie volgt in de volgende stap.',
+    ].join('\n')
+  }
+
+  if (step === 3) {
+    return [
+      'Stap 3: zet het pakket in het rek via [Hout receive](https://prodwilrijk.be/wood/receive).',
+      '',
+      'Zoek of selecteer het pakket bij "Packages Ready for Location".',
+      'Vul de juiste fysieke locatie of rekpositie in.',
+      'Klik daarna op "Add to Stock".',
     ].join('\n')
   }
 
   return [
-    'Stap 3: bevestig de ontvangst in de houtflow.',
+    'Stap 4: controleer de stock.',
     '',
-    'Na bevestigen moet de voorraad zichtbaar zijn in de wood stock.',
-    'Controleer bij twijfel of de juiste lengtes en aantallen zijn toegevoegd.',
+    'Na "Add to Stock" is het pakket ontvangen, staat de locatie op het pakket en is er een wood stock-lijn aangemaakt.',
+    'Controleer bij twijfel of de juiste lengte, aantallen en locatie zijn toegevoegd.',
   ].join('\n')
 }
 
@@ -171,7 +183,7 @@ export default function AiChatWidget() {
       ...previous,
       {
         role: 'assistant',
-        content: 'Klaar. Het hout is ontvangen als de pakketten bevestigd zijn en de voorraad klopt in wood stock. Controleer bij twijfel met je verantwoordelijke.',
+        content: 'Klaar. Het hout is correct verwerkt als het pakket geregistreerd is, via /wood/receive een locatie heeft gekregen en de voorraad klopt in wood stock. Controleer bij twijfel met je verantwoordelijke.',
       },
     ])
   }
@@ -246,15 +258,15 @@ export default function AiChatWidget() {
             {guidedWorkflow?.type === 'wood-receive' && (
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">
                 <div className="mb-2 font-semibold">Begeleide workflow: hout ontvangen</div>
-                <div className="mb-3 text-xs text-emerald-800">Stap {guidedWorkflow.step} van 3</div>
+                <div className="mb-3 text-xs text-emerald-800">Stap {guidedWorkflow.step} van 4</div>
                 <div className="flex flex-wrap gap-2">
                   <a
-                    href="https://prodwilrijk.be/wood/open-orders"
+                    href={guidedWorkflow.step >= 3 ? 'https://prodwilrijk.be/wood/receive' : 'https://prodwilrijk.be/wood/open-orders'}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-800"
                   >
-                    Open houtorders
+                    {guidedWorkflow.step >= 3 ? 'Open Hout receive' : 'Open houtorders'}
                   </a>
                   {guidedWorkflow.step === 1 && (
                     <button
@@ -262,7 +274,7 @@ export default function AiChatWidget() {
                       onClick={() => advanceWoodWorkflow(2)}
                       className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-medium text-emerald-900 hover:bg-emerald-100"
                     >
-                      PDF is geüpload
+                      Pakketten geregistreerd
                     </button>
                   )}
                   {guidedWorkflow.step === 2 && (
@@ -277,10 +289,19 @@ export default function AiChatWidget() {
                   {guidedWorkflow.step === 3 && (
                     <button
                       type="button"
+                      onClick={() => advanceWoodWorkflow(4)}
+                      className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-medium text-emerald-900 hover:bg-emerald-100"
+                    >
+                      Locatie ingevuld en toegevoegd
+                    </button>
+                  )}
+                  {guidedWorkflow.step === 4 && (
+                    <button
+                      type="button"
                       onClick={finishWoodWorkflow}
                       className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-medium text-emerald-900 hover:bg-emerald-100"
                     >
-                      Ontvangst bevestigd
+                      Stock gecontroleerd
                     </button>
                   )}
                 </div>
