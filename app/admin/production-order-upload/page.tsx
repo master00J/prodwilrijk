@@ -29,6 +29,7 @@ export default function ProductionOrderUploadPage() {
   } | null>(null)
   const [materialEdits, setMaterialEdits] = useState<Record<string, string>>({})
   const [materialUnitEdits, setMaterialUnitEdits] = useState<Record<string, string>>({})
+  const [woodAdvice, setWoodAdvice] = useState<any | null>(null)
 
   const parseFlexibleNumber = (value: string | number | null | undefined): number | null => {
     if (value === null || value === undefined) return null
@@ -39,14 +40,20 @@ export default function ProductionOrderUploadPage() {
 
   const fetchLatestOrder = useCallback(async () => {
     try {
-      const [latestRes, detailsRes] = await Promise.all([
+      const [latestRes, detailsRes, woodAdviceRes] = await Promise.all([
         fetch('/api/production-orders/latest-for-time'),
         fetch('/api/production-order-time/order-details'),
+        fetch('/api/production-order-time/wood-advice'),
       ])
       if (!latestRes.ok) return
       const latestData = await latestRes.json()
       setLatestOrder(latestData)
       setPriceEdits({})
+      if (woodAdviceRes.ok) {
+        setWoodAdvice(await woodAdviceRes.json())
+      } else {
+        setWoodAdvice(null)
+      }
 
       if (detailsRes.ok && latestData?.order?.order_number) {
         const detailsData = await detailsRes.json()
@@ -61,6 +68,7 @@ export default function ProductionOrderUploadPage() {
     } catch {
       setLatestOrder(null)
       setOrderDetails(null)
+      setWoodAdvice(null)
     }
   }, [])
 
@@ -545,6 +553,109 @@ export default function ProductionOrderUploadPage() {
             >
               Materiaalprijzen opslaan
             </button>
+          </div>
+        )}
+
+        {woodAdvice && (
+          <div className="bg-white rounded-lg shadow p-6 border border-gray-200 mt-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-4">
+              <div>
+                <h2 className="text-xl font-semibold">5. Houtadvies open productieorders</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Matcht houtcomponenten uit open productieorders met huidige houtvoorraad en kiest de kortste passende lengte.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={fetchLatestOrder}
+                className="px-3 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50"
+              >
+                Vernieuwen
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                <div className="text-xs text-gray-500">Houtgroepen</div>
+                <div className="text-lg font-semibold">{woodAdvice.summary?.groups || 0}</div>
+              </div>
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <div className="text-xs text-red-700">Groepen met tekort</div>
+                <div className="text-lg font-semibold text-red-900">{woodAdvice.summary?.shortage_groups || 0}</div>
+              </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <div className="text-xs text-amber-700">Totaal tekort planken</div>
+                <div className="text-lg font-semibold text-amber-900">{woodAdvice.summary?.total_shortage || 0}</div>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500">
+                    <th className="py-2 pr-4">Materiaal</th>
+                    <th className="py-2 pr-4">Nodig</th>
+                    <th className="py-2 pr-4">Gedekt</th>
+                    <th className="py-2 pr-4">Beste match</th>
+                    <th className="py-2 pr-4">Tekort / advies</th>
+                    <th className="py-2 pr-4">Orders</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(woodAdvice.requirements || []).map((row: any) => (
+                    <tr key={row.key} className="border-t align-top">
+                      <td className="py-3 pr-4 font-medium whitespace-nowrap">
+                        {row.houtsoort} {row.dikte}×{row.breedte}×{row.lengte}
+                      </td>
+                      <td className="py-3 pr-4">{row.required}</td>
+                      <td className="py-3 pr-4">
+                        <span className={row.shortage > 0 ? 'text-amber-700 font-medium' : 'text-green-700 font-medium'}>
+                          {row.available_matching}
+                        </span>
+                      </td>
+                      <td className="py-3 pr-4 min-w-[14rem]">
+                        {row.allocations?.length ? (
+                          <ul className="space-y-1 text-gray-700">
+                            {row.allocations.map((a: any, idx: number) => (
+                              <li key={`${row.key}-${idx}`}>
+                                {a.quantity}× {a.lengte}mm ({a.locatie})
+                                {a.waste_mm_per_piece > 0 && (
+                                  <span className="text-gray-400"> · rest {a.waste_mm_per_piece}mm/st</span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <span className="text-gray-400">Geen passende stock</span>
+                        )}
+                      </td>
+                      <td className="py-3 pr-4">
+                        {row.shortage > 0 ? (
+                          <div className="text-red-700">
+                            <span className="font-semibold">{row.shortage} tekort</span>
+                            <div className="text-xs text-red-600">
+                              bestel bij voorkeur {row.recommended_order_length}mm
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-green-700 font-medium">Gedekt</span>
+                        )}
+                      </td>
+                      <td className="py-3 pr-4 text-gray-500 max-w-xs">
+                        {(row.source_orders || []).join(', ')}
+                      </td>
+                    </tr>
+                  ))}
+                  {(!woodAdvice.requirements || woodAdvice.requirements.length === 0) && (
+                    <tr>
+                      <td colSpan={6} className="py-4 text-gray-500">
+                        Geen houtcomponenten gevonden in open productieorders.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

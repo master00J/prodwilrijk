@@ -61,6 +61,7 @@ export default function ProductionOrderTimePage() {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [orderLines, setOrderLines] = useState<OrderLine[]>([])
   const [activeLogs, setActiveLogs] = useState<ActiveLog[]>([])
+  const [woodAdviceSummary, setWoodAdviceSummary] = useState<{ groups: number; shortage_groups: number; total_shortage: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [ordersLoading, setOrdersLoading] = useState(false)
 
@@ -129,12 +130,19 @@ export default function ProductionOrderTimePage() {
     )
   }, [])
 
+  const fetchWoodAdviceSummary = useCallback(async () => {
+    const response = await fetch('/api/production-order-time/wood-advice')
+    if (!response.ok) return
+    const data = await response.json()
+    setWoodAdviceSummary(data.summary || null)
+  }, [])
+
   useEffect(() => {
     setLoading(true)
-    Promise.all([fetchEmployees(), fetchActiveLogs(), fetchOrders(false, '')])
+    Promise.all([fetchEmployees(), fetchActiveLogs(), fetchOrders(false, ''), fetchWoodAdviceSummary()])
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [fetchEmployees, fetchActiveLogs, fetchOrders])
+  }, [fetchEmployees, fetchActiveLogs, fetchOrders, fetchWoodAdviceSummary])
 
   useEffect(() => {
     const timer = setInterval(() => void fetchActiveLogs(), 30000)
@@ -325,6 +333,24 @@ export default function ProductionOrderTimePage() {
           </select>
         </div>
       </div>
+
+      {activeTab === 'actief' && woodAdviceSummary && (
+        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <div className="font-semibold">Houtadvies voor open productieorders</div>
+          <div className="mt-1">
+            {woodAdviceSummary.shortage_groups > 0 ? (
+              <>
+                {woodAdviceSummary.shortage_groups} houtgroep(en) met tekort, totaal {woodAdviceSummary.total_shortage} plank(en).
+                Bekijk details bij <span className="font-medium">Admin &gt; Productieorder upload</span>.
+              </>
+            ) : (
+              <>
+                Alle {woodAdviceSummary.groups} houtgroep(en) lijken gedekt door de huidige voorraad.
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Orders tabel (desktop) */}
       <section className="hidden md:block overflow-x-auto bg-white rounded-lg shadow">
