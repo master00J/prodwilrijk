@@ -125,12 +125,18 @@ export default function ItemsTable({
               items.map((item) => {
                 const isPriority = item.priority
                 const isMeasurement = item.measurement
+                const isMeasurementFilled = item.measurement_filled === true
                 const isProblem = item.problem
                 
-                // Problem items get red background, priority over other colors
+                // Problem items get red background, priority over other colors.
+                // Filled measurements get green so they stand out from "needs measurement" rows.
                 let rowClass = ''
                 if (isProblem) {
                   rowClass = 'bg-red-100 border-l-4 border-red-500'
+                } else if (isPriority && isMeasurementFilled) {
+                  rowClass = 'bg-gradient-to-r from-yellow-50 to-emerald-50 border-l-4 border-emerald-500'
+                } else if (isMeasurementFilled) {
+                  rowClass = 'bg-emerald-50 border-l-4 border-emerald-500'
                 } else if (isPriority && isMeasurement) {
                   rowClass = 'bg-gradient-to-r from-yellow-50 to-blue-50'
                 } else if (isPriority) {
@@ -167,12 +173,19 @@ export default function ItemsTable({
                       />
                     </td>
                     <td className="px-2 sm:px-4 py-3 sm:py-4">
-                      <input
-                        type="checkbox"
-                        checked={isMeasurement}
-                        readOnly
-                        className="w-5 h-5"
-                      />
+                      <div className="flex flex-col gap-1">
+                        <input
+                          type="checkbox"
+                          checked={isMeasurement}
+                          readOnly
+                          className="w-5 h-5"
+                        />
+                        {isMeasurementFilled && (
+                          <span className="inline-flex w-fit rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
+                            Afmetingen ingevuld
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-2 sm:px-4 py-3 sm:py-4">
                       {isProblem && (

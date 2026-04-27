@@ -6,6 +6,7 @@ export interface ItemToPack {
   date_added: string
   priority: boolean
   measurement: boolean
+  measurement_filled?: boolean
   packed: boolean
   problem: boolean
   problem_comment?: string | null

@@ -90,11 +90,24 @@ export async function GET(request: NextRequest) {
         }
       })
 
-      // Add images to items
+      const { data: measurements } = await supabaseAdmin
+        .from('measurements')
+        .select('item_id, dimensions')
+        .in('item_id', itemIds)
+
+      const measuredItemIds = new Set<number>()
+      measurements?.forEach((measurement: any) => {
+        if (measurement.item_id && String(measurement.dimensions || '').trim().length > 0) {
+          measuredItemIds.add(measurement.item_id)
+        }
+      })
+
+      // Add images and measurement completion state to items
       const itemsWithImages = items.map(item => {
         const itemImages = imagesByItemId.get(item.id) || []
         return {
           ...item,
+          measurement_filled: measuredItemIds.has(item.id),
           images: itemImages,
           image: itemImages[0] || item.image, // Keep first image for backward compatibility
         }
