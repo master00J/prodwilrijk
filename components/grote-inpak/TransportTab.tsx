@@ -61,6 +61,21 @@ function urgencyBadge(arrivalDate: string | null | undefined, inWillebroek: bool
   return { label: `${diffDays}d`, cls: 'bg-blue-50 text-blue-700' }
 }
 
+function statusBadgeClass(status?: string | null) {
+  switch (status) {
+    case 'Op stock':
+      return 'bg-emerald-100 text-emerald-900 border-emerald-200'
+    case 'In transfer':
+      return 'bg-cyan-100 text-cyan-900 border-cyan-200'
+    case 'In productie':
+      return 'bg-orange-100 text-orange-900 border-orange-200'
+    case 'Nog te produceren':
+      return 'bg-slate-100 text-slate-800 border-slate-200'
+    default:
+      return 'bg-gray-50 text-gray-500 border-gray-200'
+  }
+}
+
 export default function TransportTab({ transport, overview }: TransportTabProps) {
   const { toNew: bcToNew } = useBcMapping()
   const [viewMode, setViewMode] = useState<'planning' | 'urgency' | 'detail'>('planning')
@@ -800,18 +815,12 @@ export default function TransportTab({ transport, overview }: TransportTabProps)
                         </td>
                         <td className="px-4 py-2.5 text-sm text-gray-600">{di.stock_location || '-'}</td>
                         <td className="px-4 py-2.5">
-                          <select
-                            value={di.status ?? ''}
-                            onChange={e => handleFieldChange(item.case_label, 'status', e.target.value)}
-                            className="text-sm border border-gray-300 rounded px-2 py-1"
+                          <span
+                            className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${statusBadgeClass(di.status)}`}
+                            title="Automatisch bepaald op basis van stock, transfer en productie"
                           >
-                            <option value="">-</option>
-                            <option>In productie</option>
-                            <option>Gereed</option>
-                            <option>Verzonden</option>
-                            <option>In transit</option>
-                            <option>Ontvangen</option>
-                          </select>
+                            {di.status || 'Onbekend'}
+                          </span>
                         </td>
                         <td className="px-4 py-2.5">
                           <input

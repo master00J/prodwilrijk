@@ -1,9 +1,25 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
-import { Search, Filter, Save, Download, Star, StarOff, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import {
+  Search,
+  Save,
+  Download,
+  Star,
+  StarOff,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
+  LayoutList,
+  MapPin,
+  Package,
+  Truck,
+  AlertTriangle,
+  XCircle,
+} from 'lucide-react'
 import type { GroteInpakCase } from '@/types/database'
 import { BcItemCode } from '@/lib/bc-mapping/client'
+import { GROTE_INPAK_AUTO_STATUSES, type GroteInpakAutoStatus } from '@/lib/grote-inpak/auto-status'
 
 interface OverviewTabProps {
   overview: GroteInpakCase[]
@@ -11,18 +27,28 @@ interface OverviewTabProps {
 
 type SortableColumn = keyof GroteInpakCase | null
 type SortDirection = 'asc' | 'desc'
+type StatusFilter = 'Alle' | GroteInpakAutoStatus
+
+function forecastDagenVerschil(item: GroteInpakCase): number | null {
+  if (!item.forecast_date) return null
+  const f = new Date(item.forecast_date).getTime()
+  const p = item.arrival_date ? new Date(item.arrival_date).getTime() : NaN
+  if (Number.isNaN(p)) return null
+  return Math.round((p - f) / 86400000)
+}
 
 export default function OverviewTab({ overview }: OverviewTabProps) {
   const [filteredData, setFilteredData] = useState<GroteInpakCase[]>(overview)
   const [editedData, setEditedData] = useState<Map<string, Partial<GroteInpakCase>>>(new Map())
-  
+  const [selectedCases, setSelectedCases] = useState<Set<string>>(new Set())
+
   // Sorting
   const [sortColumn, setSortColumn] = useState<SortableColumn>('arrival_date')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
-  
+
   // Filters
   const [locationFilter, setLocationFilter] = useState('Alle')
-  const [statusFilter, setStatusFilter] = useState('Alle')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('Alle')
   const [willebroekFilter, setWillebroekFilter] = useState('Alle')
   const [priorityFilter, setPriorityFilter] = useState('Alle')
   const [kistTypeFilter, setKistTypeFilter] = useState<'Alle' | 'C' | 'K'>('Alle')
@@ -37,10 +63,10 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
     return ['Alle', ...Array.from(locs).sort()]
   }, [overview])
 
-  const statuses = useMemo(() => {
-    const stats = new Set(overview.map(item => item.status).filter((stat): stat is string => Boolean(stat)))
-    return ['Alle', ...Array.from(stats).sort()]
-  }, [overview])
+  const statusOptions = useMemo<StatusFilter[]>(
+    () => ['Alle', ...GROTE_INPAK_AUTO_STATUSES],
+    []
+  )
 
   // Apply filters
   useEffect(() => {
@@ -164,11 +190,28 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
 
   const getSortIcon = (column: SortableColumn) => {
     if (sortColumn !== column) {
-      return <ArrowUpDown className="w-4 h-4 inline-block ml-1 text-gray-400" />
+      return <ArrowUpDown className="w-3.5 h-3.5 inline-block ml-0.5 text-slate-400 align-text-bottom" />
     }
-    return sortDirection === 'asc' 
-      ? <ArrowUp className="w-4 h-4 inline-block ml-1 text-blue-600" />
-      : <ArrowDown className="w-4 h-4 inline-block ml-1 text-blue-600" />
+    return sortDirection === 'asc' ? (
+      <ArrowUp className="w-3.5 h-3.5 inline-block ml-0.5 text-slate-800 align-text-bottom" />
+    ) : (
+      <ArrowDown className="w-3.5 h-3.5 inline-block ml-0.5 text-slate-800 align-text-bottom" />
+    )
+  }
+
+  const getStatusBadgeClass = (status?: string | null) => {
+    switch (status) {
+      case 'Op stock':
+        return 'bg-emerald-100 text-emerald-900 border-emerald-200'
+      case 'In transfer':
+        return 'bg-cyan-100 text-cyan-900 border-cyan-200'
+      case 'In productie':
+        return 'bg-orange-100 text-orange-900 border-orange-200'
+      case 'Nog te produceren':
+        return 'bg-slate-100 text-slate-800 border-slate-200'
+      default:
+        return 'bg-slate-50 text-slate-500 border-slate-200'
+    }
   }
 
   const handleFieldChange = (caseLabel: string, field: keyof GroteInpakCase, value: any) => {
@@ -234,7 +277,51 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
 
   const priorityCount = filteredData.filter(item => item.priority).length
   const commentCount = filteredData.filter(item => item.comment).length
-  const [selectedCases, setSelectedCases] = useState<Set<string>>(new Set())
+
+  const summary = useMemo(() => {
+    let inWb = 0
+    let metTransfer = 0
+    let metStockPlek = 0
+    let forecastKritiek = 0
+    for (const item of filteredData) {
+      if (item.in_willebroek) inWb++
+      if ((item.in_transfer_qty ?? 0) > 0) metTransfer++
+      if (
+        (item.stock_willebroek ?? 0) > 0 ||
+        (item.stock_genk ?? 0) > 0 ||
+        (item.stock_wilrijk ?? 0) > 0 ||
+        item.in_willebroek
+      ) {
+        metStockPlek++
+      }
+      const d = forecastDagenVerschil(item)
+      if (d !== null && d < 0) forecastKritiek++
+    }
+    return { inWb, metTransfer, metStockPlek, forecastKritiek }
+  }, [filteredData])
+
+  const hasActiveFilters =
+    locationFilter !== 'Alle' ||
+    statusFilter !== 'Alle' ||
+    willebroekFilter !== 'Alle' ||
+    priorityFilter !== 'Alle' ||
+    kistTypeFilter !== 'Alle' ||
+    searchQuery.trim() !== '' ||
+    verbergInProductie ||
+    verbergOpStock ||
+    verbergInTransfer
+
+  const resetFilters = useCallback(() => {
+    setLocationFilter('Alle')
+    setStatusFilter('Alle')
+    setWillebroekFilter('Alle')
+    setPriorityFilter('Alle')
+    setKistTypeFilter('Alle')
+    setSearchQuery('')
+    setVerbergInProductie(false)
+    setVerbergOpStock(false)
+    setVerbergInTransfer(false)
+  }, [])
 
   const handleBulkPriority = async (setPriority: boolean) => {
     if (selectedCases.size === 0) {
@@ -271,40 +358,6 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
     }
   }
 
-  const handleBulkStatus = async (status: string) => {
-    if (selectedCases.size === 0) {
-      alert('Selecteer eerst cases')
-      return
-    }
-
-    const updates = Array.from(selectedCases).map(case_label => ({
-      case_label,
-      status,
-    }))
-
-    try {
-      const response = await fetch('/api/grote-inpak/cases', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ updates }),
-      })
-
-      if (response.ok) {
-        const newEdited = new Map(editedData)
-        selectedCases.forEach(case_label => {
-          const existing = newEdited.get(case_label) || {}
-          newEdited.set(case_label, { ...existing, status })
-        })
-        setEditedData(newEdited)
-        setSelectedCases(new Set())
-        alert(`${selectedCases.size} cases bijgewerkt`)
-      }
-    } catch (error) {
-      console.error('Error bulk updating:', error)
-      alert('Error updating cases')
-    }
-  }
-
   const handleSelectCase = (caseLabel: string) => {
     const newSelected = new Set(selectedCases)
     if (newSelected.has(caseLabel)) {
@@ -324,223 +377,296 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
   }
 
   return (
-    <div>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold mb-4">📋 Overzicht - PILS Data</h2>
-        
-        {/* Metrics */}
-        <div className="grid grid-cols-3 gap-4 mb-4">
-          <div className="bg-gray-50 rounded-lg p-4">
-            <p className="text-sm text-gray-600">Totaal Cases</p>
-            <p className="text-2xl font-bold">{filteredData.length}</p>
-            <p className="text-xs text-gray-500">van {overview.length} totaal</p>
+    <div className="space-y-6">
+      <header className="border-b border-slate-200 pb-5">
+        <h2 className="text-2xl font-semibold tracking-tight text-slate-900">PILS-overzicht</h2>
+        <p className="mt-1.5 text-sm text-slate-600 max-w-3xl">
+          Alle kisttypes uit de laatste PILS-run, aangevuld met stock, transfer en forecast. Gebruik de
+          filterbalk om snel te focussen; titels in de tabel klikken om te sorteren.
+        </p>
+      </header>
+
+      <section aria-label="Kerncijfers">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-slate-500 text-xs font-medium uppercase tracking-wide">
+              <LayoutList className="w-4 h-4 shrink-0" />
+              Gefilterd
+            </div>
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">{filteredData.length}</p>
+            <p className="text-xs text-slate-500">van {overview.length} in database</p>
           </div>
-          <div className="bg-yellow-50 rounded-lg p-4">
-            <p className="text-sm text-gray-600">⭐ Priority Cases</p>
-            <p className="text-2xl font-bold">{priorityCount}</p>
+          <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-amber-800 text-xs font-medium">
+              <Star className="w-4 h-4 shrink-0" />
+              Priority
+            </div>
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-amber-900">{priorityCount}</p>
+            <p className="text-xs text-amber-800/80">in huidige selectie</p>
           </div>
-          <div className="bg-blue-50 rounded-lg p-4">
-            <p className="text-sm text-gray-600">💬 Met Comments</p>
-            <p className="text-2xl font-bold">{commentCount}</p>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-slate-500 text-xs font-medium">
+              <MapPin className="w-4 h-4 shrink-0" />
+              Fysiek in WLB
+            </div>
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">{summary.inWb}</p>
+            <p className="text-xs text-slate-500">fysiek in Willebroek</p>
+          </div>
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-emerald-800 text-xs font-medium">
+              <Package className="w-4 h-4 shrink-0" />
+              Stock ergens
+            </div>
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-emerald-900">{summary.metStockPlek}</p>
+            <p className="text-xs text-emerald-800/80">WLB, Genk of Wilrijk</p>
+          </div>
+          <div className="rounded-xl border border-cyan-200 bg-cyan-50/40 p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-cyan-800 text-xs font-medium">
+              <Truck className="w-4 h-4 shrink-0" />
+              Onderweg
+            </div>
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-cyan-900">{summary.metTransfer}</p>
+            <p className="text-xs text-cyan-800/80">in transfer (kolom)</p>
+          </div>
+          <div
+            className={`rounded-xl border p-4 shadow-sm ${
+              summary.forecastKritiek > 0
+                ? 'border-rose-200 bg-rose-50/50'
+                : 'border-slate-200 bg-white'
+            }`}
+          >
+            <div
+              className={`flex items-center gap-2 text-xs font-medium ${
+                summary.forecastKritiek > 0 ? 'text-rose-800' : 'text-slate-500'
+              }`}
+            >
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              Forecast &lt; PILS
+            </div>
+            <p
+              className={`mt-1 text-2xl font-semibold tabular-nums ${
+                summary.forecastKritiek > 0 ? 'text-rose-900' : 'text-slate-900'
+              }`}
+            >
+              {summary.forecastKritiek}
+            </p>
+            <p className="text-xs text-slate-500">negatieve marge t.o.v. datum</p>
           </div>
         </div>
+        {commentCount > 0 && (
+          <p className="mt-2 text-sm text-slate-600">
+            {commentCount} {commentCount === 1 ? 'regel' : 'regels'} met opmerking in de selectie
+          </p>
+        )}
+      </section>
 
-        {/* Filters */}
-        <div className="bg-gray-50 rounded-lg p-4 mb-4">
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Soort kist</label>
-              <select
-                value={kistTypeFilter}
-                onChange={(e) => setKistTypeFilter(e.target.value as 'Alle' | 'C' | 'K')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="Alle">Alle</option>
-                <option value="C">C-kist</option>
-                <option value="K">K-kist</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Locatie</label>
-              <select
-                value={locationFilter}
-                onChange={(e) => setLocationFilter(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                {locations.map(loc => (
-                  <option key={loc} value={loc}>{loc}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                {statuses.map(status => (
-                  <option key={status} value={status}>{status}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">In Willebroek</label>
-              <select
-                value={willebroekFilter}
-                onChange={(e) => setWillebroekFilter(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="Alle">Alle</option>
-                <option value="Ja">Ja</option>
-                <option value="Nee">Nee</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">⭐ Priority</label>
-              <select
-                value={priorityFilter}
-                onChange={(e) => setPriorityFilter(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="Alle">Alle</option>
-                <option value="Priority Only">Priority Only</option>
-                <option value="Non-Priority">Non-Priority</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">🔍 Zoeken</label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Case, type, item..."
-                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Snelfilters productiestatus */}
-        <div className="flex flex-wrap gap-2 mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
-          <span className="text-sm font-medium text-blue-800 self-center mr-1">🔍 Verberg:</span>
-          <button
-            onClick={() => setVerbergInProductie(v => !v)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-              verbergInProductie
-                ? 'bg-orange-500 text-white border-orange-500'
-                : 'bg-white text-gray-600 border-gray-300 hover:border-orange-400'
-            }`}
-          >
-            {verbergInProductie ? '✓' : ''} Al in productie
-          </button>
-          <button
-            onClick={() => setVerbergOpStock(v => !v)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-              verbergOpStock
-                ? 'bg-green-500 text-white border-green-500'
-                : 'bg-white text-gray-600 border-gray-300 hover:border-green-400'
-            }`}
-          >
-            {verbergOpStock ? '✓' : ''} Op stock (Genk / Wilrijk / WLB)
-          </button>
-          <button
-            onClick={() => setVerbergInTransfer(v => !v)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-              verbergInTransfer
-                ? 'bg-blue-500 text-white border-blue-500'
-                : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
-            }`}
-          >
-            {verbergInTransfer ? '✓' : ''} In transfer
-          </button>
-          <div className="ml-auto self-center">
+      <section
+        className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 sm:p-5"
+        aria-label="Filters"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+          <h3 className="text-sm font-semibold text-slate-800">Filter en zoeken</h3>
+          {hasActiveFilters && (
             <button
+              type="button"
+              onClick={resetFilters}
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900"
+            >
+              <XCircle className="w-4 h-4" />
+              Alle filters wissen
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Kistsoort</label>
+            <select
+              value={kistTypeFilter}
+              onChange={e => setKistTypeFilter(e.target.value as 'Alle' | 'C' | 'K')}
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-slate-400/30 focus:border-slate-500"
+            >
+              <option value="Alle">Alle kisten</option>
+              <option value="C">C-kist</option>
+              <option value="K">K-kist (incl. V)</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Productielocatie</label>
+            <select
+              value={locationFilter}
+              onChange={e => setLocationFilter(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-slate-400/30 focus:border-slate-500"
+            >
+              {locations.map(loc => (
+                <option key={loc} value={loc}>
+                  {loc}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Status</label>
+            <select
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value as StatusFilter)}
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-slate-400/30 focus:border-slate-500"
+            >
+              {statusOptions.map(status => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">In Willebroek</label>
+            <select
+              value={willebroekFilter}
+              onChange={e => setWillebroekFilter(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-slate-400/30 focus:border-slate-500"
+            >
+              <option value="Alle">Alle</option>
+              <option value="Ja">Ja</option>
+              <option value="Nee">Nee</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Priority</label>
+            <select
+              value={priorityFilter}
+              onChange={e => setPriorityFilter(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-slate-400/30 focus:border-slate-500"
+            >
+              <option value="Alle">Alles</option>
+              <option value="Priority Only">Alleen priority</option>
+              <option value="Non-Priority">Zonder priority</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Zoeken</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Kist, type, artikel, locatie, opmerking"
+                className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-slate-400/30 focus:border-slate-500"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-slate-200/80">
+          <p className="text-xs font-medium text-slate-500 mb-2">Verberg regels waarbij (helpt plannen):</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setVerbergInProductie(v => !v)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                verbergInProductie
+                  ? 'bg-orange-100 text-orange-900 border-orange-300'
+                  : 'bg-white text-slate-600 border-slate-300 hover:border-orange-300'
+              }`}
+            >
+              {verbergInProductie ? 'Aan' : 'Uit'}: al in productie
+            </button>
+            <button
+              type="button"
+              onClick={() => setVerbergOpStock(v => !v)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                verbergOpStock
+                  ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                  : 'bg-white text-slate-600 border-slate-300 hover:border-emerald-300'
+              }`}
+            >
+              {verbergOpStock ? 'Aan' : 'Uit'}: reeds op stock
+            </button>
+            <button
+              type="button"
+              onClick={() => setVerbergInTransfer(v => !v)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                verbergInTransfer
+                  ? 'bg-cyan-100 text-cyan-900 border-cyan-300'
+                  : 'bg-white text-slate-600 border-slate-300 hover:border-cyan-300'
+              }`}
+            >
+              {verbergInTransfer ? 'Aan' : 'Uit'}: in transfer
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 setVerbergInProductie(true)
                 setVerbergOpStock(true)
                 setVerbergInTransfer(true)
               }}
-              className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-full hover:bg-blue-700 transition-colors"
+              className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-slate-800 text-white border border-slate-800 hover:bg-slate-900 transition-colors"
             >
-              🎯 Enkel nog te produceren
+              Snel: alleen nog te produceren
             </button>
             {(verbergInProductie || verbergOpStock || verbergInTransfer) && (
               <button
+                type="button"
                 onClick={() => {
                   setVerbergInProductie(false)
                   setVerbergOpStock(false)
                   setVerbergInTransfer(false)
                 }}
-                className="ml-2 px-3 py-1.5 bg-gray-200 text-gray-600 text-sm rounded-full hover:bg-gray-300 transition-colors"
+                className="px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900 underline-offset-2 hover:underline"
               >
-                Reset
+                Wissen verbergen-filters
               </button>
             )}
           </div>
         </div>
+      </section>
 
-        {/* Actions */}
-        <div className="flex flex-wrap gap-2 mb-4">
-          <button
-            onClick={handleSave}
-            disabled={editedData.size === 0}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <Save className="w-4 h-4" />
-            Opslaan
-          </button>
-          <button
-            onClick={handleExport}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-          >
-            <Download className="w-4 h-4" />
-            Export CSV
-          </button>
-          
-          {/* Bulk Actions */}
-          {selectedCases.size > 0 && (
-            <div className="flex items-center gap-2 ml-auto">
-              <span className="text-sm text-gray-600">{selectedCases.size} geselecteerd</span>
-              <button
-                onClick={() => handleBulkPriority(true)}
-                className="flex items-center gap-1 px-3 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors text-sm"
-              >
-                <Star className="w-4 h-4" />
-                Markeer Priority
-              </button>
-              <button
-                onClick={() => handleBulkPriority(false)}
-                className="flex items-center gap-1 px-3 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500 transition-colors text-sm"
-              >
-                <StarOff className="w-4 h-4" />
-                Verwijder Priority
-              </button>
-              <select
-                onChange={(e) => e.target.value && handleBulkStatus(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                defaultValue=""
-              >
-                <option value="">Bulk Status...</option>
-                <option value="pending">Pending</option>
-                <option value="in_progress">In Progress</option>
-                <option value="completed">Completed</option>
-                <option value="on_hold">On Hold</option>
-              </select>
-            </div>
-          )}
-        </div>
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={editedData.size === 0}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          <Save className="w-4 h-4" />
+          Wijzigingen opslaan
+        </button>
+        <button
+          type="button"
+          onClick={handleExport}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 transition-colors"
+        >
+          <Download className="w-4 h-4" />
+          Exporteer CSV
+        </button>
+        {selectedCases.size > 0 && (
+          <div className="flex flex-wrap items-center gap-2 sm:ml-auto pt-2 sm:pt-0 border-t sm:border-0 border-slate-200 w-full sm:w-auto">
+            <span className="text-sm text-slate-600">{selectedCases.size} geselecteerd</span>
+            <button
+              type="button"
+              onClick={() => handleBulkPriority(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-amber-500 text-white hover:bg-amber-600"
+            >
+              <Star className="w-4 h-4" />
+              Priority
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBulkPriority(false)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+            >
+              <StarOff className="w-4 h-4" />
+              Geen priority
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm max-h-[min(70vh,900px)] overflow-y-auto">
+        <table className="min-w-full text-sm">
+          <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-100/95 backdrop-blur-sm">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">
+              <th className="px-3 py-3 text-left text-xs font-semibold text-slate-700 w-10">
                 <input
                   type="checkbox"
                   checked={selectedCases.size === sortedData.length && sortedData.length > 0}
@@ -548,71 +674,99 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">⭐</th>
-              <th 
-                className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+              <th className="px-2 py-3 text-left text-xs font-semibold text-slate-600" aria-label="Priority">
+                <Star className="w-3.5 h-3.5 inline" />
+              </th>
+              <th
+                className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
                 onClick={() => handleSort('case_label')}
               >
-                Case Label{getSortIcon('case_label')}
+                Kist / label{getSortIcon('case_label')}
               </th>
-              <th 
-                className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+              <th
+                className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
                 onClick={() => handleSort('case_type')}
               >
-                Case Type{getSortIcon('case_type')}
+                Type{getSortIcon('case_type')}
               </th>
-              <th 
-                className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+              <th
+                className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
                 onClick={() => handleSort('arrival_date')}
               >
-                PILS Datum{getSortIcon('arrival_date')}
+                PILS-datum{getSortIcon('arrival_date')}
               </th>
-              <th 
-                className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+              <th
+                className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
                 onClick={() => handleSort('forecast_date')}
               >
-                Forecast Datum{getSortIcon('forecast_date')}
+                Forecast{getSortIcon('forecast_date')}
               </th>
-              <th 
-                className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+              <th
+                className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
                 onClick={() => handleSort('item_number')}
               >
-                Item Number{getSortIcon('item_number')}
+                Artikel{getSortIcon('item_number')}
               </th>
-              <th 
-                className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+              <th
+                className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
                 onClick={() => handleSort('productielocatie')}
               >
-                Productielocatie{getSortIcon('productielocatie')}
+                Productie{getSortIcon('productielocatie')}
               </th>
-              <th 
-                className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+              <th
+                className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
                 onClick={() => handleSort('in_willebroek')}
+                title="Fysiek in Willebroek (volgens WMS/ERP-koppeling)"
               >
-                In WB{getSortIcon('in_willebroek')}
+                In WLB{getSortIcon('in_willebroek')}
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-orange-600 uppercase" title="Hoeveelheid van dit kisttype momenteel in productie">In Productie</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-green-700 uppercase" title="Stock van dit kisttype in Willebroek">Stock WLB</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-blue-700 uppercase" title="Stock van dit kisttype in Genk">Stock Genk</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-purple-700 uppercase" title="Stock van dit kisttype in Wilrijk">Stock Wilrijk</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-cyan-700 uppercase" title="Hoeveelheid onderweg via transferorder">In Transfer</th>
-              <th 
-                className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+              <th
+                className="px-2 py-3 text-left text-xs font-semibold text-orange-800 whitespace-nowrap"
+                title="Aantal lopende productieorders voor dit kisttype"
+              >
+                In prod.
+              </th>
+              <th
+                className="px-2 py-3 text-left text-xs font-semibold text-emerald-800 whitespace-nowrap"
+                title="Beschikbaar in Willebroek (kanban/stock)"
+              >
+                WLB
+              </th>
+              <th
+                className="px-2 py-3 text-left text-xs font-semibold text-blue-800 whitespace-nowrap"
+                title="Beschikbaar in Genk"
+              >
+                Genk
+              </th>
+              <th
+                className="px-2 py-3 text-left text-xs font-semibold text-violet-800 whitespace-nowrap"
+                title="Beschikbaar in Wilrijk"
+              >
+                Wilrijk
+              </th>
+              <th
+                className="px-2 py-3 text-left text-xs font-semibold text-cyan-800 whitespace-nowrap"
+                title="Aantal in transfer richting Willebroek (transferorders)"
+              >
+                Transf.
+              </th>
+              <th
+                className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
                 onClick={() => handleSort('status')}
               >
                 Status{getSortIcon('status')}
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Comment</th>
-              <th 
-                className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100 select-none"
+              <th className="px-2 py-3 text-left text-xs font-semibold text-slate-700 min-w-[7rem]">Notitie</th>
+              <th
+                className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
                 onClick={() => handleSort('stock_location')}
-                title="Locatie van de kist uit de PILS file. PAC3PL = Willebroek (interne code), wordt automatisch omgezet."
+                title="Locatie in PILS / WMS (bijv. PAC3PL = interne code voor WLB)"
               >
-                WMS Locatie{getSortIcon('stock_location')}
+                WMS{getSortIcon('stock_location')}
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-white divide-y divide-slate-200">
             {sortedData.map((item) => {
               const edited = editedData.get(item.case_label) || {}
               const displayItem = { ...item, ...edited }
@@ -623,30 +777,37 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
               return (
                 <tr
                   key={item.case_label}
-                  className={`${isPriority ? 'bg-yellow-50 hover:bg-yellow-100' : 'hover:bg-gray-50'} ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
+                  className={`transition-colors ${
+                    isPriority
+                      ? 'bg-amber-50/80 hover:bg-amber-100/80'
+                      : isSelected
+                        ? 'bg-slate-100/60 hover:bg-slate-100'
+                        : 'hover:bg-slate-50/90'
+                  } ${isSelected ? 'outline outline-2 -outline-offset-2 outline-slate-400' : ''}`}
                 >
-                  <td className="px-4 py-3">
+                  <td className="px-2 py-2 align-middle">
                     <input
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => handleSelectCase(item.case_label)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      className="rounded border-slate-300 text-slate-800"
                     />
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-2 py-2 align-middle">
                     <button
+                      type="button"
                       onClick={() => handleFieldChange(item.case_label, 'priority', !displayItem.priority)}
-                      className="text-yellow-500 hover:text-yellow-600"
+                      className="text-amber-500 hover:text-amber-600 p-0.5 rounded"
                     >
                       {displayItem.priority ? <Star className="w-5 h-5 fill-current" /> : <StarOff className="w-5 h-5" />}
                     </button>
                   </td>
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{displayItem.case_label}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{displayItem.case_type || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">
-                    {displayItem.arrival_date ? new Date(displayItem.arrival_date).toLocaleDateString('nl-NL') : '-'}
+                  <td className="px-2 py-2 text-slate-900 font-medium tabular-nums whitespace-nowrap">{displayItem.case_label}</td>
+                  <td className="px-2 py-2 text-slate-700 whitespace-nowrap">{displayItem.case_type || '—'}</td>
+                  <td className="px-2 py-2 text-slate-700 whitespace-nowrap">
+                    {displayItem.arrival_date ? new Date(displayItem.arrival_date).toLocaleDateString('nl-NL') : '—'}
                   </td>
-                  <td className="px-4 py-3 text-sm">
+                  <td className="px-2 py-2 text-sm">
                     {(() => {
                       if (!displayItem.forecast_date) return <span className="text-gray-300">—</span>
                       const fDate = new Date(displayItem.forecast_date)
@@ -677,63 +838,88 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                       )
                     })()}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-700">
-                    {displayItem.item_number ? <BcItemCode value={displayItem.item_number} /> : '-'}
+                  <td className="px-2 py-2 text-slate-800">
+                    {displayItem.item_number ? <BcItemCode value={displayItem.item_number} /> : '—'}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{displayItem.productielocatie || '-'}</td>
-                  <td className="px-4 py-3 text-sm">
-                    <span className={`px-2 py-1 rounded-full text-xs ${displayItem.in_willebroek ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                  <td className="px-2 py-2 text-slate-700 max-w-[10rem] truncate" title={displayItem.productielocatie || undefined}>
+                    {displayItem.productielocatie || '—'}
+                  </td>
+                  <td className="px-2 py-2">
+                    <span
+                      className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                        displayItem.in_willebroek
+                          ? 'bg-emerald-100 text-emerald-900'
+                          : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
                       {displayItem.in_willebroek ? 'Ja' : 'Nee'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-center">
-                    {(displayItem.in_productie_qty ?? 0) > 0
-                      ? <span className="bg-orange-100 text-orange-700 font-semibold px-2 py-0.5 rounded-full text-xs">{displayItem.in_productie_qty}</span>
-                      : <span className="text-gray-300">—</span>}
+                  <td className="px-2 py-2 text-center tabular-nums">
+                    {(displayItem.in_productie_qty ?? 0) > 0 ? (
+                      <span className="inline-block bg-orange-100 text-orange-800 font-semibold px-2 py-0.5 rounded-md text-xs">
+                        {displayItem.in_productie_qty}
+                      </span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
                   </td>
-                  <td className="px-4 py-3 text-sm text-center">
-                    {(displayItem.stock_willebroek ?? 0) > 0
-                      ? <span className="bg-green-100 text-green-700 font-semibold px-2 py-0.5 rounded-full text-xs">{displayItem.stock_willebroek}</span>
-                      : <span className="text-gray-300">—</span>}
+                  <td className="px-2 py-2 text-center tabular-nums">
+                    {(displayItem.stock_willebroek ?? 0) > 0 ? (
+                      <span className="inline-block bg-emerald-100 text-emerald-900 font-semibold px-2 py-0.5 rounded-md text-xs">
+                        {displayItem.stock_willebroek}
+                      </span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
                   </td>
-                  <td className="px-4 py-3 text-sm text-center">
-                    {(displayItem.stock_genk ?? 0) > 0
-                      ? <span className="bg-blue-100 text-blue-700 font-semibold px-2 py-0.5 rounded-full text-xs">{displayItem.stock_genk}</span>
-                      : <span className="text-gray-300">—</span>}
+                  <td className="px-2 py-2 text-center tabular-nums">
+                    {(displayItem.stock_genk ?? 0) > 0 ? (
+                      <span className="inline-block bg-blue-100 text-blue-900 font-semibold px-2 py-0.5 rounded-md text-xs">
+                        {displayItem.stock_genk}
+                      </span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
                   </td>
-                  <td className="px-4 py-3 text-sm text-center">
-                    {(displayItem.stock_wilrijk ?? 0) > 0
-                      ? <span className="bg-purple-100 text-purple-700 font-semibold px-2 py-0.5 rounded-full text-xs">{displayItem.stock_wilrijk}</span>
-                      : <span className="text-gray-300">—</span>}
+                  <td className="px-2 py-2 text-center tabular-nums">
+                    {(displayItem.stock_wilrijk ?? 0) > 0 ? (
+                      <span className="inline-block bg-violet-100 text-violet-900 font-semibold px-2 py-0.5 rounded-md text-xs">
+                        {displayItem.stock_wilrijk}
+                      </span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
                   </td>
-                  <td className="px-4 py-3 text-sm text-center">
-                    {(displayItem.in_transfer_qty ?? 0) > 0
-                      ? <span className="bg-cyan-100 text-cyan-700 font-semibold px-2 py-0.5 rounded-full text-xs">{displayItem.in_transfer_qty}</span>
-                      : <span className="text-gray-300">—</span>}
+                  <td className="px-2 py-2 text-center tabular-nums">
+                    {(displayItem.in_transfer_qty ?? 0) > 0 ? (
+                      <span className="inline-block bg-cyan-100 text-cyan-900 font-semibold px-2 py-0.5 rounded-md text-xs">
+                        {displayItem.in_transfer_qty}
+                      </span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
                   </td>
-                  <td className="px-4 py-3">
-                    <select
-                      value={displayItem.status ?? ''}
-                      onChange={(e) => handleFieldChange(item.case_label, 'status', e.target.value)}
-                      className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  <td className="px-2 py-2 whitespace-nowrap">
+                    <span
+                      className={`inline-flex items-center rounded-full border px-2 py-1 text-xs font-semibold ${getStatusBadgeClass(displayItem.status)}`}
+                      title="Automatisch bepaald op basis van stock, transfer en productie"
                     >
-                      <option value="">-</option>
-                      <option value="pending">Pending</option>
-                      <option value="in_progress">In Progress</option>
-                      <option value="completed">Completed</option>
-                      <option value="on_hold">On Hold</option>
-                    </select>
+                      {displayItem.status || 'Onbekend'}
+                    </span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-2 py-2 min-w-[8rem] max-w-xs">
                     <input
                       type="text"
                       value={displayItem.comment || ''}
-                      onChange={(e) => handleFieldChange(item.case_label, 'comment', e.target.value)}
-                      placeholder="Add comment..."
-                      className="text-sm w-full border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      onChange={e => handleFieldChange(item.case_label, 'comment', e.target.value)}
+                      placeholder="Notitie…"
+                      className="text-sm w-full border border-slate-300 rounded-md px-2 py-1.5 focus:ring-2 focus:ring-slate-300"
                     />
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{displayItem.stock_location || '-'}</td>
+                  <td className="px-2 py-2 text-slate-700 text-xs max-w-[8rem] truncate" title={displayItem.stock_location || undefined}>
+                    {displayItem.stock_location || '—'}
+                  </td>
                 </tr>
               )
             })}
@@ -742,9 +928,9 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
       </div>
 
       {filteredData.length === 0 && (
-        <div className="text-center py-12 text-gray-500">
-          Geen data gevonden met de huidige filters.
-        </div>
+        <p className="text-center py-10 text-sm text-slate-500">
+          Geen regels in deze selectie. Wijzig de filters of klik &quot;Alle filters wissen&quot;.
+        </p>
       )}
     </div>
   )

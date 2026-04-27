@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { calculateGroteInpakAutoStatus } from '@/lib/grote-inpak/auto-status'
 
 export const dynamic = 'force-dynamic'
+
+function stripAutomaticStatus(updates: Record<string, any>) {
+  const allowedUpdates = { ...updates }
+  delete allowedUpdates.status
+  return allowedUpdates
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,10 +27,6 @@ export async function GET(request: NextRequest) {
     // Apply filters
     if (location && location !== 'Alle') {
       query = query.eq('productielocatie', location)
-    }
-
-    if (status && status !== 'Alle') {
-      query = query.eq('status', status)
     }
 
     if (inWillebroek === 'true') {
@@ -125,7 +128,7 @@ export async function GET(request: NextRequest) {
         const kt = String(item.case_type || '').trim().toUpperCase()
         const ktAlt = kt.startsWith('V') ? 'K' + kt.substring(1) : null
         const lookup = (m: Map<string, number>) => (m.get(kt) ?? 0) || (ktAlt ? (m.get(ktAlt) ?? 0) : 0)
-        return {
+        const enrichedItem = {
           ...item,
           forecast_date:       forecastMap.get(item.case_label) ?? null,
           stock_willebroek:    lookup(stockWillebroekMap),
@@ -134,7 +137,17 @@ export async function GET(request: NextRequest) {
           in_productie_qty:    lookup(inProductieMap),
           in_transfer_qty:     lookup(inTransferMap),
         }
+
+        return {
+          ...enrichedItem,
+          status: calculateGroteInpakAutoStatus(enrichedItem),
+        }
       })
+    }
+
+    // Apply status filter after enrichment because status is automatic/live.
+    if (status && status !== 'Alle') {
+      filteredData = filteredData.filter((item: any) => item.status === status)
     }
 
     // Apply search filter in memory
@@ -173,9 +186,15 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
+    const caseUpdates = stripAutomaticStatus(updates)
+
+    if (Object.keys(caseUpdates).length === 0) {
+      return NextResponse.json({ success: true, ignored: ['status'] })
+    }
+
     const { data, error } = await supabaseAdmin
       .from('grote_inpak_cases')
-      .update(updates)
+      .update(caseUpdates)
       .eq('case_label', case_label)
       .select()
       .single()
@@ -208,7 +227,13 @@ export async function PUT(request: NextRequest) {
 
     // Update multiple cases
     const promises = updates.map((item: any) => {
-      const { case_label, ...caseUpdates } = item
+      const { case_label, ...rawUpdates } = item
+      const caseUpdates = stripAutomaticStatus(rawUpdates)
+
+      if (Object.keys(caseUpdates).length === 0) {
+        return Promise.resolve()
+      }
+
       return supabaseAdmin
         .from('grote_inpak_cases')
         .update(caseUpdates)

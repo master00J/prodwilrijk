@@ -44,16 +44,16 @@ export default function GroteInpakPage() {
   const transferInputRef = useRef<HTMLInputElement>(null)
 
   const tabs = [
-    { id: 0, label: '📋 Overzicht', icon: '📋' },
-    { id: 1, label: '🚚 Transport', icon: '🚚' },
-    { id: 2, label: '📈 Forecast', icon: '📈' },
-    { id: 3, label: '📦 Packed', icon: '📦' },
-    { id: 4, label: '📊 Stock', icon: '📊' },
-    { id: 5, label: '📦 Kanban Rekken', icon: '📦' },
-    { id: 6, label: '⏰ Backlog', icon: '⏰' },
-    { id: 7, label: '🔗 ERP LINK', icon: '🔗' },
-    { id: 9, label: '🏭 Productie-orders', icon: '🏭' },
-    { id: 8, label: '📜 Upload historiek', icon: '📜' },
+    { id: 0, label: 'Overzicht' },
+    { id: 1, label: 'Transport' },
+    { id: 2, label: 'Forecast' },
+    { id: 3, label: 'Packed' },
+    { id: 4, label: 'Stock' },
+    { id: 5, label: 'Kanban' },
+    { id: 6, label: 'Backlog' },
+    { id: 7, label: 'ERP-koppeling' },
+    { id: 9, label: 'Productieorders' },
+    { id: 8, label: 'Uploadhistoriek' },
   ]
 
   const handleFileSelect = useCallback((type: 'pils' | 'erplink', file: File | null) => {
@@ -374,10 +374,8 @@ export default function GroteInpakPage() {
           throw new Error(errorMessage)
         }
 
-        const processResult = await processResponse.json()
-        const processedCases = processResult.cases || []
-        setOverviewData(processedCases)
-        setTransportData(processedCases)
+        await processResponse.json()
+        await loadDataFromDatabase()
         setDataLoaded(true)
 
         // Build success message
@@ -403,6 +401,7 @@ export default function GroteInpakPage() {
       } else if (stockFiles.length > 0) {
         // If only stock files are uploaded, just refresh the stock tab
         // The stock data is already saved to the database
+        await loadDataFromDatabase()
         setDataLoaded(true)
         setStockUploadTrigger((k) => k + 1)
         setSuccess(`✅ Stock bestanden succesvol geüpload (${stockBcSource === 'bc36' ? 'BC36' : 'Oude BC'})! ${stockUploaded} bestand(en), ${stockItemsProcessed} items verwerkt.`)
@@ -456,21 +455,22 @@ export default function GroteInpakPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
-        <h1 className="text-4xl font-bold text-gray-900 mb-2">
-          🏭 Atlas Copco – Grote Inpak
+        <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-slate-900">
+          Grote inpak
         </h1>
-        <p className="text-gray-600">
-          Overzicht en Transportbeheer voor grote inpak workflow
+        <p className="mt-2 text-slate-600 max-w-2xl">
+          Atlas Copco — plan van PILS, stock, transfer en forecast. Tab <span className="font-medium">Overzicht</span>{' '}
+          is je hoofdscherm; andere tabs verdiepen per onderwerp.
         </p>
       </div>
 
       {/* File Upload Section */}
       <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-        <div 
-          className="flex items-center justify-between cursor-pointer mb-4 hover:bg-gray-50 -m-2 p-2 rounded transition-colors"
+        <div
+          className="flex items-center justify-between cursor-pointer mb-4 hover:bg-slate-50 -m-2 p-2 rounded-lg transition-colors"
           onClick={() => setUploadSectionExpanded(!uploadSectionExpanded)}
         >
-          <h2 className="text-2xl font-semibold">📁 Bestanden Uploaden</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Data uploaden</h2>
           {uploadSectionExpanded ? (
             <ChevronUp className="w-6 h-6 text-gray-500" />
           ) : (
@@ -813,17 +813,18 @@ export default function GroteInpakPage() {
       )}
 
       {/* Tabs */}
-      <div className="bg-white rounded-lg shadow-lg">
-        <div className="border-b border-gray-200">
-          <nav className="flex overflow-x-auto">
-            {tabs.map((tab) => (
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="border-b border-slate-200 bg-slate-50/80">
+          <nav className="flex overflow-x-auto gap-0.5 px-1 pt-1" aria-label="Grote inpak">
+            {tabs.map(tab => (
               <button
                 key={tab.id}
+                type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-6 py-4 font-medium whitespace-nowrap border-b-2 transition-colors ${
+                className={`px-4 sm:px-5 py-3 text-sm font-medium whitespace-nowrap rounded-t-lg border-b-2 -mb-px transition-colors ${
                   activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'border-slate-900 text-slate-900 bg-white'
+                    : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
                 }`}
               >
                 {tab.label}
@@ -832,7 +833,7 @@ export default function GroteInpakPage() {
           </nav>
         </div>
 
-        <div className="p-6">
+        <div className="p-5 sm:p-6">
           {activeTab === 0 && dataLoaded && <OverviewTab overview={overviewData} />}
           {activeTab === 1 && dataLoaded && <TransportTab transport={transportData} overview={overviewData} />}
           {activeTab === 2 && dataLoaded && <ForecastTab />}
