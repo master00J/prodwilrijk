@@ -10,9 +10,15 @@ type ChatMessage = {
   content: string
 }
 
+type GuidedWorkflow = {
+  type: 'wood-receive'
+  step: 1 | 2 | 3
+}
+
 const HIDDEN_PATHS = ['/login', '/signup', '/pending-verification', '/tv-display']
 
 const STARTERS = [
+  'Ik wil hout ontvangen',
   'Hoe verwerk ik een prepack?',
   'Hoe upload ik Grote Inpak stock?',
   'Hoe registreer ik tijd op een productieorder?',
@@ -22,6 +28,56 @@ const STARTERS = [
 function shouldHide(pathname: string | null) {
   if (!pathname) return true
   return HIDDEN_PATHS.some(path => pathname.startsWith(path))
+}
+
+function isWoodReceiveQuestion(question: string) {
+  const normalized = question.toLowerCase()
+  return (
+    normalized.includes('hout') &&
+    (
+      normalized.includes('ontvang') ||
+      normalized.includes('ontvangen') ||
+      normalized.includes('levering') ||
+      normalized.includes('pdf') ||
+      normalized.includes('inscannen') ||
+      normalized.includes('scan')
+    )
+  )
+}
+
+function woodReceiveStepMessage(step: GuidedWorkflow['step']) {
+  if (step === 1) {
+    return [
+      'We begeleiden het ontvangen van hout stap voor stap.',
+      '',
+      'Stap 1: open [Open houtorders](https://prodwilrijk.be/wood/open-orders).',
+      'Upload of scan daar de PDF van de houtlevering.',
+      '',
+      'Klik daarna hier op "PDF is geüpload".',
+    ].join('\n')
+  }
+
+  if (step === 2) {
+    return [
+      'Stap 2: controleer de ingelezen pakketten.',
+      '',
+      'Let vooral op:',
+      '- pakketnummers',
+      '- houtsoort',
+      '- dikte, breedte en lengte',
+      '- aantal planken per pak',
+      '- locatie',
+      '',
+      'Klik pas verder als deze gegevens overeenkomen met de levering.',
+    ].join('\n')
+  }
+
+  return [
+    'Stap 3: bevestig de ontvangst in de houtflow.',
+    '',
+    'Na bevestigen moet de voorraad zichtbaar zijn in de wood stock.',
+    'Controleer bij twijfel of de juiste lengtes en aantallen zijn toegevoegd.',
+  ].join('\n')
 }
 
 function renderMessageContent(content: string) {
@@ -58,6 +114,7 @@ export default function AiChatWidget() {
   ])
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [guidedWorkflow, setGuidedWorkflow] = useState<GuidedWorkflow | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -74,6 +131,13 @@ export default function AiChatWidget() {
     setMessages(nextMessages)
     setInput('')
     setError(null)
+
+    if (isWoodReceiveQuestion(question)) {
+      setGuidedWorkflow({ type: 'wood-receive', step: 1 })
+      setMessages([...nextMessages, { role: 'assistant', content: woodReceiveStepMessage(1) }])
+      return
+    }
+
     setIsSending(true)
 
     try {
@@ -94,6 +158,22 @@ export default function AiChatWidget() {
     } finally {
       setIsSending(false)
     }
+  }
+
+  const advanceWoodWorkflow = (step: GuidedWorkflow['step']) => {
+    setGuidedWorkflow({ type: 'wood-receive', step })
+    setMessages(previous => [...previous, { role: 'assistant', content: woodReceiveStepMessage(step) }])
+  }
+
+  const finishWoodWorkflow = () => {
+    setGuidedWorkflow(null)
+    setMessages(previous => [
+      ...previous,
+      {
+        role: 'assistant',
+        content: 'Klaar. Het hout is ontvangen als de pakketten bevestigd zijn en de voorraad klopt in wood stock. Controleer bij twijfel met je verantwoordelijke.',
+      },
+    ])
   }
 
   return (
@@ -122,7 +202,7 @@ export default function AiChatWidget() {
             {messages.map((message, index) => (
               <div
                 key={index}
-                className={`rounded-xl px-3 py-2 text-sm leading-relaxed ${
+                className={`whitespace-pre-wrap rounded-xl px-3 py-2 text-sm leading-relaxed ${
                   message.role === 'user'
                     ? 'ml-8 bg-blue-600 text-white'
                     : 'mr-8 bg-slate-100 text-slate-800'
@@ -160,6 +240,50 @@ export default function AiChatWidget() {
             {error && (
               <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                 {error}
+              </div>
+            )}
+
+            {guidedWorkflow?.type === 'wood-receive' && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">
+                <div className="mb-2 font-semibold">Begeleide workflow: hout ontvangen</div>
+                <div className="mb-3 text-xs text-emerald-800">Stap {guidedWorkflow.step} van 3</div>
+                <div className="flex flex-wrap gap-2">
+                  <a
+                    href="https://prodwilrijk.be/wood/open-orders"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-800"
+                  >
+                    Open houtorders
+                  </a>
+                  {guidedWorkflow.step === 1 && (
+                    <button
+                      type="button"
+                      onClick={() => advanceWoodWorkflow(2)}
+                      className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-medium text-emerald-900 hover:bg-emerald-100"
+                    >
+                      PDF is geüpload
+                    </button>
+                  )}
+                  {guidedWorkflow.step === 2 && (
+                    <button
+                      type="button"
+                      onClick={() => advanceWoodWorkflow(3)}
+                      className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-medium text-emerald-900 hover:bg-emerald-100"
+                    >
+                      Pakketten gecontroleerd
+                    </button>
+                  )}
+                  {guidedWorkflow.step === 3 && (
+                    <button
+                      type="button"
+                      onClick={finishWoodWorkflow}
+                      className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-medium text-emerald-900 hover:bg-emerald-100"
+                    >
+                      Ontvangst bevestigd
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>
