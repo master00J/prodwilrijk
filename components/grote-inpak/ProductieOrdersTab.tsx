@@ -92,6 +92,45 @@ export default function ProductieOrdersTab() {
       const wb = XLSX.read(buffer, { type: 'array', cellDates: true })
       const ws = wb.Sheets[wb.SheetNames[0]]
       const raw = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }) as any[][]
+      const headers = raw[0] || []
+      const normalizeHeader = (v: any): string => String(v ?? '').toLowerCase().replace(/\s+/g, ' ').trim()
+      const headerIndex = new Map<string, number>()
+      headers.forEach((h, i) => {
+        const key = normalizeHeader(h)
+        if (key && !headerIndex.has(key)) headerIndex.set(key, i)
+      })
+      const findCol = (...names: string[]) => {
+        for (const name of names) {
+          const idx = headerIndex.get(normalizeHeader(name))
+          if (idx !== undefined) return idx
+        }
+        return -1
+      }
+      const findColOr = (fallback: number, ...names: string[]) => {
+        const idx = findCol(...names)
+        return idx >= 0 ? idx : fallback
+      }
+      const readCell = (row: any[], idx: number) => idx >= 0 ? row[idx] : ''
+      const readFirstNonEmpty = (row: any[], indexes: number[]) => {
+        for (const idx of indexes) {
+          const value = readCell(row, idx)
+          if (String(value ?? '').trim()) return value
+        }
+        return ''
+      }
+
+      const statusCol = findColOr(0, 'Status')
+      const prodOrderCol = findColOr(1, 'Prod. Order No.')
+      const vestigingCol = findCol('Vestiging Code')
+      const itemCol = findColOr(2, 'Item No.')
+      const descriptionCol = findColOr(3, 'Description')
+      const locationCol = findColOr(4, 'Location Code')
+      const quantityCol = findColOr(11, 'Quantity')
+      const finishedQuantityCol = findColOr(10, 'Finished Quantity')
+      const remainingQuantityCol = findColOr(12, 'Remaining Quantity')
+      const dueDateCol = findColOr(16, 'Due Date')
+      const startingDateCol = findColOr(17, 'Starting Date-Time', 'Starting Date')
+      const endingDateCol = findColOr(18, 'Ending Date-Time', 'Ending Date')
 
       setUploadProgress(`${raw.length.toLocaleString('nl-BE')} rijen ingelezen, ERP LINK wordt opgehaald...`)
 
@@ -156,9 +195,9 @@ export default function ProductieOrdersTab() {
       const sourcesInFile = new Set<BcSource>()
 
       for (const row of raw) {
-        const rawPoNo = String(row[1] ?? '').trim()
-        const rawItem = String(row[2] ?? '').trim()
-        const rawLoc = String(row[4] ?? '').trim()
+        const rawPoNo = String(readCell(row, prodOrderCol) ?? '').trim()
+        const rawItem = String(readCell(row, itemCol) ?? '').trim()
+        const rawLoc = String(readFirstNonEmpty(row, [locationCol, vestigingCol]) ?? '').trim()
 
         if (!rawPoNo || !poPattern.test(rawPoNo)) continue
         if (!rawItem) continue
@@ -183,20 +222,20 @@ export default function ProductieOrdersTab() {
         sourcesInFile.add(locInfo.bc_source)
 
         parsed.push({
-          status: String(row[0] ?? '').trim() || null,
+          status: String(readCell(row, statusCol) ?? '').trim() || null,
           prod_order_no: rawPoNo,
           item_no: rawItem,
-          description: String(row[3] ?? '').trim() || null,
+          description: String(readCell(row, descriptionCol) ?? '').trim() || null,
           location_code: rawLoc,
           productielocatie: locInfo.productielocatie,
           kistnummer: kist,
           bc_source: locInfo.bc_source,
-          finished_quantity: parseNum(row[10]),
-          quantity: parseNum(row[11]),
-          remaining_quantity: parseNum(row[12]),
-          due_date: parseDate(row[16])?.slice(0, 10) ?? null,
-          starting_date: parseDate(row[17]),
-          ending_date: parseDate(row[18]),
+          finished_quantity: parseNum(readCell(row, finishedQuantityCol)),
+          quantity: parseNum(readCell(row, quantityCol)),
+          remaining_quantity: parseNum(readCell(row, remainingQuantityCol)),
+          due_date: parseDate(readCell(row, dueDateCol))?.slice(0, 10) ?? null,
+          starting_date: parseDate(readCell(row, startingDateCol)),
+          ending_date: parseDate(readCell(row, endingDateCol)),
         })
       }
 
