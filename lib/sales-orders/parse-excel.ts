@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx'
 /** Mogelijke kopteksten voor itemnummer (GP-nummer), bijv. "No." of " No." (met spatie). */
 const NO_COLUMNS = ['No.', ' No.']
 /** Mogelijke kopteksten voor verkoopprijs. */
-const PRICE_COLUMNS = ['Unit Price Excl. VAT', 'Special Unit Price per PU']
+const PRICE_COLUMNS = ['Unit Price Excl. VAT', 'Special Unit Price per PU', 'Unit Price per PU']
 
 function parseFlexibleNumber(value: string | number | null | undefined): number | null {
   if (value === null || value === undefined) return null
