@@ -130,8 +130,8 @@ async function createLocationWorkbook(location: LocationName, dates: Date[], row
     cell.alignment = { horizontal: 'center', vertical: 'middle' }
   })
 
-  worksheet.eachRow((row) => {
-    row.eachCell((cell) => {
+  worksheet.eachRow((row, rowNumber) => {
+    row.eachCell((cell, colNumber) => {
       cell.border = {
         top: { style: 'thin', color: { argb: 'FFD9D9D9' } },
         right: { style: 'thin', color: { argb: 'FFD9D9D9' } },
@@ -139,7 +139,7 @@ async function createLocationWorkbook(location: LocationName, dates: Date[], row
         left: { style: 'thin', color: { argb: 'FFD9D9D9' } },
       }
       cell.alignment = { vertical: 'middle' }
-      if (cell.row > 1 && cell.col > 2 && parseNumber(cell.value) > 0) {
+      if (rowNumber > 1 && colNumber > 2 && parseNumber(cell.value) > 0) {
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFC7CE' } }
       }
     })
