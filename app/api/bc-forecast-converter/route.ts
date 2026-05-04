@@ -176,8 +176,8 @@ export async function POST(request: NextRequest) {
     }
 
     const workbook = new ExcelJS.Workbook()
-    const buffer = Buffer.from(await forecastResponse.arrayBuffer())
-    await workbook.xlsx.load(buffer)
+    const buffer = await forecastResponse.arrayBuffer()
+    await workbook.xlsx.load(buffer as any)
 
     const worksheet = workbook.getWorksheet('Forecast') || workbook.worksheets[0]
     if (!worksheet) {
