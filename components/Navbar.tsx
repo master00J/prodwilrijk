@@ -851,6 +851,15 @@ export default function Navbar() {
                     >
                       Productieorder upload (tijd)
                     </Link>
+                    <Link
+                      href="/admin/bc-forecast-converter"
+                      onClick={() => setIsAdminOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/admin/bc-forecast-converter') ? 'bg-purple-50 text-purple-600 font-medium border-l-4 border-purple-500' : 'text-gray-700'
+                      }`}
+                    >
+                      BC Forecast Converter
+                    </Link>
                   </div>
                 </div>
               )}
@@ -1025,6 +1034,7 @@ export default function Navbar() {
                       <Link href="/admin/competentie-matrix" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Competentie Matrix</Link>
                       <Link href="/admin/wms-projecten-import" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">WMS Project import</Link>
                       <Link href="/admin/production-order-upload" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Productieorder upload</Link>
+                      <Link href="/admin/bc-forecast-converter" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">BC Forecast Converter</Link>
                       <Link href="/tv-admin" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">TV Dashboard Beheer</Link>
                     </div>
                   </details>

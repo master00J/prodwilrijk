@@ -100,6 +100,14 @@ export default function AdminPage() {
       icon: '🔄',
       color: 'purple',
     },
+    {
+      title: 'BC Forecast Converter',
+      description:
+        'Download FP-matrixbestanden voor Business Central vanuit de websiteforecast, opgesplitst per locatie en alleen nog te starten.',
+      href: '/admin/bc-forecast-converter',
+      icon: '📅',
+      color: 'blue',
+    },
   ]
 
   const getColorClasses = (color: string) => {
