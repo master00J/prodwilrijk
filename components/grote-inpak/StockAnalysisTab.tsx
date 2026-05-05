@@ -76,6 +76,9 @@ export default function StockAnalysisTab() {
         formData.append('files', file)
       })
       formData.append('fileType', 'stock')
+      // Zelfde endpoint als dashboard-upload; zonder bcSource zou de API 'legacy' aannemen
+      // (GP) en dan geen voorraad uit de file bewaren — hier standaard BC36 (volledige export).
+      formData.append('bcSource', 'bc36')
 
       const uploadResponse = await fetch('/api/grote-inpak/upload-multiple', {
         method: 'POST',

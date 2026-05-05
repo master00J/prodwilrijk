@@ -196,23 +196,44 @@ export async function POST(request: NextRequest) {
               // Use empty string for item_number if column is NOT NULL, otherwise null
               // Negatieve waarden op 0 zetten
               const clamp = (v: any) => Math.max(0, Number(v) || 0)
+              // Oude BC (GP): voorraad in die export is niet betrouwbaar tijdens de migratie;
+              // enkel "Qty. on Prod. Order" uit de file gebruiken (quantity/stock/inkoop/transfer → 0).
+              const stockValuesForInsert = (item: any) =>
+                bcSource === 'legacy'
+                  ? {
+                      quantity: 0,
+                      stock: 0,
+                      inkoop: 0,
+                      productie: clamp(item.productie),
+                      in_transfer: 0,
+                    }
+                  : {
+                      quantity: clamp(item.quantity),
+                      stock: clamp(item.stock),
+                      inkoop: clamp(item.inkoop),
+                      productie: clamp(item.productie),
+                      in_transfer: clamp(item.in_transfer),
+                    }
               const { error: insertError } = relevantForInsert.length === 0
                 ? { error: null }
                 : await supabaseAdmin
                     .from('grote_inpak_stock')
                     .insert(
-                      relevantForInsert.map((item: any) => ({
-                        erp_code: item.erp_code,
-                        kistnummer: item.kistnummer,
-                        location: item.location,
-                        quantity: clamp(item.quantity),
-                        stock: clamp(item.stock),
-                        inkoop: clamp(item.inkoop),
-                        productie: clamp(item.productie),
-                        in_transfer: clamp(item.in_transfer),
-                        bc_source: bcSource,
-                        item_number: '', // Use empty string instead of null to avoid NOT NULL constraint
-                      }))
+                      relevantForInsert.map((item: any) => {
+                        const sv = stockValuesForInsert(item)
+                        return {
+                          erp_code: item.erp_code,
+                          kistnummer: item.kistnummer,
+                          location: item.location,
+                          quantity: sv.quantity,
+                          stock: sv.stock,
+                          inkoop: sv.inkoop,
+                          productie: sv.productie,
+                          in_transfer: sv.in_transfer,
+                          bc_source: bcSource,
+                          item_number: '', // Use empty string instead of null to avoid NOT NULL constraint
+                        }
+                      })
                     )
 
               if (insertError) {

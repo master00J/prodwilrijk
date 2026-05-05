@@ -655,7 +655,9 @@ export default function GroteInpakPage() {
             </div>
             <p className="text-xs text-amber-800 mt-2">
               Tijdens de overgang kan je zowel een oude als nieuwe stock-file uploaden voor dezelfde locatie.
-              Ze worden apart bijgehouden en per kist opgeteld in de overzichten.
+              Ze worden apart bijgehouden en per kist opgeteld in de overzichten. Bij <strong>Oude BC</strong> tellen we
+              geen voorraad, inkoop- of transferaantallen uit die export — enkel nog wat op productieorders staat
+              (kolom &quot;Qty. on Prod. Order&quot;). Gebruik <strong>Nieuwe BC36</strong> voor de echte voorraadcijfers.
             </p>
           </div>
 
