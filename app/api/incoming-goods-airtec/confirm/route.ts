@@ -39,6 +39,9 @@ export async function POST(request: NextRequest) {
       quantity: item.quantity,
       datum_ontvangen: item.datum_ontvangen,
       original_id: item.id,
+      label_scan_photo_urls: Array.isArray((item as { label_scan_photo_urls?: string[] }).label_scan_photo_urls)
+        ? (item as { label_scan_photo_urls: string[] }).label_scan_photo_urls
+        : [],
     }))
 
     const { error: insertError } = await supabaseAdmin
@@ -63,6 +66,9 @@ export async function POST(request: NextRequest) {
       divisie: item.divisie,
       quantity: item.quantity,
       datum_ontvangen: item.datum_ontvangen,
+      label_scan_photo_urls: Array.isArray((item as { label_scan_photo_urls?: string[] }).label_scan_photo_urls)
+        ? (item as { label_scan_photo_urls: string[] }).label_scan_photo_urls
+        : [],
     }))
 
     const { error: packInsertError } = await supabaseAdmin

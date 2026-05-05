@@ -42,6 +42,12 @@ export const scanLabelSchema = z.object({
   provider: z.enum(['haiku', 'gpt5']).optional().default('haiku'),
 })
 
+export const labelScanPhotoToIncomingSchema = z.object({
+  incomingIds: z.array(z.number().int().positive()).min(1, 'Minstens één incoming ID'),
+  image: z.string().max(10_000_000, 'Afbeelding te groot (max ~7.5MB)'),
+  mediaType: z.string().regex(/^image\/(jpeg|png|webp|gif)$/, 'Ongeldig afbeeldingsformaat'),
+})
+
 export const changeRoleSchema = z.object({
   userId: z.string().uuid('Ongeldig user ID'),
   role: z.enum(['user', 'admin'], { message: 'Rol moet "user" of "admin" zijn' }),

@@ -54,6 +54,22 @@ function normalizeSerial(raw: string): string {
   return raw.replace(/[\s\-\._/]/g, '').toUpperCase()
 }
 
+async function persistIncomingLabelPhotos(incomingIds: number[], base64: string, mediaType: string) {
+  if (incomingIds.length === 0) return
+  try {
+    const res = await fetch('/api/incoming-goods-airtec/label-scan-photo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ incomingIds, image: base64, mediaType }),
+    })
+    if (!res.ok) {
+      console.warn('Label foto opslaan:', await res.text())
+    }
+  } catch (e) {
+    console.warn('Label foto opslaan mislukt', e)
+  }
+}
+
 /**
  * Bepaal of een lot_number uit de database matcht met één van de serienummers op
  * het label. Sommige lot_numbers bevatten meerdere serials (komma-/semicolon-
@@ -183,7 +199,7 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
     if (fileInputRef.current) fileInputRef.current.value = ''
   }, [])
 
-  const addCoolerToIncoming = useCallback(async (queueId: string, data: ScanResultData) => {
+  const addCoolerToIncoming = useCallback(async (queueId: string, data: ScanResultData, base64: string, mediaType: string) => {
     try {
       const today = new Date().toISOString().slice(0, 10)
       const res = await fetch('/api/incoming-goods-airtec', {
@@ -201,6 +217,14 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
       })
 
       if (!res.ok) throw new Error('Toevoegen mislukt')
+
+      const insertBody = await res.json().catch(() => ({}))
+      const newIds: number[] = Array.isArray(insertBody.items)
+        ? insertBody.items.map((r: { id?: number }) => r.id).filter((n: unknown): n is number => typeof n === 'number')
+        : []
+      if (newIds.length > 0) {
+        void persistIncomingLabelPhotos(newIds, base64, mediaType)
+      }
 
       onIncomingAdded?.()
       setQueue(prev => prev.map(q => q.id === queueId ? {
@@ -232,7 +256,7 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
       const data: ScanResultData = await res.json()
 
       if (data.label.label_type === 'cooler' && data.label.item_number) {
-        await addCoolerToIncoming(item.id, data)
+        await addCoolerToIncoming(item.id, data, item.base64, item.mediaType)
         return
       }
 
@@ -326,6 +350,11 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
 
         picked.forEach(m => claimed.add(m.id))
         onItemsMatched(picked.map(m => m.id))
+        void persistIncomingLabelPhotos(
+          picked.map(m => m.id),
+          item.base64,
+          item.mediaType
+        )
 
         const pickedBoxes = Array.from(
           new Set(picked.map(m => m.kistnummer).filter((x): x is string => !!x))
@@ -387,7 +416,7 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
       const key = label.item_number ? normalizeItemNumber(label.item_number) : null
       const tally = key ? scanTally[key] : null
 
-      await fetch('/api/incoming-goods-airtec/unlisted', {
+      const unlistedRes = await fetch('/api/incoming-goods-airtec/unlisted', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -403,6 +432,21 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
             : 'Toegevoegd via label scan — niet in verzendnota',
         }),
       })
+      if (!unlistedRes.ok) throw new Error('Unlisted mislukt')
+      const unlistedJson = await unlistedRes.json()
+      const newUnlistedId = unlistedJson.item?.id
+      if (newUnlistedId != null && item.base64) {
+        const blob = await fetch(`data:${item.mediaType};base64,${item.base64}`).then(r => r.blob())
+        const fd = new FormData()
+        fd.append('photo', new File([blob], 'label-scan.jpg', { type: item.mediaType || 'image/jpeg' }))
+        const photoRes = await fetch(`/api/incoming-goods-airtec/unlisted/${newUnlistedId}/photos`, {
+          method: 'POST',
+          body: fd,
+        })
+        if (!photoRes.ok) {
+          console.warn('Foto koppelen aan niet-in-lijst mislukt')
+        }
+      }
       onUnlistedAdded()
       setQueue(prev => prev.map(q => q.id === queueId ? { ...q, status: 'done', autoAction: 'Toegevoegd aan niet-in-lijst' } : q))
     } catch {

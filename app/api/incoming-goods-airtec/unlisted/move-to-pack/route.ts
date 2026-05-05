@@ -47,6 +47,7 @@ export async function POST(request: NextRequest) {
       divisie: item.divisie ?? null,
       quantity: item.quantity ?? 1,
       datum_ontvangen: item.created_at || datumOntvangen,
+      label_scan_photo_urls: Array.isArray(item.photo_urls) ? item.photo_urls : [],
     }))
 
     const { error: insertError } = await supabaseAdmin

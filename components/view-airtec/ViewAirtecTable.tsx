@@ -164,13 +164,14 @@ export default function ViewAirtecTable({
               <SortHeader col="kistnummer" label="Box Number" />
               <SortHeader col="divisie" label="Divisie" />
               <SortHeader col="quantity" label="Quantity" />
+              <th className="px-4 py-4 text-left text-sm font-medium text-gray-700">Labelfoto&apos;s</th>
               <th className="px-4 py-4 text-left text-sm font-medium text-gray-700">Acties</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {items.length === 0 ? (
               <tr>
-                <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
                   Geen items gevonden
                 </td>
               </tr>
@@ -211,6 +212,9 @@ export default function ViewAirtecTable({
                   <td className="px-4 py-3 text-sm text-gray-900">
                     {renderCell(item, 'quantity', String(item.quantity ?? ''))}
                   </td>
+                  <td className="px-4 py-3 text-sm align-top">
+                    <LabelScanPhotoThumbs urls={item.label_scan_photo_urls} />
+                  </td>
                   <td className="px-4 py-3">
                     <button
                       onClick={() => onDelete(item.id)}
@@ -225,6 +229,37 @@ export default function ViewAirtecTable({
           </tbody>
         </table>
       </div>
+    </div>
+  )
+}
+
+function LabelScanPhotoThumbs({ urls }: { urls?: string[] | null }) {
+  const list = (urls || []).filter(Boolean)
+  if (list.length === 0) {
+    return <span className="text-gray-300">—</span>
+  }
+  const shown = list.slice(-5)
+  const extra = list.length - shown.length
+  return (
+    <div className="flex flex-wrap gap-1 items-center max-w-[220px]">
+      {shown.map((url, i) => (
+        <a
+          key={`${url}-${i}`}
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Open labelfoto"
+          className="shrink-0 rounded border border-gray-200 overflow-hidden hover:ring-2 hover:ring-indigo-300"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={url} alt="" className="w-9 h-9 object-cover block" />
+        </a>
+      ))}
+      {extra > 0 && (
+        <span className="text-xs text-gray-500 whitespace-nowrap" title={`${list.length} foto’s in totaal`}>
+          +{extra}
+        </span>
+      )}
     </div>
   )
 }

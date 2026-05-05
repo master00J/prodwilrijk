@@ -1,7 +1,9 @@
 'use client'
 
+import { useState } from 'react'
 import { ItemToPackAirtec } from '@/types/database'
 import { BcItemCode } from '@/lib/bc-mapping/client'
+import LabelScanPhotosModal, { filterLabelPhotoUrls } from '@/components/common/LabelScanPhotosModal'
 
 interface ItemsTableAirtecProps {
   items: ItemToPackAirtec[]
@@ -30,6 +32,7 @@ export default function ItemsTableAirtec({
 }: ItemsTableAirtecProps) {
   const allSelected = items.length > 0 && items.every(item => selectedItems.has(item.id))
   const someSelected = items.some(item => selectedItems.has(item.id))
+  const [photoModal, setPhotoModal] = useState<{ urls: string[]; title: string } | null>(null)
 
   return (
     <div id="airtec-print-area" className="bg-white rounded-lg shadow overflow-hidden">
@@ -99,13 +102,16 @@ export default function ItemsTableAirtec({
               <th className="print-col-prio px-4 py-4 text-left text-sm font-medium text-gray-700">
                 Priority
               </th>
+              <th className="print-col-hide px-4 py-4 text-left text-sm font-medium text-gray-700">
+                Label
+              </th>
               <th className="print-col-hide px-4 py-4 text-left text-sm font-medium text-gray-700">Actions</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {items.length === 0 ? (
               <tr>
-                <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={12} className="px-4 py-8 text-center text-gray-500">
                   No items found
                 </td>
               </tr>
@@ -117,9 +123,23 @@ export default function ItemsTableAirtec({
                   : urgency === 1
                     ? 'bg-orange-100 border-l-4 border-l-orange-500'
                     : item.priority ? 'bg-yellow-50 priority-row' : ''
+                const labelUrls = filterLabelPhotoUrls(item.label_scan_photo_urls)
+                const rowClickable = labelUrls.length > 0
                 return (
-                <tr key={item.id} className={rowClass}>
-                  <td className="print-col-hide px-4 py-4">
+                <tr
+                  key={item.id}
+                  className={`${rowClass}${rowClickable ? ' cursor-pointer hover:brightness-[0.98]' : ''}`}
+                  title={rowClickable ? 'Klik om labelfoto’s te bekijken' : undefined}
+                  onClick={() => {
+                    if (rowClickable) {
+                      setPhotoModal({
+                        urls: labelUrls,
+                        title: `Labelfoto’s — regel ${item.id}${idPart(item)}`,
+                      })
+                    }
+                  }}
+                >
+                  <td className="print-col-hide px-4 py-4" onClick={e => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={selectedItems.has(item.id)}
@@ -146,8 +166,21 @@ export default function ItemsTableAirtec({
                       </span>
                     )}
                   </td>
-                  <td className="print-col-hide px-4 py-4">
+                  <td className="print-col-hide px-4 py-4 text-center text-sm text-gray-500">
+                    {rowClickable ? (
+                      <span
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 text-sm"
+                        aria-hidden
+                      >
+                        📷
+                      </span>
+                    ) : (
+                      <span className="text-gray-300">—</span>
+                    )}
+                  </td>
+                  <td className="print-col-hide px-4 py-4" onClick={e => e.stopPropagation()}>
                     <button
+                      type="button"
                       onClick={() => onDelete(item.id)}
                       className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm font-medium"
                     >
@@ -160,7 +193,19 @@ export default function ItemsTableAirtec({
           </tbody>
         </table>
       </div>
+
+      <LabelScanPhotosModal
+        open={photoModal != null}
+        onClose={() => setPhotoModal(null)}
+        urls={photoModal?.urls ?? []}
+        title={photoModal?.title}
+      />
     </div>
   )
+}
+
+function idPart(item: ItemToPackAirtec): string {
+  const n = item.item_number ? String(item.item_number) : ''
+  return n ? ` — ${n}` : ''
 }
 

@@ -116,6 +116,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       insertedRows: data?.length || validGoods.length,
+      items: data || [],
       message: `Successfully inserted ${data?.length || validGoods.length} items`,
     })
   } catch (error) {

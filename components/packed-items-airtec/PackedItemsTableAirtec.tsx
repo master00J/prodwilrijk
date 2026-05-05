@@ -1,9 +1,10 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useState } from 'react'
 import { PackedItemAirtec } from '@/types/database'
 import Pagination from '@/components/common/Pagination'
 import { BcItemCode } from '@/lib/bc-mapping/client'
+import LabelScanPhotosModal, { filterLabelPhotoUrls } from '@/components/common/LabelScanPhotosModal'
 
 interface PackedItemsTableAirtecProps {
   items: PackedItemAirtec[]
@@ -30,6 +31,8 @@ export default function PackedItemsTableAirtec({
   onSendEmail,
   onShowReport,
 }: PackedItemsTableAirtecProps) {
+  const [photoModal, setPhotoModal] = useState<{ urls: string[]; title: string } | null>(null)
+
   if (loading) {
     return (
       <div className="bg-white rounded-lg shadow p-8 text-center">
@@ -39,6 +42,7 @@ export default function PackedItemsTableAirtec({
   }
 
   return (
+    <>
     <div className="bg-white rounded-lg shadow">
       {/* Action Buttons */}
       <div className="p-4 border-b flex justify-between items-center">
@@ -113,18 +117,36 @@ export default function PackedItemsTableAirtec({
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Date Packed
               </th>
+              <th className="print:hidden px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                Label
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {items.length === 0 ? (
               <tr>
-                <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
                   No items found
                 </td>
               </tr>
             ) : (
-              items.map((item) => (
-                <tr key={item.id}>
+              items.map((item) => {
+                const labelUrls = filterLabelPhotoUrls(item.label_scan_photo_urls)
+                const rowClickable = labelUrls.length > 0
+                return (
+                <tr
+                  key={item.id}
+                  className={rowClickable ? 'cursor-pointer hover:bg-indigo-50/50' : ''}
+                  title={rowClickable ? 'Klik om labelfoto’s te bekijken' : undefined}
+                  onClick={() => {
+                    if (rowClickable) {
+                      setPhotoModal({
+                        urls: labelUrls,
+                        title: `Labelfoto’s — regel ${item.id}${packedIdPart(item)}`,
+                      })
+                    }
+                  }}
+                >
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                     {item.id}
                   </td>
@@ -155,8 +177,17 @@ export default function PackedItemsTableAirtec({
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                     {new Date(item.date_packed).toLocaleDateString()}
                   </td>
+                  <td className="print:hidden px-4 py-3 whitespace-nowrap text-sm text-center text-gray-500">
+                    {rowClickable ? (
+                      <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 text-sm" aria-hidden>
+                        📷
+                      </span>
+                    ) : (
+                      <span className="text-gray-300">—</span>
+                    )}
+                  </td>
                 </tr>
-              ))
+              )})
             )}
           </tbody>
         </table>
@@ -173,6 +204,19 @@ export default function PackedItemsTableAirtec({
         </div>
       )}
     </div>
+
+    <LabelScanPhotosModal
+      open={photoModal != null}
+      onClose={() => setPhotoModal(null)}
+      urls={photoModal?.urls ?? []}
+      title={photoModal?.title}
+    />
+    </>
   )
+}
+
+function packedIdPart(item: PackedItemAirtec): string {
+  const n = item.item_number ? String(item.item_number) : ''
+  return n ? ` — ${n}` : ''
 }
 

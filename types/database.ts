@@ -355,6 +355,8 @@ export interface IncomingGoodAirtec {
   quantity: number
   datum_ontvangen: string
   created_at?: string
+  /** Publieke URLs van labelscans (View Airtec scanner) */
+  label_scan_photo_urls?: string[] | null
 }
 
 export interface ItemToPackAirtec {
@@ -371,6 +373,7 @@ export interface ItemToPackAirtec {
   datum_ontvangen: string
   created_at?: string
   updated_at?: string
+  label_scan_photo_urls?: string[] | null
 }
 
 export interface PackedItemAirtec {
@@ -386,6 +389,7 @@ export interface PackedItemAirtec {
   date_packed: string
   original_id?: number | null
   created_at?: string
+  label_scan_photo_urls?: string[] | null
 }
 
 export interface AirtecUnlistedItem {
