@@ -189,7 +189,7 @@ export default function AiChatWidget() {
   }
 
   return (
-    <>
+    <div className="print:hidden">
       {open && (
         <div className="fixed bottom-20 right-4 z-50 w-[calc(100vw-2rem)] max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
           <div className="flex items-start justify-between gap-3 border-b border-slate-200 bg-slate-900 px-4 py-3 text-white">
@@ -347,6 +347,6 @@ export default function AiChatWidget() {
       >
         <MessageCircle className="h-6 w-6" />
       </button>
-    </>
+    </div>
   )
 }

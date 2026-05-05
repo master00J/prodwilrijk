@@ -243,16 +243,29 @@ export default function ZaagSlijpenPage() {
     selectedRound?.signature_foresco_url
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-16">
+    <div className="min-h-screen bg-gray-50 pb-16 print:min-h-0 print:pb-0 print:bg-white">
       <style jsx global>{`
         @media print {
           .no-print {
             display: none !important;
           }
+          /* Alleen het echte document meenemen qua typografie; geen schaduw/radius die layout breken */
+          .zaag-print-document {
+            box-shadow: none !important;
+            border: none !important;
+            border-radius: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            max-width: 100% !important;
+          }
+          .zaag-print-keep {
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
         }
       `}</style>
 
-      <div className="container mx-auto px-4 py-6 max-w-6xl">
+      <div className="container mx-auto px-4 py-6 max-w-6xl print:max-w-none print:px-4 print:py-2 print:mx-0">
         <header className="mb-8 no-print">
           <h1 className="text-3xl font-bold text-gray-900">Zaag slijpen — leverancier</h1>
           <p className="mt-2 text-gray-600 max-w-3xl">
@@ -526,7 +539,7 @@ export default function ZaagSlijpenPage() {
             {/* Afdrukdocument */}
             <div
               id="zaag-slijpen-doc"
-              className="mt-10 bg-white rounded-xl shadow border border-gray-200 p-6 print:shadow-none print:border-0"
+              className="zaag-print-document mt-10 bg-white rounded-xl shadow border border-gray-200 p-6 print:mt-0 print:shadow-none print:border-0"
             >
               <div className="flex justify-between items-start gap-4 mb-6 no-print">
                 <h2 className="font-semibold text-xl text-gray-900">Akkoorddocument</h2>
@@ -538,9 +551,11 @@ export default function ZaagSlijpenPage() {
                   Afdrukken / PDF
                 </button>
               </div>
-              <div className="hidden print:block text-center font-bold text-lg mb-4">Akkoord zaag slijpen — Foresco</div>
+              <h1 className="text-center text-xl font-bold text-gray-900 mb-6 print:mb-4">
+                Akkoord zaag slijpen — Foresco
+              </h1>
 
-              <dl className="grid sm:grid-cols-2 gap-2 text-sm mb-6">
+              <dl className="grid sm:grid-cols-2 gap-2 text-sm mb-6 print:gap-3 zaag-print-keep">
                 <div>
                   <dt className="text-gray-500">Chauffeur / leverancier</dt>
                   <dd className="font-medium">{driverName || '—'}</dd>
@@ -570,48 +585,112 @@ export default function ZaagSlijpenPage() {
               </dl>
 
               {notes.trim() && (
-                <p className="text-sm mb-4 border rounded-lg p-3 bg-gray-50">
+                <p className="text-sm mb-4 border rounded-lg p-3 bg-gray-50 print:bg-transparent zaag-print-keep">
                   <strong>Opmerking:</strong> {notes}
                 </p>
               )}
 
-              <div className="overflow-x-auto mb-6">
-                <table className="min-w-full text-sm border">
-                  <thead>
-                    <tr className="bg-gray-100 border-b">
-                      <th className="text-left px-3 py-2 border-r">Omschrijving</th>
-                      <th className="text-right px-3 py-2 border-r w-24">Meegenomen</th>
-                      <th className="text-right px-3 py-2 w-24">Terug</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {buildLinesPayload().map((l, i) => (
-                      <tr key={i} className="border-b">
-                        <td className="px-3 py-2 border-r">{l.description}</td>
-                        <td className="px-3 py-2 text-right border-r">{l.quantity_pickup}</td>
-                        <td className="px-3 py-2 text-right">
-                          {l.quantity_return === null ? '—' : l.quantity_return}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              {(() => {
+                const rows = buildLinesPayload()
+                return (
+                  <div className="space-y-8 mb-6">
+                    <section className="zaag-print-keep">
+                      <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide border-b pb-1 mb-2">
+                        Meegenomen (ophalen door leverancier)
+                      </h3>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-sm border border-gray-300">
+                          <thead>
+                            <tr className="bg-gray-100 border-b border-gray-300">
+                              <th className="text-left px-3 py-2 font-semibold">Omschrijving</th>
+                              <th className="text-right px-3 py-2 font-semibold w-28">Aantal</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {rows.length === 0 ? (
+                              <tr>
+                                <td colSpan={2} className="px-3 py-2 text-gray-500 italic">
+                                  Geen regels
+                                </td>
+                              </tr>
+                            ) : (
+                              rows.map((l, i) => (
+                                <tr key={`p-${i}`} className="border-b border-gray-200">
+                                  <td className="px-3 py-2">{l.description}</td>
+                                  <td className="px-3 py-2 text-right tabular-nums">{l.quantity_pickup}</td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
 
-              <p className="text-sm text-gray-700 mb-6 leading-relaxed">
+                    <section className="zaag-print-keep">
+                      <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide border-b pb-1 mb-2">
+                        Teruggebracht (aflevering na slijpen)
+                      </h3>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-sm border border-gray-300">
+                          <thead>
+                            <tr className="bg-gray-100 border-b border-gray-300">
+                              <th className="text-left px-3 py-2 font-semibold">Omschrijving</th>
+                              <th className="text-right px-3 py-2 font-semibold w-36">Aantal</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {rows.length === 0 ? (
+                              <tr>
+                                <td colSpan={2} className="px-3 py-2 text-gray-500 italic">
+                                  Geen regels
+                                </td>
+                              </tr>
+                            ) : (
+                              rows.map((l, i) => (
+                                <tr key={`r-${i}`} className="border-b border-gray-200">
+                                  <td className="px-3 py-2">{l.description}</td>
+                                  <td className="px-3 py-2 text-right tabular-nums">
+                                    {l.quantity_return === null ? (
+                                      <span className="text-gray-500">— (nog niet ingevuld)</span>
+                                    ) : (
+                                      l.quantity_return
+                                    )}
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                )
+              })()}
+
+              <p className="text-sm text-gray-700 mb-6 leading-relaxed zaag-print-keep">
                 Wij ondergetekenden bevestigen dat de hierboven vermelde aantallen correct zijn: het aantal zagen
                 dat door de leverancier is meegenomen ter sluiting/slijpen, en het aantal dat opnieuw werd
                 afgeleverd. Bij afwijking wordt dit vermeld in de opmerkingen vóór ondertekening.
               </p>
 
               {(selectedRound?.photo_urls?.length ?? 0) > 0 && (
-                <div className="mb-6">
+                <div className="mb-6 zaag-print-keep">
                   <h3 className="text-sm font-semibold text-gray-800 mb-2">Foto&apos;s bijlage</h3>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 print:gap-3">
                     {selectedRound!.photo_urls!.map((url, i) => (
-                      <a key={url + i} href={url} target="_blank" rel="noopener noreferrer" className="block">
+                      <a
+                        key={url + i}
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block print:pointer-events-none"
+                      >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={url} alt="" className="h-20 w-20 object-cover rounded border" />
+                        <img
+                          src={url}
+                          alt=""
+                          className="h-20 w-20 object-cover rounded border print:h-24 print:w-24"
+                        />
                       </a>
                     ))}
                   </div>
@@ -619,7 +698,7 @@ export default function ZaagSlijpenPage() {
               )}
 
               {(selectedRound?.signature_supplier_url || selectedRound?.signature_foresco_url) && (
-                <div className="grid sm:grid-cols-2 gap-6 border-t pt-4">
+                <div className="grid sm:grid-cols-2 gap-6 border-t border-gray-200 pt-4 zaag-print-keep">
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Handtekening leverancier (bewaard)</p>
                     {selectedRound?.signature_supplier_url ? (

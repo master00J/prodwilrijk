@@ -26,7 +26,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="nl">
-      <body className="min-h-screen overflow-x-hidden">
+      <body className="min-h-screen overflow-x-hidden print:min-h-0 print:h-auto">
         <AuthProvider>
           <BcMappingProvider>
             <Navbar />

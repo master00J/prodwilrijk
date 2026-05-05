@@ -199,7 +199,7 @@ export default function Navbar() {
   if (pathname === '/tv-display' || pathname?.startsWith('/tv-display/')) return null
 
   return (
-    <nav className="bg-white shadow-lg border-b border-gray-200 sticky top-0 z-50">
+    <nav className="bg-white shadow-lg border-b border-gray-200 sticky top-0 z-50 print:hidden">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-14 md:h-14 lg:h-16 min-h-[56px]">
           {/* Logo/Home */}

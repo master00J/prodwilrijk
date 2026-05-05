@@ -22,6 +22,22 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Voorkom lege tweede pagina en vreemde breaks bij “Print / PDF” (o.a. zaag-slijpen) */
+@media print {
+  html,
+  body {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  @page {
+    margin: 12mm;
+    size: auto;
+  }
+}
+
 /* Tablet-optimized touch targets and spacing */
 @media (max-width: 1024px) {
   button, a, input[type="checkbox"] {
