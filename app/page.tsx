@@ -1,16 +1,17 @@
 import Link from 'next/link'
-import { 
-  Package, 
-  Upload, 
-  CheckCircle, 
-  FileSpreadsheet, 
-  Box, 
+import {
+  Package,
+  Upload,
+  CheckCircle,
+  FileSpreadsheet,
+  Box,
   Send,
   Warehouse,
   BarChart3,
   Users,
   Settings,
-  ArrowRight
+  ArrowRight,
+  Wrench,
 } from 'lucide-react'
 
 type FeatureLink = {
@@ -63,6 +64,13 @@ export default function Home() {
       links: [
         { href: '/grote-inpak', label: 'Grote Inpak Dashboard' },
       ] as FeatureLink[]
+    },
+    {
+      title: 'Zaag slijpen',
+      description: 'Leverancier: zagen meenemen en terugbrengen, foto’s en ondertekend akkoord.',
+      icon: Wrench,
+      color: 'slate',
+      links: [{ href: '/zaag-slijpen', label: 'Registratie & akkoord' }] as FeatureLink[],
     },
     {
       title: 'XML Generator',
@@ -152,6 +160,9 @@ export default function Home() {
               green: 'from-green-500 to-emerald-600',
               blue: 'from-blue-500 to-cyan-600',
               orange: 'from-orange-500 to-amber-600',
+              teal: 'from-teal-500 to-cyan-600',
+              slate: 'from-slate-600 to-slate-800',
+              purple: 'from-purple-500 to-violet-600',
             }
             
             return (

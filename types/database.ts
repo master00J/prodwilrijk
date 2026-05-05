@@ -502,3 +502,28 @@ export interface WoodTargetStock {
   created_at: string
   updated_at: string
 }
+
+/** Zaag slijpen — leveranciersronde (ophalen / terugbrengen) */
+export interface SawSharpeningRound {
+  id: number
+  pickup_at: string
+  return_at: string | null
+  driver_name: string | null
+  notes: string | null
+  photo_urls: string[]
+  signature_supplier_url: string | null
+  signature_foresco_url: string | null
+  created_at: string
+  updated_at: string
+  lines?: SawSharpeningLine[]
+}
+
+export interface SawSharpeningLine {
+  id: number
+  round_id: number
+  sort_order: number
+  description: string
+  quantity_pickup: number
+  quantity_return: number | null
+  created_at?: string
+}
