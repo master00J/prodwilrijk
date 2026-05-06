@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
-import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
+import { normalizeErpCode, normalizeKistnummer } from '@/lib/utils/erp-code-normalizer'
+import { getBcMappingLookup } from '@/lib/bc-mapping/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -97,22 +98,45 @@ export async function GET(request: NextRequest) {
     const kistnummerToErpCode = new Map<string, string>()
     const validErpCodes = new Set<string>() // Only used for filtering if ERP LINK data exists
     
+    const bcMapping = await getBcMappingLookup()
+
     if (erpLinkData && erpLinkData.length > 0) {
       erpLinkData.forEach((erp: any) => {
         // Normalize ERP code using consistent function
         const normalizedErpCode = normalizeErpCode(erp.erp_code)
-        
+
         // Only add if it's a valid ERP code format
         if (normalizedErpCode && normalizedErpCode.match(/^[A-Z]{2,}\d+/)) {
           validErpCodes.add(normalizedErpCode)
-          erpCodeToKistnummer.set(normalizedErpCode, erp.kistnummer)
-          
-          if (erp.kistnummer) {
-            const normalizedKistnummer = String(erp.kistnummer).toUpperCase().trim()
-            kistnummerToErpCode.set(normalizedKistnummer, normalizedErpCode)
+          const kNorm = normalizeKistnummer(erp.kistnummer)
+          erpCodeToKistnummer.set(normalizedErpCode, kNorm)
+
+          if (kNorm) {
+            kistnummerToErpCode.set(kNorm, normalizedErpCode)
+          }
+          // Zelfde als upload/kanban: Excel zonder GP-prefix → match op cijfer
+          if (/^GP\d+$/i.test(normalizedErpCode)) {
+            const numPart = normalizedErpCode.replace(/^GP/i, '')
+            const asNum = parseInt(numPart, 10)
+            if (!isNaN(asNum)) erpCodeToKistnummer.set(String(asNum), kNorm)
           }
         }
       })
+
+      // BC36 ↔ legacy: stock kan FP hebben terwijl ERP LINK nog GP heeft (of omgekeerd)
+      const erpPairs = Array.from(erpCodeToKistnummer.entries())
+      for (const [erpKey, kistVal] of erpPairs) {
+        if (!kistVal) continue
+        for (const alt of [bcMapping.toNew(erpKey), bcMapping.toOld(erpKey)]) {
+          if (!alt) continue
+          const aNorm = normalizeErpCode(alt)
+          if (aNorm && aNorm !== erpKey) {
+            erpCodeToKistnummer.set(aNorm, kistVal)
+            if (aNorm.match(/^[A-Z]{2,}\d+/)) validErpCodes.add(aNorm)
+          }
+        }
+      }
+
       console.log(`Loaded ${erpLinkData.length} ERP LINK entries, ${validErpCodes.size} valid ERP codes`)
       
       // Debug: log some sample ERP codes from ERP LINK
@@ -137,8 +161,16 @@ export async function GET(request: NextRequest) {
       // Check if erp_code is actually a kistnummer (starts with K or C)
       // In stock files, kolom A can contain either ERP code OR kistnummer
       let kistnummer: string | null = null
-      
-      if (item.erp_code) {
+
+      // Eerst: kolom kistnummer uit DB (wordt bij upload gevuld; herberekening via ERP LINK faalde vaak bij FP/GP-mismatch)
+      if (item.kistnummer) {
+        const kn = normalizeKistnummer(item.kistnummer)
+        if (kn && /^[KC]\d+/.test(kn)) {
+          kistnummer = kn
+        }
+      }
+
+      if (!kistnummer && item.erp_code) {
         const erpCodeStr = String(item.erp_code).toUpperCase().trim()
         // If it starts with K or C, it's a kistnummer (like old code line 823-827)
         if (erpCodeStr.match(/^[KC]\d+/)) {
@@ -167,10 +199,25 @@ export async function GET(request: NextRequest) {
         
         // Try exact match (both are normalized the same way)
         kistnummer = erpCodeToKistnummer.get(normalizedStockErpCode) || null
-        
-        // If no exact match, try without leading zeros (e.g., GP000004 -> GP4, but this might not be correct)
-        // Actually, let's not do this as it could cause false matches
-        
+
+        if (!kistnummer) {
+          const altNew = normalizeErpCode(bcMapping.toNew(normalizedStockErpCode))
+          const altOld = normalizeErpCode(bcMapping.toOld(normalizedStockErpCode))
+          kistnummer =
+            (altNew && erpCodeToKistnummer.get(altNew)) ||
+            (altOld && erpCodeToKistnummer.get(altOld)) ||
+            null
+        }
+
+        if (!kistnummer && /^GP\d+$/i.test(normalizedStockErpCode)) {
+          const numPart = normalizedStockErpCode.replace(/^GP/i, '')
+          const asNum = parseInt(numPart, 10)
+          if (!isNaN(asNum)) kistnummer = erpCodeToKistnummer.get(String(asNum)) || null
+        }
+        if (!kistnummer && /^\d{4,8}$/.test(String(item.erp_code || '').trim())) {
+          kistnummer = erpCodeToKistnummer.get(String(item.erp_code).trim()) || null
+        }
+
         // Also check if the normalized code exists in validErpCodes set (for debugging)
         if (!kistnummer && !validErpCodes.has(normalizedStockErpCode)) {
           // This ERP code is not in ERP LINK, so it won't have a kistnummer
