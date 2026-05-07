@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import * as XLSX from 'xlsx'
 import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
+import { getBcMappingLookup } from '@/lib/bc-mapping/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,8 +40,127 @@ export async function GET() {
   }
 }
 
+/** Normaliseer kopregel uit BC Excel (zoals stock-upload). */
+function normHeaderCell(v: unknown): string {
+  return String(v ?? '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+type TransferCols = {
+  headerRow: number
+  erpIdx: number
+  /** effectief aantal stuks voor transfer */
+  getQty: (row: any[]) => number
+}
+
+/**
+ * BC transfer / Lines-export: Item No. in kolom A, hoeveelheid o.a. in "Quantity",
+ * "Qty. to Ship", of "Quantity Shipped" − "Quantity Received" (onderweg, nog niet ontvangen).
+ * Oude export: kolom A = code, kolom F (index 5) = stuks.
+ */
+function detectTransferColumns(rows: any[][]): TransferCols {
+  const maxScan = Math.min(12, rows.length)
+  const maxCol = Math.max(
+    40,
+    ...rows.slice(0, maxScan).map((r) => (Array.isArray(r) ? r.length : 0)),
+  )
+
+  let best: { score: number; headerRow: number; nameToIdx: Map<string, number> } | null = null
+
+  for (let hr = 0; hr < maxScan; hr++) {
+    const r = rows[hr]
+    if (!r?.length) continue
+    const nameToIdx = new Map<string, number>()
+    for (let c = 0; c < Math.min(maxCol, r.length); c++) {
+      const key = normHeaderCell(r[c])
+      if (key) nameToIdx.set(key, c)
+    }
+    const hasItemNo =
+      nameToIdx.has('item no.') ||
+      nameToIdx.has('item no') ||
+      nameToIdx.has('no.')
+    const hasNo = nameToIdx.has('no')
+    const hasQty = nameToIdx.has('quantity')
+    const hasShip =
+      nameToIdx.has('quantity shipped') ||
+      nameToIdx.has('qty. shipped') ||
+      nameToIdx.has('qty shipped')
+    const hasRec =
+      nameToIdx.has('quantity received') ||
+      nameToIdx.has('qty. received') ||
+      nameToIdx.has('qty received')
+    const hasToShip =
+      nameToIdx.has('qty. to ship') || nameToIdx.has('qty to ship') || nameToIdx.has('qty to ship.')
+    const score =
+      (hasItemNo || hasNo ? 3 : 0) +
+      (hasQty ? 2 : 0) +
+      (hasShip && hasRec ? 2 : 0) +
+      (hasToShip ? 1 : 0)
+
+    if (score > (best?.score ?? -1)) {
+      best = { score, headerRow: hr, nameToIdx }
+    }
+  }
+
+  const asNum = (row: any[], idx: number | undefined): number => {
+    if (idx === undefined || idx < 0) return 0
+    const v = row[idx]
+    if (typeof v === 'number' && !Number.isNaN(v)) return Math.max(0, Math.floor(v))
+    const n = parseFloat(String(v ?? '').replace(',', '.').replace(/[^\d.-]/g, ''))
+    return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0
+  }
+
+  if (best && best.score >= 3) {
+    const m = best.nameToIdx
+    const erpIdx =
+      m.get('item no.') ??
+      m.get('item no') ??
+      m.get('no.') ??
+      m.get('no') ??
+      0
+
+    const idxQty = m.get('quantity')
+    const idxToShip = m.get('qty. to ship') ?? m.get('qty to ship') ?? m.get('qty to ship.')
+    const idxShipped =
+      m.get('quantity shipped') ?? m.get('qty. shipped') ?? m.get('qty shipped')
+    const idxReceived =
+      m.get('quantity received') ?? m.get('qty. received') ?? m.get('qty received')
+
+    const getQty = (row: any[]): number => {
+      if (idxShipped !== undefined && idxReceived !== undefined) {
+        const shipped = asNum(row, idxShipped)
+        const received = asNum(row, idxReceived)
+        const inTransit = shipped - received
+        if (inTransit > 0) return inTransit
+        if (shipped === 0 && received === 0) {
+          /* nog niet uit shipment: kolommen bestaan wél */
+        } else {
+          /* volledig ontvangen */
+          return 0
+        }
+      }
+      if (idxToShip !== undefined) {
+        const q = asNum(row, idxToShip)
+        if (q > 0) return q
+      }
+      if (idxQty !== undefined) return asNum(row, idxQty)
+      return 0
+    }
+
+    return { headerRow: best.headerRow, erpIdx, getQty }
+  }
+
+  return {
+    headerRow: -1,
+    erpIdx: 0,
+    getQty: (row: any[]) => asNum(row, 5),
+  }
+}
+
 // POST – upload en verwerk een transferorder Excel
-// Structuur: kolom A = ERP code (GP-code of item nummer), kolom F = stuks
+// BC Lines / Item Tracking: header met "Item No." + "Quantity" / shipped−received; legacy: A + F
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
@@ -58,8 +178,47 @@ export async function POST(request: NextRequest) {
     const erpToKist = new Map<string, string>()
     ;(erpLinkData || []).forEach((row: any) => {
       const norm = normalizeErpCode(row.erp_code)
-      if (norm && row.kistnummer) erpToKist.set(norm, String(row.kistnummer).toUpperCase().trim())
+      if (norm && row.kistnummer) {
+        const kist = String(row.kistnummer).toUpperCase().trim()
+        erpToKist.set(norm, kist)
+        if (/^GP\d+$/i.test(norm)) {
+          const numPart = norm.replace(/^GP/i, '')
+          const asNum = parseInt(numPart, 10)
+          if (!isNaN(asNum)) erpToKist.set(String(asNum), kist)
+        }
+      }
     })
+
+    const bcMapping = await getBcMappingLookup()
+    const erpPairs = Array.from(erpToKist.entries())
+    for (const [erpKey, kistVal] of erpPairs) {
+      if (!kistVal) continue
+      for (const alt of [bcMapping.toNew(erpKey), bcMapping.toOld(erpKey)]) {
+        if (!alt) continue
+        const aNorm = normalizeErpCode(alt)
+        if (aNorm && aNorm !== erpKey) erpToKist.set(aNorm, kistVal)
+      }
+    }
+
+    const resolveKist = (rawErp: string): string | null => {
+      const erpNorm = normalizeErpCode(rawErp)
+      if (!erpNorm) return null
+      let kist = erpToKist.get(erpNorm) || null
+      if (!kist) {
+        const n2 = normalizeErpCode(bcMapping.toNew(erpNorm))
+        const o2 = normalizeErpCode(bcMapping.toOld(erpNorm))
+        kist = (n2 && erpToKist.get(n2)) || (o2 && erpToKist.get(o2)) || null
+      }
+      if (!kist && /^GP\d+$/i.test(erpNorm)) {
+        const numPart = erpNorm.replace(/^GP/i, '')
+        const asNum = parseInt(numPart, 10)
+        if (!isNaN(asNum)) kist = erpToKist.get(String(asNum)) || null
+      }
+      if (!kist && /^\d{4,8}$/.test(String(rawErp).trim())) {
+        kist = erpToKist.get(String(rawErp).trim()) || null
+      }
+      return kist
+    }
 
     const results = []
 
@@ -70,24 +229,25 @@ export async function POST(request: NextRequest) {
       const ws = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }) as any[][]
 
+      const { headerRow, erpIdx, getQty } = detectTransferColumns(rows)
+      const startRow = headerRow >= 0 ? headerRow + 1 : 0
+
       const parsed: { erp_code: string; kistnummer: string; quantity: number; source_file: string }[] = []
       const nietGematcht: string[] = []
-      let headerOvergeslagen = 0
 
-      for (const row of rows) {
-        const rawErp = String(row[0] ?? '').trim()
-        const rawQty = row[5]  // Kolom F = stuks
+      for (let ri = startRow; ri < rows.length; ri++) {
+        const row = rows[ri]
+        if (!row?.length) continue
+        const rawErp = String(row[erpIdx] ?? '').trim()
 
         // Lege rijen en header (bijv. "Item No.") overslaan
         if (!rawErp) continue
-        if (/^[a-z\s.]+$/i.test(rawErp) && !/\d/.test(rawErp)) { headerOvergeslagen++; continue }
+        if (/^[a-z\s.]+$/i.test(rawErp) && !/\d/.test(rawErp)) continue
 
-        const qty = Number(rawQty)
-        if (isNaN(qty) || qty <= 0) continue
+        const qty = getQty(row)
+        if (qty <= 0) continue
 
-        // Match via ERP LINK
-        const erpNorm = normalizeErpCode(rawErp)
-        const kist = erpNorm ? erpToKist.get(erpNorm) || null : null
+        const kist = resolveKist(rawErp)
 
         if (!kist) {
           // Niet in ERP LINK → niet relevant voor grote inpak, bijhouden voor feedback
