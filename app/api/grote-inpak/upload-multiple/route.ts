@@ -383,16 +383,16 @@ function extractLocationFromFilename(filename: string): string {
 }
 
 /**
- * Verwachte layout Stock Excel. Dezelfde kolomindeling voor alle drie de bestanden;
- * de locatie (Genk / Wilrijk / Willebroek) wordt bepaald door de bestandsnaam (Stock Genk.xlsx, etc.), niet door de inhoud.
- * - Kolom A (index 0): "No." = ERP code (GP-codes, koppeling via ERP LINK naar type kist)
- * - Kolom C (index 2): "Inventory" = aantallen op stock
- * - Kolom K (index 10): "Qty. on Prod. Order" = aantallen in productie (→ kanban "In productie")
- * Overige: B = Consumption Item No., D–H = o.a. Description, I = Qty. on Purch. Order, J = Qty. on Sales Order.
+ * Verwachte layout Stock Excel. Locatie uit bestandsnaam (Stock Genk.xlsx, …).
+ * - BC "Items"-export: o.a. No., …, Inventory (vaak kolom G), Qty. on Purch./Sales/Prod. Order, …
+ * - Klassiek: No. kolom A, Inventory vroeger vaak kolom C; productie vaak kolom K.
+ * Let op: bij andere kolomvolgorde mag een generieke 'qty'-match niet "Qty. on Purch. Order" als voorraad pakken.
  */
 async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTransfer: boolean = false): Promise<any[]> {
-  const sheetName = workbook.SheetNames[0]
+  const sheetName =
+    workbook.SheetNames.find((n) => String(n || '').trim().toLowerCase() === 'items') || workbook.SheetNames[0]
   const worksheet = workbook.Sheets[sheetName]
+  if (!worksheet) return []
   const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
   
   console.log(`Parsing stock file for location ${location}: Range is ${worksheet['!ref']}, total rows: ${range.e.r + 1}`)
@@ -450,55 +450,118 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
     )
   }
 
-  const inventoryIdx = findColumnIndex([
-    'inventory',
-    'voorraad',
-    'stock',
-    'quantity',
-    'qty',
-    'aantal',
-    'balance',
-    'available',
-    'on hand',
-    'quantity on hand',
-    'in stock',
-    'inventory quantity',
-    'quantity available',
-  ])
-  const purchaseIdx = findColumnIndex([
-    'qty. on purch. order',
-    'qty on purch. order',
-    'qty. on purchase order',
-    'qty on purchase order',
-    'purch. order',
-    'purchase order',
-    'inkoop',
-    'inkooporder',
-  ])
-  const productionIdx = findColumnIndex([
-    'qty. on prod. order',
-    'qty on prod. order',
-    'qty. on production order',
-    'qty on production order',
-    '(prod. order)',
-    'outstanding qty. (prod. order)',
-    'outstd. qty. (prod',
-    'prod. order',
-    'production order',
-    'productie',
-    'on prod. order',
-    'on prod order',
-    'prod order',
-    'outstd. prod.',
-    'outstanding prod.',
-    'in production',
-    'manufacturing',
-    'prod ord',
-    'production qty',
-    'qty. on prod order',
-    'in bewerking',
-    'productieorder',
-  ])
+  /** BC-qty-kolommen die niet de fysieke voorraad ("Inventory") zijn. */
+  const isNotInventoryQtyColumn = (cell: string) =>
+    /qty\.?\s*on\s*(purch|purchase|sales)\b/i.test(cell) ||
+    /qty\.?\s*on\s*(prod|production)\b/i.test(cell) ||
+    /qty\.?\s*on\s*component/i.test(cell) ||
+    /\bcomponent\s*lines\b/i.test(cell)
+
+  const pickExactHeader = (...candidates: string[]) => {
+    for (const cand of candidates) {
+      const n = normalizeHeader(cand)
+      const i = headerCells.findIndex((cell) => cell === n)
+      if (i >= 0) return i
+    }
+    return -1
+  }
+
+  let inventoryIdx = pickExactHeader('Inventory', 'Voorraad', 'Quantity on Hand', 'Inventory Quantity')
+  if (inventoryIdx < 0) {
+    const invLoose = headerCells.findIndex(
+      (c) =>
+        c &&
+        !isNotInventoryQtyColumn(c) &&
+        ((c.includes('inventory') &&
+          !c.includes('maximum') &&
+          !c.includes('minimum') &&
+          !c.includes('safety') &&
+          !c.includes('reorder')) ||
+          c === 'stock' ||
+          c === 'balance'),
+    )
+    if (invLoose >= 0) inventoryIdx = invLoose
+  }
+  if (inventoryIdx < 0) {
+    inventoryIdx = findColumnIndex([
+      'voorraad',
+      'stock',
+      'quantity on hand',
+      'in stock',
+      'inventory quantity',
+      'quantity available',
+      'balance',
+      'available',
+      'inventory',
+      'quantity',
+      'qty',
+      'aantal',
+    ])
+  }
+  if (inventoryIdx >= 0 && isNotInventoryQtyColumn(headerCells[inventoryIdx] || '')) {
+    inventoryIdx = -1
+  }
+
+  let purchaseIdx = pickExactHeader(
+    'Qty. on Purch. Order',
+    'Qty on Purch. Order',
+    'Qty. on Purchase Order',
+    'Qty on Purchase Order',
+  )
+  if (purchaseIdx < 0) {
+    purchaseIdx = findColumnIndex([
+      'qty. on purch. order',
+      'qty on purch. order',
+      'qty. on purchase order',
+      'qty on purchase order',
+      'purch. order',
+      'purchase order',
+      'inkoop',
+      'inkooporder',
+    ])
+  }
+
+  let productionIdx = pickExactHeader(
+    'Qty. on Prod. Order',
+    'Qty on Prod. Order',
+    'Qty. on Production Order',
+    'Qty on Production Order',
+  )
+  if (productionIdx < 0) {
+    const prodLoose = headerCells.findIndex(
+      (c) =>
+        c &&
+        /qty\.?\s*on\s*prod(?:uction)?\.?\s*order\b/i.test(c) &&
+        !/component/i.test(c),
+    )
+    if (prodLoose >= 0) productionIdx = prodLoose
+  }
+  if (productionIdx < 0) {
+    productionIdx = findColumnIndex([
+      'qty. on prod. order',
+      'qty on prod. order',
+      'qty. on production order',
+      'qty on production order',
+      '(prod. order)',
+      'outstanding qty. (prod. order)',
+      'outstd. qty. (prod',
+      'prod. order',
+      'production order',
+      'productie',
+      'on prod. order',
+      'on prod order',
+      'prod order',
+      'outstd. prod.',
+      'outstanding prod.',
+      'in production',
+      'manufacturing',
+      'prod ord',
+      'production qty',
+      'qty. on prod order',
+      'in bewerking',
+      'productieorder',
+    ])
+  }
 
   const noIdx = findColumnIndex(['no.', 'no'])
   const erpCandidateIndices = [
@@ -579,7 +642,7 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
       const cellValue = cell.v
       let num = 0
       if (typeof cellValue === 'number') {
-        num = Math.floor(cellValue)
+        num = Number.isFinite(cellValue) ? cellValue : 0
       } else if (typeof cellValue === 'string') {
         let str = String(cellValue).trim()
         if (str.includes(',')) {
@@ -589,11 +652,12 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
         cleanStr = cleanStr.replace(',', '.')
         cleanStr = cleanStr.replace(/[^\d.-]/g, '')
         const parsed = parseFloat(cleanStr)
-        num = isNaN(parsed) ? 0 : Math.floor(parsed)
+        num = isNaN(parsed) ? 0 : parsed
       } else {
-        num = Math.floor(parseFloat(String(cellValue || '0')) || 0)
+        num = parseFloat(String(cellValue || '0')) || 0
       }
-      return Math.max(0, num)
+      if (!Number.isFinite(num)) num = 0
+      return Math.max(0, Math.round(num))
     }
 
     let stock = 0
