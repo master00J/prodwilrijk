@@ -20,7 +20,9 @@ export async function POST(request: NextRequest) {
     // 'bc36' = nieuwe omgeving (FP-codes). Ze bestaan tegelijk in de DB en
     // worden opgeteld per kist bij het aggregeren.
     const rawSource = (formData.get('bcSource') as string | null)?.trim().toLowerCase()
-    const bcSource: 'legacy' | 'bc36' = rawSource === 'bc36' ? 'bc36' : 'legacy'
+    // Alleen expliciet "legacy" = oude modus. Alles anders (incl. ontbrekend veld) = BC36 —
+    // voorkomt dat oude bundles/cache per ongeluk legacy uploaden.
+    const bcSource: 'legacy' | 'bc36' = rawSource === 'legacy' ? 'legacy' : 'bc36'
 
     if (!files || files.length === 0) {
       return NextResponse.json(
@@ -106,21 +108,27 @@ export async function POST(request: NextRequest) {
           const processedData = await parseStockExcel(workbook, location, /regels/i.test(file.name))
 
           if (processedData.length > 0) {
-            // Delete existing stock voor deze combinatie (location, bc_source).
-            // Tijdens de overgang willen we niet dat een upload uit de ene
-            // BC-omgeving de rijen van de andere omgeving overschrijft.
-            const { error: deleteError, count: deleteCount } = await supabaseAdmin
+            // Wis bestaande stock voor deze locatie.
+            // BELANGRIJK: unieke constraint is (erp_code, location) ZONDER bc_source. Een legacy-rij
+            // FP003208+Genk blokkeert daarom INSERT van dezelfde code met bc36. Bij BC36-upload moeten
+            // we daarom alle stock-file rijen voor deze locatie wissen (legacy én bc36).
+            let deleteQuery = supabaseAdmin
               .from('grote_inpak_stock')
               .delete({ count: 'exact' })
               .eq('location', location)
-              .eq('bc_source', bcSource)
-              .not('erp_code', 'is', null) // Only delete rows with erp_code (stock file rows)
+              .not('erp_code', 'is', null)
+            if (bcSource === 'legacy') {
+              deleteQuery = deleteQuery.eq('bc_source', 'legacy')
+            }
+            const { error: deleteError, count: deleteCount } = await deleteQuery
 
             if (deleteError) {
               console.error(`Error deleting existing stock for ${location}:`, deleteError)
               errors.push(`${file.name}: Error deleting existing stock for ${location}: ${deleteError.message}`)
             } else {
-              console.log(`Deleted ${deleteCount || 0} existing stock records for location ${location} / source ${bcSource} (overwriting with new data)`)
+              console.log(
+                `Deleted ${deleteCount || 0} existing stock records for location ${location} (${bcSource === 'bc36' ? 'alle bronnen' : 'legacy'})`,
+              )
               
               // Remove duplicates by erp_code before inserting (in case Excel has duplicate rows)
               const uniqueData = new Map<string, any>()
@@ -243,22 +251,6 @@ export async function POST(request: NextRequest) {
                 totalProcessed += relevantForInsert.length
                 filesProcessed++
                 console.log(`Successfully saved ${relevantForInsert.length} stock items for location ${location}`)
-                // Na een geslaagde BC36-import: wis legacy-rijen voor deze locatie. Anders blijven
-                // oude "Oude BC"-uploads (quantity=0, enkel productie) staan en tellen mee — dat
-                // geeft "geen stock Genk" terwijl de Excel wél Inventory heeft.
-                if (bcSource === 'bc36' && relevantForInsert.length > 0) {
-                  const { error: legacyDelErr, count: legacyDelCount } = await supabaseAdmin
-                    .from('grote_inpak_stock')
-                    .delete({ count: 'exact' })
-                    .eq('location', location)
-                    .eq('bc_source', 'legacy')
-                    .not('erp_code', 'is', null)
-                  if (legacyDelErr) {
-                    console.warn(`Legacy stock niet gewist voor ${location}:`, legacyDelErr.message)
-                  } else if (legacyDelCount && legacyDelCount > 0) {
-                    console.log(`Verwijderd ${legacyDelCount} legacy stock-rijen voor ${location} (na BC36-import).`)
-                  }
-                }
               }
             }
           }

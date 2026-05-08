@@ -76,7 +76,7 @@ export default function StockAnalysisTab() {
         formData.append('files', file)
       })
       formData.append('fileType', 'stock')
-      // Zelfde endpoint als dashboard-upload; zonder bcSource zou de API 'legacy' aannemen
+      // Zelfde endpoint als dashboard-upload. Zonder bcSource = API gebruikt nu standaard bc36.
       // (GP) en dan geen voorraad uit de file bewaren — hier standaard BC36 (volledige export).
       formData.append('bcSource', 'bc36')
 
