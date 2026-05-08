@@ -771,8 +771,8 @@ export default function GroteInpakPage() {
             de <strong>laatste 6 cijfers</strong> in Excel (typisch kolom <strong>I</strong>, of een <code>substr(…,11,6)</code>-kolom).
             <strong> Atlas Planner e-mail</strong> uit kolom <strong>H</strong>, <strong>FP</strong> uit <strong>No.</strong>, en{' '}
             <strong>Verkooporder (Document Nr.)</strong> wordt intern bijgehouden. Klanten zoeken hun status op via{' '}
-            <a href="/klant/order-status" className="font-semibold underline decoration-sky-700/50 hover:decoration-sky-900">
-              het klantportaal
+            <a href="/atlas/order-status" className="font-semibold underline decoration-sky-700/50 hover:decoration-sky-900">
+              het Atlas-orderstatusportaal
             </a>{' '}
             met enkel het <strong>shopordernummer</strong>.
             . Voorloopnullen in Excel worden weer gelijkgetrokken voor de match.
