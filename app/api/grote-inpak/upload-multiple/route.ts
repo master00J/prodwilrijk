@@ -402,8 +402,20 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
   const worksheet = workbook.Sheets[sheetName]
   if (!worksheet) return []
   const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
+  // Sommige BC/Excel-exports schrijven een te krappe `!ref` (dimensions); dan worden
+  // duizenden data-rijen niet gelopen en "ontbreekt" een item pas vanaf een bepaalde rij.
+  for (const key of Object.keys(worksheet)) {
+    if (key[0] === '!') continue
+    try {
+      const addr = XLSX.utils.decode_cell(key)
+      if (addr.r > range.e.r) range.e.r = addr.r
+      if (addr.c > range.e.c) range.e.c = addr.c
+    } catch {
+      /* ongeldige sleutel negeren */
+    }
+  }
   
-  console.log(`Parsing stock file for location ${location}: Range is ${worksheet['!ref']}, total rows: ${range.e.r + 1}`)
+  console.log(`Parsing stock file for location ${location}: Range is ${worksheet['!ref']} (uitgebreid tot ${range.e.r + 1} rijen)`)
   
   const results: any[] = []
   
