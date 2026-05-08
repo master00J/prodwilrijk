@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       if (!hit) continue
       updates.push({
         case_label: c.case_label,
-        pils_shop_order_key: hit.match_key,
+        pils_shop_order_key: k,
         atlas_planner_email: hit.atlas_planner_email,
         bc_fp_item_no: hit.fp_item_no,
         bc_shop_order_no: hit.match_raw,
