@@ -116,7 +116,7 @@ export default function GroteInpakPage() {
   const handleBcShopLinesUpload = async () => {
     const file = bcShopLinesInputRef.current?.files?.[0]
     if (!file) {
-      setError('Selecteer eerst een BC Excel (shop order + item / FP).')
+      setError('Selecteer eerst een BC Excel-export (suffix/match-kolom + item/FP + Atlas).')
       return
     }
     setBcShopLinesUploading(true)
@@ -129,8 +129,7 @@ export default function GroteInpakPage() {
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Upload mislukt')
       setSuccess(
-        `✅ BC-koppeling: ${json.cases_matched} cases bijgewerkt (${json.excel_rows_used} Excel-rijen, ${json.unique_shop_keys} unieke shop-keys). ` +
-          `Cases met shop-key: ${json.cases_with_shop_key}.`,
+        `✅ BC-koppeling: ${json.cases_matched} cases bijgewerkt (${json.excel_rows_used} Excel-rijen, ${json.unique_match_keys} unieke match-keys). Cases in DB: ${json.cases_in_db}.`,
       )
       await loadDataFromDatabase()
       setTimeout(() => setSuccess(null), 8000)
@@ -746,12 +745,13 @@ export default function GroteInpakPage() {
 
         <div className="mt-4 p-4 bg-sky-50 border border-sky-200 rounded-lg">
           <label className="block text-sm font-medium text-sky-900 mb-2" htmlFor="bc-shop-lines-upload">
-            📎 BC shop/order-export (FP in overzicht)
+            📎 BC-export: shop-key, Atlas-mail en FP per lijn
           </label>
           <p className="text-xs text-sky-900/90 mb-3 max-w-4xl leading-relaxed">
-            Excel uit BC met <strong>Shop order</strong> en <strong>Item No.</strong> / <strong>No.</strong> (FP-codes).
-            In BC staat meestal <strong>alleen de laatste 6 cijfers</strong> van het shopordernummer; in PILS zit het serienummer vaak
-            <strong>langer</strong> — we vergelijken op dezelfde 6-cijferige suffix (en herstellen voorloopnullen als Excel de cel als getal las).
+            Na de PILS-upload: upload hier de BC/Oilfree-export. We matchen <strong>PILS serial (kolom F, volledig nummer)</strong> met
+            de <strong>laatste 6 cijfers</strong> in Excel (typisch kolom <strong>I</strong>, of een <code>substr(…,11,6)</code>-kolom).
+            <strong> Atlas Planner e-mail</strong> lezen we uit Excel (kolom <strong>H</strong>), <strong>FP</strong> per lijn uit{' '}
+            <strong>Item No.</strong> / <strong>No.</strong> Voorloopnullen in Excel worden weer gelijkgetrokken voor de match.
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <input

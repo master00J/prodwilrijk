@@ -175,15 +175,6 @@ async function parsePILSCSV(csvText: string): Promise<any[]> {
     'serie',
     'serie nummer',
   ])
-  // Kolom H in standaard PILS-export; soms AS/400-kolomnaam met "pccrdt"
-  const atlasEmailIdx = findColumnIndex([
-    'atlas planner email',
-    'atlas planner',
-    'planner email',
-    'atlasmail',
-    'pccrdt',
-  ])
-
   const data: any[] = []
   for (let i = 1; i < lines.length; i++) {
     const values = parseCSVLine(lines[i]).map(v => v.replace(/^"|"$/g, '').trim())
@@ -202,18 +193,14 @@ async function parsePILSCSV(csvText: string): Promise<any[]> {
         // PAC3PL = interne code voor Willebroek
         row.stock_location = rawLoc.toLowerCase().includes('pac3pl') ? 'Willebroek' : rawLoc
       }
-      // Serial (kolom F in typische export), Atlas mail (kolom H)
+      // Serial (kolom F in typische export)
       if (serialIdx >= 0) {
         row.serial_number = (values[serialIdx] || '').trim()
       } else if (values.length > 5) {
         row.serial_number = (values[5] || '').trim()
       }
-      if (atlasEmailIdx >= 0) {
-        row.atlas_planner_email = (values[atlasEmailIdx] || '').trim()
-      } else if (values.length > 7) {
-        row.atlas_planner_email = (values[7] || '').trim()
-      }
-      
+      // Atlas Planner e-mail komt uit BC Excel (bc-shop-lines), niet uit PILS kolom H
+
       // Also store all original columns for flexibility
       // This ensures we can access columns by their original names or by index
       headers.forEach((header, index) => {

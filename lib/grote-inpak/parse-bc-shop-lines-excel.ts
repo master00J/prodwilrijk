@@ -4,10 +4,12 @@ import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
 import { shopOrderMatchKey } from '@/lib/grote-inpak/pils-serial'
 
 export interface BcShopLineParsed {
-  shop_order_raw: string
-  /** Zelfde normalisatie als PILS serienummer → laatste 6 cijfers */
-  shop_key: string | null
+  /** Ruwe waarde uit Excel (6-cijferige suffix / shop-key kolom) */
+  match_raw: string
+  /** Zelfde sleutel als shopOrderMatchKey(PILS serial kolom F) */
+  match_key: string | null
   fp_item_no: string | null
+  atlas_planner_email: string | null
   description: string | null
 }
 
@@ -17,9 +19,37 @@ const normHeader = (s: unknown) =>
     .replace(/\s+/g, ' ')
     .trim()
 
+/** Kolom met laatste 6 cijfers (substr … 11,6) of expliciet kolom I (index 8). */
+function pickSerialSuffixColumn(cells: string[]): number {
+  const byHeader = cells.findIndex((h) => /11\s*,\s*6\)|,\s*11\s*,\s*6|at_fores04.*11.*6/i.test(h))
+  if (byHeader >= 0) return byHeader
+  return 8 // kolom I (0-based), fallback
+}
+
+function pickAtlasColumn(cells: string[]): number {
+  const byHeader = cells.findIndex(
+    (h) =>
+      /atlas.*planner|planner.*(e-?mail|mail)|^e-?mail$|atlasmail|^atlas$/i.test(h) ||
+      (h.includes('atlas') && !h.includes('pccrdt')),
+  )
+  if (byHeader >= 0) return byHeader
+  return 7 // kolom H
+}
+
+function pickItemColumn(cells: string[]): number {
+  for (let c = 0; c < cells.length; c++) {
+    const h = cells[c]
+    if (!h) continue
+    if (h === 'no.' || h === 'no' || /^item(\s*no\.?)?$/.test(h) || h === 'item number' || h === 'item no.') {
+      return c
+    }
+  }
+  return 1 // typisch kolom B
+}
+
 /**
- * Parseert BC-export (bv. lijnen met Shop order + Item No / FP).
- * Headerrij wordt gezocht in de eerste ~25 rijen (titels boven de tabel mogelijk).
+ * Oilfree / BC-export: match-sleutel = laatste 6 cijfers (kolom I of kolom met substr …11,6),
+ * Atlas Planner e-mail kolom H, FP uit Item No.
  */
 export function parseBcShopLinesExcel(workbook: XLSX.WorkBook): BcShopLineParsed[] {
   const sheetName = workbook.SheetNames[0]
@@ -31,7 +61,8 @@ export function parseBcShopLinesExcel(workbook: XLSX.WorkBook): BcShopLineParsed
   if (raw.length < 2) return []
 
   let headerRow = -1
-  let shopCol = -1
+  let matchCol = -1
+  let atlasCol = -1
   let itemCol = -1
   let descCol = -1
 
@@ -39,71 +70,57 @@ export function parseBcShopLinesExcel(workbook: XLSX.WorkBook): BcShopLineParsed
   for (let r = 0; r < maxScan; r++) {
     const row = raw[r] || []
     const cells = row.map((c) => normHeader(c))
-    let sc = -1
-    let ic = -1
-    for (let c = 0; c < cells.length; c++) {
-      const h = cells[c]
-      if (!h) continue
-      if (
-        /shop\s*order/.test(h) ||
-        (h.includes('shop') && h.includes('order')) ||
-        h.includes('verkooporder') ||
-        /^sales\s*order/.test(h)
-      ) {
-        if (sc < 0) sc = c
-      }
-      if (h === 'no.' || h === 'no' || /^item\s*no\.?$/.test(h) || h === 'item number' || h === 'item no.') {
-        if (ic < 0) ic = c
-      }
-    }
-    if (sc >= 0 && ic >= 0) {
+    const hasItemish = cells.some(
+      (h) => h === 'no.' || /^item(\s*no\.?)?$/.test(h) || h === 'item number',
+    )
+    const hasSubstr = cells.some((h) => /substr|at_fores|pccrdt|\d+\s*\+\s*t\d+/i.test(h))
+    if (hasItemish && (hasSubstr || cells.length >= 9)) {
       headerRow = r
-      shopCol = sc
-      itemCol = ic
+      matchCol = pickSerialSuffixColumn(cells)
+      atlasCol = pickAtlasColumn(cells)
+      itemCol = pickItemColumn(cells)
       descCol = cells.findIndex((h) => h === 'description' || h.includes('description'))
       break
     }
   }
 
-  // Fallback: typisch BC — kop op rij 3 (index 2), data vanaf rij 4; kolom I = shop order (8), B = item
-  if (headerRow < 0 && raw.length > 3) {
+  if (headerRow < 0 && raw.length > 4) {
     headerRow = 2
-    shopCol = 8
-    itemCol = 1
-    descCol = 3
-    const hrow = (raw[headerRow] || []).map((c) => normHeader(c))
-    const si = hrow.findIndex((h) => /shop|order|verkoop/.test(h))
-    const ii = hrow.findIndex((h) => /^no\.?$|item/.test(h))
-    if (si >= 0) shopCol = si
-    if (ii >= 0) itemCol = ii
-    const di = hrow.findIndex((h) => h.includes('description'))
+    const cells = (raw[headerRow] || []).map((c) => normHeader(c))
+    matchCol = pickSerialSuffixColumn(cells)
+    atlasCol = pickAtlasColumn(cells)
+    itemCol = pickItemColumn(cells)
+    const di = cells.findIndex((h) => h.includes('description'))
     descCol = di >= 0 ? di : -1
   }
 
-  if (headerRow < 0 || shopCol < 0 || itemCol < 0) {
+  if (headerRow < 0 || matchCol < 0 || itemCol < 0) {
     return []
   }
 
   const out: BcShopLineParsed[] = []
   for (let r = headerRow + 1; r < raw.length; r++) {
     const row = raw[r] || []
-    const shopRaw = String(row[shopCol] ?? '').trim()
+    const matchRaw = String(row[matchCol] ?? '').trim()
     const itemRaw = String(row[itemCol] ?? '').trim()
-    if (!shopRaw && !itemRaw) continue
-    // Sla lege of titel-achtige rijen over
-    if (/^shop|^item|^no\.?$/i.test(shopRaw)) continue
+    if (!matchRaw && !itemRaw) continue
+    if (/^no\.?$|^item$/i.test(matchRaw)) continue
+
+    const atlasRaw =
+      atlasCol >= 0 ? String(row[atlasCol] ?? '').trim() : ''
+    const atlasVal = atlasRaw || null
 
     const fp = itemRaw ? normalizeErpCode(itemRaw) || itemRaw.toUpperCase().replace(/\s+/g, '') : null
-    const desc =
-      descCol >= 0 ? String(row[descCol] ?? '').trim() || null : null
+    const desc = descCol >= 0 ? String(row[descCol] ?? '').trim() || null : null
 
-    const shop_key = shopRaw ? shopOrderMatchKey(shopRaw) : null
-    if (!shop_key) continue
+    const match_key = matchRaw ? shopOrderMatchKey(matchRaw) : null
+    if (!match_key) continue
 
     out.push({
-      shop_order_raw: shopRaw,
-      shop_key,
+      match_raw: matchRaw,
+      match_key,
       fp_item_no: fp || null,
+      atlas_planner_email: atlasVal,
       description: desc,
     })
   }

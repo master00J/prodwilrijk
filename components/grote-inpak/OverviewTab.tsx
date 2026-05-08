@@ -727,21 +727,21 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
               <th
                 className="px-2 py-3 text-left text-xs font-semibold text-slate-600 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
                 onClick={() => handleSort('pils_shop_order_key')}
-                title="Laatste 6 cijfers van het serienummer; te matchen met BC shop order"
+                title="Laatste 6 cijfers van PILS serial (F); match met BC-export kolom I / suffix"
               >
                 Shop-key{getSortIcon('pils_shop_order_key')}
               </th>
               <th
                 className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap min-w-[8rem]"
                 onClick={() => handleSort('atlas_planner_email')}
-                title="PILS kolom H — Atlas Planner e-mail"
+                title="Atlas Planner e-mail uit BC-export (kolom H), na upload bc-shop-lines"
               >
                 Atlas mail{getSortIcon('atlas_planner_email')}
               </th>
               <th
                 className="px-2 py-3 text-left text-xs font-semibold text-indigo-800 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
                 onClick={() => handleSort('bc_fp_item_no')}
-                title="FP uit BC shop-export of (K/V/C + ERP LINK) uit GP→FP-mapping"
+                title="FP uit BC shop-export (Item No.), na upload bc-shop-lines"
               >
                 BC FP{getSortIcon('bc_fp_item_no')}
               </th>
@@ -889,7 +889,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                   <td className="px-2 py-2 text-slate-700 font-mono text-xs whitespace-nowrap max-w-[9rem] truncate" title={displayItem.serial_number || undefined}>
                     {displayItem.serial_number || '—'}
                   </td>
-                  <td className="px-2 py-2 text-slate-700 font-mono text-xs whitespace-nowrap" title={displayItem.pils_shop_order_key ? `Match met BC shop order: ${displayItem.pils_shop_order_key}` : undefined}>
+                  <td className="px-2 py-2 text-slate-700 font-mono text-xs whitespace-nowrap" title={displayItem.pils_shop_order_key ? `Match-sleutel (suffix PILS F ↔ Excel I / substr 11,6): ${displayItem.pils_shop_order_key}` : undefined}>
                     {displayItem.pils_shop_order_key || '—'}
                   </td>
                   <td className="px-2 py-2 text-slate-700 text-xs max-w-[12rem] truncate" title={displayItem.atlas_planner_email || undefined}>

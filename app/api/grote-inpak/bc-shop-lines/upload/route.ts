@@ -3,11 +3,16 @@ import * as XLSX from 'xlsx'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { logApiError } from '@/lib/api/log-error'
 import { parseBcShopLinesExcel } from '@/lib/grote-inpak/parse-bc-shop-lines-excel'
+import { shopOrderMatchKey } from '@/lib/grote-inpak/pils-serial'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-/** Excel met BC shop order + Item No (FP); match op pils_shop_order_key (laatste 6 cijfers). */
+/**
+ * Oilfree/BC Excel: kolom F PILS (volledig serial) matcht op shopOrderMatchKey ==
+ * genormaliseerde waarde uit Excel (laatste 6 cijfers, typ. kolom I / substr 11,6).
+ * Atlas uit Excel (kolom H), FP per lijn uit Item No.
+ */
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
@@ -24,7 +29,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            'Geen bruikbare rijen gevonden. De Excel moet een headerrij met «Shop order» (of gelijkwaardig) én «No.» / «Item No.» bevatten.',
+            'Geen bruikbare rijen. Verwacht een tabel met Item No. en een kolom met de 6-cijferige suffix (kolom I of substr …11,6).',
         },
         { status: 422 },
       )
@@ -32,20 +37,21 @@ export async function POST(request: NextRequest) {
 
     const byKey = new Map<string, (typeof parsed)[0]>()
     for (const row of parsed) {
-      if (!row.shop_key) continue
-      byKey.set(row.shop_key, row)
+      if (!row.match_key) continue
+      byKey.set(row.match_key, row)
     }
 
     const { data: cases, error: fetchErr } = await supabaseAdmin
       .from('grote_inpak_cases')
-      .select('case_label, pils_shop_order_key')
-      .not('pils_shop_order_key', 'is', null)
+      .select('case_label, serial_number, pils_shop_order_key')
 
     if (fetchErr) throw fetchErr
 
     const matchedAt = new Date().toISOString()
     const updates: Array<{
       case_label: string
+      pils_shop_order_key: string
+      atlas_planner_email: string | null
       bc_fp_item_no: string | null
       bc_shop_order_no: string | null
       bc_line_description: string | null
@@ -54,14 +60,18 @@ export async function POST(request: NextRequest) {
     }> = []
 
     for (const c of cases || []) {
-      const k = String(c.pils_shop_order_key || '').trim()
+      const k =
+        shopOrderMatchKey(c.serial_number) ??
+        shopOrderMatchKey(String(c.pils_shop_order_key ?? '').trim() || undefined)
       if (!k) continue
       const hit = byKey.get(k)
       if (!hit) continue
       updates.push({
         case_label: c.case_label,
+        pils_shop_order_key: hit.match_key,
+        atlas_planner_email: hit.atlas_planner_email,
         bc_fp_item_no: hit.fp_item_no,
-        bc_shop_order_no: hit.shop_order_raw,
+        bc_shop_order_no: hit.match_raw,
         bc_line_description: hit.description,
         bc_shop_lines_source_file: file.name,
         bc_shop_lines_matched_at: matchedAt,
@@ -76,6 +86,8 @@ export async function POST(request: NextRequest) {
           supabaseAdmin
             .from('grote_inpak_cases')
             .update({
+              pils_shop_order_key: u.pils_shop_order_key,
+              atlas_planner_email: u.atlas_planner_email,
               bc_fp_item_no: u.bc_fp_item_no,
               bc_shop_order_no: u.bc_shop_order_no,
               bc_line_description: u.bc_line_description,
@@ -94,9 +106,9 @@ export async function POST(request: NextRequest) {
       success: true,
       file: file.name,
       excel_rows_used: parsed.length,
-      unique_shop_keys: byKey.size,
+      unique_match_keys: byKey.size,
       cases_matched: updates.length,
-      cases_with_shop_key: (cases || []).length,
+      cases_in_db: (cases || []).length,
     })
   } catch (error: any) {
     logApiError(error, { route: '/api/grote-inpak/bc-shop-lines/upload', method: 'POST' })

@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { logApiError } from '@/lib/api/log-error'
 import { shopOrderMatchKey } from '@/lib/grote-inpak/pils-serial'
-import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
-import { getBcMappingLookup, type BcMappingLookup } from '@/lib/bc-mapping/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -109,29 +107,11 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/** K-, V- (vaszak) en C-kisttypes: BC FP uit ERP LINK + mapping (GP→FP). */
-function isStandardKOrCkist(caseType: string): boolean {
-  const kt = String(caseType || '').trim().toUpperCase()
-  return kt.startsWith('K') || kt.startsWith('V') || kt.startsWith('C')
-}
-
-function bcFpFromErpLinkCode(erpCode: string, bcMapping: BcMappingLookup): string | null {
-  const raw = normalizeErpCode(erpCode) || String(erpCode).trim().toUpperCase().replace(/\s+/g, '')
-  if (!raw) return null
-  const mapped = bcMapping.toNew(raw)
-  const use =
-    mapped && mapped.trim() && mapped.toUpperCase() !== raw.toUpperCase()
-      ? mapped.trim().toUpperCase()
-      : raw
-  return normalizeErpCode(use) || use
-}
-
 async function buildOverview(
   pilsData: any[],
   erpData: any[],
   stockData: any[]
 ): Promise<any[]> {
-  const bcMapping = await getBcMappingLookup()
   // Create ERP lookup map
   // Create ERP map - match on kistnummer (which matches case_type from PILS)
   const erpMapByKistnummer = new Map()
@@ -335,21 +315,7 @@ async function buildOverview(
     }
     const serialNumber = serialNumberRaw || null
 
-    let atlasPlannerEmail = String(
-      pilsRow.atlas_planner_email ||
-        pilsRow['Atlas Planner Email'] ||
-        pilsRow['Atlas planner email'] ||
-        '',
-    ).trim()
-    if (!atlasPlannerEmail) {
-      for (const key of Object.keys(pilsRow)) {
-        if (/atlas.*planner|planner.*email|pccrdt/i.test(String(key))) {
-          atlasPlannerEmail = String(pilsRow[key] || '').trim()
-          if (atlasPlannerEmail) break
-        }
-      }
-    }
-    const atlasPlannerEmailDb = atlasPlannerEmail || null
+    // Atlas Planner e-mail komt alleen uit BC Excel (bc-shop-lines upload), niet uit PILS kolom H
     const pilsShopOrderKey = shopOrderMatchKey(serialNumberRaw || null)
     // PAC3PL in PILS file means UNIT is in Willebroek, but says nothing about the KIST
     // We determine in_willebroek ONLY from stock files via ERP code link:
@@ -417,9 +383,6 @@ async function buildOverview(
     // Get stapel from ERP LINK (default 1)
     const stapel = erpInfo.stapel ? parseInt(String(erpInfo.stapel), 10) : 1
 
-    const bcFpFromErp =
-      erpCode && isStandardKOrCkist(caseType) ? bcFpFromErpLinkCode(erpCode, bcMapping) : null
-
     overview.push({
       case_label: caseLabel,
       case_type: caseType,
@@ -435,9 +398,8 @@ async function buildOverview(
       erp_code: erpCode || null,
       stapel: stapel >= 1 ? stapel : 1,
       serial_number: serialNumber,
-      atlas_planner_email: atlasPlannerEmailDb,
+      atlas_planner_email: null,
       pils_shop_order_key: pilsShopOrderKey,
-      ...(bcFpFromErp ? { bc_fp_item_no: bcFpFromErp } : {}),
       term_werkdagen: termWerkdagen,
       deadline: deadline,
       dagen_te_laat: dagenTeLaat,
@@ -593,11 +555,26 @@ async function saveCasesToDatabase(cases: any[]) {
     .map((case_) => String(case_.case_label || '').trim())
     .filter((label) => label.length > 0)
 
-  let existingCases = new Map<string, { comment: string | null; status: string | null; priority: boolean | null }>()
+  let existingCases = new Map<
+    string,
+    {
+      comment: string | null
+      status: string | null
+      priority: boolean | null
+      atlas_planner_email: string | null
+      bc_fp_item_no: string | null
+      bc_shop_order_no: string | null
+      bc_line_description: string | null
+      bc_shop_lines_source_file: string | null
+      bc_shop_lines_matched_at: string | null
+    }
+  >()
   if (caseLabels.length > 0) {
     const { data: existingData } = await supabaseAdmin
       .from('grote_inpak_cases')
-      .select('case_label, comment, status, priority')
+      .select(
+        'case_label, comment, status, priority, atlas_planner_email, bc_fp_item_no, bc_shop_order_no, bc_line_description, bc_shop_lines_source_file, bc_shop_lines_matched_at',
+      )
       .in('case_label', caseLabels)
 
     if (existingData) {
@@ -606,6 +583,12 @@ async function saveCasesToDatabase(cases: any[]) {
           comment: row.comment ?? null,
           status: row.status ?? null,
           priority: row.priority ?? null,
+          atlas_planner_email: row.atlas_planner_email ?? null,
+          bc_fp_item_no: row.bc_fp_item_no ?? null,
+          bc_shop_order_no: row.bc_shop_order_no ?? null,
+          bc_line_description: row.bc_line_description ?? null,
+          bc_shop_lines_source_file: row.bc_shop_lines_source_file ?? null,
+          bc_shop_lines_matched_at: row.bc_shop_lines_matched_at ?? null,
         })
       })
     }
@@ -619,6 +602,12 @@ async function saveCasesToDatabase(cases: any[]) {
       comment: existing?.comment ?? case_.comment,
       status: existing?.status ?? case_.status,
       priority: existing?.priority ?? case_.priority,
+      atlas_planner_email: case_.atlas_planner_email ?? existing?.atlas_planner_email ?? null,
+      bc_fp_item_no: case_.bc_fp_item_no ?? existing?.bc_fp_item_no ?? null,
+      bc_shop_order_no: case_.bc_shop_order_no ?? existing?.bc_shop_order_no ?? null,
+      bc_line_description: case_.bc_line_description ?? existing?.bc_line_description ?? null,
+      bc_shop_lines_source_file: case_.bc_shop_lines_source_file ?? existing?.bc_shop_lines_source_file ?? null,
+      bc_shop_lines_matched_at: case_.bc_shop_lines_matched_at ?? existing?.bc_shop_lines_matched_at ?? null,
     }
   })
 
