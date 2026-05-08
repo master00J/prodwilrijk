@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx'
 import { expandWorksheetRef } from '@/lib/xlsx/expand-worksheet-ref'
 import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
-import { pilsShopOrderKeyFromSerial } from '@/lib/grote-inpak/pils-serial'
+import { shopOrderMatchKey } from '@/lib/grote-inpak/pils-serial'
 
 export interface BcShopLineParsed {
   shop_order_raw: string
@@ -97,7 +97,7 @@ export function parseBcShopLinesExcel(workbook: XLSX.WorkBook): BcShopLineParsed
     const desc =
       descCol >= 0 ? String(row[descCol] ?? '').trim() || null : null
 
-    const shop_key = shopRaw ? pilsShopOrderKeyFromSerial(shopRaw) : null
+    const shop_key = shopRaw ? shopOrderMatchKey(shopRaw) : null
     if (!shop_key) continue
 
     out.push({

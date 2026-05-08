@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { logApiError } from '@/lib/api/log-error'
-import { pilsShopOrderKeyFromSerial } from '@/lib/grote-inpak/pils-serial'
+import { shopOrderMatchKey } from '@/lib/grote-inpak/pils-serial'
 
 export const dynamic = 'force-dynamic'
 
@@ -330,7 +330,7 @@ async function buildOverview(
       }
     }
     const atlasPlannerEmailDb = atlasPlannerEmail || null
-    const pilsShopOrderKey = pilsShopOrderKeyFromSerial(serialNumberRaw || null)
+    const pilsShopOrderKey = shopOrderMatchKey(serialNumberRaw || null)
     // PAC3PL in PILS file means UNIT is in Willebroek, but says nothing about the KIST
     // We determine in_willebroek ONLY from stock files via ERP code link:
     // case_type → erp_code (via ERP LINK) → stock location (via stock files)

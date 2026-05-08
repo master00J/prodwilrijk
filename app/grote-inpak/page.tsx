@@ -750,8 +750,8 @@ export default function GroteInpakPage() {
           </label>
           <p className="text-xs text-sky-900/90 mb-3 max-w-4xl leading-relaxed">
             Excel uit BC met <strong>Shop order</strong> en <strong>Item No.</strong> / <strong>No.</strong> (FP-codes).
-            Regels worden gekoppeld aan PILS-regels via dezelfde sleutel als kolom <strong>Shop-key</strong>: de laatste 6 cijfers
-            van het shop order in BC en van het serienummer in PILS. Importeer eerst PILS (CSV), daarna dit bestand.
+            In BC staat meestal <strong>alleen de laatste 6 cijfers</strong> van het shopordernummer; in PILS zit het serienummer vaak
+            <strong>langer</strong> — we vergelijken op dezelfde 6-cijferige suffix (en herstellen voorloopnullen als Excel de cel als getal las).
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <input
