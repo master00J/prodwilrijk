@@ -10,13 +10,6 @@ import {
 
 export const dynamic = 'force-dynamic'
 
-function normalizePortalSalesOrder(raw: unknown): string {
-  return String(raw ?? '')
-    .trim()
-    .toUpperCase()
-    .replace(/\s+/g, '')
-}
-
 function buildPortalProgress(
   row: {
     productielocatie?: string | null
@@ -65,53 +58,72 @@ function buildPortalProgress(
   }
 }
 
+const CASE_SELECT =
+  'case_label, case_type, productielocatie, in_willebroek, arrival_date, deadline, dagen_te_laat, bc_line_description, bc_fp_item_no, bc_shop_order_no, pils_shop_order_key, serial_number'
+
 /**
- * Publieke statuslookup voor klanten — geen interne velden (Atlas, comments, serienummer).
- * Body: { salesOrder: string, shopKey?: string } — shopKey = optionele 6-cijfercode (zelfde als shop-key op orderbevestiging).
+ * Publieke statuslookup — klant vult enkel **shopordernummer** (zoals op orderbevestiging / BC shop order).
+ * Body: { shopOrder: string }
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}))
-    const salesOrder = normalizePortalSalesOrder(body.salesOrder ?? body.sales_order)
-    const shopKeyRaw = body.shopKey ?? body.shop_key ?? ''
+    const rawInput = String(body.shopOrder ?? body.shop_order ?? '').trim()
 
-    if (salesOrder.length < 4) {
+    const key = shopOrderMatchKey(rawInput || undefined)
+    if (!key) {
       return NextResponse.json(
-        { error: 'Vul een geldig verkoopordernummer in (zoals op uw orderbevestiging).' },
+        { error: 'Vul het shopordernummer in (de code uit uw orderbevestiging).' },
         { status: 400 },
       )
     }
 
-    const { data: rows, error } = await supabaseAdmin
+    const notFoundMsg =
+      'We vinden geen actuele status voor dit nummer. Controleer de invoer of neem contact op met uw contactpersoon.'
+
+    let { data: rows, error } = await supabaseAdmin
       .from('grote_inpak_cases')
-      .select(
-        'case_label, case_type, productielocatie, in_willebroek, arrival_date, deadline, dagen_te_laat, bc_line_description, bc_fp_item_no, bc_shop_order_no, pils_shop_order_key, serial_number',
-      )
-      .eq('bc_sales_order_no', salesOrder)
+      .select(CASE_SELECT)
+      .eq('pils_shop_order_key', key)
 
     if (error) throw error
 
-    const notFoundMsg =
-      'We vinden geen actuele status voor dit nummer. Controleer de invoer of neem contact op met uw contactpersoon.'
+    if (!rows || rows.length === 0) {
+      const tries = [...new Set([rawInput.replace(/\D/g, ''), key].filter((s) => s.length > 0))]
+      for (const t of tries) {
+        const { data: hit, error: e2 } = await supabaseAdmin
+          .from('grote_inpak_cases')
+          .select(CASE_SELECT)
+          .eq('bc_shop_order_no', t)
+        if (e2) throw e2
+        if (hit?.length) {
+          rows = hit
+          break
+        }
+      }
+    }
+
+    if (!rows || rows.length === 0) {
+      /* laatste poging: exact pils_shop_order_key al gedaan; match ruwe suffix-only invoer op bc_shop_order_no via normalisatie */
+      const digitsOnly = rawInput.replace(/\D/g, '')
+      if (digitsOnly.length >= 6) {
+        const suffixKey = shopOrderMatchKey(digitsOnly)
+        if (suffixKey && suffixKey !== key) {
+          const { data: hit3, error: e3 } = await supabaseAdmin
+            .from('grote_inpak_cases')
+            .select(CASE_SELECT)
+            .eq('pils_shop_order_key', suffixKey)
+          if (e3) throw e3
+          if (hit3?.length) rows = hit3
+        }
+      }
+    }
 
     if (!rows || rows.length === 0) {
       return NextResponse.json({ error: notFoundMsg }, { status: 404 })
     }
 
-    let cases = rows as any[]
-    const shopKeyNorm = shopKeyRaw != null && String(shopKeyRaw).trim() !== '' ? shopOrderMatchKey(String(shopKeyRaw)) : null
-    if (shopKeyNorm) {
-      cases = cases.filter((r) => {
-        const k =
-          shopOrderMatchKey(r.serial_number) ??
-          shopOrderMatchKey(String(r.pils_shop_order_key ?? '').trim() || undefined)
-        return k === shopKeyNorm
-      })
-    }
-
-    if (cases.length === 0) {
-      return NextResponse.json({ error: notFoundMsg }, { status: 404 })
-    }
+    const cases = rows as any[]
 
     let floorByFp = new Map<string, ProductionTimeActiveSummary>()
     const needFp = cases.some((c) => c.bc_fp_item_no)
@@ -150,7 +162,10 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    const res = NextResponse.json({ sales_order: salesOrder, lines })
+    const res = NextResponse.json({
+      shop_order_key: key,
+      lines,
+    })
     res.headers.set('Cache-Control', 'no-store')
     return res
   } catch (e: any) {

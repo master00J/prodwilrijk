@@ -15,7 +15,7 @@ type GuidedWorkflow = {
   step: 1 | 2 | 3 | 4
 }
 
-const HIDDEN_PATHS = ['/login', '/signup', '/pending-verification', '/tv-display']
+const HIDDEN_PATHS = ['/login', '/signup', '/pending-verification', '/tv-display', '/klant']
 
 const STARTERS = [
   'Ik wil hout ontvangen',

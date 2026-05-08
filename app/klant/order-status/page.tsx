@@ -35,27 +35,23 @@ function formatNlDate(iso: string | null) {
 }
 
 export default function KlantOrderStatusPage() {
-  const [salesOrder, setSalesOrder] = useState('')
-  const [shopKey, setShopKey] = useState('')
+  const [shopOrder, setShopOrder] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lines, setLines] = useState<PortalLine[] | null>(null)
-  const [matchedSo, setMatchedSo] = useState<string | null>(null)
+  const [matchedKey, setMatchedKey] = useState<string | null>(null)
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setLines(null)
-    setMatchedSo(null)
+    setMatchedKey(null)
     setLoading(true)
     try {
       const res = await fetch('/api/portal/grote-inpak-status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          salesOrder: salesOrder.trim(),
-          shopKey: shopKey.trim() || undefined,
-        }),
+        body: JSON.stringify({ shopOrder: shopOrder.trim() }),
       })
       const json = await res.json()
       if (!res.ok) {
@@ -63,7 +59,7 @@ export default function KlantOrderStatusPage() {
         return
       }
       setLines(json.lines || [])
-      setMatchedSo(json.sales_order || null)
+      setMatchedKey(json.shop_order_key || null)
     } catch {
       setError('Netwerkfout. Controleer uw verbinding.')
     } finally {
@@ -76,42 +72,26 @@ export default function KlantOrderStatusPage() {
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-6 sm:p-8">
         <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Orderstatus</h1>
         <p className="mt-2 text-sm text-slate-600 leading-relaxed">
-          Bekijk de voortgang van uw <strong>grote inpak</strong>-order. U heeft het{' '}
-          <strong>verkoopordernummer</strong> nodig (zoals op uw orderbevestiging). Optioneel vult u de{' '}
-          <strong>6-cijferige code</strong> in (shop-regel / serienummer-suffix) om één specifieke lijn te tonen
-          als er meerdere kisten op hetzelfde order staan.
+          Vul het <strong>shopordernummer</strong> in zoals op uw orderbevestiging (vaak 6 cijfers; het volledige
+          nummer uit uw mail mag ook). We herkennen automatisch dezelfde code als in ons systeem, ook als er geen
+          voorloopnullen staan.
         </p>
 
         <form onSubmit={submit} className="mt-6 space-y-4">
           <div>
-            <label htmlFor="so" className="block text-sm font-medium text-slate-700 mb-1">
-              Verkooporder
+            <label htmlFor="shop" className="block text-sm font-medium text-slate-700 mb-1">
+              Shopordernummer
             </label>
             <input
-              id="so"
-              type="text"
-              autoComplete="off"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-teal-500/30 focus:border-teal-600"
-              placeholder="bv. SO26BE-03109"
-              value={salesOrder}
-              onChange={(e) => setSalesOrder(e.target.value)}
-              required
-            />
-          </div>
-          <div>
-            <label htmlFor="sk" className="block text-sm font-medium text-slate-700 mb-1">
-              6-cijferige code (optioneel)
-            </label>
-            <input
-              id="sk"
+              id="shop"
               type="text"
               inputMode="numeric"
               autoComplete="off"
-              maxLength={16}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-teal-500/30 focus:border-teal-600"
-              placeholder="Laat leeg om alle lijnen te tonen"
-              value={shopKey}
-              onChange={(e) => setShopKey(e.target.value.replace(/\D/g, '').slice(0, 12))}
+              placeholder="bv. 941001 of laatste cijfers van uw orderreferentie"
+              value={shopOrder}
+              onChange={(e) => setShopOrder(e.target.value)}
+              required
             />
           </div>
           <button
@@ -136,7 +116,7 @@ export default function KlantOrderStatusPage() {
       {lines && lines.length > 0 && (
         <section className="mt-8 space-y-4" aria-label="Resultaten">
           <h2 className="text-lg font-semibold text-slate-800">
-            {matchedSo ? `Order ${matchedSo}` : 'Uw order'}
+            {matchedKey ? `Shoporder · ${matchedKey}` : 'Uw order'}
             <span className="font-normal text-slate-500 text-base ml-2">
               ({lines.length} {lines.length === 1 ? 'lijn' : 'lijnen'})
             </span>

@@ -751,10 +751,11 @@ export default function GroteInpakPage() {
             Na de PILS-upload: upload hier de BC/Oilfree-export. We matchen <strong>PILS serial (kolom F, volledig nummer)</strong> met
             de <strong>laatste 6 cijfers</strong> in Excel (typisch kolom <strong>I</strong>, of een <code>substr(…,11,6)</code>-kolom).
             <strong> Atlas Planner e-mail</strong> uit kolom <strong>H</strong>, <strong>FP</strong> uit <strong>No.</strong>, en{' '}
-            <strong>verkooporder (Document Nr.)</strong> voor het{' '}
+            <strong>Verkooporder (Document Nr.)</strong> wordt intern bijgehouden. Klanten zoeken hun status op via{' '}
             <a href="/klant/order-status" className="font-semibold underline decoration-sky-700/50 hover:decoration-sky-900">
-              klantportaal orderstatus
-            </a>
+              het klantportaal
+            </a>{' '}
+            met enkel het <strong>shopordernummer</strong>.
             . Voorloopnullen in Excel worden weer gelijkgetrokken voor de match.
           </p>
           <div className="flex flex-wrap items-center gap-3">

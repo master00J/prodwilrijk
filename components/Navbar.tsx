@@ -198,6 +198,8 @@ export default function Navbar() {
 
   if (pathname === '/tv-display' || pathname?.startsWith('/tv-display/')) return null
 
+  if (pathname?.startsWith('/klant')) return null
+
   return (
     <nav className="bg-white shadow-lg border-b border-gray-200 sticky top-0 z-50 print:hidden">
       <div className="container mx-auto px-4">
