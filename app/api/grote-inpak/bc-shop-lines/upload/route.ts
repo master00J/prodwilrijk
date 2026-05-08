@@ -54,6 +54,7 @@ export async function POST(request: NextRequest) {
       atlas_planner_email: string | null
       bc_fp_item_no: string | null
       bc_shop_order_no: string | null
+      bc_sales_order_no: string | null
       bc_line_description: string | null
       bc_shop_lines_source_file: string
       bc_shop_lines_matched_at: string
@@ -72,6 +73,7 @@ export async function POST(request: NextRequest) {
         atlas_planner_email: hit.atlas_planner_email,
         bc_fp_item_no: hit.fp_item_no,
         bc_shop_order_no: hit.match_raw,
+        bc_sales_order_no: hit.sales_order_no,
         bc_line_description: hit.description,
         bc_shop_lines_source_file: file.name,
         bc_shop_lines_matched_at: matchedAt,
@@ -90,6 +92,7 @@ export async function POST(request: NextRequest) {
               atlas_planner_email: u.atlas_planner_email,
               bc_fp_item_no: u.bc_fp_item_no,
               bc_shop_order_no: u.bc_shop_order_no,
+              bc_sales_order_no: u.bc_sales_order_no,
               bc_line_description: u.bc_line_description,
               bc_shop_lines_source_file: u.bc_shop_lines_source_file,
               bc_shop_lines_matched_at: u.bc_shop_lines_matched_at,

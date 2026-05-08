@@ -235,6 +235,7 @@ export async function GET(request: NextRequest) {
           item.atlas_planner_email?.toLowerCase().includes(searchLower) ||
           item.bc_fp_item_no?.toLowerCase().includes(searchLower) ||
           item.bc_shop_order_no?.toLowerCase().includes(searchLower) ||
+          item.bc_sales_order_no?.toLowerCase().includes(searchLower) ||
           item.production_time_active?.step?.toLowerCase().includes(searchLower) ||
           item.production_time_active?.production_order_number?.toLowerCase().includes(searchLower) ||
           item.production_time_active?.employees?.some((n: string) =>

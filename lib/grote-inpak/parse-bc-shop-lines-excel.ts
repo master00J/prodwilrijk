@@ -8,6 +8,8 @@ export interface BcShopLineParsed {
   match_raw: string
   /** Zelfde sleutel als shopOrderMatchKey(PILS serial kolom F) */
   match_key: string | null
+  /** BC-kolom Document No. (verkooporder) */
+  sales_order_no: string | null
   fp_item_no: string | null
   atlas_planner_email: string | null
   description: string | null
@@ -50,6 +52,12 @@ function atlasPlannerFromCell(val: unknown): string | null {
   return s
 }
 
+function pickDocumentNoColumn(cells: string[]): number {
+  const idx = cells.findIndex((h) => h === 'document no.' || h === 'document no' || /^document\s+no\.?$/.test(h))
+  if (idx >= 0) return idx
+  return 1 // typisch kolom B (Oilfree-export)
+}
+
 function pickItemColumn(cells: string[]): number {
   for (let c = 0; c < cells.length; c++) {
     const h = cells[c]
@@ -78,6 +86,7 @@ export function parseBcShopLinesExcel(workbook: XLSX.WorkBook): BcShopLineParsed
   let matchCol = -1
   let atlasCol = -1
   let itemCol = -1
+  let docCol = -1
   let descCol = -1
 
   const maxScan = Math.min(25, raw.length)
@@ -93,6 +102,7 @@ export function parseBcShopLinesExcel(workbook: XLSX.WorkBook): BcShopLineParsed
       matchCol = pickSerialSuffixColumn(cells)
       atlasCol = pickAtlasColumn(cells)
       itemCol = pickItemColumn(cells)
+      docCol = pickDocumentNoColumn(cells)
       descCol = cells.findIndex((h) => h === 'description' || h.includes('description'))
       break
     }
@@ -104,6 +114,7 @@ export function parseBcShopLinesExcel(workbook: XLSX.WorkBook): BcShopLineParsed
     matchCol = pickSerialSuffixColumn(cells)
     atlasCol = pickAtlasColumn(cells)
     itemCol = pickItemColumn(cells)
+    docCol = pickDocumentNoColumn(cells)
     const di = cells.findIndex((h) => h.includes('description'))
     descCol = di >= 0 ? di : -1
   }
@@ -122,6 +133,12 @@ export function parseBcShopLinesExcel(workbook: XLSX.WorkBook): BcShopLineParsed
 
     const atlasVal = atlasPlannerFromCell(atlasCol >= 0 ? row[atlasCol] : null)
 
+    const docRaw =
+      docCol >= 0 ? String(row[docCol] ?? '').trim() : ''
+    const salesOrderNorm = docRaw
+      ? docRaw.toUpperCase().replace(/\s+/g, '')
+      : null
+
     const fp = itemRaw ? normalizeErpCode(itemRaw) || itemRaw.toUpperCase().replace(/\s+/g, '') : null
     const desc = descCol >= 0 ? String(row[descCol] ?? '').trim() || null : null
 
@@ -131,6 +148,7 @@ export function parseBcShopLinesExcel(workbook: XLSX.WorkBook): BcShopLineParsed
     out.push({
       match_raw: matchRaw,
       match_key,
+      sales_order_no: salesOrderNorm || null,
       fp_item_no: fp || null,
       atlas_planner_email: atlasVal,
       description: desc,

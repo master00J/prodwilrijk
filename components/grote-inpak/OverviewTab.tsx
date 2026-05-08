@@ -121,6 +121,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
         item.atlas_planner_email?.toLowerCase().includes(query) ||
         item.bc_fp_item_no?.toLowerCase().includes(query) ||
         item.bc_shop_order_no?.toLowerCase().includes(query) ||
+        item.bc_sales_order_no?.toLowerCase().includes(query) ||
         item.production_time_active?.step?.toLowerCase().includes(query) ||
         item.production_time_active?.production_order_number?.toLowerCase().includes(query) ||
         item.production_time_active?.employees?.some((n) => n.toLowerCase().includes(query)) ||
@@ -273,7 +274,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
 
   const handleExport = () => {
     const csv = [
-      ['Case Label', 'Case Type', 'PILS Datum', 'Forecast Datum', 'Item Number', 'Serial', 'Shop-key (6)', 'Atlas Planner e-mail', 'BC FP', 'BC Shop order', 'PO-tijd stap (actief)', 'PO-tijd order', 'PO-tijd team', 'Productielocatie', 'In Willebroek', 'Status', 'Priority', 'Comment', 'WMS Locatie'],
+      ['Case Label', 'Case Type', 'PILS Datum', 'Forecast Datum', 'Item Number', 'Serial', 'Shop-key (6)', 'Atlas Planner e-mail', 'BC FP', 'BC Shop order', 'BC Verkooporder', 'PO-tijd stap (actief)', 'PO-tijd order', 'PO-tijd team', 'Productielocatie', 'In Willebroek', 'Status', 'Priority', 'Comment', 'WMS Locatie'],
       ...filteredData.map(item => [
         item.case_label || '',
         item.case_type || '',
@@ -285,6 +286,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
         item.atlas_planner_email || '',
         item.bc_fp_item_no || '',
         item.bc_shop_order_no || '',
+        item.bc_sales_order_no || '',
         item.production_time_active?.step || '',
         item.production_time_active?.production_order_number || '',
         item.production_time_active?.employees?.join('; ') || '',

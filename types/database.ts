@@ -50,6 +50,8 @@ export interface GroteInpakCase {
   /** BC Excel-koppeling: FP / item nummer */
   bc_fp_item_no?: string | null
   bc_shop_order_no?: string | null
+  /** BC verkooporder (Document No.) — klantportaal */
+  bc_sales_order_no?: string | null
   bc_line_description?: string | null
   bc_shop_lines_source_file?: string | null
   bc_shop_lines_matched_at?: string | null

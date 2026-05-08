@@ -564,6 +564,7 @@ async function saveCasesToDatabase(cases: any[]) {
       atlas_planner_email: string | null
       bc_fp_item_no: string | null
       bc_shop_order_no: string | null
+      bc_sales_order_no: string | null
       bc_line_description: string | null
       bc_shop_lines_source_file: string | null
       bc_shop_lines_matched_at: string | null
@@ -573,7 +574,7 @@ async function saveCasesToDatabase(cases: any[]) {
     const { data: existingData } = await supabaseAdmin
       .from('grote_inpak_cases')
       .select(
-        'case_label, comment, status, priority, atlas_planner_email, bc_fp_item_no, bc_shop_order_no, bc_line_description, bc_shop_lines_source_file, bc_shop_lines_matched_at',
+        'case_label, comment, status, priority, atlas_planner_email, bc_fp_item_no, bc_shop_order_no, bc_sales_order_no, bc_line_description, bc_shop_lines_source_file, bc_shop_lines_matched_at',
       )
       .in('case_label', caseLabels)
 
@@ -586,6 +587,7 @@ async function saveCasesToDatabase(cases: any[]) {
           atlas_planner_email: row.atlas_planner_email ?? null,
           bc_fp_item_no: row.bc_fp_item_no ?? null,
           bc_shop_order_no: row.bc_shop_order_no ?? null,
+          bc_sales_order_no: row.bc_sales_order_no ?? null,
           bc_line_description: row.bc_line_description ?? null,
           bc_shop_lines_source_file: row.bc_shop_lines_source_file ?? null,
           bc_shop_lines_matched_at: row.bc_shop_lines_matched_at ?? null,
@@ -614,6 +616,9 @@ async function saveCasesToDatabase(cases: any[]) {
         : null,
       bc_shop_order_no: bcFromExcel
         ? (case_.bc_shop_order_no ?? existing?.bc_shop_order_no ?? null)
+        : null,
+      bc_sales_order_no: bcFromExcel
+        ? (case_.bc_sales_order_no ?? existing?.bc_sales_order_no ?? null)
         : null,
       bc_line_description: bcFromExcel
         ? (case_.bc_line_description ?? existing?.bc_line_description ?? null)
