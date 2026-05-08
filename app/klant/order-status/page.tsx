@@ -17,7 +17,6 @@ type PortalLine = {
     headline: string
     detail: string | null
     production_step: string | null
-    production_order_no: string | null
   }
 }
 
@@ -65,9 +64,6 @@ function LineCard({ line }: { line: PortalLine }) {
       </div>
 
       {line.progress.detail && <p className="mt-3 text-sm text-slate-700">{line.progress.detail}</p>}
-      {line.progress.production_order_no && (
-        <p className="mt-1 text-xs text-slate-500 font-mono">Productieorder: {line.progress.production_order_no}</p>
-      )}
 
       {line.description && (
         <p className="mt-3 text-sm text-slate-600 border-t border-slate-100 pt-3">{line.description}</p>
@@ -135,9 +131,10 @@ export default function KlantOrderStatusPage() {
   }
 
   return (
-    <main className="max-w-2xl mx-auto px-4 py-12 pb-24">
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-6 sm:p-8">
-        <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Orderstatus</h1>
+    <main className="w-full min-h-screen bg-slate-100/60">
+      <div className="w-full px-4 sm:px-8 lg:px-12 xl:px-16 py-10 pb-24">
+        <div className="w-full rounded-2xl border border-slate-200 bg-white shadow-sm p-6 sm:p-8 lg:p-10">
+          <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Orderstatus</h1>
         <p className="mt-2 text-sm text-slate-600 leading-relaxed">
           Vul één of <strong>meerdere shopordernummers</strong> in (zoals op uw orderbevestiging):{' '}
           <strong>één nummer per regel</strong>, of <strong>komma&apos;s / puntkomma&apos;s</strong> tussen de nummers.
@@ -170,19 +167,19 @@ export default function KlantOrderStatusPage() {
             {loading ? 'Zoeken…' : 'Status opvragen'}
           </button>
         </form>
-      </div>
+        </div>
 
-      {error && (
+        {error && (
         <div
           className="mt-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
           role="alert"
         >
           {error}
         </div>
-      )}
+        )}
 
-      {results && results.length > 0 && summary && (
-        <section className="mt-8 space-y-6" aria-label="Resultaten">
+        {results && results.length > 0 && summary && (
+        <section className="mt-10 space-y-8 w-full" aria-label="Resultaten">
           <p className="text-sm text-slate-600">
             <span className="font-medium text-slate-800">{summary.total_requested}</span>{' '}
             {summary.total_requested === 1 ? 'uniek shopordernummer' : 'unieke shopordernummers'} ·{' '}
@@ -205,7 +202,7 @@ export default function KlantOrderStatusPage() {
                   Geen gegevens voor dit nummer. Controleer de code of neem contact op met uw contactpersoon.
                 </div>
               ) : (
-                <ul className="space-y-4">
+                <ul className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4 list-none p-0 m-0">
                   {group.lines.map((line) => (
                     <LineCard key={`${group.shop_order_key}-${line.case_label}`} line={line} />
                   ))}
@@ -214,7 +211,8 @@ export default function KlantOrderStatusPage() {
             </div>
           ))}
         </section>
-      )}
+        )}
+      </div>
     </main>
   )
 }

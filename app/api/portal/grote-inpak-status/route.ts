@@ -29,13 +29,12 @@ function buildPortalProgress(
     in_willebroek?: boolean | null
   },
   prod: ProductionTimeActiveSummary | null,
-): { headline: string; detail: string | null; production_step: string | null; production_order_no: string | null } {
+): { headline: string; detail: string | null; production_step: string | null } {
   if (prod) {
     return {
       headline: 'In productie op de vloer',
       detail: `Huidige stap: ${prod.step}`,
       production_step: prod.step,
-      production_order_no: prod.production_order_number || null,
     }
   }
   if (row.in_willebroek) {
@@ -43,7 +42,6 @@ function buildPortalProgress(
       headline: 'In ons magazijn (Willebroek)',
       detail: 'Uw order is klaar voor verdere verwerking of afhaling volgens afspraak.',
       production_step: null,
-      production_order_no: null,
     }
   }
   const loc = String(row.productielocatie || '').trim()
@@ -52,7 +50,6 @@ function buildPortalProgress(
       headline: 'In voorbereiding (Genk)',
       detail: 'Uw kist wordt klaargemaakt voor transport of productie.',
       production_step: null,
-      production_order_no: null,
     }
   }
   if (loc === 'Wilrijk') {
@@ -60,14 +57,12 @@ function buildPortalProgress(
       headline: 'In voorbereiding (Wilrijk)',
       detail: null,
       production_step: null,
-      production_order_no: null,
     }
   }
   return {
     headline: 'Order geregistreerd',
     detail: 'De planning wordt opgevolgd. Neem bij vragen contact op met uw verkoper.',
     production_step: null,
-    production_order_no: null,
   }
 }
 
