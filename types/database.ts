@@ -34,6 +34,12 @@ export interface GroteInpakCase {
   comment?: string | null
   erp_code?: string | null
   stapel?: number | null
+  /** PILS kolom F — volledig serienummer */
+  serial_number?: string | null
+  /** PILS kolom H — Atlas Planner e-mail */
+  atlas_planner_email?: string | null
+  /** Laatste 6 cijfers van serial; koppelen met BC shop order */
+  pils_shop_order_key?: string | null
   term_werkdagen?: number | null
   deadline?: string | null
   dagen_te_laat: number

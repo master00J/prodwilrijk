@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { logApiError } from '@/lib/api/log-error'
+import { pilsShopOrderKeyFromSerial } from '@/lib/grote-inpak/pils-serial'
 
 export const dynamic = 'force-dynamic'
 
@@ -297,7 +298,39 @@ async function buildOverview(
     const locatie = pilsRow['Locatie'] || pilsRow['locatie'] || pilsRow['LOCATIE'] || ''
     const stockLocation = pilsRow['Stock Location'] || pilsRow['stock_location'] || pilsRow['STOCK LOCATION'] || pilsRow['STOCK_LOCATION'] || ''
 
-    // IN WB (In Willebroek) determination for KISTEN (not units!):
+    let serialNumberRaw = String(
+      pilsRow.serial_number ||
+        pilsRow['Serial Number'] ||
+        pilsRow['Serial  number'] ||
+        pilsRow['Serial number'] ||
+        '',
+    ).trim()
+    if (!serialNumberRaw) {
+      for (const key of Object.keys(pilsRow)) {
+        if (/serial/i.test(key) && /number|nummer|nr/i.test(key)) {
+          serialNumberRaw = String(pilsRow[key] || '').trim()
+          break
+        }
+      }
+    }
+    const serialNumber = serialNumberRaw || null
+
+    let atlasPlannerEmail = String(
+      pilsRow.atlas_planner_email ||
+        pilsRow['Atlas Planner Email'] ||
+        pilsRow['Atlas planner email'] ||
+        '',
+    ).trim()
+    if (!atlasPlannerEmail) {
+      for (const key of Object.keys(pilsRow)) {
+        if (/atlas.*planner|planner.*email|pccrdt/i.test(String(key))) {
+          atlasPlannerEmail = String(pilsRow[key] || '').trim()
+          if (atlasPlannerEmail) break
+        }
+      }
+    }
+    const atlasPlannerEmailDb = atlasPlannerEmail || null
+    const pilsShopOrderKey = pilsShopOrderKeyFromSerial(serialNumberRaw || null)
     // PAC3PL in PILS file means UNIT is in Willebroek, but says nothing about the KIST
     // We determine in_willebroek ONLY from stock files via ERP code link:
     // case_type → erp_code (via ERP LINK) → stock location (via stock files)
@@ -378,6 +411,9 @@ async function buildOverview(
       comment: null,
       erp_code: erpCode || null,
       stapel: stapel >= 1 ? stapel : 1,
+      serial_number: serialNumber,
+      atlas_planner_email: atlasPlannerEmailDb,
+      pils_shop_order_key: pilsShopOrderKey,
       term_werkdagen: termWerkdagen,
       deadline: deadline,
       dagen_te_laat: dagenTeLaat,

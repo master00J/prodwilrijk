@@ -168,6 +168,21 @@ async function parsePILSCSV(csvText: string): Promise<any[]> {
   const arrivalDateIdx = findColumnIndex(['arrival', 'date', 'arrival_date', 'datum', 'arrival date', 'ARRIVAL DATE', 'ARRIVAL_DATE', 'DATUM', 'Datum'])
   const locationIdx = findColumnIndex(['location', 'locatie', 'productielocatie', 'productie', 'LOCATIE', 'PRODUCTIELOCATIE'])
   const stockLocationIdx = findColumnIndex(['stock', 'stock_location', 'voorraad', 'stock location', 'STOCK LOCATION', 'STOCK_LOCATION'])
+  const serialIdx = findColumnIndex([
+    'serial number',
+    'serial  number',
+    'serial',
+    'serie',
+    'serie nummer',
+  ])
+  // Kolom H in standaard PILS-export; soms AS/400-kolomnaam met "pccrdt"
+  const atlasEmailIdx = findColumnIndex([
+    'atlas planner email',
+    'atlas planner',
+    'planner email',
+    'atlasmail',
+    'pccrdt',
+  ])
 
   const data: any[] = []
   for (let i = 1; i < lines.length; i++) {
@@ -186,6 +201,17 @@ async function parsePILSCSV(csvText: string): Promise<any[]> {
         const rawLoc = values[stockLocationIdx] || ''
         // PAC3PL = interne code voor Willebroek
         row.stock_location = rawLoc.toLowerCase().includes('pac3pl') ? 'Willebroek' : rawLoc
+      }
+      // Serial (kolom F in typische export), Atlas mail (kolom H)
+      if (serialIdx >= 0) {
+        row.serial_number = (values[serialIdx] || '').trim()
+      } else if (values.length > 5) {
+        row.serial_number = (values[5] || '').trim()
+      }
+      if (atlasEmailIdx >= 0) {
+        row.atlas_planner_email = (values[atlasEmailIdx] || '').trim()
+      } else if (values.length > 7) {
+        row.atlas_planner_email = (values[7] || '').trim()
       }
       
       // Also store all original columns for flexibility

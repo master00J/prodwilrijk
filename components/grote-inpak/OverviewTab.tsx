@@ -107,6 +107,9 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
         item.case_label?.toLowerCase().includes(query) ||
         item.case_type?.toLowerCase().includes(query) ||
         item.item_number?.toLowerCase().includes(query) ||
+        item.serial_number?.toLowerCase().includes(query) ||
+        item.pils_shop_order_key?.toLowerCase().includes(query) ||
+        item.atlas_planner_email?.toLowerCase().includes(query) ||
         item.stock_location?.toLowerCase().includes(query) ||
         item.comment?.toLowerCase().includes(query)
       )
@@ -250,13 +253,16 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
 
   const handleExport = () => {
     const csv = [
-      ['Case Label', 'Case Type', 'PILS Datum', 'Forecast Datum', 'Item Number', 'Productielocatie', 'In Willebroek', 'Status', 'Priority', 'Comment', 'WMS Locatie'],
+      ['Case Label', 'Case Type', 'PILS Datum', 'Forecast Datum', 'Item Number', 'Serial', 'Shop-key (6)', 'Atlas Planner e-mail', 'Productielocatie', 'In Willebroek', 'Status', 'Priority', 'Comment', 'WMS Locatie'],
       ...filteredData.map(item => [
         item.case_label || '',
         item.case_type || '',
         item.arrival_date || '',
         item.forecast_date || '',
         item.item_number || '',
+        item.serial_number || '',
+        item.pils_shop_order_key || '',
+        item.atlas_planner_email || '',
         item.productielocatie || '',
         item.in_willebroek ? 'Ja' : 'Nee',
         item.status || '',
@@ -709,6 +715,27 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
               </th>
               <th
                 className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
+                onClick={() => handleSort('serial_number')}
+                title="PILS kolom F — Serial Number"
+              >
+                Serial{getSortIcon('serial_number')}
+              </th>
+              <th
+                className="px-2 py-3 text-left text-xs font-semibold text-slate-600 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
+                onClick={() => handleSort('pils_shop_order_key')}
+                title="Laatste 6 cijfers van het serienummer; te matchen met BC shop order"
+              >
+                Shop-key{getSortIcon('pils_shop_order_key')}
+              </th>
+              <th
+                className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap min-w-[8rem]"
+                onClick={() => handleSort('atlas_planner_email')}
+                title="PILS kolom H — Atlas Planner e-mail"
+              >
+                Atlas mail{getSortIcon('atlas_planner_email')}
+              </th>
+              <th
+                className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
                 onClick={() => handleSort('productielocatie')}
               >
                 Productie{getSortIcon('productielocatie')}
@@ -840,6 +867,15 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                   </td>
                   <td className="px-2 py-2 text-slate-800">
                     {displayItem.item_number ? <BcItemCode value={displayItem.item_number} /> : '—'}
+                  </td>
+                  <td className="px-2 py-2 text-slate-700 font-mono text-xs whitespace-nowrap max-w-[9rem] truncate" title={displayItem.serial_number || undefined}>
+                    {displayItem.serial_number || '—'}
+                  </td>
+                  <td className="px-2 py-2 text-slate-700 font-mono text-xs whitespace-nowrap" title={displayItem.pils_shop_order_key ? `Match met BC shop order: ${displayItem.pils_shop_order_key}` : undefined}>
+                    {displayItem.pils_shop_order_key || '—'}
+                  </td>
+                  <td className="px-2 py-2 text-slate-700 text-xs max-w-[12rem] truncate" title={displayItem.atlas_planner_email || undefined}>
+                    {displayItem.atlas_planner_email || '—'}
                   </td>
                   <td className="px-2 py-2 text-slate-700 max-w-[10rem] truncate" title={displayItem.productielocatie || undefined}>
                     {displayItem.productielocatie || '—'}
