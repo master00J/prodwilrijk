@@ -243,6 +243,22 @@ export async function POST(request: NextRequest) {
                 totalProcessed += relevantForInsert.length
                 filesProcessed++
                 console.log(`Successfully saved ${relevantForInsert.length} stock items for location ${location}`)
+                // Na een geslaagde BC36-import: wis legacy-rijen voor deze locatie. Anders blijven
+                // oude "Oude BC"-uploads (quantity=0, enkel productie) staan en tellen mee — dat
+                // geeft "geen stock Genk" terwijl de Excel wél Inventory heeft.
+                if (bcSource === 'bc36' && relevantForInsert.length > 0) {
+                  const { error: legacyDelErr, count: legacyDelCount } = await supabaseAdmin
+                    .from('grote_inpak_stock')
+                    .delete({ count: 'exact' })
+                    .eq('location', location)
+                    .eq('bc_source', 'legacy')
+                    .not('erp_code', 'is', null)
+                  if (legacyDelErr) {
+                    console.warn(`Legacy stock niet gewist voor ${location}:`, legacyDelErr.message)
+                  } else if (legacyDelCount && legacyDelCount > 0) {
+                    console.log(`Verwijderd ${legacyDelCount} legacy stock-rijen voor ${location} (na BC36-import).`)
+                  }
+                }
               }
             }
           }
