@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
+import { expandWorksheetRef } from '@/lib/xlsx/expand-worksheet-ref'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,6 +23,10 @@ export async function POST(request: NextRequest) {
     const workbook = XLSX.read(buffer, { type: 'buffer' })
     const sheetName = workbook.SheetNames[0]
     const worksheet = workbook.Sheets[sheetName]
+    expandWorksheetRef(worksheet)
+    if (!worksheet) {
+      return NextResponse.json({ error: 'Excel bevat geen werkblad' }, { status: 400 })
+    }
     const data = XLSX.utils.sheet_to_json(worksheet, { raw: false })
 
     // Map Excel columns to XML fields

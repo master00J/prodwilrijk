@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import * as XLSX from 'xlsx'
+import { expandWorksheetRef } from '@/lib/xlsx/expand-worksheet-ref'
 import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
 import { getBcMappingLookup } from '@/lib/bc-mapping/server'
 
@@ -227,6 +228,8 @@ export async function POST(request: NextRequest) {
       const buffer = Buffer.from(await file.arrayBuffer())
       const wb = XLSX.read(buffer, { type: 'buffer' })
       const ws = wb.Sheets[wb.SheetNames[0]]
+      if (!ws) continue
+      expandWorksheetRef(ws)
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }) as any[][]
 
       const { headerRow, erpIdx, getQty } = detectTransferColumns(rows)

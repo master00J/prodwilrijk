@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import * as XLSX from 'xlsx'
+import { expandWorksheetRef } from '@/lib/xlsx/expand-worksheet-ref'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -35,6 +36,8 @@ interface ParsedRecord {
 function parseXlsBuffer(buffer: Buffer, filename: string): ParsedRecord[] {
   const wb = XLSX.read(buffer, { type: 'buffer' })
   const ws = wb.Sheets[wb.SheetNames[0]]
+  if (!ws) return []
+  expandWorksheetRef(ws)
   const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' }) as unknown[][]
   if (rows.length < 2) return []
 

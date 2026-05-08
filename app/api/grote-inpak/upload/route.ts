@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import * as XLSX from 'xlsx'
+import { expandWorksheetRef } from '@/lib/xlsx/expand-worksheet-ref'
 
 export const dynamic = 'force-dynamic'
 import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
@@ -215,8 +216,10 @@ async function parsePILSCSV(csvText: string): Promise<any[]> {
 async function parseERPExcel(workbook: XLSX.WorkBook): Promise<any[]> {
   const sheetName = workbook.SheetNames[0]
   const worksheet = workbook.Sheets[sheetName]
-  
-  // First, get headers to identify column positions
+  expandWorksheetRef(worksheet)
+  if (!worksheet) {
+    throw new Error('Excel file has no worksheet')
+  }
   const headerRow = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' })[0] as any[]
   const headers = headerRow || []
   
@@ -389,7 +392,9 @@ async function parseStockCSV(csvText: string, location?: string): Promise<any[]>
 async function parseStockExcel(workbook: XLSX.WorkBook, location?: string): Promise<any[]> {
   const sheetName = workbook.SheetNames[0]
   const worksheet = workbook.Sheets[sheetName]
-  
+  expandWorksheetRef(worksheet)
+  if (!worksheet) return []
+
   // Read by Excel column letters: A = ERP code, C = quantity
   const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
   
@@ -651,6 +656,8 @@ async function parseForecastCSV(csvText: string, fileName: string): Promise<any[
 async function parsePackedExcel(workbook: XLSX.WorkBook): Promise<any[]> {
   const sheetName = workbook.SheetNames[0]
   const worksheet = workbook.Sheets[sheetName]
+  expandWorksheetRef(worksheet)
+  if (!worksheet) return []
   const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false }) as any[][]
   const result: any[] = []
 

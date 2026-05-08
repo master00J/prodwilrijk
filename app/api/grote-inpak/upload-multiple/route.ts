@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx'
 import { logApiError } from '@/lib/api/log-error'
 import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
 import { getBcMappingLookup } from '@/lib/bc-mapping/server'
+import { expandWorksheetRef } from '@/lib/xlsx/expand-worksheet-ref'
 
 export const dynamic = 'force-dynamic'
 
@@ -401,21 +402,9 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
     workbook.SheetNames.find((n) => String(n || '').trim().toLowerCase() === 'items') || workbook.SheetNames[0]
   const worksheet = workbook.Sheets[sheetName]
   if (!worksheet) return []
+  expandWorksheetRef(worksheet)
   const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
-  // Sommige BC/Excel-exports schrijven een te krappe `!ref` (dimensions); dan worden
-  // duizenden data-rijen niet gelopen en "ontbreekt" een item pas vanaf een bepaalde rij.
-  for (const key of Object.keys(worksheet)) {
-    if (key[0] === '!') continue
-    try {
-      const addr = XLSX.utils.decode_cell(key)
-      if (addr.r > range.e.r) range.e.r = addr.r
-      if (addr.c > range.e.c) range.e.c = addr.c
-    } catch {
-      /* ongeldige sleutel negeren */
-    }
-  }
-  
-  console.log(`Parsing stock file for location ${location}: Range is ${worksheet['!ref']} (uitgebreid tot ${range.e.r + 1} rijen)`)
+  console.log(`Parsing stock file for location ${location}: !ref na uitbreiding t/m rij ${range.e.r + 1}`)
   
   const results: any[] = []
   

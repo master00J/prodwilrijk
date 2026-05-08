@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Upload, RefreshCw, AlertCircle, CheckCircle2, Factory, Clock, CalendarDays, Package } from 'lucide-react'
 import * as XLSX from 'xlsx'
+import { expandWorksheetRef } from '@/lib/xlsx/expand-worksheet-ref'
 import { BcItemCode } from '@/lib/bc-mapping/client'
 import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
 import { PO_FLOOR_STATUS_OPTIONS, type PoFloorStatusValue } from '@/lib/grote-inpak/po-floor-status'
@@ -150,6 +151,8 @@ export default function ProductieOrdersTab() {
       const buffer = await file.arrayBuffer()
       const wb = XLSX.read(buffer, { type: 'array', cellDates: true })
       const ws = wb.Sheets[wb.SheetNames[0]]
+      if (!ws) throw new Error('Excel-bestand heeft geen werkblad')
+      expandWorksheetRef(ws)
       const raw = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }) as any[][]
       const headers = raw[0] || []
       const normalizeHeader = (v: any): string => String(v ?? '').toLowerCase().replace(/\s+/g, ' ').trim()

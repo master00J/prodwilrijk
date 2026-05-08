@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
+import { expandWorksheetRef } from '@/lib/xlsx/expand-worksheet-ref'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,6 +23,7 @@ function parsePackedExcel(buffer: ArrayBuffer): PackedRow[] {
   const sheetName = wb.SheetNames[0]
   const ws = wb.Sheets[sheetName]
   if (!ws) return []
+  expandWorksheetRef(ws)
   const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false }) as any[][]
   const result: PackedRow[] = []
   for (const row of rows) {
