@@ -741,7 +741,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
               <th
                 className="px-2 py-3 text-left text-xs font-semibold text-indigo-800 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
                 onClick={() => handleSort('bc_fp_item_no')}
-                title="Uit BC shop/order export (gekoppeld via shop-key)"
+                title="FP uit BC shop-export of (K/V/C + ERP LINK) uit GP→FP-mapping"
               >
                 BC FP{getSortIcon('bc_fp_item_no')}
               </th>

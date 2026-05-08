@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { logApiError } from '@/lib/api/log-error'
 import { shopOrderMatchKey } from '@/lib/grote-inpak/pils-serial'
+import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
+import { getBcMappingLookup, type BcMappingLookup } from '@/lib/bc-mapping/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -107,11 +109,29 @@ export async function POST(request: NextRequest) {
   }
 }
 
+/** K-, V- (vaszak) en C-kisttypes: BC FP uit ERP LINK + mapping (GP→FP). */
+function isStandardKOrCkist(caseType: string): boolean {
+  const kt = String(caseType || '').trim().toUpperCase()
+  return kt.startsWith('K') || kt.startsWith('V') || kt.startsWith('C')
+}
+
+function bcFpFromErpLinkCode(erpCode: string, bcMapping: BcMappingLookup): string | null {
+  const raw = normalizeErpCode(erpCode) || String(erpCode).trim().toUpperCase().replace(/\s+/g, '')
+  if (!raw) return null
+  const mapped = bcMapping.toNew(raw)
+  const use =
+    mapped && mapped.trim() && mapped.toUpperCase() !== raw.toUpperCase()
+      ? mapped.trim().toUpperCase()
+      : raw
+  return normalizeErpCode(use) || use
+}
+
 async function buildOverview(
   pilsData: any[],
   erpData: any[],
   stockData: any[]
 ): Promise<any[]> {
+  const bcMapping = await getBcMappingLookup()
   // Create ERP lookup map
   // Create ERP map - match on kistnummer (which matches case_type from PILS)
   const erpMapByKistnummer = new Map()
@@ -396,7 +416,10 @@ async function buildOverview(
 
     // Get stapel from ERP LINK (default 1)
     const stapel = erpInfo.stapel ? parseInt(String(erpInfo.stapel), 10) : 1
-    
+
+    const bcFpFromErp =
+      erpCode && isStandardKOrCkist(caseType) ? bcFpFromErpLinkCode(erpCode, bcMapping) : null
+
     overview.push({
       case_label: caseLabel,
       case_type: caseType,
@@ -414,6 +437,7 @@ async function buildOverview(
       serial_number: serialNumber,
       atlas_planner_email: atlasPlannerEmailDb,
       pils_shop_order_key: pilsShopOrderKey,
+      ...(bcFpFromErp ? { bc_fp_item_no: bcFpFromErp } : {}),
       term_werkdagen: termWerkdagen,
       deadline: deadline,
       dagen_te_laat: dagenTeLaat,
