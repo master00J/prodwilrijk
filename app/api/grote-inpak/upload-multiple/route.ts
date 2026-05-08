@@ -466,7 +466,17 @@ async function parseStockExcel(workbook: XLSX.WorkBook, location: string, isTran
     return -1
   }
 
-  let inventoryIdx = pickExactHeader('Inventory', 'Voorraad', 'Quantity on Hand', 'Inventory Quantity')
+  let inventoryIdx = pickExactHeader(
+    'Inventory',
+    'Voorraad',
+    'Quantity on Hand',
+    'Qty. on Hand',
+    'Qty on Hand',
+    'Inventory Quantity',
+    'Qty. Available',
+    'Qty Available',
+    'Available Inventory',
+  )
   if (inventoryIdx < 0) {
     const invLoose = headerCells.findIndex(
       (c) =>

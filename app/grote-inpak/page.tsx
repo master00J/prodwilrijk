@@ -23,7 +23,7 @@ export default function GroteInpakPage() {
   // BC-overgang: markeer welke BC-omgeving een stock-upload komt van.
   // 'legacy' = oude BC (GP-codes), 'bc36' = nieuwe BC36 (FP-codes).
   // Beide kunnen tegelijk in de DB leven en worden per kist opgeteld.
-  const [stockBcSource, setStockBcSource] = useState<'legacy' | 'bc36'>('legacy')
+  const [stockBcSource, setStockBcSource] = useState<'legacy' | 'bc36'>('bc36')
   const [transferFiles, setTransferFiles] = useState<File[]>([])
   const [transferUploading, setTransferUploading] = useState(false)
   const [transferFiles_DB, setTransferFiles_DB] = useState<any[]>([])
@@ -654,10 +654,12 @@ export default function GroteInpakPage() {
               </label>
             </div>
             <p className="text-xs text-amber-800 mt-2">
-              Tijdens de overgang kan je zowel een oude als nieuwe stock-file uploaden voor dezelfde locatie.
-              Ze worden apart bijgehouden en per kist opgeteld in de overzichten. Bij <strong>Oude BC</strong> tellen we
-              geen voorraad, inkoop- of transferaantallen uit die export — enkel nog wat op productieorders staat
-              (kolom &quot;Qty. on Prod. Order&quot;). Gebruik <strong>Nieuwe BC36</strong> voor de echte voorraadcijfers.
+              Tijdens de overgang kan je zowel een oude als nieuwe stock-file uploaden voor dezelfde locatie
+              (per bron apart in de database). Standaard staat <strong>Nieuwe BC36</strong> aan — zo wordt de
+              voorraad uit de Excel (kolom Inventory / voorraad) opgeslagen. Kies <strong>alleen Oude BC</strong> als
+              je bewust een GP-export uploadt: dan zetten we voorraad op 0 en bewaren we enkel het veld
+              &quot;Qty. on Prod. Order&quot;. Upload je per ongeluk een FP-export met Oude BC, dan zie je dus wel
+              productie maar geen stock Genk.
             </p>
           </div>
 
