@@ -32,6 +32,37 @@ export async function GET(request: NextRequest) {
     if (error) throw error
 
     const rows = data || []
+
+    const { data: floorRows, error: floorErr } = await supabaseAdmin
+      .from('grote_inpak_production_order_floor_status')
+      .select('prod_order_no, item_no, bc_source, floor_status, note, updated_at, updated_by')
+
+    if (floorErr) {
+      console.warn('production-orders: vloerstatus niet geladen:', floorErr.message)
+    }
+
+    const floorMap = new Map<
+      string,
+      { floor_status: string; note: string | null; updated_at: string; updated_by: string | null }
+    >()
+    for (const f of floorRows || []) {
+      const key = `${f.prod_order_no}\0${f.item_no}\0${f.bc_source}`
+      floorMap.set(key, {
+        floor_status: f.floor_status,
+        note: f.note ?? null,
+        updated_at: f.updated_at,
+        updated_by: f.updated_by ?? null,
+      })
+    }
+
+    for (const r of rows as any[]) {
+      const key = `${r.prod_order_no}\0${r.item_no}\0${r.bc_source}`
+      const fs = floorMap.get(key)
+      r.floor_status = fs?.floor_status ?? null
+      r.floor_status_note = fs?.note ?? null
+      r.floor_status_updated_at = fs?.updated_at ?? null
+      r.floor_status_updated_by = fs?.updated_by ?? null
+    }
     const now = Date.now()
     const weekMs = 7 * 24 * 60 * 60 * 1000
 

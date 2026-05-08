@@ -5,6 +5,7 @@ import { Upload, RefreshCw, AlertCircle, CheckCircle2, Factory, Clock, CalendarD
 import * as XLSX from 'xlsx'
 import { BcItemCode } from '@/lib/bc-mapping/client'
 import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
+import { PO_FLOOR_STATUS_OPTIONS, type PoFloorStatusValue } from '@/lib/grote-inpak/po-floor-status'
 
 interface ProductionOrder {
   id: number
@@ -23,6 +24,11 @@ interface ProductionOrder {
   ending_date: string | null
   source_file: string | null
   uploaded_at: string
+  bc_source: 'legacy' | 'bc36'
+  floor_status: string | null
+  floor_status_note: string | null
+  floor_status_updated_at: string | null
+  floor_status_updated_by: string | null
 }
 
 interface Stats {
@@ -43,9 +49,17 @@ function formatDate(s: string | null): string {
   return d.toLocaleDateString('nl-BE', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
-function formatNumber(n: number | null): string {
-  if (n === null || n === undefined) return '-'
-  return Number(n).toLocaleString('nl-BE')
+function formatDateTimeShort(iso: string | null): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return '—'
+  return d.toLocaleString('nl-BE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 export default function ProductieOrdersTab() {
@@ -60,6 +74,40 @@ export default function ProductieOrdersTab() {
   const [onlyOpen, setOnlyOpen] = useState(true)
   const [search, setSearch] = useState('')
   const [uploadProgress, setUploadProgress] = useState<string>('')
+  const [savingKey, setSavingKey] = useState<string | null>(null)
+  const [floorFilter, setFloorFilter] = useState<'all' | 'unset' | PoFloorStatusValue>('all')
+
+  const saveFloorStatus = async (o: ProductionOrder, value: PoFloorStatusValue) => {
+    const key = `${o.prod_order_no}\0${o.item_no}\0${o.bc_source}`
+    setSavingKey(key)
+    setError(null)
+    try {
+      const res = await fetch('/api/grote-inpak/production-orders/floor-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prod_order_no: o.prod_order_no,
+          item_no: o.item_no,
+          bc_source: o.bc_source,
+          floor_status: value,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Opslaan mislukt')
+      const at = json.updated_at as string
+      setOrders((prev) =>
+        prev.map((p) =>
+          p.prod_order_no === o.prod_order_no && p.item_no === o.item_no && p.bc_source === o.bc_source
+            ? { ...p, floor_status: value, floor_status_updated_at: at ?? p.floor_status_updated_at }
+            : p,
+        ),
+      )
+    } catch (err: any) {
+      setError(err.message || 'Vloerstatus opslaan mislukt')
+    } finally {
+      setSavingKey(null)
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -68,7 +116,13 @@ export default function ProductieOrdersTab() {
       const res = await fetch('/api/grote-inpak/production-orders', { cache: 'no-store' })
       if (!res.ok) throw new Error('Laden mislukt')
       const json = await res.json()
-      setOrders(json.data || [])
+      const raw = (json.data || []) as ProductionOrder[]
+      setOrders(
+        raw.map((r) => ({
+          ...r,
+          bc_source: r.bc_source === 'legacy' ? 'legacy' : 'bc36',
+        })),
+      )
       setStats(json.stats || null)
     } catch (err: any) {
       setError(err.message || 'Fout bij laden')
@@ -282,13 +336,18 @@ export default function ProductieOrdersTab() {
     return orders.filter(o => {
       if (onlyOpen && Number(o.remaining_quantity ?? 0) <= 0) return false
       if (locationFilter !== 'all' && o.productielocatie !== locationFilter) return false
+      if (floorFilter === 'unset') {
+        if (o.floor_status) return false
+      } else if (floorFilter !== 'all') {
+        if (o.floor_status !== floorFilter) return false
+      }
       if (term) {
         const hay = `${o.prod_order_no} ${o.item_no} ${o.description ?? ''} ${o.kistnummer ?? ''}`.toLowerCase()
         if (!hay.includes(term)) return false
       }
       return true
     })
-  }, [orders, onlyOpen, locationFilter, search])
+  }, [orders, onlyOpen, locationFilter, floorFilter, search])
 
   const now = Date.now()
 
@@ -304,6 +363,9 @@ export default function ProductieOrdersTab() {
             Upload de <code className="bg-gray-100 px-1 py-0.5 rounded text-xs">Prod. Order Line List</code> export uit Business Central.
             Beide BC-omgevingen worden ondersteund: <strong>BC36</strong> (locaties <em>GENK_EIK / Wilrijk / Willebroek</em>) en de <strong>oude BC</strong> (locaties <em>PACK-GENK / PACK-WILR / PACK-WILL</em>).
             Alleen items met een match in de ERP LINK worden bewaard — alle andere locaties en items worden genegeerd.
+          </p>
+          <p className="text-sm text-amber-900/90 mt-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            <strong>Vloerstatus</strong> is een <em>manuele</em> indicatie (niet uit BC): per productieorderlijn kun je in Genk aangeven waar de order staat (zagerij, assemblage, …). Wilrijk ziet die kolom direct mee in dit overzicht.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -419,6 +481,20 @@ export default function ProductieOrdersTab() {
           onChange={(e) => setSearch(e.target.value)}
           className="flex-1 min-w-[240px] px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
         />
+        <label className="inline-flex items-center gap-1 text-gray-600">
+          <span className="text-xs whitespace-nowrap">Vloer:</span>
+          <select
+            value={floorFilter}
+            onChange={(e) => setFloorFilter(e.target.value as typeof floorFilter)}
+            className="border border-gray-300 rounded-lg text-xs px-2 py-1.5 bg-white"
+          >
+            <option value="all">Alle</option>
+            <option value="unset">Niet ingevuld</option>
+            {PO_FLOOR_STATUS_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </label>
         <span className="text-gray-500 text-xs whitespace-nowrap">{filtered.length} / {orders.length} rijen</span>
       </div>
 
@@ -435,20 +511,24 @@ export default function ProductieOrdersTab() {
               <th className="px-3 py-2 text-right">Afgewerkt</th>
               <th className="px-3 py-2 text-right">Resterend</th>
               <th className="px-3 py-2 text-left">Einddatum</th>
-              <th className="px-3 py-2 text-left">Status</th>
+              <th className="px-3 py-2 text-left min-w-[200px]" title="Manueel door Genk / vloer">Vloerstatus</th>
+              <th className="px-3 py-2 text-left whitespace-nowrap">Vloer bijgewerkt</th>
+              <th className="px-3 py-2 text-left">BC status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {loading && (
-              <tr><td colSpan={10} className="px-3 py-8 text-center text-gray-500">Laden...</td></tr>
+              <tr><td colSpan={12} className="px-3 py-8 text-center text-gray-500">Laden...</td></tr>
             )}
             {!loading && filtered.length === 0 && (
-              <tr><td colSpan={10} className="px-3 py-8 text-center text-gray-500">
+              <tr><td colSpan={12} className="px-3 py-8 text-center text-gray-500">
                 Geen productie-orders. Upload een <em>Prod. Order Line List</em> Excel om te starten.
               </td></tr>
             )}
             {filtered.map(o => {
               const overdue = o.ending_date && Number(o.remaining_quantity ?? 0) > 0 && new Date(o.ending_date).getTime() < now
+              const rowKey = `${o.prod_order_no}\0${o.item_no}\0${o.bc_source}`
+              const busy = savingKey === rowKey
               return (
                 <tr key={o.id} className="hover:bg-blue-50/30">
                   <td className="px-3 py-2 font-mono font-semibold text-gray-900">{o.kistnummer ?? '-'}</td>
@@ -468,7 +548,27 @@ export default function ProductieOrdersTab() {
                   <td className="px-3 py-2 text-right tabular-nums text-gray-600">{formatNumber(o.finished_quantity)}</td>
                   <td className="px-3 py-2 text-right tabular-nums font-semibold">{formatNumber(o.remaining_quantity)}</td>
                   <td className={`px-3 py-2 ${overdue ? 'text-red-600 font-semibold' : 'text-gray-700'}`}>{formatDate(o.ending_date)}</td>
-                  <td className="px-3 py-2 text-gray-600 text-xs">{o.status ?? '-'}</td>
+                  <td className="px-3 py-2 align-top">
+                    <select
+                      value={o.floor_status ?? ''}
+                      disabled={busy}
+                      onChange={(e) => {
+                        const v = e.target.value as PoFloorStatusValue
+                        if (!v) return
+                        saveFloorStatus(o, v)
+                      }}
+                      className={`w-full max-w-[220px] text-xs border border-gray-300 rounded-md px-2 py-1.5 bg-white ${busy ? 'opacity-60' : ''}`}
+                    >
+                      <option value="">— kies vloer —</option>
+                      {PO_FLOOR_STATUS_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-3 py-2 text-gray-600 text-xs whitespace-nowrap align-top">
+                    {o.floor_status_updated_at ? formatDateTimeShort(o.floor_status_updated_at) : '—'}
+                  </td>
+                  <td className="px-3 py-2 text-gray-600 text-xs align-top">{o.status ?? '-'}</td>
                 </tr>
               )
             })}
