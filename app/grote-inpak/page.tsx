@@ -482,21 +482,40 @@ export default function GroteInpakPage() {
   }
 
   return (
-    <div className="w-full max-w-none px-3 sm:px-4 lg:px-6 xl:px-8 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-slate-900">
-          Grote inpak
-        </h1>
-        <p className="mt-2 text-slate-600 max-w-2xl">
-          Atlas Copco — plan van PILS, stock, transfer en forecast. Tab <span className="font-medium">Overzicht</span>{' '}
-          is je hoofdscherm; andere tabs verdiepen per onderwerp.
-        </p>
-      </div>
+    <div className="min-h-screen bg-[#e6eef8] text-slate-900 antialiased">
+      <header className="border-b border-[#0f2d52] bg-gradient-to-b from-[#1a4b8c] to-[#153d75] text-white shadow-md">
+        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded border border-white/20 bg-white/10 text-sm font-bold">
+              GI
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-sky-200/90">Atlas Copco</p>
+              <h1 className="text-lg font-semibold leading-tight tracking-tight">Grote inpak</h1>
+              <p className="mt-0.5 max-w-xl text-xs text-sky-100/90">
+                PILS, stock, transfer en forecast. Tab <span className="font-medium text-white">Overzicht</span> is het
+                hoofdscherm.
+              </p>
+            </div>
+          </div>
+          <div className="text-xs text-sky-100/95 tabular-nums">
+            {new Date().toLocaleString('nl-BE', {
+              weekday: 'short',
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </div>
+        </div>
+      </header>
 
+      <div className="mx-auto max-w-[1600px] px-3 py-4 sm:px-6 sm:py-6">
       {/* File Upload Section */}
-      <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+      <div className="mb-6 rounded-lg border border-slate-300/80 bg-white p-5 shadow-sm sm:p-6">
         <div
-          className="flex items-center justify-between cursor-pointer mb-4 hover:bg-slate-50 -m-2 p-2 rounded-lg transition-colors"
+          className="-m-2 mb-4 flex cursor-pointer items-center justify-between rounded-lg p-2 transition-colors hover:bg-slate-50"
           onClick={() => setUploadSectionExpanded(!uploadSectionExpanded)}
         >
           <h2 className="text-lg font-semibold text-slate-900">Data uploaden</h2>
@@ -510,14 +529,14 @@ export default function GroteInpakPage() {
         {uploadSectionExpanded && (
           <div>
             {error && (
-              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-800">
-                <AlertCircle className="w-5 h-5" />
-                <span>{error}</span>
+              <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-300/80 bg-red-50 p-4 text-red-900">
+                <AlertCircle className="h-5 w-5 shrink-0" />
+                <span className="text-sm">{error}</span>
               </div>
             )}
 
             {success && (
-              <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2 text-green-800">
+              <div className="mb-4 flex items-center gap-2 rounded-lg border border-emerald-300/80 bg-emerald-50 p-4 text-emerald-950">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
@@ -561,7 +580,7 @@ export default function GroteInpakPage() {
             />
             <label
               htmlFor="pils-upload"
-              className="inline-block px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 cursor-pointer transition-colors"
+              className="inline-block cursor-pointer rounded-lg bg-[#1a4b8c] px-4 py-2 text-white transition-colors hover:bg-[#153d75]"
             >
               {pilsFile ? 'Wijzig Bestand' : 'Selecteer Bestand'}
             </label>
@@ -733,7 +752,7 @@ export default function GroteInpakPage() {
             />
             <label
               htmlFor="stock-upload"
-              className="inline-block px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 cursor-pointer transition-colors"
+              className="inline-block cursor-pointer rounded-lg bg-[#1a4b8c] px-4 py-2 text-white transition-colors hover:bg-[#153d75]"
             >
               {stockFiles.length > 0 ? 'Wijzig Bestanden' : 'Selecteer Bestanden'}
             </label>
@@ -770,7 +789,7 @@ export default function GroteInpakPage() {
               type="button"
               onClick={handleBcShopLinesUpload}
               disabled={bcShopLinesUploading}
-              className="px-4 py-2 bg-sky-600 text-white rounded-lg text-sm font-semibold hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="rounded-lg bg-[#1a4b8c] px-4 py-2 text-sm font-semibold text-white hover:bg-[#153d75] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {bcShopLinesUploading ? 'Koppelen…' : 'Upload & koppel aan PILS'}
             </button>
@@ -838,11 +857,11 @@ export default function GroteInpakPage() {
           )}
         </div>
 
-            <div className="flex gap-4">
+            <div className="flex flex-wrap gap-4">
               <button
                 onClick={handleProcess}
                 disabled={isProcessing || (!pilsFile && stockFiles.length === 0 && !erpLinkFile)}
-                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg font-semibold hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                className="flex items-center gap-2 rounded-lg bg-[#1a4b8c] px-6 py-3 font-semibold text-white transition-all hover:bg-[#153d75] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isProcessing ? (
                   <>
@@ -859,7 +878,7 @@ export default function GroteInpakPage() {
               {dataLoaded && (
                 <button
                   onClick={handleRefresh}
-                  className="flex items-center gap-2 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                  className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-6 py-3 font-semibold text-slate-800 transition-colors hover:bg-slate-50"
                 >
                   <RefreshCw className="w-5 h-5" />
                   Vernieuwen
@@ -872,35 +891,36 @@ export default function GroteInpakPage() {
 
       {/* Status Message */}
       {dataLoaded && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-          <p className="text-green-800">
-            ✅ <strong>Data geladen</strong> - Laatste update: {new Date().toLocaleString('nl-NL')}
+        <div className="mb-6 rounded-lg border border-emerald-300/80 bg-emerald-50/90 p-4 shadow-sm">
+          <p className="text-sm text-emerald-950">
+            <strong>Data geladen</strong> — laatste refresh: {new Date().toLocaleString('nl-BE')}
           </p>
         </div>
       )}
 
       {/* Tabs */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="border-b border-slate-200 bg-slate-50/80">
-          <nav className="flex overflow-x-auto gap-0.5 px-1 pt-1" aria-label="Grote inpak">
-            {tabs.map(tab => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-4 sm:px-5 py-3 text-sm font-medium whitespace-nowrap rounded-t-lg border-b-2 -mb-px transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-slate-900 text-slate-900 bg-white'
-                    : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </nav>
-        </div>
+      <div className="overflow-hidden rounded-lg border border-slate-400/90 shadow-md">
+        <nav
+          className="flex gap-0.5 overflow-x-auto border-b border-[#0f2d52] bg-gradient-to-b from-[#1a4b8c] to-[#153d75] px-1 pt-1"
+          aria-label="Grote inpak"
+        >
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`whitespace-nowrap rounded-t-md px-4 py-3 text-sm font-medium transition-colors sm:px-5 ${
+                activeTab === tab.id
+                  ? 'bg-white text-[#1a4b8c] shadow-sm'
+                  : 'text-white/90 hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
 
-        <div className="p-5 sm:p-6">
+        <div className="bg-white p-5 sm:p-6">
           {activeTab === 0 && dataLoaded && <OverviewTab overview={overviewData} />}
           {activeTab === 1 && dataLoaded && <TransportTab transport={transportData} overview={overviewData} />}
           {activeTab === 2 && dataLoaded && <ForecastTab />}
@@ -920,15 +940,14 @@ export default function GroteInpakPage() {
       </div>
 
       {!dataLoaded && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
-          <p className="text-blue-800 text-lg mb-2">
-            🚀 <strong>Welkom!</strong> Upload bestanden en klik op &apos;Verwerken&apos; om te beginnen.
+        <div className="mt-6 rounded-lg border border-slate-300/80 bg-white p-6 text-center shadow-sm">
+          <p className="mb-2 text-lg text-slate-800">
+            <strong>Welkom</strong> — upload bestanden en klik op &apos;Verwerken&apos; om te beginnen.
           </p>
-          <p className="text-blue-600 text-sm">
-            💡 De eerste keer laden kan 15-20 seconden duren.
-          </p>
+          <p className="text-sm text-slate-600">De eerste keer laden kan even duren.</p>
         </div>
       )}
+      </div>
     </div>
   )
 }

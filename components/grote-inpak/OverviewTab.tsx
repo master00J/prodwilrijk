@@ -219,12 +219,12 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
 
   const getSortIcon = (column: SortableColumn) => {
     if (sortColumn !== column) {
-      return <ArrowUpDown className="w-3.5 h-3.5 inline-block ml-0.5 text-slate-400 align-text-bottom" />
+      return <ArrowUpDown className="w-3.5 h-3.5 inline-block ml-0.5 text-sky-200/80 align-text-bottom" />
     }
     return sortDirection === 'asc' ? (
-      <ArrowUp className="w-3.5 h-3.5 inline-block ml-0.5 text-slate-800 align-text-bottom" />
+      <ArrowUp className="w-3.5 h-3.5 inline-block ml-0.5 text-white align-text-bottom" />
     ) : (
-      <ArrowDown className="w-3.5 h-3.5 inline-block ml-0.5 text-slate-800 align-text-bottom" />
+      <ArrowDown className="w-3.5 h-3.5 inline-block ml-0.5 text-white align-text-bottom" />
     )
   }
 
@@ -416,19 +416,19 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
 
   return (
     <div className="space-y-6">
-      <header className="border-b border-slate-200 pb-5">
-        <h2 className="text-2xl font-semibold tracking-tight text-slate-900">PILS-overzicht</h2>
-        <p className="mt-1.5 text-sm text-slate-600 max-w-3xl">
-          Alle kisttypes uit de laatste PILS-run, aangevuld met stock, transfer en forecast.           Als een case een <strong>BC FP</strong> heeft en er loopt op{' '}
-          <strong>/production-order-time</strong> een actieve registratie op datzelfde item, zie je onder{' '}
-          <strong>Status</strong> de live <strong>productiestap</strong> en het productieordernummer. Gebruik de
-          filterbalk om snel te focussen; titels in de tabel klikken om te sorteren.
+      <header className="rounded-lg border border-slate-300/80 bg-white p-4 shadow-sm sm:p-5">
+        <h2 className="text-xl font-semibold tracking-tight text-slate-900">PILS-overzicht</h2>
+        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600">
+          Alle kisttypes uit de laatste PILS-run, afgestemd op stock, transfer en forecast. Met een actieve{' '}
+          <strong className="font-medium text-slate-800">BC FP</strong> en lopende{' '}
+          <strong className="font-medium text-slate-800">PO-tijd</strong> zie je onder <strong className="font-medium text-slate-800">Status</strong> de live stap en het
+          productieordernummer. Gebruik de filters hieronder; klik kolomtitels om te sorteren.
         </p>
       </header>
 
       <section aria-label="Kerncijfers">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="rounded-lg border border-slate-300/80 bg-white p-4 shadow-sm">
             <div className="flex items-center gap-2 text-slate-500 text-xs font-medium uppercase tracking-wide">
               <LayoutList className="w-4 h-4 shrink-0" />
               Gefilterd
@@ -436,7 +436,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
             <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">{filteredData.length}</p>
             <p className="text-xs text-slate-500">van {overview.length} in database</p>
           </div>
-          <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 shadow-sm">
+          <div className="rounded-lg border border-amber-200/90 bg-amber-50/50 p-4 shadow-sm">
             <div className="flex items-center gap-2 text-amber-800 text-xs font-medium">
               <Star className="w-4 h-4 shrink-0" />
               Priority
@@ -444,15 +444,15 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
             <p className="mt-1 text-2xl font-semibold tabular-nums text-amber-900">{priorityCount}</p>
             <p className="text-xs text-amber-800/80">in huidige selectie</p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center gap-2 text-slate-500 text-xs font-medium">
+          <div className="rounded-lg border border-slate-300/80 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
               <MapPin className="w-4 h-4 shrink-0" />
               Fysiek in WLB
             </div>
             <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">{summary.inWb}</p>
             <p className="text-xs text-slate-500">fysiek in Willebroek</p>
           </div>
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 shadow-sm">
+          <div className="rounded-lg border border-emerald-200/90 bg-emerald-50/40 p-4 shadow-sm">
             <div className="flex items-center gap-2 text-emerald-800 text-xs font-medium">
               <Package className="w-4 h-4 shrink-0" />
               Stock ergens
@@ -460,7 +460,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
             <p className="mt-1 text-2xl font-semibold tabular-nums text-emerald-900">{summary.metStockPlek}</p>
             <p className="text-xs text-emerald-800/80">WLB, Genk of Wilrijk</p>
           </div>
-          <div className="rounded-xl border border-cyan-200 bg-cyan-50/40 p-4 shadow-sm">
+          <div className="rounded-lg border border-cyan-200/90 bg-cyan-50/40 p-4 shadow-sm">
             <div className="flex items-center gap-2 text-cyan-800 text-xs font-medium">
               <Truck className="w-4 h-4 shrink-0" />
               Onderweg
@@ -469,10 +469,10 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
             <p className="text-xs text-cyan-800/80">in transfer (kolom)</p>
           </div>
           <div
-            className={`rounded-xl border p-4 shadow-sm ${
+            className={`rounded-lg border p-4 shadow-sm ${
               summary.forecastKritiek > 0
-                ? 'border-rose-200 bg-rose-50/50'
-                : 'border-slate-200 bg-white'
+                ? 'border-rose-200/90 bg-rose-50/50'
+                : 'border-slate-300/80 bg-white'
             }`}
           >
             <div
@@ -500,13 +500,10 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
         )}
       </section>
 
-      <section
-        className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 sm:p-5"
-        aria-label="Filters"
-      >
-        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
-          <h3 className="text-sm font-semibold text-slate-800">Filter en zoeken</h3>
-          {hasActiveFilters && (
+      <section className="rounded-lg border border-slate-300/80 bg-white p-4 shadow-sm sm:p-5" aria-label="Filters">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Zoek en filter</p>
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          {hasActiveFilters ? (
             <button
               type="button"
               onClick={resetFilters}
@@ -515,6 +512,8 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
               <XCircle className="w-4 h-4" />
               Alle filters wissen
             </button>
+          ) : (
+            <span className="text-xs text-slate-500">Tip: combineer filters en snelknoppen hieronder.</span>
           )}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
@@ -523,7 +522,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
             <select
               value={kistTypeFilter}
               onChange={e => setKistTypeFilter(e.target.value as 'Alle' | 'C' | 'K')}
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-slate-400/30 focus:border-slate-500"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-[#1a4b8c] focus:ring-1 focus:ring-[#1a4b8c]"
             >
               <option value="Alle">Alle kisten</option>
               <option value="C">C-kist</option>
@@ -535,7 +534,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
             <select
               value={locationFilter}
               onChange={e => setLocationFilter(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-slate-400/30 focus:border-slate-500"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-[#1a4b8c] focus:ring-1 focus:ring-[#1a4b8c]"
             >
               {locations.map(loc => (
                 <option key={loc} value={loc}>
@@ -549,7 +548,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value as StatusFilter)}
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-slate-400/30 focus:border-slate-500"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-[#1a4b8c] focus:ring-1 focus:ring-[#1a4b8c]"
             >
               {statusOptions.map(status => (
                 <option key={status} value={status}>
@@ -563,7 +562,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
             <select
               value={willebroekFilter}
               onChange={e => setWillebroekFilter(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-slate-400/30 focus:border-slate-500"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-[#1a4b8c] focus:ring-1 focus:ring-[#1a4b8c]"
             >
               <option value="Alle">Alle</option>
               <option value="Ja">Ja</option>
@@ -575,7 +574,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
             <select
               value={priorityFilter}
               onChange={e => setPriorityFilter(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-slate-400/30 focus:border-slate-500"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-[#1a4b8c] focus:ring-1 focus:ring-[#1a4b8c]"
             >
               <option value="Alle">Alles</option>
               <option value="Priority Only">Alleen priority</option>
@@ -591,7 +590,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Kist, type, artikel, locatie, opmerking"
-                className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-slate-400/30 focus:border-slate-500"
+                className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm focus:border-[#1a4b8c] focus:ring-1 focus:ring-[#1a4b8c]"
               />
             </div>
           </div>
@@ -640,7 +639,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                 setVerbergOpStock(true)
                 setVerbergInTransfer(true)
               }}
-              className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-slate-800 text-white border border-slate-800 hover:bg-slate-900 transition-colors"
+              className="rounded-lg border border-[#153d75] bg-[#1a4b8c] px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-[#153d75]"
             >
               Snel: alleen nog te produceren
             </button>
@@ -666,7 +665,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
           type="button"
           onClick={handleSave}
           disabled={editedData.size === 0}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#1a4b8c] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#153d75] disabled:cursor-not-allowed disabled:opacity-40"
         >
           <Save className="w-4 h-4" />
           Wijzigingen opslaan
@@ -702,139 +701,139 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
         )}
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm max-h-[min(70vh,900px)] overflow-y-auto">
-        <table className="min-w-full text-sm">
-          <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-100/95 backdrop-blur-sm">
+      <div className="max-h-[min(70vh,900px)] overflow-auto overflow-x-auto rounded-lg border border-slate-400/90 shadow-md">
+        <table className="min-w-full border-collapse text-sm">
+          <thead className="sticky top-0 z-10 border-b border-[#0f2d52] bg-gradient-to-b from-[#1a4b8c] to-[#17487a] text-white shadow-sm">
             <tr>
-              <th className="px-3 py-3 text-left text-xs font-semibold text-slate-700 w-10">
+              <th className="w-10 px-3 py-3 text-left text-xs font-semibold">
                 <input
                   type="checkbox"
                   checked={selectedCases.size === sortedData.length && sortedData.length > 0}
                   onChange={handleSelectAll}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  className="rounded border-white/40 bg-white/10 text-[#1a4b8c] focus:ring-white/50"
                 />
               </th>
-              <th className="px-2 py-3 text-left text-xs font-semibold text-slate-600" aria-label="Priority">
-                <Star className="w-3.5 h-3.5 inline" />
+              <th className="px-2 py-3 text-left text-xs font-semibold text-sky-100" aria-label="Priority">
+                <Star className="inline h-3.5 w-3.5" />
               </th>
               <th
-                className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
+                className="cursor-pointer select-none whitespace-nowrap px-2 py-3 text-left text-xs font-semibold text-white hover:bg-white/10"
                 onClick={() => handleSort('case_label')}
               >
                 Kist / label{getSortIcon('case_label')}
               </th>
               <th
-                className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
+                className="cursor-pointer select-none whitespace-nowrap px-2 py-3 text-left text-xs font-semibold text-white hover:bg-white/10"
                 onClick={() => handleSort('case_type')}
               >
                 Type{getSortIcon('case_type')}
               </th>
               <th
-                className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
+                className="cursor-pointer select-none whitespace-nowrap px-2 py-3 text-left text-xs font-semibold text-white hover:bg-white/10"
                 onClick={() => handleSort('arrival_date')}
               >
                 PILS-datum{getSortIcon('arrival_date')}
               </th>
               <th
-                className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
+                className="cursor-pointer select-none whitespace-nowrap px-2 py-3 text-left text-xs font-semibold text-white hover:bg-white/10"
                 onClick={() => handleSort('forecast_date')}
               >
                 Forecast{getSortIcon('forecast_date')}
               </th>
               <th
-                className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
+                className="cursor-pointer select-none whitespace-nowrap px-2 py-3 text-left text-xs font-semibold text-white hover:bg-white/10"
                 onClick={() => handleSort('item_number')}
               >
                 Artikel{getSortIcon('item_number')}
               </th>
               <th
-                className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
+                className="cursor-pointer select-none whitespace-nowrap px-2 py-3 text-left text-xs font-semibold text-white hover:bg-white/10"
                 onClick={() => handleSort('serial_number')}
                 title="PILS kolom F — Serial Number"
               >
                 Serial{getSortIcon('serial_number')}
               </th>
               <th
-                className="px-2 py-3 text-left text-xs font-semibold text-slate-600 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
+                className="cursor-pointer select-none whitespace-nowrap px-2 py-3 text-left text-xs font-semibold text-white hover:bg-white/10"
                 onClick={() => handleSort('pils_shop_order_key')}
                 title="Laatste 6 cijfers van PILS serial (F); match met BC-export kolom I / suffix"
               >
                 Shop-key{getSortIcon('pils_shop_order_key')}
               </th>
               <th
-                className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap min-w-[8rem]"
+                className="min-w-[8rem] cursor-pointer select-none whitespace-nowrap px-2 py-3 text-left text-xs font-semibold text-white hover:bg-white/10"
                 onClick={() => handleSort('atlas_planner_email')}
                 title="Atlas Planner e-mail uit BC-export (kolom H), na upload bc-shop-lines"
               >
                 Atlas mail{getSortIcon('atlas_planner_email')}
               </th>
               <th
-                className="px-2 py-3 text-left text-xs font-semibold text-indigo-800 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
+                className="cursor-pointer select-none whitespace-nowrap px-2 py-3 text-left text-xs font-semibold text-sky-100 hover:bg-white/10"
                 onClick={() => handleSort('bc_fp_item_no')}
                 title="FP uit BC shop-export (Item No.), na upload bc-shop-lines"
               >
                 BC FP{getSortIcon('bc_fp_item_no')}
               </th>
               <th
-                className="px-2 py-3 text-left text-xs font-semibold text-indigo-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
+                className="cursor-pointer select-none whitespace-nowrap px-2 py-3 text-left text-xs font-semibold text-sky-100 hover:bg-white/10"
                 onClick={() => handleSort('bc_shop_order_no')}
                 title="Shop order uit BC-export"
               >
                 BC order{getSortIcon('bc_shop_order_no')}
               </th>
               <th
-                className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
+                className="cursor-pointer select-none whitespace-nowrap px-2 py-3 text-left text-xs font-semibold text-white hover:bg-white/10"
                 onClick={() => handleSort('productielocatie')}
               >
                 Productie{getSortIcon('productielocatie')}
               </th>
               <th
-                className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
+                className="cursor-pointer select-none whitespace-nowrap px-2 py-3 text-left text-xs font-semibold text-white hover:bg-white/10"
                 onClick={() => handleSort('in_willebroek')}
                 title="Fysiek in Willebroek (volgens WMS/ERP-koppeling)"
               >
                 In WLB{getSortIcon('in_willebroek')}
               </th>
               <th
-                className="px-2 py-3 text-left text-xs font-semibold text-slate-700 whitespace-nowrap"
+                className="whitespace-nowrap px-2 py-3 text-left text-xs font-semibold text-sky-100"
                 title="Aantal lopende productieorders — kleur volgt productielocatie (WLB / Genk / Wilrijk)"
               >
                 In prod.
               </th>
               <th
-                className="px-2 py-3 text-left text-xs font-semibold text-emerald-800 whitespace-nowrap"
+                className="whitespace-nowrap px-2 py-3 text-left text-xs font-semibold text-emerald-200"
                 title="Beschikbaar in Willebroek (kanban/stock)"
               >
                 WLB
               </th>
               <th
-                className="px-2 py-3 text-left text-xs font-semibold text-blue-800 whitespace-nowrap"
+                className="whitespace-nowrap px-2 py-3 text-left text-xs font-semibold text-sky-200"
                 title="Beschikbaar in Genk"
               >
                 Genk
               </th>
               <th
-                className="px-2 py-3 text-left text-xs font-semibold text-violet-800 whitespace-nowrap"
+                className="whitespace-nowrap px-2 py-3 text-left text-xs font-semibold text-violet-200"
                 title="Beschikbaar in Wilrijk"
               >
                 Wilrijk
               </th>
               <th
-                className="px-2 py-3 text-left text-xs font-semibold text-cyan-800 whitespace-nowrap"
+                className="whitespace-nowrap px-2 py-3 text-left text-xs font-semibold text-cyan-200"
                 title="Aantal in transfer richting Willebroek (transferorders)"
               >
                 Transf.
               </th>
               <th
-                className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
+                className="cursor-pointer select-none whitespace-nowrap px-2 py-3 text-left text-xs font-semibold text-white hover:bg-white/10"
                 onClick={() => handleSort('status')}
                 title="Automatische status; bij actieve PO-tijd staat de live stap hieronder"
               >
                 Status{getSortIcon('status')}
               </th>
-              <th className="px-2 py-3 text-left text-xs font-semibold text-slate-700 min-w-[7rem]">Notitie</th>
+              <th className="min-w-[7rem] px-2 py-3 text-left text-xs font-semibold text-white">Notitie</th>
               <th
-                className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
+                className="cursor-pointer select-none whitespace-nowrap px-2 py-3 text-left text-xs font-semibold text-white hover:bg-white/10"
                 onClick={() => handleSort('stock_location')}
                 title="Locatie in PILS / WMS (bijv. PAC3PL = interne code voor WLB)"
               >
@@ -842,24 +841,25 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-slate-200">
-            {sortedData.map((item) => {
+          <tbody>
+            {sortedData.map((item, idx) => {
               const edited = editedData.get(item.case_label) || {}
               const displayItem = { ...item, ...edited }
               const isPriority = displayItem.priority
               
               const isSelected = selectedCases.has(item.case_label)
+              const zebra = idx % 2 === 0 ? 'bg-[#f0f6fc]' : 'bg-white'
               
               return (
                 <tr
                   key={item.case_label}
-                  className={`transition-colors ${
+                  className={`border-b border-slate-200/90 transition-colors ${
                     isPriority
-                      ? 'bg-amber-50/80 hover:bg-amber-100/80'
+                      ? 'bg-amber-50/90 hover:bg-amber-100/80'
                       : isSelected
-                        ? 'bg-slate-100/60 hover:bg-slate-100'
-                        : 'hover:bg-slate-50/90'
-                  } ${isSelected ? 'outline outline-2 -outline-offset-2 outline-slate-400' : ''}`}
+                        ? 'bg-sky-100/70 hover:bg-sky-100'
+                        : `${zebra} hover:bg-sky-50/50`
+                  } ${isSelected ? 'outline outline-2 -outline-offset-2 outline-[#1a4b8c]/40' : ''}`}
                 >
                   <td className="px-2 py-2 align-middle">
                     <input
@@ -1037,7 +1037,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                       value={displayItem.comment || ''}
                       onChange={e => handleFieldChange(item.case_label, 'comment', e.target.value)}
                       placeholder="Notitie…"
-                      className="text-sm w-full border border-slate-300 rounded-md px-2 py-1.5 focus:ring-2 focus:ring-slate-300"
+                      className="text-sm w-full rounded-md border border-slate-300 px-2 py-1.5 focus:border-[#1a4b8c] focus:ring-1 focus:ring-[#1a4b8c]"
                     />
                   </td>
                   <td className="px-2 py-2 text-slate-700 text-xs max-w-[8rem] truncate" title={displayItem.stock_location || undefined}>
