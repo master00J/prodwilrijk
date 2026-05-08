@@ -17,7 +17,7 @@ import {
   AlertTriangle,
   XCircle,
 } from 'lucide-react'
-import type { GroteInpakCase } from '@/types/database'
+import type { GroteInpakCase, ProductionTimeActive } from '@/types/database'
 import { BcItemCode } from '@/lib/bc-mapping/client'
 import { GROTE_INPAK_AUTO_STATUSES, type GroteInpakAutoStatus } from '@/lib/grote-inpak/auto-status'
 
@@ -25,9 +25,18 @@ interface OverviewTabProps {
   overview: GroteInpakCase[]
 }
 
-type SortableColumn = keyof GroteInpakCase | null
+type SortableColumn = keyof GroteInpakCase | 'production_time_active' | null
 type SortDirection = 'asc' | 'desc'
 type StatusFilter = 'Alle' | GroteInpakAutoStatus
+
+function productionTimeTooltip(p: ProductionTimeActive): string {
+  const names = p.employees.join(', ')
+  const start = new Date(p.started_at).toLocaleString('nl-BE', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  })
+  return `Productieorder ${p.production_order_number} · ${names} · gestart ${start}`
+}
 
 function forecastDagenVerschil(item: GroteInpakCase): number | null {
   if (!item.forecast_date) return null
@@ -112,6 +121,9 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
         item.atlas_planner_email?.toLowerCase().includes(query) ||
         item.bc_fp_item_no?.toLowerCase().includes(query) ||
         item.bc_shop_order_no?.toLowerCase().includes(query) ||
+        item.production_time_active?.step?.toLowerCase().includes(query) ||
+        item.production_time_active?.production_order_number?.toLowerCase().includes(query) ||
+        item.production_time_active?.employees?.some((n) => n.toLowerCase().includes(query)) ||
         item.stock_location?.toLowerCase().includes(query) ||
         item.comment?.toLowerCase().includes(query)
       )
@@ -142,8 +154,14 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
     if (!sortColumn) return filteredData
 
     const sorted = [...filteredData].sort((a, b) => {
-      const aValue = a[sortColumn]
-      const bValue = b[sortColumn]
+      if (sortColumn === 'production_time_active') {
+        const as = a.production_time_active?.step || ''
+        const bs = b.production_time_active?.step || ''
+        return sortDirection === 'asc' ? as.localeCompare(bs) : bs.localeCompare(as)
+      }
+
+      const aValue = a[sortColumn as keyof GroteInpakCase]
+      const bValue = b[sortColumn as keyof GroteInpakCase]
 
       // Handle null/undefined values
       if (aValue == null && bValue == null) return 0
@@ -255,7 +273,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
 
   const handleExport = () => {
     const csv = [
-      ['Case Label', 'Case Type', 'PILS Datum', 'Forecast Datum', 'Item Number', 'Serial', 'Shop-key (6)', 'Atlas Planner e-mail', 'BC FP', 'BC Shop order', 'Productielocatie', 'In Willebroek', 'Status', 'Priority', 'Comment', 'WMS Locatie'],
+      ['Case Label', 'Case Type', 'PILS Datum', 'Forecast Datum', 'Item Number', 'Serial', 'Shop-key (6)', 'Atlas Planner e-mail', 'BC FP', 'BC Shop order', 'PO-tijd stap (actief)', 'PO-tijd order', 'PO-tijd team', 'Productielocatie', 'In Willebroek', 'Status', 'Priority', 'Comment', 'WMS Locatie'],
       ...filteredData.map(item => [
         item.case_label || '',
         item.case_type || '',
@@ -267,6 +285,9 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
         item.atlas_planner_email || '',
         item.bc_fp_item_no || '',
         item.bc_shop_order_no || '',
+        item.production_time_active?.step || '',
+        item.production_time_active?.production_order_number || '',
+        item.production_time_active?.employees?.join('; ') || '',
         item.productielocatie || '',
         item.in_willebroek ? 'Ja' : 'Nee',
         item.status || '',
@@ -391,7 +412,9 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
       <header className="border-b border-slate-200 pb-5">
         <h2 className="text-2xl font-semibold tracking-tight text-slate-900">PILS-overzicht</h2>
         <p className="mt-1.5 text-sm text-slate-600 max-w-3xl">
-          Alle kisttypes uit de laatste PILS-run, aangevuld met stock, transfer en forecast. Gebruik de
+          Alle kisttypes uit de laatste PILS-run, aangevuld met stock, transfer en forecast. Als een case een{' '}
+          <strong>BC FP</strong> heeft en er loopt op <strong>/production-order-time</strong> een actieve registratie
+          op datzelfde item, zie je hier de <strong>productiestap</strong> en het productieordernummer. Gebruik de
           filterbalk om snel te focussen; titels in de tabel klikken om te sorteren.
         </p>
       </header>
@@ -753,6 +776,13 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                 BC order{getSortIcon('bc_shop_order_no')}
               </th>
               <th
+                className="px-2 py-3 text-left text-xs font-semibold text-violet-900 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
+                onClick={() => handleSort('production_time_active')}
+                title="Actieve stap van /production-order-time gematcht op BC FP"
+              >
+                Prod. stap (live){getSortIcon('production_time_active')}
+              </th>
+              <th
                 className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
                 onClick={() => handleSort('productielocatie')}
               >
@@ -900,6 +930,23 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                   </td>
                   <td className="px-2 py-2 text-slate-700 font-mono text-xs max-w-[10rem] truncate" title={displayItem.bc_shop_order_no || undefined}>
                     {displayItem.bc_shop_order_no || '—'}
+                  </td>
+                  <td className="px-2 py-2 text-slate-800 max-w-[12rem]">
+                    {displayItem.production_time_active ? (
+                      <span
+                        className="inline-flex flex-col gap-0.5"
+                        title={productionTimeTooltip(displayItem.production_time_active)}
+                      >
+                        <span className="font-semibold text-violet-900 text-xs">
+                          {displayItem.production_time_active.step}
+                        </span>
+                        <span className="text-[11px] text-slate-600 font-mono truncate">
+                          {displayItem.production_time_active.production_order_number}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
                   </td>
                   <td className="px-2 py-2 text-slate-700 max-w-[10rem] truncate" title={displayItem.productielocatie || undefined}>
                     {displayItem.productielocatie || '—'}

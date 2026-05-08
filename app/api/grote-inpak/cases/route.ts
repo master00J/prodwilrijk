@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { allocateGroteInpakAutoStatus, type GroteInpakStatusAllocationPool } from '@/lib/grote-inpak/auto-status'
+import {
+  groteInpakFpMatchKey,
+  groupActiveProductionLogsByFp,
+  type ProductionTimeActiveSummary,
+} from '@/lib/grote-inpak/production-time-floor'
 import { logApiError } from '@/lib/api/log-error'
 
 export const dynamic = 'force-dynamic'
@@ -138,7 +143,25 @@ export async function GET(request: NextRequest) {
         })
       }
 
-      const enrichedData = filteredData.map((item: any) => {
+    let floorByFp = new Map<string, ProductionTimeActiveSummary>()
+    const needsFloorMatch = (filteredData as any[]).some((item: any) => item.bc_fp_item_no)
+    if (needsFloorMatch) {
+      const { data: activeLogs, error: activeLogErr } = await supabaseAdmin
+        .from('time_logs')
+        .select('employee_id, production_item_number, production_step, production_order_number, start_time')
+        .is('end_time', null)
+        .eq('type', 'production_order')
+
+      if (!activeLogErr && activeLogs && activeLogs.length > 0) {
+        const empIds = [...new Set(activeLogs.map((l: any) => l.employee_id).filter(Boolean))]
+        const { data: emps } = await supabaseAdmin.from('employees').select('id, name').in('id', empIds)
+        const empMap = new Map<number, string>()
+        ;(emps || []).forEach((e: any) => empMap.set(Number(e.id), String(e.name || '')))
+        floorByFp = groupActiveProductionLogsByFp(activeLogs as any, empMap)
+      }
+    }
+
+    const enrichedData = filteredData.map((item: any) => {
         const kt = String(item.case_type || '').trim().toUpperCase()
         const ktAlt = kt.startsWith('V') ? 'K' + kt.substring(1) : null
         const lookup = (m: Map<string, number>) => (m.get(kt) ?? 0) || (ktAlt ? (m.get(ktAlt) ?? 0) : 0)
@@ -182,10 +205,14 @@ export async function GET(request: NextRequest) {
 
       filteredData = enrichedData.map((item: any) => {
         const allocated = allocatedByCase.get(item.case_label)
+        const fpKey = item.bc_fp_item_no ? groteInpakFpMatchKey(item.bc_fp_item_no) : null
+        const production_time_active =
+          fpKey && floorByFp.has(fpKey) ? floorByFp.get(fpKey)! : null
         return {
           ...item,
           status: allocated?.status ?? 'Nog te produceren',
           status_reason: allocated?.reason ?? 'Geen statusallocatie gevonden',
+          production_time_active,
         }
       })
     }
@@ -208,6 +235,11 @@ export async function GET(request: NextRequest) {
           item.atlas_planner_email?.toLowerCase().includes(searchLower) ||
           item.bc_fp_item_no?.toLowerCase().includes(searchLower) ||
           item.bc_shop_order_no?.toLowerCase().includes(searchLower) ||
+          item.production_time_active?.step?.toLowerCase().includes(searchLower) ||
+          item.production_time_active?.production_order_number?.toLowerCase().includes(searchLower) ||
+          item.production_time_active?.employees?.some((n: string) =>
+            n.toLowerCase().includes(searchLower),
+          ) ||
           item.stock_location?.toLowerCase().includes(searchLower) ||
           item.comment?.toLowerCase().includes(searchLower)
         )

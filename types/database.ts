@@ -19,6 +19,13 @@ export interface ItemToPack {
 }
 
 // Grote Inpak Types
+export interface ProductionTimeActive {
+  step: string
+  production_order_number: string
+  employees: string[]
+  started_at: string
+}
+
 export interface GroteInpakCase {
   id: number
   case_label: string
@@ -36,7 +43,7 @@ export interface GroteInpakCase {
   stapel?: number | null
   /** PILS kolom F — volledig serienummer */
   serial_number?: string | null
-  /** PILS kolom H — Atlas Planner e-mail */
+  /** Atlas Planner e-mail (uit BC-export na koppeling) */
   atlas_planner_email?: string | null
   /** Laatste 6 cijfers van serial; koppelen met BC shop order */
   pils_shop_order_key?: string | null
@@ -59,6 +66,8 @@ export interface GroteInpakCase {
   in_productie_qty?: number | null
   in_transfer_qty?: number | null
   status_reason?: string | null
+  /** Lopende tijdregistratie op /production-order-time, gematcht op BC FP */
+  production_time_active?: ProductionTimeActive | null
 }
 
 export interface GroteInpakTransport {
