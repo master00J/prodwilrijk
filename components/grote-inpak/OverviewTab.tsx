@@ -25,7 +25,7 @@ interface OverviewTabProps {
   overview: GroteInpakCase[]
 }
 
-type SortableColumn = keyof GroteInpakCase | 'production_time_active' | null
+type SortableColumn = keyof GroteInpakCase | null
 type SortDirection = 'asc' | 'desc'
 type StatusFilter = 'Alle' | GroteInpakAutoStatus
 
@@ -44,6 +44,17 @@ function forecastDagenVerschil(item: GroteInpakCase): number | null {
   const p = item.arrival_date ? new Date(item.arrival_date).getTime() : NaN
   if (Number.isNaN(p)) return null
   return Math.round((p - f) / 86400000)
+}
+
+/** Badge in kolom «In prod.»: zelfde kleuren als WLB / Genk / Wilrijk in de stockkolommen. */
+function inProductieQtyBadgeClass(productielocatie: string | null | undefined): string {
+  const loc = (productielocatie || '').toLowerCase().trim()
+  if (loc.includes('genk')) return 'bg-blue-100 text-blue-900'
+  if (loc.includes('wilrijk')) return 'bg-violet-100 text-violet-900'
+  if (loc.includes('willebroek') || loc === 'wlb' || loc.startsWith('wb')) {
+    return 'bg-emerald-100 text-emerald-900'
+  }
+  return 'bg-orange-100 text-orange-800'
 }
 
 export default function OverviewTab({ overview }: OverviewTabProps) {
@@ -155,12 +166,6 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
     if (!sortColumn) return filteredData
 
     const sorted = [...filteredData].sort((a, b) => {
-      if (sortColumn === 'production_time_active') {
-        const as = a.production_time_active?.step || ''
-        const bs = b.production_time_active?.step || ''
-        return sortDirection === 'asc' ? as.localeCompare(bs) : bs.localeCompare(as)
-      }
-
       const aValue = a[sortColumn as keyof GroteInpakCase]
       const bValue = b[sortColumn as keyof GroteInpakCase]
 
@@ -414,9 +419,9 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
       <header className="border-b border-slate-200 pb-5">
         <h2 className="text-2xl font-semibold tracking-tight text-slate-900">PILS-overzicht</h2>
         <p className="mt-1.5 text-sm text-slate-600 max-w-3xl">
-          Alle kisttypes uit de laatste PILS-run, aangevuld met stock, transfer en forecast. Als een case een{' '}
-          <strong>BC FP</strong> heeft en er loopt op <strong>/production-order-time</strong> een actieve registratie
-          op datzelfde item, zie je hier de <strong>productiestap</strong> en het productieordernummer. Gebruik de
+          Alle kisttypes uit de laatste PILS-run, aangevuld met stock, transfer en forecast.           Als een case een <strong>BC FP</strong> heeft en er loopt op{' '}
+          <strong>/production-order-time</strong> een actieve registratie op datzelfde item, zie je onder{' '}
+          <strong>Status</strong> de live <strong>productiestap</strong> en het productieordernummer. Gebruik de
           filterbalk om snel te focussen; titels in de tabel klikken om te sorteren.
         </p>
       </header>
@@ -778,13 +783,6 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                 BC order{getSortIcon('bc_shop_order_no')}
               </th>
               <th
-                className="px-2 py-3 text-left text-xs font-semibold text-violet-900 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
-                onClick={() => handleSort('production_time_active')}
-                title="Actieve stap van /production-order-time gematcht op BC FP"
-              >
-                Prod. stap (live){getSortIcon('production_time_active')}
-              </th>
-              <th
                 className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
                 onClick={() => handleSort('productielocatie')}
               >
@@ -798,8 +796,8 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                 In WLB{getSortIcon('in_willebroek')}
               </th>
               <th
-                className="px-2 py-3 text-left text-xs font-semibold text-orange-800 whitespace-nowrap"
-                title="Aantal lopende productieorders voor dit kisttype"
+                className="px-2 py-3 text-left text-xs font-semibold text-slate-700 whitespace-nowrap"
+                title="Aantal lopende productieorders — kleur volgt productielocatie (WLB / Genk / Wilrijk)"
               >
                 In prod.
               </th>
@@ -830,6 +828,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
               <th
                 className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
                 onClick={() => handleSort('status')}
+                title="Automatische status; bij actieve PO-tijd staat de live stap hieronder"
               >
                 Status{getSortIcon('status')}
               </th>
@@ -933,23 +932,6 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                   <td className="px-2 py-2 text-slate-700 font-mono text-xs max-w-[10rem] truncate" title={displayItem.bc_shop_order_no || undefined}>
                     {displayItem.bc_shop_order_no || '—'}
                   </td>
-                  <td className="px-2 py-2 text-slate-800 max-w-[12rem]">
-                    {displayItem.production_time_active ? (
-                      <span
-                        className="inline-flex flex-col gap-0.5"
-                        title={productionTimeTooltip(displayItem.production_time_active)}
-                      >
-                        <span className="font-semibold text-violet-900 text-xs">
-                          {displayItem.production_time_active.step}
-                        </span>
-                        <span className="text-[11px] text-slate-600 font-mono truncate">
-                          {displayItem.production_time_active.production_order_number}
-                        </span>
-                      </span>
-                    ) : (
-                      <span className="text-slate-300">—</span>
-                    )}
-                  </td>
                   <td className="px-2 py-2 text-slate-700 max-w-[10rem] truncate" title={displayItem.productielocatie || undefined}>
                     {displayItem.productielocatie || '—'}
                   </td>
@@ -966,7 +948,9 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                   </td>
                   <td className="px-2 py-2 text-center tabular-nums">
                     {(displayItem.in_productie_qty ?? 0) > 0 ? (
-                      <span className="inline-block bg-orange-100 text-orange-800 font-semibold px-2 py-0.5 rounded-md text-xs">
+                      <span
+                        className={`inline-block font-semibold px-2 py-0.5 rounded-md text-xs ${inProductieQtyBadgeClass(displayItem.productielocatie)}`}
+                      >
                         {displayItem.in_productie_qty}
                       </span>
                     ) : (
@@ -1009,13 +993,38 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                       <span className="text-slate-300">—</span>
                     )}
                   </td>
-                  <td className="px-2 py-2 whitespace-nowrap">
+                  <td className="px-2 py-2 max-w-[14rem]">
                     <span
                       className={`inline-flex items-center rounded-full border px-2 py-1 text-xs font-semibold ${getStatusBadgeClass(displayItem.status)}`}
-                      title={displayItem.status_reason || 'Automatisch bepaald op basis van stock, transfer en productie'}
+                      title={
+                        [
+                          displayItem.status_reason || 'Automatisch bepaald op basis van stock, transfer en productie',
+                          displayItem.production_time_active
+                            ? productionTimeTooltip(displayItem.production_time_active)
+                            : '',
+                        ]
+                          .filter(Boolean)
+                          .join('\n\n') || undefined
+                      }
                     >
                       {displayItem.status || 'Onbekend'}
                     </span>
+                    {displayItem.production_time_active && (
+                      <p
+                        className="mt-1 max-w-[12rem] text-xs text-violet-900 font-semibold truncate"
+                        title={productionTimeTooltip(displayItem.production_time_active)}
+                      >
+                        {displayItem.production_time_active.step}
+                      </p>
+                    )}
+                    {displayItem.production_time_active?.production_order_number && (
+                      <p
+                        className="mt-0.5 max-w-[12rem] truncate text-[11px] text-slate-600 font-mono"
+                        title={productionTimeTooltip(displayItem.production_time_active)}
+                      >
+                        {displayItem.production_time_active.production_order_number}
+                      </p>
+                    )}
                     {displayItem.status_reason && (
                       <p className="mt-1 max-w-[12rem] truncate text-xs text-slate-500" title={displayItem.status_reason}>
                         {displayItem.status_reason}
