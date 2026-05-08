@@ -453,7 +453,7 @@ export default function GroteInpakPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="w-full max-w-none px-3 sm:px-4 lg:px-6 xl:px-8 py-8">
       <div className="mb-8">
         <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-slate-900">
           Grote inpak
