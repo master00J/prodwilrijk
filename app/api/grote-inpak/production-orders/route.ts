@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic'
  * GET /api/grote-inpak/production-orders
  *
  * Geeft alle open productie-orders terug + aggregaties per locatie en per kistnummer.
+ * Rijen worden beperkt tot kisten die op dit moment in `grote_inpak_erp_link` staan.
  * Query params:
  *   - location: filter op productielocatie (Genk / Wilrijk / Willebroek)
  *   - kist:     filter op kistnummer
@@ -31,7 +32,25 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query
     if (error) throw error
 
-    const rows = data || []
+    const { data: erpRows, error: erpErr } = await supabaseAdmin
+      .from('grote_inpak_erp_link')
+      .select('kistnummer')
+    if (erpErr) throw erpErr
+
+    const kistenInErpLink = new Set<string>()
+    for (const row of erpRows || []) {
+      const k = String((row as { kistnummer?: string }).kistnummer ?? '')
+        .trim()
+        .toUpperCase()
+      if (k) kistenInErpLink.add(k)
+    }
+
+    const rows = (data || []).filter((r: { kistnummer?: string | null }) => {
+      const k = String(r.kistnummer ?? '')
+        .trim()
+        .toUpperCase()
+      return k && kistenInErpLink.has(k)
+    })
 
     const { data: floorRows, error: floorErr } = await supabaseAdmin
       .from('grote_inpak_production_order_floor_status')
