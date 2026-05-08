@@ -587,35 +587,36 @@ async function saveCasesToDatabase(cases: any[]) {
     }
   }
 
-  // Upsert cases (update if exists, insert if not)
-  for (const case_ of cases) {
+  const mergedRows = cases.map((case_) => {
     const label = String(case_.case_label || '').trim()
     const existing = existingCases.get(label)
-
-    const merged = {
+    return {
       ...case_,
       comment: existing?.comment ?? case_.comment,
       status: existing?.status ?? case_.status,
       priority: existing?.priority ?? case_.priority,
     }
+  })
 
-    await supabaseAdmin
-      .from('grote_inpak_cases')
-      .upsert(merged, {
-        onConflict: 'case_label',
-        ignoreDuplicates: false,
-      })
+  const CHUNK = 250
+  for (let i = 0; i < mergedRows.length; i += CHUNK) {
+    const chunk = mergedRows.slice(i, i + CHUNK)
+    const { error } = await supabaseAdmin.from('grote_inpak_cases').upsert(chunk, {
+      onConflict: 'case_label',
+      ignoreDuplicates: false,
+    })
+    if (error) throw error
   }
 }
 async function saveTransportToDatabase(transport: any[]) {
-  // Upsert transport data
-  for (const item of transport) {
-    await supabaseAdmin
-      .from('grote_inpak_transport')
-      .upsert(item, {
-        onConflict: 'case_label',
-        ignoreDuplicates: false,
-      })
+  const CHUNK = 250
+  for (let i = 0; i < transport.length; i += CHUNK) {
+    const chunk = transport.slice(i, i + CHUNK)
+    const { error } = await supabaseAdmin.from('grote_inpak_transport').upsert(chunk, {
+      onConflict: 'case_label',
+      ignoreDuplicates: false,
+    })
+    if (error) throw error
   }
 }
 
