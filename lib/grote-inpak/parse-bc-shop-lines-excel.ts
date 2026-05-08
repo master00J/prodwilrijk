@@ -19,21 +19,35 @@ const normHeader = (s: unknown) =>
     .replace(/\s+/g, ' ')
     .trim()
 
-/** Kolom met laatste 6 cijfers (substr … 11,6) of expliciet kolom I (index 8). */
+/** Kolom met laatste 6 cijfers (substr … 11,6), Shop Order Number, of kolom I (index 8). */
 function pickSerialSuffixColumn(cells: string[]): number {
   const byHeader = cells.findIndex((h) => /11\s*,\s*6\)|,\s*11\s*,\s*6|at_fores04.*11.*6/i.test(h))
   if (byHeader >= 0) return byHeader
+  const shopOrderNo = cells.findIndex((h) => /^shop order\b/.test(h) || h.includes('shop order number'))
+  if (shopOrderNo >= 0) return shopOrderNo
   return 8 // kolom I (0-based), fallback
 }
 
 function pickAtlasColumn(cells: string[]): number {
+  const exact = cells.findIndex((h) => h === 'atlas planner email' || h.includes('atlas planner email'))
+  if (exact >= 0) return exact
   const byHeader = cells.findIndex(
     (h) =>
-      /atlas.*planner|planner.*(e-?mail|mail)|^e-?mail$|atlasmail|^atlas$/i.test(h) ||
+      /atlas.*planner.*(e-?mail|mail)|planner.*(e-?mail|mail)|^e-?mail$|atlasmail|^atlas$/i.test(h) ||
       (h.includes('atlas') && !h.includes('pccrdt')),
   )
   if (byHeader >= 0) return byHeader
   return 7 // kolom H
+}
+
+/** Alleen echte e-mail; geen Excel-datums (number/Date) of tekst zonder @. */
+function atlasPlannerFromCell(val: unknown): string | null {
+  if (val == null || val === '') return null
+  if (typeof val === 'number' && Number.isFinite(val)) return null
+  if (val instanceof Date) return null
+  const s = String(val).trim()
+  if (!s || !s.includes('@')) return null
+  return s
 }
 
 function pickItemColumn(cells: string[]): number {
@@ -106,9 +120,7 @@ export function parseBcShopLinesExcel(workbook: XLSX.WorkBook): BcShopLineParsed
     if (!matchRaw && !itemRaw) continue
     if (/^no\.?$|^item$/i.test(matchRaw)) continue
 
-    const atlasRaw =
-      atlasCol >= 0 ? String(row[atlasCol] ?? '').trim() : ''
-    const atlasVal = atlasRaw || null
+    const atlasVal = atlasPlannerFromCell(atlasCol >= 0 ? row[atlasCol] : null)
 
     const fp = itemRaw ? normalizeErpCode(itemRaw) || itemRaw.toUpperCase().replace(/\s+/g, '') : null
     const desc = descCol >= 0 ? String(row[descCol] ?? '').trim() || null : null

@@ -597,17 +597,33 @@ async function saveCasesToDatabase(cases: any[]) {
   const mergedRows = cases.map((case_) => {
     const label = String(case_.case_label || '').trim()
     const existing = existingCases.get(label)
+    // Waarden uit bc-shop-lines Excel worden alleen bewaard na een geslaagde BC-upload (timestamp gezet).
+    // Oude "Atlas"-datums uit vroeger PILS kolom H bleven anders eindeloos bestaan door: null ?? existing.
+    const bcFromExcel = Boolean(existing?.bc_shop_lines_matched_at)
+
     return {
       ...case_,
       comment: existing?.comment ?? case_.comment,
       status: existing?.status ?? case_.status,
       priority: existing?.priority ?? case_.priority,
-      atlas_planner_email: case_.atlas_planner_email ?? existing?.atlas_planner_email ?? null,
-      bc_fp_item_no: case_.bc_fp_item_no ?? existing?.bc_fp_item_no ?? null,
-      bc_shop_order_no: case_.bc_shop_order_no ?? existing?.bc_shop_order_no ?? null,
-      bc_line_description: case_.bc_line_description ?? existing?.bc_line_description ?? null,
-      bc_shop_lines_source_file: case_.bc_shop_lines_source_file ?? existing?.bc_shop_lines_source_file ?? null,
-      bc_shop_lines_matched_at: case_.bc_shop_lines_matched_at ?? existing?.bc_shop_lines_matched_at ?? null,
+      atlas_planner_email: bcFromExcel
+        ? (case_.atlas_planner_email ?? existing?.atlas_planner_email ?? null)
+        : null,
+      bc_fp_item_no: bcFromExcel
+        ? (case_.bc_fp_item_no ?? existing?.bc_fp_item_no ?? null)
+        : null,
+      bc_shop_order_no: bcFromExcel
+        ? (case_.bc_shop_order_no ?? existing?.bc_shop_order_no ?? null)
+        : null,
+      bc_line_description: bcFromExcel
+        ? (case_.bc_line_description ?? existing?.bc_line_description ?? null)
+        : null,
+      bc_shop_lines_source_file: bcFromExcel
+        ? (case_.bc_shop_lines_source_file ?? existing?.bc_shop_lines_source_file ?? null)
+        : null,
+      bc_shop_lines_matched_at: bcFromExcel
+        ? (case_.bc_shop_lines_matched_at ?? existing?.bc_shop_lines_matched_at ?? null)
+        : null,
     }
   })
 
