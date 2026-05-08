@@ -15,9 +15,9 @@ export const maxDuration = 60
  *   3. Match tegen ERP LINK (GP → kistnummer) via een in-memory lookup
  *   4. Alleen de relevante rijen (max enkele duizenden) POSTen als JSON
  *
- * Deze endpoint doet enkel nog validatie + bulk-insert en wist daarbij alleen
- * de rijen van de BC-bronnen die in deze upload voorkomen. Zo kan je beide
- * omgevingen (legacy + bc36) naast elkaar blijven bijhouden.
+ * Bij elke upload: volledige tabel `grote_inpak_production_orders` leegmaken,
+ * daarna enkel de rijen van deze import in één keer inladen (geen merge met
+ * vorige runs).
  */
 
 type Locatie = 'Genk' | 'Wilrijk' | 'Willebroek'
@@ -60,16 +60,6 @@ export async function POST(request: NextRequest) {
 
     const rows = Array.isArray(body.rows) ? body.rows : []
     const sourceFile = body.source_file || 'upload.xlsx'
-
-    if (rows.length === 0) {
-      return NextResponse.json({
-        success: true,
-        file: sourceFile,
-        ingevoegd: 0,
-        bronnen: [],
-        per_bron: { legacy: 0, bc36: 0 },
-      })
-    }
 
     // Defensieve validatie + dedup (client kan stuk zijn of gemanipuleerd worden).
     const seen = new Set<string>()
@@ -115,15 +105,12 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Wis enkel de bronnen die in deze upload voorkomen (andere BC-omgeving
-    // blijft ongemoeid).
-    if (sourcesInFile.size > 0) {
-      const { error: delError } = await supabaseAdmin
-        .from('grote_inpak_production_orders')
-        .delete()
-        .in('bc_source', Array.from(sourcesInFile))
-      if (delError) throw delError
-    }
+    // Volledige vervanging: alles wissen vóór insert (ook als deze import 0 rijen heeft).
+    const { error: delError } = await supabaseAdmin
+      .from('grote_inpak_production_orders')
+      .delete()
+      .gte('id', 0)
+    if (delError) throw delError
 
     if (clean.length > 0) {
       const CHUNK = 500
