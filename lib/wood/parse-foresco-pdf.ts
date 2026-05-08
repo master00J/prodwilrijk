@@ -5,7 +5,7 @@ export interface ForescoPackage {
    * (bv. "GS636-03684", "PL636-00440"). Identificeert één fysiek pak. */
   pakketnummer: string
   /** Houtsoort-code afgeleid uit het hoofd "Item No"-veld. Bv. "SXT019X100" → "SXT".
-   * Typische codes die voorkomen: SXT, MEP, NHV, OSB, MPX, PLW, BIR, PPL, HDF, MDF. */
+   * BC na migratie: o.a. CWF (voorheen NHV), PEP (voorheen MEP); plus SXT, OSB, MPX, … */
   houtsoort: string | null
   /** Nominale dikte in mm (eerste getal van Item No of AFM). */
   dikte: number | null
@@ -28,7 +28,7 @@ Jouw taak: extraheer ELK FYSIEK PAK als eigen object en retourneer één JSON-ob
 
 Lay-out van het document:
 - De hoofdregel toont een "Item No" (bv. "101066", "101892"), een beschrijving van het product op de
-  regel eronder (bv. "SXT019X100 - HT ISPM15 SEXTA" of "MEP009X2440X1220 MULTIPLEX ELL.PINE C+/C WBP"),
+  regel eronder (bv. "SXT019X100 - HT ISPM15 SEXTA" of "PEP009X2440X1220 MULTIPLEX …" — oude code MEP kan nog in oude PDF's staan),
   een Customer Order Line No., een AFM (afmeting, bv. "19x4.800x100"), een Amount (totaal in m³/m²),
   een UoM (m3/m2) en een totaal Weight.
 - Onder elke hoofdregel staan één of meer sub-regels. Elke sub-regel heeft:
@@ -47,18 +47,18 @@ Extractie-regels per pak (één sub-regel = één element in de array):
    - Dit mag NOOIT het hoofd "Item No" (zoals "101066") zijn, dat is de product-code van Foresco.
 
 2. "houtsoort": neem de beschrijving van de hoofdregel onder de Item No (bv.
-   "SXT019X100 - HT ISPM15 SEXTA" of "MEP009X2440X1220 MULTIPLEX ...") en haal de 3-letter code
+   "SXT019X100 - HT ISPM15 SEXTA" of "PEP009X2440X1220 MULTIPLEX ...") en haal de 3-letter code
    aan het begin van het eerste token eruit:
      * "SXT019X100 ..." → "SXT"
-     * "MEP009X2440X1220 ..." → "MEP"
-     * "NHV*" → "NHV", "OSB*" → "OSB", "MPX*" → "MPX", "PLW*" → "PLW", "MDF*" → "MDF", enz.
+     * "PEP009X2440X1220 ..." → "PEP" (oude leverancierscode "MEP..." → "MEP")
+     * "CWF*" → "CWF" (oude "NHV*" → "NHV"), "OSB*" → "OSB", "MPX*" → "MPX", "PLW*", "MDF*", enz.
    Altijd in HOOFDLETTERS.
 
 3. "dikte": nominale dikte in mm = het EERSTE getal van de Item No-code (dus "SXT019X100" → 19,
-   "MEP009X2440X1220" → 9) of gelijkwaardig het eerste getal uit de AFM-kolom. Integer.
+   "PEP009X2440X1220" of "MEP009X2440X1220" → 9) of gelijkwaardig het eerste getal uit de AFM-kolom. Integer.
 
 4. "breedte": nominale breedte in mm = het LAATSTE getal van de Item No-code (dus "SXT019X100" →
-   100, "MEP009X2440X1220" → 1220) of het DERDE getal uit de AFM "DxLxB" (zie hieronder). Integer.
+   100, "PEP009X2440X1220" → 1220) of het DERDE getal uit de AFM "DxLxB" (zie hieronder). Integer.
 
 5. "exacte_lengte": lengte in mm = het MIDDELSTE getal van de AFM op de sub-regel. AFM-formaat is
    "dikte x lengte x breedte". Let heel goed op de notatie: Foresco gebruikt vaak een punt als

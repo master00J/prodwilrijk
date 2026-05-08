@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { WoodOrder } from '@/types/database'
+import { WOOD_HOUTSOORTEN_BASIC } from '@/lib/wood/houtsoort-codes'
 
 interface OrderItem {
   houtsoort: string
@@ -26,7 +27,7 @@ export default function WoodOrderPage() {
     opmerkingen: '',
   })
 
-  const houtsoorten = ['SXT', 'SCH', 'NHV', 'OSB', 'MEP', 'HDB']
+  const houtsoorten = [...WOOD_HOUTSOORTEN_BASIC]
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()

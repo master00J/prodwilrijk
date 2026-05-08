@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { WOOD_HOUTSOORTEN_BASIC } from '@/lib/wood/houtsoort-codes'
 
-const HOUTSOORTEN = ['SXT', 'SCH', 'NHV', 'OSB', 'MEP', 'HDB']
+const HOUTSOORTEN = [...WOOD_HOUTSOORTEN_BASIC]
 
 interface AddWoodFormState {
   houtsoort: string

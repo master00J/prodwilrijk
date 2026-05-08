@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { logApiError } from '@/lib/api/log-error'
+import { KNOWN_WOOD_TYPE_PREFIXES } from '@/lib/wood/houtsoort-codes'
 
 export const dynamic = 'force-dynamic'
 
-const KNOWN_WOOD_TYPES = ['SXT', 'SCH', 'NHV', 'OSB', 'MEP', 'HDB', 'KD', 'HBO', 'MPX', 'MDF', 'HDF']
+const KNOWN_WOOD_TYPES = [...KNOWN_WOOD_TYPE_PREFIXES]
 const STANDARD_LENGTHS = [2440, 2500, 3050, 3660, 4000, 4880, 5000, 6100]
 
 type Requirement = {

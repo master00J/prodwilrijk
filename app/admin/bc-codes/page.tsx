@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import AdminGuard from '@/components/AdminGuard'
+import { WOOD_HOUTSOORTEN_BASIC } from '@/lib/wood/houtsoort-codes'
 
 interface BcCode {
   id: number
@@ -26,7 +27,7 @@ export default function BcCodesPage() {
   })
   const [searchTerm, setSearchTerm] = useState('')
 
-  const houtsoorten = ['SXT', 'SCH', 'NHV', 'OSB', 'MEP', 'HDB']
+  const houtsoorten = [...WOOD_HOUTSOORTEN_BASIC]
 
   const fetchBcCodes = async () => {
     try {

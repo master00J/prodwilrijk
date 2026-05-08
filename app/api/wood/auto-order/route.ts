@@ -142,9 +142,9 @@ export async function POST(request: NextRequest) {
       const openPacks = openOrderPacks.get(key) || 0
       const waitingPacksCount = waitingPacks.get(key) || 0
 
-      // For NHV: also count SXT as available stock
+      // Voor CWF (voorheen NHV): tel ook SXT mee als beschikbare voorraad
       let total = currentPacks + openPacks + waitingPacksCount
-      if (houtsoort === 'NHV') {
+      if (houtsoort === 'NHV' || houtsoort === 'CWF') {
         const sxtKey = keyFor('SXT', dikte, breedte)
         const sxtCurrentPacks = packStock.get(sxtKey) || 0
         const sxtOpenPacks = openOrderPacks.get(sxtKey) || 0

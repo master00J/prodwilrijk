@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { WoodOrder } from '@/types/database'
+import { woodTypeCodesMatch } from '@/lib/wood/houtsoort-codes'
 
 // Types voor PDF-import (CMR Summary van Foresco).
 interface ForescoPackage {
@@ -39,11 +40,10 @@ interface ImportRow {
 //    orders waar min_lengte <= exacte_lengte en de laagste open_pakken eerst wegboekt.
 function matchCandidates(pkg: ForescoPackage, orders: WoodOrder[]): WoodOrder[] {
   if (!pkg.houtsoort || pkg.dikte == null || pkg.breedte == null) return []
-  const hs = pkg.houtsoort.toLowerCase()
   const hits = orders.filter(
     (o) =>
       o.open_pakken > 0 &&
-      (o.houtsoort || '').toLowerCase() === hs &&
+      woodTypeCodesMatch(o.houtsoort, pkg.houtsoort) &&
       Number(o.dikte) === Number(pkg.dikte) &&
       Number(o.breedte) === Number(pkg.breedte)
   )

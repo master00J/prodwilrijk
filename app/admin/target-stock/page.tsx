@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import AdminGuard from '@/components/AdminGuard'
 import { WoodTargetStock } from '@/types/database'
+import { WOOD_HOUTSOORTEN_FULL } from '@/lib/wood/houtsoort-codes'
 
 export default function TargetStockPage() {
   const [targetStock, setTargetStock] = useState<WoodTargetStock[]>([])
@@ -18,7 +19,7 @@ export default function TargetStockPage() {
   })
   const [searchTerm, setSearchTerm] = useState('')
 
-  const houtsoorten = ['SXT', 'SCH', 'NHV', 'OSB', 'MEP', 'HDB', 'KD', 'HBO', 'MPX']
+  const houtsoorten = [...WOOD_HOUTSOORTEN_FULL]
 
   const fetchTargetStock = async () => {
     try {

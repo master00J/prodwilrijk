@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { normalizeWoodTypeCode } from '@/lib/wood/houtsoort-codes'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -53,8 +54,13 @@ export async function POST(request: NextRequest) {
     if (bcCodes) {
       bcCodes.forEach((row: any) => {
         const houtsoort = row.houtsoort ? row.houtsoort.toLowerCase() : ''
+        const code = row.bc_code || ''
         const key = `${row.breedte}-${row.dikte}-${houtsoort}`
-        bcCodeMap[key] = row.bc_code || ''
+        bcCodeMap[key] = code
+        const normalized = normalizeWoodTypeCode(row.houtsoort).toLowerCase()
+        if (normalized && normalized !== houtsoort) {
+          bcCodeMap[`${row.breedte}-${row.dikte}-${normalized}`] = code
+        }
       })
     }
 

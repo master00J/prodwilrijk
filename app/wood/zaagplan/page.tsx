@@ -34,7 +34,8 @@ interface XmlMaterialGroup {
 // Standaard plaatmaten per materiaalprefix (als niet in de code staat)
 const KNOWN_SHEET_DIMS: Record<string, { l: number; w: number }> = {
   'HBO':  { l: 2440, w: 1220 },   // Hardboard
-  'MEP':  { l: 2440, w: 1220 },   // Multiplex Elliotti
+  'MEP':  { l: 2440, w: 1220 },   // Multiplex Elliotti (legacy code)
+  'PEP':  { l: 2440, w: 1220 },   // Multiplex Elliotti (nieuwe BC)
   'MPX':  { l: 2440, w: 1220 },   // Multiplex (algemeen)
   'MUL':  { l: 2440, w: 1220 },   // Multiplex
   'OSB':  { l: 2500, w: 1250 },   // OSB (meest gangbare maat)
@@ -107,7 +108,7 @@ function parseXmlProductionOrder(xmlText: string): XmlMaterialGroup[] {
 
   // Fallback namen voor veelgebruikte materiaalcodes
   const MATERIAL_NAMES: Record<string, string> = {
-    'HBO': 'Hardboard', 'MEP': 'Multiplex Elliotti', 'MPX': 'Multiplex',
+    'HBO': 'Hardboard', 'MEP': 'Multiplex Elliotti', 'PEP': 'Multiplex Elliotti', 'MPX': 'Multiplex',
     'MUL': 'Multiplex', 'OSB': 'OSB', 'MDF': 'MDF', 'HDF': 'HDF', 'SPX': 'Spaanplaat',
   }
 
