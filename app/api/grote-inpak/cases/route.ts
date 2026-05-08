@@ -206,6 +206,8 @@ export async function GET(request: NextRequest) {
           item.serial_number?.toLowerCase().includes(searchLower) ||
           item.pils_shop_order_key?.toLowerCase().includes(searchLower) ||
           item.atlas_planner_email?.toLowerCase().includes(searchLower) ||
+          item.bc_fp_item_no?.toLowerCase().includes(searchLower) ||
+          item.bc_shop_order_no?.toLowerCase().includes(searchLower) ||
           item.stock_location?.toLowerCase().includes(searchLower) ||
           item.comment?.toLowerCase().includes(searchLower)
         )

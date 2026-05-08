@@ -40,6 +40,12 @@ export interface GroteInpakCase {
   atlas_planner_email?: string | null
   /** Laatste 6 cijfers van serial; koppelen met BC shop order */
   pils_shop_order_key?: string | null
+  /** BC Excel-koppeling: FP / item nummer */
+  bc_fp_item_no?: string | null
+  bc_shop_order_no?: string | null
+  bc_line_description?: string | null
+  bc_shop_lines_source_file?: string | null
+  bc_shop_lines_matched_at?: string | null
   term_werkdagen?: number | null
   deadline?: string | null
   dagen_te_laat: number

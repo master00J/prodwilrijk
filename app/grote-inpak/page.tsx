@@ -28,6 +28,7 @@ export default function GroteInpakPage() {
   const [transferUploading, setTransferUploading] = useState(false)
   const [transferFiles_DB, setTransferFiles_DB] = useState<any[]>([])
   const [dragActiveTransfer, setDragActiveTransfer] = useState(false)
+  const [bcShopLinesUploading, setBcShopLinesUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [overviewData, setOverviewData] = useState<any[]>([])
@@ -42,6 +43,7 @@ export default function GroteInpakPage() {
   const erpLinkInputRef = useRef<HTMLInputElement>(null)
   const stockInputRef = useRef<HTMLInputElement>(null)
   const transferInputRef = useRef<HTMLInputElement>(null)
+  const bcShopLinesInputRef = useRef<HTMLInputElement>(null)
 
   const tabs = [
     { id: 0, label: 'Overzicht' },
@@ -110,6 +112,34 @@ export default function GroteInpakPage() {
     e.stopPropagation()
     setDragActiveTransfer(e.type === 'dragenter' || e.type === 'dragover')
   }, [])
+
+  const handleBcShopLinesUpload = async () => {
+    const file = bcShopLinesInputRef.current?.files?.[0]
+    if (!file) {
+      setError('Selecteer eerst een BC Excel (shop order + item / FP).')
+      return
+    }
+    setBcShopLinesUploading(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/grote-inpak/bc-shop-lines/upload', { method: 'POST', body: fd })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Upload mislukt')
+      setSuccess(
+        `✅ BC-koppeling: ${json.cases_matched} cases bijgewerkt (${json.excel_rows_used} Excel-rijen, ${json.unique_shop_keys} unieke shop-keys). ` +
+          `Cases met shop-key: ${json.cases_with_shop_key}.`,
+      )
+      await loadDataFromDatabase()
+      setTimeout(() => setSuccess(null), 8000)
+    } catch (e: any) {
+      setError(e.message || 'BC shop-regels upload mislukt')
+    } finally {
+      setBcShopLinesUploading(false)
+    }
+  }
 
   const handleTransferDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -711,6 +741,34 @@ export default function GroteInpakPage() {
             <p className="text-xs text-gray-500 mt-2">
               Upload meerdere Excel bestanden (bijv. Stock Genk.xlsx, Stock Willebroek.xlsx, Stock Wilrijk.xlsx)
             </p>
+          </div>
+        </div>
+
+        <div className="mt-4 p-4 bg-sky-50 border border-sky-200 rounded-lg">
+          <label className="block text-sm font-medium text-sky-900 mb-2" htmlFor="bc-shop-lines-upload">
+            📎 BC shop/order-export (FP in overzicht)
+          </label>
+          <p className="text-xs text-sky-900/90 mb-3 max-w-4xl leading-relaxed">
+            Excel uit BC met <strong>Shop order</strong> en <strong>Item No.</strong> / <strong>No.</strong> (FP-codes).
+            Regels worden gekoppeld aan PILS-regels via dezelfde sleutel als kolom <strong>Shop-key</strong>: de laatste 6 cijfers
+            van het shop order in BC en van het serienummer in PILS. Importeer eerst PILS (CSV), daarna dit bestand.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              ref={bcShopLinesInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="block w-full max-w-md text-sm text-sky-950 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-sky-600 file:text-white file:text-sm file:font-medium"
+              id="bc-shop-lines-upload"
+            />
+            <button
+              type="button"
+              onClick={handleBcShopLinesUpload}
+              disabled={bcShopLinesUploading}
+              className="px-4 py-2 bg-sky-600 text-white rounded-lg text-sm font-semibold hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {bcShopLinesUploading ? 'Koppelen…' : 'Upload & koppel aan PILS'}
+            </button>
           </div>
         </div>
 

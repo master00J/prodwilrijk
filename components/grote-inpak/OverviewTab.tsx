@@ -110,6 +110,8 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
         item.serial_number?.toLowerCase().includes(query) ||
         item.pils_shop_order_key?.toLowerCase().includes(query) ||
         item.atlas_planner_email?.toLowerCase().includes(query) ||
+        item.bc_fp_item_no?.toLowerCase().includes(query) ||
+        item.bc_shop_order_no?.toLowerCase().includes(query) ||
         item.stock_location?.toLowerCase().includes(query) ||
         item.comment?.toLowerCase().includes(query)
       )
@@ -253,7 +255,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
 
   const handleExport = () => {
     const csv = [
-      ['Case Label', 'Case Type', 'PILS Datum', 'Forecast Datum', 'Item Number', 'Serial', 'Shop-key (6)', 'Atlas Planner e-mail', 'Productielocatie', 'In Willebroek', 'Status', 'Priority', 'Comment', 'WMS Locatie'],
+      ['Case Label', 'Case Type', 'PILS Datum', 'Forecast Datum', 'Item Number', 'Serial', 'Shop-key (6)', 'Atlas Planner e-mail', 'BC FP', 'BC Shop order', 'Productielocatie', 'In Willebroek', 'Status', 'Priority', 'Comment', 'WMS Locatie'],
       ...filteredData.map(item => [
         item.case_label || '',
         item.case_type || '',
@@ -263,6 +265,8 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
         item.serial_number || '',
         item.pils_shop_order_key || '',
         item.atlas_planner_email || '',
+        item.bc_fp_item_no || '',
+        item.bc_shop_order_no || '',
         item.productielocatie || '',
         item.in_willebroek ? 'Ja' : 'Nee',
         item.status || '',
@@ -735,6 +739,20 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                 Atlas mail{getSortIcon('atlas_planner_email')}
               </th>
               <th
+                className="px-2 py-3 text-left text-xs font-semibold text-indigo-800 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
+                onClick={() => handleSort('bc_fp_item_no')}
+                title="Uit BC shop/order export (gekoppeld via shop-key)"
+              >
+                BC FP{getSortIcon('bc_fp_item_no')}
+              </th>
+              <th
+                className="px-2 py-3 text-left text-xs font-semibold text-indigo-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
+                onClick={() => handleSort('bc_shop_order_no')}
+                title="Shop order uit BC-export"
+              >
+                BC order{getSortIcon('bc_shop_order_no')}
+              </th>
+              <th
                 className="px-2 py-3 text-left text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-200/80 select-none whitespace-nowrap"
                 onClick={() => handleSort('productielocatie')}
               >
@@ -876,6 +894,12 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                   </td>
                   <td className="px-2 py-2 text-slate-700 text-xs max-w-[12rem] truncate" title={displayItem.atlas_planner_email || undefined}>
                     {displayItem.atlas_planner_email || '—'}
+                  </td>
+                  <td className="px-2 py-2 text-slate-800">
+                    {displayItem.bc_fp_item_no ? <BcItemCode value={displayItem.bc_fp_item_no} /> : '—'}
+                  </td>
+                  <td className="px-2 py-2 text-slate-700 font-mono text-xs max-w-[10rem] truncate" title={displayItem.bc_shop_order_no || undefined}>
+                    {displayItem.bc_shop_order_no || '—'}
                   </td>
                   <td className="px-2 py-2 text-slate-700 max-w-[10rem] truncate" title={displayItem.productielocatie || undefined}>
                     {displayItem.productielocatie || '—'}
