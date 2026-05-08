@@ -42,6 +42,11 @@ interface Stats {
 
 type LocationFilter = 'all' | 'Genk' | 'Wilrijk' | 'Willebroek'
 
+function formatNumber(value: number | null | undefined): string {
+  if (!Number.isFinite(value ?? NaN)) return '-'
+  return Number(value).toLocaleString('nl-BE')
+}
+
 function formatDate(s: string | null): string {
   if (!s) return '-'
   const d = new Date(s)
