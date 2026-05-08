@@ -482,9 +482,9 @@ export default function GroteInpakPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#e6eef8] text-slate-900 antialiased">
+    <div className="min-h-screen w-full max-w-none bg-[#e6eef8] text-slate-900 antialiased">
       <header className="border-b border-[#0f2d52] bg-gradient-to-b from-[#1a4b8c] to-[#153d75] text-white shadow-md">
-        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+        <div className="flex w-full max-w-none flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded border border-white/20 bg-white/10 text-sm font-bold">
               GI
@@ -511,7 +511,7 @@ export default function GroteInpakPage() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-[1600px] px-3 py-4 sm:px-6 sm:py-6">
+      <div className="w-full max-w-none px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
       {/* File Upload Section */}
       <div className="mb-6 rounded-lg border border-slate-300/80 bg-white p-5 shadow-sm sm:p-6">
         <div

@@ -279,7 +279,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
 
   const handleExport = () => {
     const csv = [
-      ['Case Label', 'Case Type', 'PILS Datum', 'Forecast Datum', 'Item Number', 'Serial', 'Shop-key (6)', 'Atlas Planner e-mail', 'BC FP', 'BC Shop order', 'BC Verkooporder', 'PO-tijd stap (actief)', 'PO-tijd order', 'PO-tijd team', 'Productielocatie', 'In Willebroek', 'Status', 'Priority', 'Comment', 'WMS Locatie'],
+      ['Case Label', 'Case Type', 'PILS Datum', 'Forecast Datum', 'Item Number', 'Serial', 'Shop-key (6)', 'Atlas Planner e-mail', 'BC FP', 'BC Shop order', 'BC Verkooporder', 'PO-tijd stap (actief)', 'PO-tijd order', 'PO-tijd team', 'Productielocatie', 'Status', 'Priority', 'Comment', 'WMS Locatie'],
       ...filteredData.map(item => [
         item.case_label || '',
         item.case_type || '',
@@ -296,7 +296,6 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
         item.production_time_active?.production_order_number || '',
         item.production_time_active?.employees?.join('; ') || '',
         item.productielocatie || '',
-        item.in_willebroek ? 'Ja' : 'Nee',
         item.status || '',
         item.priority ? 'Ja' : 'Nee',
         item.comment || '',
@@ -788,13 +787,6 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                 Productie{getSortIcon('productielocatie')}
               </th>
               <th
-                className="cursor-pointer select-none whitespace-nowrap px-2 py-3 text-left text-xs font-semibold text-white hover:bg-white/10"
-                onClick={() => handleSort('in_willebroek')}
-                title="Fysiek in Willebroek (volgens WMS/ERP-koppeling)"
-              >
-                In WLB{getSortIcon('in_willebroek')}
-              </th>
-              <th
                 className="whitespace-nowrap px-2 py-3 text-left text-xs font-semibold text-sky-100"
                 title="Aantal lopende productieorders — kleur volgt productielocatie (WLB / Genk / Wilrijk)"
               >
@@ -934,17 +926,6 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                   </td>
                   <td className="px-2 py-2 text-slate-700 max-w-[10rem] truncate" title={displayItem.productielocatie || undefined}>
                     {displayItem.productielocatie || '—'}
-                  </td>
-                  <td className="px-2 py-2">
-                    <span
-                      className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-                        displayItem.in_willebroek
-                          ? 'bg-emerald-100 text-emerald-900'
-                          : 'bg-slate-100 text-slate-600'
-                      }`}
-                    >
-                      {displayItem.in_willebroek ? 'Ja' : 'Nee'}
-                    </span>
                   </td>
                   <td className="px-2 py-2 text-center tabular-nums">
                     {(displayItem.in_productie_qty ?? 0) > 0 ? (
