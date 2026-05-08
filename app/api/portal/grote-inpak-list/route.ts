@@ -38,7 +38,9 @@ export async function GET(request: NextRequest) {
       query = query.ilike('case_label', `%${kist}%`)
     }
     if (order) {
-      query = query.or(`bc_shop_order_no.ilike.%${order}%,pils_shop_order_key.ilike.%${order}%`)
+      query = query.or(
+        `bc_shop_order_no.ilike.%${order}%,pils_shop_order_key.ilike.%${order}%,bc_customer_order_no.ilike.%${order}%`,
+      )
     }
     if (item) {
       query = query.or(`bc_fp_item_no.ilike.%${item}%,serial_number.ilike.%${item}%`)

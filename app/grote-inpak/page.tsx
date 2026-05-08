@@ -764,18 +764,17 @@ export default function GroteInpakPage() {
 
         <div className="mt-4 p-4 bg-sky-50 border border-sky-200 rounded-lg">
           <label className="block text-sm font-medium text-sky-900 mb-2" htmlFor="bc-shop-lines-upload">
-            📎 BC-export: shop-key, Atlas-mail en FP per lijn
+            📎 BC-export: shop-key, Atlas-mail, FP en Customer Order No. per lijn
           </label>
           <p className="text-xs text-sky-900/90 mb-3 max-w-4xl leading-relaxed">
             Na de PILS-upload: upload hier de BC/Oilfree-export. We matchen <strong>PILS serial (kolom F, volledig nummer)</strong> met
             de <strong>laatste 6 cijfers</strong> in Excel (typisch kolom <strong>I</strong>, of een <code>substr(…,11,6)</code>-kolom).
-            <strong> Atlas Planner e-mail</strong> uit kolom <strong>H</strong>, <strong>FP</strong> uit <strong>No.</strong>, en{' '}
-            <strong>Verkooporder (Document Nr.)</strong> wordt intern bijgehouden. Klanten zoeken hun status op via{' '}
+            <strong> Atlas Planner e-mail</strong> uit kolom <strong>H</strong>, <strong>FP</strong> uit <strong>No.</strong>,{' '}
+            <strong>Verkooporder (Document Nr.)</strong> en <strong>Customer Order No.</strong> (typisch kolom <strong>K</strong>) worden bijgehouden. Klanten zoeken hun status op via{' '}
             <a href="/atlas/order-status" className="font-semibold underline decoration-sky-700/50 hover:decoration-sky-900">
               het Atlas-orderstatusportaal
             </a>{' '}
-            met enkel het <strong>shopordernummer</strong>.
-            . Voorloopnullen in Excel worden weer gelijkgetrokken voor de match.
+            met het <strong>shopordernummer</strong>. Voorloopnullen in Excel worden weer gelijkgetrokken voor de match.
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <input

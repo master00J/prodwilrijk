@@ -11,7 +11,7 @@ export const maxDuration = 60
 /**
  * Oilfree/BC Excel: kolom F PILS (volledig serial) matcht op shopOrderMatchKey ==
  * genormaliseerde waarde uit Excel (laatste 6 cijfers, typ. kolom I / substr 11,6).
- * Atlas uit Excel (kolom H), FP per lijn uit Item No.
+ * Atlas uit Excel (kolom H), FP per lijn uit Item No., Customer Order No. (typ. kolom K).
  */
 export async function POST(request: NextRequest) {
   try {
@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
       bc_fp_item_no: string | null
       bc_shop_order_no: string | null
       bc_sales_order_no: string | null
+      bc_customer_order_no: string | null
       bc_line_description: string | null
       bc_shop_lines_source_file: string
       bc_shop_lines_matched_at: string
@@ -74,6 +75,7 @@ export async function POST(request: NextRequest) {
         bc_fp_item_no: hit.fp_item_no,
         bc_shop_order_no: hit.match_raw,
         bc_sales_order_no: hit.sales_order_no,
+        bc_customer_order_no: hit.customer_order_no,
         bc_line_description: hit.description,
         bc_shop_lines_source_file: file.name,
         bc_shop_lines_matched_at: matchedAt,
@@ -93,6 +95,7 @@ export async function POST(request: NextRequest) {
               bc_fp_item_no: u.bc_fp_item_no,
               bc_shop_order_no: u.bc_shop_order_no,
               bc_sales_order_no: u.bc_sales_order_no,
+              bc_customer_order_no: u.bc_customer_order_no,
               bc_line_description: u.bc_line_description,
               bc_shop_lines_source_file: u.bc_shop_lines_source_file,
               bc_shop_lines_matched_at: u.bc_shop_lines_matched_at,

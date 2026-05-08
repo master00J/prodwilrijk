@@ -14,6 +14,7 @@ type PortalLine = {
   description: string | null
   fp_code: string | null
   shop_reference: string | null
+  customer_order_no: string | null
   shop_key: string | null
   serial_number: string | null
   progress: {
@@ -233,7 +234,7 @@ export default function AtlasOrderStatusPage() {
               </div>
               <div>
                 <label htmlFor="f-order" className="mb-1 block text-xs font-medium text-slate-600">
-                  Order (shop / key)
+                  Order (shop / key / cust.)
                 </label>
                 <input
                   id="f-order"
@@ -241,7 +242,7 @@ export default function AtlasOrderStatusPage() {
                   className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm shadow-inner outline-none focus:border-[#1a4b8c] focus:ring-1 focus:ring-[#1a4b8c]"
                   value={order}
                   onChange={(e) => setOrder(e.target.value)}
-                  placeholder="BC shop order of shop-key"
+                  placeholder="BC shop order, shop-key of customer order"
                 />
               </div>
               <div>
@@ -341,6 +342,7 @@ export default function AtlasOrderStatusPage() {
                   <th className="whitespace-nowrap px-3 py-3 font-semibold">PILS-datum</th>
                   <th className="whitespace-nowrap px-3 py-3 font-semibold">Deadline</th>
                   <th className="whitespace-nowrap px-3 py-3 font-semibold">Order ref.</th>
+                  <th className="whitespace-nowrap px-3 py-3 font-semibold">Customer order</th>
                   <th className="whitespace-nowrap px-3 py-3 font-semibold">Shop-key</th>
                   <th className="whitespace-nowrap px-3 py-3 font-semibold">Item (FP)</th>
                   <th className="whitespace-nowrap px-3 py-3 font-semibold">Serial</th>
@@ -351,7 +353,7 @@ export default function AtlasOrderStatusPage() {
               <tbody>
                 {lines.length === 0 ? (
                   <tr className="bg-white">
-                    <td colSpan={11} className="px-3 py-10 text-center text-slate-500">
+                    <td colSpan={12} className="px-3 py-10 text-center text-slate-500">
                       Geen regels in deze selectie. Pas de filters aan of wis de velden.
                     </td>
                   </tr>
@@ -383,6 +385,7 @@ export default function AtlasOrderStatusPage() {
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 tabular-nums text-slate-800">{formatNlDate(line.deadline)}</td>
                       <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-slate-800">{line.shop_reference || '—'}</td>
+                      <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-slate-800">{line.customer_order_no || '—'}</td>
                       <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-slate-800">{line.shop_key || '—'}</td>
                       <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-slate-800">{line.fp_code || '—'}</td>
                       <td className="max-w-[10rem] truncate px-3 py-2 font-mono text-xs text-slate-700" title={line.serial_number || undefined}>

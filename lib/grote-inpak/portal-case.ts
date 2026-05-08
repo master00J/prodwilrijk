@@ -1,7 +1,7 @@
 import { groteInpakFpMatchKey, type ProductionTimeActiveSummary } from '@/lib/grote-inpak/production-time-floor'
 
 export const PORTAL_CASE_SELECT =
-  'case_label, case_type, productielocatie, in_willebroek, arrival_date, deadline, dagen_te_laat, bc_line_description, bc_fp_item_no, bc_shop_order_no, pils_shop_order_key, serial_number'
+  'case_label, case_type, productielocatie, in_willebroek, arrival_date, deadline, dagen_te_laat, bc_line_description, bc_fp_item_no, bc_shop_order_no, bc_customer_order_no, pils_shop_order_key, serial_number'
 
 export function buildPortalProgress(
   row: {
@@ -70,6 +70,7 @@ export function mapCaseRowToPortalLine(
     description: (row.bc_line_description as string | null) ?? null,
     fp_code: (row.bc_fp_item_no as string | null) ?? null,
     shop_reference: (row.bc_shop_order_no as string | null) ?? null,
+    customer_order_no: (row.bc_customer_order_no as string | null) ?? null,
     shop_key: (row.pils_shop_order_key as string | null) ?? null,
     serial_number: (row.serial_number as string | null) ?? null,
     progress,

@@ -10,6 +10,8 @@ export interface BcShopLineParsed {
   match_key: string | null
   /** BC-kolom Document No. (verkooporder) */
   sales_order_no: string | null
+  /** Customer Order No. (typ. kolom K) */
+  customer_order_no: string | null
   fp_item_no: string | null
   atlas_planner_email: string | null
   description: string | null
@@ -58,6 +60,19 @@ function pickDocumentNoColumn(cells: string[]): number {
   return 1 // typisch kolom B (Oilfree-export)
 }
 
+/** Customer Order No. — header of fallback kolom K (index 10). */
+function pickCustomerOrderNoColumn(cells: string[]): number {
+  const idx = cells.findIndex(
+    (h) =>
+      h.includes('customer order') ||
+      /^customer\s*order\s*no/.test(h) ||
+      h === 'customer order no.' ||
+      h === 'customer order no',
+  )
+  if (idx >= 0) return idx
+  return 10 // kolom K
+}
+
 function pickItemColumn(cells: string[]): number {
   for (let c = 0; c < cells.length; c++) {
     const h = cells[c]
@@ -88,6 +103,7 @@ export function parseBcShopLinesExcel(workbook: XLSX.WorkBook): BcShopLineParsed
   let itemCol = -1
   let docCol = -1
   let descCol = -1
+  let custOrderCol = -1
 
   const maxScan = Math.min(25, raw.length)
   for (let r = 0; r < maxScan; r++) {
@@ -104,6 +120,7 @@ export function parseBcShopLinesExcel(workbook: XLSX.WorkBook): BcShopLineParsed
       itemCol = pickItemColumn(cells)
       docCol = pickDocumentNoColumn(cells)
       descCol = cells.findIndex((h) => h === 'description' || h.includes('description'))
+      custOrderCol = pickCustomerOrderNoColumn(cells)
       break
     }
   }
@@ -117,6 +134,7 @@ export function parseBcShopLinesExcel(workbook: XLSX.WorkBook): BcShopLineParsed
     docCol = pickDocumentNoColumn(cells)
     const di = cells.findIndex((h) => h.includes('description'))
     descCol = di >= 0 ? di : -1
+    custOrderCol = pickCustomerOrderNoColumn(cells)
   }
 
   if (headerRow < 0 || matchCol < 0 || itemCol < 0) {
@@ -142,6 +160,10 @@ export function parseBcShopLinesExcel(workbook: XLSX.WorkBook): BcShopLineParsed
     const fp = itemRaw ? normalizeErpCode(itemRaw) || itemRaw.toUpperCase().replace(/\s+/g, '') : null
     const desc = descCol >= 0 ? String(row[descCol] ?? '').trim() || null : null
 
+    const custRaw =
+      custOrderCol >= 0 && custOrderCol < row.length ? String(row[custOrderCol] ?? '').trim() : ''
+    const customer_order_no = custRaw || null
+
     const match_key = matchRaw ? shopOrderMatchKey(matchRaw) : null
     if (!match_key) continue
 
@@ -149,6 +171,7 @@ export function parseBcShopLinesExcel(workbook: XLSX.WorkBook): BcShopLineParsed
       match_raw: matchRaw,
       match_key,
       sales_order_no: salesOrderNorm || null,
+      customer_order_no,
       fp_item_no: fp || null,
       atlas_planner_email: atlasVal,
       description: desc,
