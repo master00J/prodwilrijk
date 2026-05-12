@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { fillKnownAirtecKistnummers } from '@/lib/airtec/fill-known-kistnummers'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate and filter data for Airtec
-    const validGoods = goods
+    const validGoods = await fillKnownAirtecKistnummers(goods
       .map((item) => ({
         beschrijving: item.beschrijving?.toString().trim() || null,
         item_number: item.item_number?.toString().trim() || null,
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
       .filter(
         // At minimum, we need item_number or beschrijving
         (item) => (item.item_number || item.beschrijving) && item.quantity > 0
-      )
+      ))
 
     if (validGoods.length === 0) {
       return NextResponse.json(

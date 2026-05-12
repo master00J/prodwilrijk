@@ -34,6 +34,7 @@ export async function callOpenAIVision(
               type: 'image_url',
               image_url: {
                 url: `data:${mediaType};base64,${base64Image}`,
+                detail: 'high',
               },
             },
           ],

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import * as XLSX from 'xlsx'
+import { parseAirtecIncomingExcel } from '@/lib/airtec/parse-incoming-excel'
 
 export default function AirtecPage() {
   const [uploading, setUploading] = useState(false)
@@ -24,43 +24,7 @@ export default function AirtecPage() {
     try {
       // Read file as array buffer
       const data = await readFileAsArrayBuffer(file)
-      
-      // Parse Excel file
-      const workbook = XLSX.read(data, { type: 'array' })
-      const sheetName = workbook.SheetNames[0]
-      const worksheet = workbook.Sheets[sheetName]
-      const jsonData = XLSX.utils.sheet_to_json(worksheet)
-
-      console.log('Parsed JSON data:', jsonData)
-
-      // Map and validate the data for Airtec
-      const filteredData = jsonData.reduce((acc: any[], row: any) => {
-        // Try different possible column names
-        const beschrijving = row['Beschrijving'] || row['Description'] || row['Omschrijving'] || null
-        const itemNumber = row['Item Number'] || row['Artikelnummer'] || row['Item'] || row['Itemnumber'] || row['Itemnummer'] || null
-        const lotNumber = row['Lot Number'] || row['Partijnummer'] || row['Lot'] || row['Lotnumber'] || row['Lotnummer'] || null
-        const datumOpgestuurd = row['Datum Opgestuurd'] || row['Datum opsturen?'] || row['Date Sent'] || row['Datum'] || null
-        const kistnummer = row['Kistnummer'] || row['Box Number'] || row['Kist'] || row['Box'] || null
-        const divisie = row['Divisie'] || row['Division'] || row['Afdeling'] || null
-        const quantity = row['Qty'] || row['Quantity'] || row['Aantal'] || row['Amount'] || 1
-
-        // At minimum, we need item_number or beschrijving
-        if (itemNumber || beschrijving) {
-          acc.push({
-            beschrijving: beschrijving ? String(beschrijving).trim() : null,
-            item_number: itemNumber ? String(itemNumber).trim() : null,
-            lot_number: lotNumber ? String(lotNumber).trim() : null,
-            datum_opgestuurd: datumOpgestuurd ? parseDate(datumOpgestuurd) : null,
-            kistnummer: kistnummer ? String(kistnummer).trim().slice(-3) : null, // Last 3 characters
-            divisie: divisie ? String(divisie).trim() : null,
-            quantity: quantity ? Number(quantity) || 1 : 1,
-          })
-        } else {
-          console.warn('Missing required fields (item_number or beschrijving) in row:', row)
-        }
-
-        return acc
-      }, [])
+      const filteredData = parseAirtecIncomingExcel(data)
 
       if (filteredData.length === 0) {
         throw new Error('No valid data found in the Excel file. Please check that the file contains at least Item Number or Description columns.')
@@ -102,33 +66,6 @@ export default function AirtecPage() {
     } finally {
       setUploading(false)
     }
-  }
-
-  const parseDate = (dateValue: any): string | null => {
-    if (!dateValue) return null
-    
-    // If it's already a string in ISO format
-    if (typeof dateValue === 'string' && dateValue.includes('T')) {
-      return dateValue
-    }
-    
-    // If it's a number (Excel date serial number)
-    if (typeof dateValue === 'number') {
-      // Excel dates start from 1900-01-01
-      const excelEpoch = new Date(1900, 0, 1)
-      const date = new Date(excelEpoch.getTime() + (dateValue - 2) * 24 * 60 * 60 * 1000)
-      return date.toISOString()
-    }
-    
-    // If it's a string date, try to parse it
-    if (typeof dateValue === 'string') {
-      const parsed = new Date(dateValue)
-      if (!isNaN(parsed.getTime())) {
-        return parsed.toISOString()
-      }
-    }
-    
-    return null
   }
 
   const readFileAsArrayBuffer = (file: File): Promise<ArrayBuffer> => {

@@ -17,6 +17,61 @@ interface LabelData {
   label_type: 'airtec' | 'cooler' | 'unknown'
 }
 
+function normalizeAiaSerial(raw: string): string | null {
+  const compact = raw
+    .trim()
+    .toUpperCase()
+    .replace(/^2W/, '')
+    .replace(/[\s\-._/]/g, '')
+    .replace(/^A[1IL]A/, 'AIA')
+
+  if (!compact.startsWith('AIA')) return null
+
+  const tail = compact.slice(3).replace(/[^A-Z0-9]/g, '')
+  if (tail.length < 7) return null
+
+  const digitMap: Record<string, string> = {
+    O: '0',
+    Q: '0',
+    I: '1',
+    L: '1',
+    S: '5',
+    B: '8',
+    Z: '2',
+  }
+  const digits = tail
+    .slice(0, 7)
+    .split('')
+    .map(ch => digitMap[ch] || ch)
+    .join('')
+
+  if (!/^\d{7}$/.test(digits)) return null
+
+  const suffix = tail.slice(7)
+  const optionalLetter = suffix && /^[A-Z]$/.test(suffix[0]) ? suffix[0] : ''
+  return `AIA${digits}${optionalLetter}`
+}
+
+function extractSerialCandidates(values: unknown[]): string[] {
+  const serials: string[] = []
+  const seen = new Set<string>()
+
+  for (const value of values) {
+    if (typeof value !== 'string') continue
+    const compact = value.toUpperCase().replace(/[\s\-._/]/g, '')
+    const matches = compact.match(/(?:2W)?A[1IL]A[A-Z0-9]{7}(?:[A-Z](?![1IL]A))?/g) || [value]
+
+    for (const match of matches) {
+      const serial = normalizeAiaSerial(match)
+      if (!serial || seen.has(serial)) continue
+      seen.add(serial)
+      serials.push(serial)
+    }
+  }
+
+  return serials
+}
+
 const AIRTEC_PROMPT = `Analyze this shipping/pallet label. It can be one of two types:
 
 TYPE 1 - Atlas Copco Airtec label (has fields like PART NR, DESCR, QUANTITY (Q), NET WT, AIA serial numbers)
@@ -72,11 +127,11 @@ CRITICAL rules for serial_numbers on Atlas Copco / airtec labels — READ CAREFU
 - Some serials are printed twice on the label with a "2W" prefix (e.g. "AIA3263118" alongside
   "2WAIA3263118"). These are duplicates of the same physical part — include both in the array;
   the server will deduplicate. Do not skip one thinking it is redundant.
-- The NUMBER of distinct "AIA..."-prefixed serials on the label should roughly match QUANTITY.
-  If quantity = 3 but you see only 1 or 2 serials, LOOK AGAIN at the SERIALNR line — there is
-  almost certainly a third one you missed due to small font or low contrast.
-- Do a final OCR pass on the SERIALNR field before finalising the JSON. Prefer returning a best-guess
-  serial over returning nothing; an approximate serial still helps downstream matching.
+- IMPORTANT: quantity is a real field and must still be read correctly, but it is NOT the expected
+  number of serials. A box can contain quantity 6 while only 3 AIA serials are physically printed
+  because there is not enough space on the label. Return only the AIA serials that are visible.
+- Do a final OCR pass on the SERIALNR field before finalising the JSON. The serial text is much smaller
+  than the large PART NR and quantity fields, so inspect that small line carefully.
 - Example correct outputs:
     qty=1, 1 serial shown: ["AIA3263118"]
     qty=1, with 2W duplicate: ["AIA3263118", "2WAIA3263118"]
@@ -89,6 +144,23 @@ General:
 - quantity must be an integer.
 - If a field is not readable or rules forbid the only visible candidate, use null.
 - Return ONLY the JSON object.`
+
+const AIRTEC_SERIAL_RECHECK_PROMPT = `Read ONLY the SERIALNR / SERIAL NR field on this Atlas Copco Airtec label.
+
+Return ONLY valid JSON:
+{
+  "serial_numbers": ["AIA serials from the SERIALNR field"]
+}
+
+Rules:
+- Ignore PART NR, PO NO-LINE NO, SUPPLIER CODE, PARCEL NR, DELIVERY NOTICE, weights, dimensions and barcodes.
+- The serial line is usually small text in the middle-right or lower-right of the label, near the word SERIALNR.
+- Serial numbers almost always look like "AIA" + 7 digits, sometimes with one trailing letter, e.g. AIA3287154 or AIA3259522W.
+- Quantity is still correct, but it is not the number of serials shown. For example: quantity can be 6
+  while only 3 AIA serials are physically printed. Do not invent missing serials to match quantity.
+- OCR confusions are common: A1A/AlA means AIA, O means 0 in the digits, I/L means 1, S means 5, B means 8.
+- If multiple serials are on the line, return every one separately.
+- Prefer a careful best guess from the visible SERIALNR line over an empty array, but do not use numbers from other fields.`
 
 function postProcessAirtec(parsed: any): LabelData {
   let itemNumber: string | null = parsed.item_number || null
@@ -120,20 +192,10 @@ function postProcessAirtec(parsed: any): LabelData {
     }
   }
 
-  // Serials opkuisen: "2W"-prefix strippen zodat "AIA3263118" en "2WAIA3263118" als 1 serial gelden.
+  // Serials opkuisen: "2W"-prefix strippen en OCR-verwarringen normaliseren
+  // zodat bv. "A1A3287I54" toch matcht met "AIA3287154".
   const rawSerials: string[] = Array.isArray(parsed.serial_numbers) ? parsed.serial_numbers : []
-  const cleanedSerials: string[] = []
-  const seen = new Set<string>()
-  for (const s of rawSerials) {
-    if (typeof s !== 'string') continue
-    let v = s.trim()
-    if (!v) continue
-    v = v.replace(/^2W/i, '')
-    const key = v.toUpperCase()
-    if (seen.has(key)) continue
-    seen.add(key)
-    cleanedSerials.push(v)
-  }
+  const cleanedSerials = extractSerialCandidates(rawSerials)
 
   return {
     item_number: itemNumber,
@@ -193,6 +255,87 @@ async function extractLabelWithClaude(base64Image: string, mediaType: string): P
 async function extractLabelWithOpenAI(base64Image: string, mediaType: string): Promise<LabelData> {
   const parsed = (await callOpenAIVision(AIRTEC_PROMPT, base64Image, mediaType)) as any
   return postProcessAirtec(parsed)
+}
+
+async function recheckSerialsWithClaude(base64Image: string, mediaType: string): Promise<string[]> {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_API_KEY!,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 512,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: mediaType,
+                data: base64Image,
+              },
+            },
+            { type: 'text', text: AIRTEC_SERIAL_RECHECK_PROMPT },
+          ],
+        },
+      ],
+    }),
+  })
+
+  if (!response.ok) {
+    const errBody = await response.text()
+    throw new Error(`Claude serial recheck error ${response.status}: ${errBody}`)
+  }
+
+  const result = await response.json()
+  const text = result.content?.[0]?.text || ''
+  const jsonMatch = text.match(/\{[\s\S]*\}/)
+  if (!jsonMatch) return []
+
+  const parsed = JSON.parse(jsonMatch[0])
+  return extractSerialCandidates(Array.isArray(parsed.serial_numbers) ? parsed.serial_numbers : [])
+}
+
+async function recheckSerialsWithOpenAI(base64Image: string, mediaType: string): Promise<string[]> {
+  const parsed = (await callOpenAIVision(AIRTEC_SERIAL_RECHECK_PROMPT, base64Image, mediaType)) as any
+  return extractSerialCandidates(Array.isArray(parsed.serial_numbers) ? parsed.serial_numbers : [])
+}
+
+async function recheckSerials(
+  provider: LabelProvider,
+  base64Image: string,
+  mediaType: string
+): Promise<string[]> {
+  if (provider === 'gpt5') {
+    return recheckSerialsWithOpenAI(base64Image, mediaType)
+  }
+  return recheckSerialsWithClaude(base64Image, mediaType)
+}
+
+async function improveSerialReading(
+  labelData: LabelData,
+  provider: LabelProvider,
+  base64Image: string,
+  mediaType: string
+): Promise<LabelData> {
+  if (labelData.label_type !== 'airtec') return labelData
+
+  try {
+    const serialsFromFocusedPass = await recheckSerials(provider, base64Image, mediaType)
+    if (serialsFromFocusedPass.length === 0) return labelData
+
+    // De SERIALNR-regel is klein ten opzichte van de rest van het label; een
+    // aparte pass die alleen daarop focust is betrouwbaarder dan de algemene OCR.
+    return { ...labelData, serial_numbers: serialsFromFocusedPass }
+  } catch (error) {
+    console.warn('Airtec SERIALNR recheck mislukt:', error)
+    return labelData
+  }
 }
 
 async function extractLabel(
@@ -256,7 +399,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'OPENAI_API_KEY niet geconfigureerd' }, { status: 500 })
     }
 
-    const labelData = await extractLabel(activeProvider, image, mediaType)
+    const labelData = await improveSerialReading(
+      await extractLabel(activeProvider, image, mediaType),
+      activeProvider,
+      image,
+      mediaType
+    )
 
     if (!labelData.item_number) {
       return NextResponse.json({

@@ -51,7 +51,32 @@ function normalizeItemNumber(raw: string): string {
 }
 
 function normalizeSerial(raw: string): string {
-  return raw.replace(/[\s\-\._/]/g, '').toUpperCase()
+  const compact = raw
+    .replace(/[\s\-\._/]/g, '')
+    .replace(/^2W/i, '')
+    .toUpperCase()
+    .replace(/^A[1IL]A/, 'AIA')
+
+  if (!compact.startsWith('AIA')) return compact
+
+  const digitMap: Record<string, string> = {
+    O: '0',
+    Q: '0',
+    I: '1',
+    L: '1',
+    S: '5',
+    B: '8',
+    Z: '2',
+  }
+  const tail = compact.slice(3)
+  const digits = tail
+    .slice(0, 7)
+    .split('')
+    .map(ch => digitMap[ch] || ch)
+    .join('')
+  const suffix = tail.slice(7)
+
+  return `AIA${digits}${suffix}`
 }
 
 async function persistIncomingLabelPhotos(incomingIds: number[], base64: string, mediaType: string) {
@@ -90,9 +115,17 @@ function lotMatchesSerial(lot: string | null, serialsNorm: string[]): boolean {
   )
 }
 
+function lotContainsAiaSerial(lot: string | null): boolean {
+  if (!lot) return false
+  return lot
+    .split(/[,;]/)
+    .some(part => normalizeSerial(part).startsWith('AIA'))
+}
+
 let queueIdCounter = 0
 
 type LabelProvider = 'haiku' | 'gpt5'
+type ClaimSource = 'serial' | 'qty'
 const PROVIDER_STORAGE_KEY = 'labelScannerProvider'
 
 export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlistedAdded, onIncomingAdded }: LabelScannerProps) {
@@ -116,9 +149,9 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
     }
   }, [])
   const processingRef = useRef(false)
-  // Rijen die al door een eerdere scan zijn geclaimd, zodat een tweede scan van
-  // hetzelfde itemnummer niet opnieuw dezelfde rij selecteert.
-  const claimedIdsRef = useRef<Set<number>>(new Set())
+  // Rijen die al door een eerdere scan zijn geclaimd. Serial-claims zijn hard;
+  // qty-claims mogen later nog door een exacte AIA-scan overgenomen worden.
+  const claimedIdsRef = useRef<Map<number, ClaimSource>>(new Map())
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -287,10 +320,11 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
         //      overige rijen. Zo wordt een pallet met 12 stuks en slechts 3
         //      serials op het label correct verdeeld: 3 rijen via serial,
         //      de rest op basis van aantal.
-        const claimed = claimedIdsRef.current
-        const available = data.matches.filter(m => !claimed.has(m.id))
+        const claims = claimedIdsRef.current
+        const availableForSerial = data.matches.filter(m => !claims.has(m.id) || claims.get(m.id) === 'qty')
+        const unclaimed = data.matches.filter(m => !claims.has(m.id))
 
-        if (available.length === 0) {
+        if (availableForSerial.length === 0 && unclaimed.length === 0) {
           setQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'action_needed', result: data, autoAction: null } : q))
           return
         }
@@ -304,39 +338,38 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
 
         // Stap 1 — serial → lot_number
         if (serialsNorm.length > 0) {
-          for (const m of available) {
+          for (const m of availableForSerial) {
             if (lotMatchesSerial(m.lot_number, serialsNorm)) {
               pickedBySerial.push(m)
             }
           }
         }
 
-        let pickedQty = pickedBySerial.reduce((s, m) => s + m.quantity, 0)
+        const serialsPreviouslyClaimedByQty = pickedBySerial.filter(m => claims.get(m.id) === 'qty')
+        let pickedQty = pickedBySerial.reduce(
+          (s, m) => s + (claims.get(m.id) === 'qty' ? 0 : m.quantity),
+          0
+        )
 
-        // Stap 2 — top up op basis van aantal als nog niet genoeg gedekt
+        // Stap 2 — top up tot de label-quantity als nog niet genoeg gedekt.
+        // Kies eerst losse/kleine regels, zodat quantity 6 ook 6 regels aanvinkt
+        // wanneer de verzendnota per stuk is opgesplitst.
         if (pickedQty < labelQty) {
           const remainingNeeded = labelQty - pickedQty
           const usedIds = new Set(pickedBySerial.map(m => m.id))
-          const rest = available.filter(m => !usedIds.has(m.id))
+          const rest = unclaimed
+            .filter(m => !usedIds.has(m.id))
+            .sort((a, b) => {
+              const serialDiff = Number(lotContainsAiaSerial(a.lot_number)) - Number(lotContainsAiaSerial(b.lot_number))
+              if (serialDiff !== 0) return serialDiff
+              return a.quantity - b.quantity
+            })
 
-          const exact = rest.find(m => m.quantity === remainingNeeded)
-          if (exact) {
-            pickedByQty.push(exact)
-          } else {
-            const geq = rest
-              .filter(m => m.quantity >= remainingNeeded)
-              .sort((a, b) => a.quantity - b.quantity)
-            if (geq.length > 0) {
-              pickedByQty.push(geq[0])
-            } else {
-              const sorted = [...rest].sort((a, b) => b.quantity - a.quantity)
-              let running = 0
-              for (const m of sorted) {
-                pickedByQty.push(m)
-                running += m.quantity
-                if (running >= remainingNeeded) break
-              }
-            }
+          let running = 0
+          for (const m of rest) {
+            pickedByQty.push(m)
+            running += m.quantity
+            if (running >= remainingNeeded) break
           }
           pickedQty += pickedByQty.reduce((s, m) => s + m.quantity, 0)
         }
@@ -348,7 +381,10 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
           return
         }
 
-        picked.forEach(m => claimed.add(m.id))
+        pickedBySerial.forEach(m => claims.set(m.id, 'serial'))
+        pickedByQty.forEach(m => {
+          if (!claims.has(m.id)) claims.set(m.id, 'qty')
+        })
         onItemsMatched(picked.map(m => m.id))
         void persistIncomingLabelPhotos(
           picked.map(m => m.id),
@@ -362,7 +398,11 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
         const mismatch = pickedQty !== labelQty
         const parts: string[] = []
         if (pickedBySerial.length > 0) {
-          parts.push(`${pickedBySerial.length} via serial`)
+          const reclaimed = serialsPreviouslyClaimedByQty.length
+          parts.push(reclaimed > 0
+            ? `${pickedBySerial.length} via serial, ${reclaimed} eerder via aantal`
+            : `${pickedBySerial.length} via serial`
+          )
         }
         if (pickedByQty.length > 0) {
           parts.push(`${pickedByQty.length} via aantal`)
@@ -459,7 +499,7 @@ export default function LabelScanner({ onItemsMatched, onConfirmScanned, onUnlis
     setIsOpen(false)
     setQueue([])
     setScanTally({})
-    claimedIdsRef.current = new Set()
+    claimedIdsRef.current = new Map()
     setCameraError(null)
   }
 
