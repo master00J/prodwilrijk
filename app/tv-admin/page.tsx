@@ -341,54 +341,6 @@ export default function TvAdminPage() {
     }
   }
 
-  const createAnnouncement = async () => {
-    const text = window.prompt('Welk noodbericht wil je op alle schermen tonen?')
-    if (!text?.trim()) return
-    setSaving(true)
-    try {
-      const maxOrder = slides.length > 0 ? Math.max(...slides.map(s => s.sort_order)) + 1 : 0
-      const res = await fetch('/api/tv-slides', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'tekst',
-          title: 'Noodbericht',
-          content: { text: text.trim(), size: 'large' },
-          sort_order: maxOrder,
-          active: true,
-        }),
-      })
-      const json = await res.json()
-      if (!res.ok || !json.data) throw new Error(json.error || 'Noodbericht aanmaken mislukt')
-      const created = json.data as TvSlide
-      setSlides(prev => [...prev, created])
-
-      await Promise.all(screens.map(async screen => {
-        const current = screen.id === selectedScreen
-          ? screenSlideIds
-          : await fetch(`/api/tv-screens/${screen.slug}/slides`)
-            .then(r => r.json())
-            .then(j => (j.data || []).map((slide: any) => slide.id))
-            .catch(() => [])
-        const next = [created.id, ...current.filter((id: string) => id !== created.id)]
-        await fetch(`/api/tv-screens/${screen.slug}/slides`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ slideIds: next }),
-        })
-      }))
-
-      if (selectedScreenData) await fetchScreenSlides(selectedScreenData.slug)
-      fetchScreens()
-      setSaveMsg({ type: 'success', text: 'Noodbericht toegevoegd aan alle schermen' })
-      setTimeout(() => setSaveMsg(null), 3000)
-    } catch (err: any) {
-      setSaveMsg({ type: 'error', text: err.message || 'Noodbericht mislukt' })
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const updateSlide = async (slide: TvSlide) => {
     setSaving(true)
     setSaveMsg(null)
@@ -494,13 +446,6 @@ export default function TvAdminPage() {
                 }`}
               >
                 {showScreenManager ? 'Schermen sluiten' : 'Schermen'}
-              </button>
-              <button
-                onClick={createAnnouncement}
-                disabled={saving || screens.length === 0}
-                className="px-4 py-2.5 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
-              >
-                Noodbericht
               </button>
               <a
                 href="/tv-display"
