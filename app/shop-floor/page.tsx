@@ -123,7 +123,7 @@ export default function ShopFloorPage() {
 
   return (
     <main className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-7xl px-4 py-6">
+      <div className="w-full max-w-none px-4 py-6">
         <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Shop floor</p>
@@ -133,6 +133,12 @@ export default function ShopFloorPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Link
+              href="/shop-floor/planning"
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
+            >
+              Productieplanning
+            </Link>
             <Link
               href="/admin/production-order-upload"
               className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"

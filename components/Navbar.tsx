@@ -599,6 +599,17 @@ export default function Navbar() {
                     >
                       Shop floor
                     </Link>
+                    <Link
+                      href="/shop-floor/planning"
+                      onClick={() => setIsVariaOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/shop-floor/planning')
+                          ? 'bg-slate-50 text-slate-700 font-medium border-l-4 border-slate-500'
+                          : 'text-gray-700'
+                      }`}
+                    >
+                      Productieplanning
+                    </Link>
                   </div>
                 </div>
               )}
@@ -997,6 +1008,7 @@ export default function Navbar() {
                     <Link href="/materiaal/heftruck-water" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Heftruck water</Link>
                     <Link href="/production-order-time" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Productie order tijd</Link>
                     <Link href="/shop-floor" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Shop floor</Link>
+                    <Link href="/shop-floor/planning" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Productieplanning</Link>
                   </div>
                 </details>
                 <Link href="/grote-inpak" onClick={closeMobileMenu} className={`block px-4 py-3 rounded-lg font-medium ${
