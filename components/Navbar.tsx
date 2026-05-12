@@ -102,7 +102,8 @@ export default function Navbar() {
   const isVariaPage =
     pathname.startsWith('/uitvoeren-controle') ||
     pathname.startsWith('/materiaal/heftruck-water') ||
-    pathname.startsWith('/production-order-time')
+    pathname.startsWith('/production-order-time') ||
+    pathname.startsWith('/shop-floor')
 
   const isCNHPage = 
     pathname.startsWith('/cnh/workflow') ||
@@ -587,6 +588,17 @@ export default function Navbar() {
                     >
                       Productie order tijd
                     </Link>
+                    <Link
+                      href="/shop-floor"
+                      onClick={() => setIsVariaOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/shop-floor')
+                          ? 'bg-slate-50 text-slate-700 font-medium border-l-4 border-slate-500'
+                          : 'text-gray-700'
+                      }`}
+                    >
+                      Shop floor
+                    </Link>
                   </div>
                 </div>
               )}
@@ -984,6 +996,7 @@ export default function Navbar() {
                     <Link href="/uitvoeren-controle" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Uitvoeren controles</Link>
                     <Link href="/materiaal/heftruck-water" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Heftruck water</Link>
                     <Link href="/production-order-time" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Productie order tijd</Link>
+                    <Link href="/shop-floor" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Shop floor</Link>
                   </div>
                 </details>
                 <Link href="/grote-inpak" onClick={closeMobileMenu} className={`block px-4 py-3 rounded-lg font-medium ${
