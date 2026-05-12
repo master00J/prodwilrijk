@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/packed-items-airtec/send-daily-report",
+      "schedule": "0 16 * * *"
+    }
+  ]
+}

@@ -25,6 +25,7 @@ const PUBLIC_API_ROUTES = [
   '/api/tv-slides/priorities',
   '/api/tv-slides/weather',
   '/api/tv-slides/dagplanning',
+  '/api/packed-items-airtec/send-daily-report',
   // Publiek leesbare vertaaltabel (oud ↔ nieuw BC item nr).
   // Bevat geen gevoelige data; handig voor lokale scripts/BC36-filters.
   '/api/bc-mappings',
@@ -56,7 +57,7 @@ function getRateLimitConfig(pathname: string): RateLimitConfig {
   if (pathname.includes('/scan-label') || pathname.includes('/parse-pdf')) {
     return RATE_LIMITS.ai_scan
   }
-  if (pathname.includes('/send-email') || pathname.includes('/send-pdf') || pathname.includes('/send-daily-order')) {
+  if (pathname.includes('/send-email') || pathname.includes('/send-pdf') || pathname.includes('/send-daily-order') || pathname.includes('/send-daily-report')) {
     return RATE_LIMITS.email
   }
   if (pathname.startsWith('/api/auth/')) {
