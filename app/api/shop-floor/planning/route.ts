@@ -6,6 +6,7 @@ export const revalidate = 0
 
 const VALID_SHIFTS = new Set(['dag', 'vroeg', 'laat', 'nacht'])
 const VALID_STATUSES = new Set(['planned', 'released', 'in_progress', 'done', 'cancelled'])
+const DEFAULT_SITE = 'Wilrijk'
 
 function todayInput(): string {
   return new Date().toISOString().slice(0, 10)
@@ -26,7 +27,7 @@ async function enrichPlanningRows(rows: any[]) {
 
   const [machinesRes, employeesRes] = await Promise.all([
     machineIds.length > 0
-      ? supabaseAdmin.from('machines').select('id, name, capacity').in('id', machineIds)
+      ? supabaseAdmin.from('machines').select('id, name, capacity, site').in('id', machineIds)
       : Promise.resolve({ data: [] as any[] }),
     employeeIds.length > 0
       ? supabaseAdmin.from('employees').select('id, name').in('id', employeeIds)
@@ -51,10 +52,12 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const dateFrom = searchParams.get('date_from') || searchParams.get('date') || todayInput()
     const dateTo = searchParams.get('date_to') || dateFrom
+    const site = searchParams.get('site') || DEFAULT_SITE
 
     let query = supabaseAdmin
       .from('production_planning_items')
       .select('*')
+      .eq('site', site)
       .gte('planned_date', dateFrom)
       .lte('planned_date', dateTo)
       .order('planned_date', { ascending: true })
@@ -94,6 +97,7 @@ export async function POST(request: NextRequest) {
     const shift = VALID_SHIFTS.has(body.shift) ? body.shift : 'dag'
     const status = VALID_STATUSES.has(body.status) ? body.status : 'planned'
     const lineId = body.production_order_line_id ? Number(body.production_order_line_id) : null
+    const site = String(body.site || DEFAULT_SITE).trim() || DEFAULT_SITE
 
     let lineData: any = null
     let orderData: any = null
@@ -124,6 +128,7 @@ export async function POST(request: NextRequest) {
       item_number: lineData?.item_number || lineData?.item_no || body.item_number || null,
       description: lineData?.description || lineData?.description_2 || body.description || null,
       production_step: productionStep,
+      site,
       planned_date: plannedDate,
       shift,
       machine_id: body.machine_id ? Number(body.machine_id) : null,
@@ -165,6 +170,7 @@ export async function PATCH(request: NextRequest) {
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
     if (body.planned_date !== undefined) updates.planned_date = String(body.planned_date).slice(0, 10)
+    if (body.site !== undefined) updates.site = String(body.site || DEFAULT_SITE).trim() || DEFAULT_SITE
     if (body.shift !== undefined && VALID_SHIFTS.has(body.shift)) updates.shift = body.shift
     if (body.production_step !== undefined) updates.production_step = String(body.production_step).trim()
     if (body.machine_id !== undefined) updates.machine_id = body.machine_id ? Number(body.machine_id) : null

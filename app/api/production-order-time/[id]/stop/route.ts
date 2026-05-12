@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { checkAndMarkOrderFinished } from '@/lib/production-order/check-finished'
+import { syncPlanningAfterTimeLogStop } from '@/lib/production-planning/status-sync'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,6 +68,14 @@ export async function POST(
     const orderNumber = log.production_order_number
     if (orderNumber) {
       void checkAndMarkOrderFinished(orderNumber)
+    }
+
+    if (log.production_order_number && log.production_item_number && log.production_step) {
+      void syncPlanningAfterTimeLogStop(
+        log.production_order_number,
+        log.production_item_number,
+        log.production_step
+      )
     }
 
     return NextResponse.json({

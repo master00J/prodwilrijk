@@ -1,5 +1,6 @@
-﻿import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { markPlanningInProgressForTimeLog } from '@/lib/production-planning/status-sync'
 
 export const dynamic = 'force-dynamic'
 
@@ -65,6 +66,8 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       )
     }
+
+    void markPlanningInProgressForTimeLog(orderNumber, itemNumber, step)
 
     return NextResponse.json({
       success: true,

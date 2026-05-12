@@ -6,12 +6,14 @@ import { BcItemCode } from '@/lib/bc-mapping/client'
 
 const STEPS = ['Zagen', 'Hout Halen', 'Assemblage', 'Schuren', 'Afwerking']
 const SHIFTS = ['dag', 'vroeg', 'laat', 'nacht'] as const
+const SITES = ['Wilrijk', 'Genk', 'Willebroek', 'Weert'] as const
 
 interface Machine {
   id: number
   name: string
   capacity?: number | null
   active?: boolean
+  site?: string | null
 }
 
 interface Employee {
@@ -43,6 +45,7 @@ interface PlanningItem {
   item_number: string | null
   description: string | null
   production_step: string
+  site?: string | null
   planned_date: string
   shift: string
   machine_id: number | null
@@ -59,6 +62,7 @@ function todayInput(): string {
 }
 
 export default function ShopFloorPlanningPage() {
+  const [site, setSite] = useState<(typeof SITES)[number]>('Wilrijk')
   const [date, setDate] = useState(todayInput())
   const [orders, setOrders] = useState<CandidateOrder[]>([])
   const [planning, setPlanning] = useState<PlanningItem[]>([])
@@ -82,7 +86,7 @@ export default function ShopFloorPlanningPage() {
     try {
       const [ordersRes, planningRes, machinesRes, employeesRes] = await Promise.all([
         fetch('/api/shop-floor/production-orders', { cache: 'no-store' }),
-        fetch(`/api/shop-floor/planning?date=${date}`, { cache: 'no-store' }),
+        fetch(`/api/shop-floor/planning?date=${date}&site=${encodeURIComponent(site)}`, { cache: 'no-store' }),
         fetch('/api/machines'),
         fetch('/api/employees'),
       ])
@@ -99,14 +103,14 @@ export default function ShopFloorPlanningPage() {
 
       setOrders(ordersJson.orders || [])
       setPlanning(planningJson.items || [])
-      setMachines((machinesJson || []).filter((m: Machine) => m.active !== false))
+      setMachines((machinesJson || []).filter((m: Machine) => m.active !== false && (m.site || 'Wilrijk') === site))
       setEmployees((employeesJson || []).filter((e: Employee) => e.active !== false))
     } catch (err: any) {
       setError(err.message || 'Planning laden mislukt')
     } finally {
       setLoading(false)
     }
-  }, [date])
+  }, [date, site])
 
   useEffect(() => {
     void load()
@@ -168,6 +172,7 @@ export default function ShopFloorPlanningPage() {
           shift,
           machine_id: machineId || null,
           assigned_employee_ids: employeeIds,
+          site,
           planned_quantity: quantity || selectedLine.remainingQty,
           planned_minutes: minutes || null,
           notes,
@@ -210,7 +215,19 @@ export default function ShopFloorPlanningPage() {
               Plan productieorderlijnen per bewerking, datum, shift, machine en medewerkers.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={site}
+              onChange={(e) => {
+                setSite(e.target.value as (typeof SITES)[number])
+                setMachineId('')
+              }}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm"
+            >
+              {SITES.map(siteOption => (
+                <option key={siteOption} value={siteOption}>{siteOption}</option>
+              ))}
+            </select>
             <Link href="/shop-floor" className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
               Shop-floor overzicht
             </Link>
@@ -229,7 +246,7 @@ export default function ShopFloorPlanningPage() {
         <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-lg font-bold text-slate-900">Nieuwe planning toevoegen</h2>
+              <h2 className="text-lg font-bold text-slate-900">Nieuwe planning toevoegen — {site}</h2>
               <p className="text-sm text-slate-500">BC-orderlijnen blijven de bron; deze planning is lokaal voor de vloer.</p>
             </div>
             <input
@@ -338,7 +355,7 @@ export default function ShopFloorPlanningPage() {
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-bold text-slate-900">Planning voor {date}</h2>
+              <h2 className="text-lg font-bold text-slate-900">Planning voor {site} op {date}</h2>
               <p className="text-sm text-slate-500">{planning.length} geplande bewerking(en)</p>
             </div>
             <button onClick={() => void load()} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
