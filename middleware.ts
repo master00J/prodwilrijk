@@ -32,6 +32,7 @@ const PUBLIC_API_ROUTES = [
 
 function isPublicRoute(pathname: string, method: string): boolean {
   if (pathname.startsWith('/api/tv-screens') && method === 'GET') return true
+  if (pathname.includes('/heartbeat') && pathname.startsWith('/api/tv-screens') && method === 'POST') return true
   if (PUBLIC_API_ROUTES.some(route => pathname.startsWith(route))) return true
   // /api/tv-slides exact match (GET) or with query params, but NOT /api/tv-slides/upload-image
   if (pathname === '/api/tv-slides') return true

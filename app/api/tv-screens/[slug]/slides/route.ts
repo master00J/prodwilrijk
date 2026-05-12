@@ -12,12 +12,21 @@ export async function GET(
 
     const { data: screen, error: screenErr } = await supabaseAdmin
       .from('tv_screens')
-      .select('id, site')
+      .select('id, slug, name, site, active, screen_group, last_seen_at')
       .eq('slug', slug)
       .single()
 
     if (screenErr || !screen) {
       return NextResponse.json({ error: 'Scherm niet gevonden' }, { status: 404 })
+    }
+
+    const screenInfo = {
+      slug: screen.slug,
+      name: screen.name,
+      site: screen.site || 'Wilrijk',
+      active: screen.active !== false,
+      screen_group: screen.screen_group || 'Algemeen',
+      last_seen_at: screen.last_seen_at || null,
     }
 
     const { data: links, error: linksErr } = await supabaseAdmin
@@ -30,7 +39,7 @@ export async function GET(
 
     const slideIds = (links || []).map((l: any) => l.slide_id)
     if (slideIds.length === 0) {
-      return NextResponse.json({ data: [], screen: { site: screen.site || 'Wilrijk' } })
+      return NextResponse.json({ data: [], screen: screenInfo })
     }
 
     const { data: slides, error: slidesErr } = await supabaseAdmin
@@ -45,7 +54,7 @@ export async function GET(
       return (sortMap.get(a.id) ?? 999) - (sortMap.get(b.id) ?? 999)
     })
 
-    return NextResponse.json({ data: sorted, screen: { site: screen.site || 'Wilrijk' } })
+    return NextResponse.json({ data: sorted, screen: screenInfo })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

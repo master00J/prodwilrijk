@@ -10,6 +10,10 @@ interface TvScreen {
   slug: string
   name: string
   site: string
+  active: boolean
+  screen_group: string
+  last_seen_at: string | null
+  updated_at: string | null
   created_at: string
   slideCount: number
 }
@@ -24,6 +28,15 @@ interface TvSlide {
   duration: number | null
   created_at: string
   updated_at: string
+}
+
+interface ScreenHealth {
+  linkedSlides: number
+  activeSlides: number
+  dagplanningEntries: number
+  openProductionOrders: number
+  priorityItems: number
+  checkedAt: string
 }
 
 const SLIDE_TYPES: Array<{
@@ -82,6 +95,23 @@ function getSlidePreview(slide: TvSlide): string {
   }
 }
 
+function formatRelative(value: string | null): string {
+  if (!value) return 'nog niet online'
+  const diff = Date.now() - new Date(value).getTime()
+  if (diff < 0) return 'net'
+  const minutes = Math.floor(diff / 60000)
+  if (minutes < 1) return 'minder dan 1 min geleden'
+  if (minutes < 60) return `${minutes} min geleden`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} u geleden`
+  return new Date(value).toLocaleString('nl-BE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
+function isScreenOnline(value: string | null): boolean {
+  if (!value) return false
+  return Date.now() - new Date(value).getTime() < 90_000
+}
+
 export default function TvAdminPage() {
   const [slides, setSlides] = useState<TvSlide[]>([])
   const [loading, setLoading] = useState(true)
@@ -95,8 +125,12 @@ export default function TvAdminPage() {
   const [newScreenName, setNewScreenName] = useState('')
   const [newScreenSlug, setNewScreenSlug] = useState('')
   const [newScreenSite, setNewScreenSite] = useState<Site>(DEFAULT_SITE)
+  const [newScreenGroup, setNewScreenGroup] = useState('Bureau')
+  const [templateScreenId, setTemplateScreenId] = useState('')
   const [selectedScreen, setSelectedScreen] = useState<string | null>(null)
   const [screenSlideIds, setScreenSlideIds] = useState<string[]>([])
+  const [screenHealth, setScreenHealth] = useState<ScreenHealth | null>(null)
+  const [draggedSlideId, setDraggedSlideId] = useState<string | null>(null)
 
   const fetchSlides = useCallback(async () => {
     try {
@@ -130,16 +164,51 @@ export default function TvAdminPage() {
     }
   }, [])
 
+  const fetchScreenHealth = useCallback(async (slug: string) => {
+    try {
+      const res = await fetch(`/api/tv-screens/${slug}/health`)
+      const json = await res.json()
+      setScreenHealth(res.ok ? json : null)
+    } catch {
+      setScreenHealth(null)
+    }
+  }, [])
+
   useEffect(() => { fetchSlides(); fetchScreens() }, [fetchSlides, fetchScreens])
 
   useEffect(() => {
     if (selectedScreen) {
       const screen = screens.find(s => s.id === selectedScreen)
-      if (screen) fetchScreenSlides(screen.slug)
+      if (screen) {
+        fetchScreenSlides(screen.slug)
+        fetchScreenHealth(screen.slug)
+      }
     } else {
       setScreenSlideIds([])
+      setScreenHealth(null)
     }
-  }, [selectedScreen, screens, fetchScreenSlides])
+  }, [selectedScreen, screens, fetchScreenSlides, fetchScreenHealth])
+
+  useEffect(() => {
+    if (!showScreenManager) return
+    const timer = setInterval(() => {
+      fetchScreens()
+      const screen = screens.find(s => s.id === selectedScreen)
+      if (screen) fetchScreenHealth(screen.slug)
+    }, 30000)
+    return () => clearInterval(timer)
+  }, [fetchScreens, fetchScreenHealth, screens, selectedScreen, showScreenManager])
+
+  const saveScreenSlides = async (screen: TvScreen, slideIds: string[]) => {
+    setScreenSlideIds(slideIds)
+    await fetch(`/api/tv-screens/${screen.slug}/slides`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slideIds }),
+    })
+    fetchScreens()
+    fetchScreenHealth(screen.slug)
+  }
 
   const createScreen = async () => {
     if (!newScreenName.trim()) return
@@ -148,14 +217,35 @@ export default function TvAdminPage() {
       const res = await fetch('/api/tv-screens', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug, name: newScreenName.trim(), site: newScreenSite }),
+        body: JSON.stringify({
+          slug,
+          name: newScreenName.trim(),
+          site: newScreenSite,
+          screen_group: newScreenGroup,
+        }),
       })
       const json = await res.json()
       if (json.data) {
         setScreens(prev => [...prev, { ...json.data, slideCount: 0 }])
+        const templateScreen = screens.find(screen => screen.id === templateScreenId)
+        if (templateScreen) {
+          const templateRes = await fetch(`/api/tv-screens/${templateScreen.slug}/slides`)
+          const templateJson = await templateRes.json()
+          const templateIds = (templateJson.data || []).map((slide: any) => slide.id)
+          if (templateIds.length > 0) {
+            await fetch(`/api/tv-screens/${json.data.slug}/slides`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ slideIds: templateIds }),
+            })
+          }
+        }
         setNewScreenName('')
         setNewScreenSlug('')
         setNewScreenSite(DEFAULT_SITE)
+        setNewScreenGroup('Bureau')
+        setTemplateScreenId('')
+        fetchScreens()
         setSaveMsg({ type: 'success', text: `Scherm "${json.data.name}" aangemaakt` })
         setTimeout(() => setSaveMsg(null), 3000)
       } else {
@@ -183,15 +273,36 @@ export default function TvAdminPage() {
     const newIds = screenSlideIds.includes(slideId)
       ? screenSlideIds.filter(id => id !== slideId)
       : [...screenSlideIds, slideId]
-    setScreenSlideIds(newIds)
-    try {
-      await fetch(`/api/tv-screens/${screen.slug}/slides`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slideIds: newIds }),
-      })
-      fetchScreens()
-    } catch { /* silent */ }
+    try { await saveScreenSlides(screen, newIds) } catch { /* silent */ }
+  }
+
+  const updateScreen = async (screen: TvScreen, updates: Partial<TvScreen>) => {
+    const res = await fetch('/api/tv-screens', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: screen.id, ...updates }),
+    })
+    const json = await res.json()
+    if (!res.ok) {
+      setSaveMsg({ type: 'error', text: json.error || 'Scherm bijwerken mislukt' })
+      return
+    }
+    setScreens(prev => prev.map(s => s.id === screen.id ? { ...s, ...json.data, slideCount: s.slideCount } : s))
+    setSaveMsg({ type: 'success', text: 'Scherm bijgewerkt' })
+    setTimeout(() => setSaveMsg(null), 2500)
+  }
+
+  const moveScreenSlide = async (targetSlideId: string) => {
+    const screen = screens.find(s => s.id === selectedScreen)
+    if (!screen || !draggedSlideId || draggedSlideId === targetSlideId) return
+    const from = screenSlideIds.indexOf(draggedSlideId)
+    const to = screenSlideIds.indexOf(targetSlideId)
+    if (from === -1 || to === -1) return
+    const next = [...screenSlideIds]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+    setDraggedSlideId(null)
+    await saveScreenSlides(screen, next)
   }
 
   const createSlide = async (type: SlideType) => {
@@ -225,6 +336,54 @@ export default function TvAdminPage() {
         setEditingSlide(json.data)
         setShowAddForm(false)
       }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const createAnnouncement = async () => {
+    const text = window.prompt('Welk noodbericht wil je op alle schermen tonen?')
+    if (!text?.trim()) return
+    setSaving(true)
+    try {
+      const maxOrder = slides.length > 0 ? Math.max(...slides.map(s => s.sort_order)) + 1 : 0
+      const res = await fetch('/api/tv-slides', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'tekst',
+          title: 'Noodbericht',
+          content: { text: text.trim(), size: 'large' },
+          sort_order: maxOrder,
+          active: true,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.data) throw new Error(json.error || 'Noodbericht aanmaken mislukt')
+      const created = json.data as TvSlide
+      setSlides(prev => [...prev, created])
+
+      await Promise.all(screens.map(async screen => {
+        const current = screen.id === selectedScreen
+          ? screenSlideIds
+          : await fetch(`/api/tv-screens/${screen.slug}/slides`)
+            .then(r => r.json())
+            .then(j => (j.data || []).map((slide: any) => slide.id))
+            .catch(() => [])
+        const next = [created.id, ...current.filter((id: string) => id !== created.id)]
+        await fetch(`/api/tv-screens/${screen.slug}/slides`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slideIds: next }),
+        })
+      }))
+
+      if (selectedScreenData) await fetchScreenSlides(selectedScreenData.slug)
+      fetchScreens()
+      setSaveMsg({ type: 'success', text: 'Noodbericht toegevoegd aan alle schermen' })
+      setTimeout(() => setSaveMsg(null), 3000)
+    } catch (err: any) {
+      setSaveMsg({ type: 'error', text: err.message || 'Noodbericht mislukt' })
     } finally {
       setSaving(false)
     }
@@ -298,6 +457,11 @@ export default function TvAdminPage() {
 
   const sortedSlides = [...slides].sort((a, b) => a.sort_order - b.sort_order)
   const activeCount = slides.filter(s => s.active).length
+  const selectedScreenData = screens.find(s => s.id === selectedScreen) || null
+  const selectedScreenSlides = screenSlideIds
+    .map(id => slides.find(slide => slide.id === id))
+    .filter(Boolean) as TvSlide[]
+  const selectedActiveSlideCount = selectedScreenSlides.filter(slide => slide.active).length
 
   if (loading) {
     return (
@@ -330,6 +494,13 @@ export default function TvAdminPage() {
                 }`}
               >
                 {showScreenManager ? 'Schermen sluiten' : 'Schermen'}
+              </button>
+              <button
+                onClick={createAnnouncement}
+                disabled={saving || screens.length === 0}
+                className="px-4 py-2.5 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+              >
+                Noodbericht
               </button>
               <a
                 href="/tv-display"
@@ -375,10 +546,30 @@ export default function TvAdminPage() {
                       {screen.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm text-gray-900">{screen.name}</div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="font-medium text-sm text-gray-900">{screen.name}</div>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                          screen.active !== false ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'
+                        }`}>
+                          {screen.active !== false ? 'Actief' : 'Gepauzeerd'}
+                        </span>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                          isScreenOnline(screen.last_seen_at) ? 'bg-emerald-50 text-emerald-700' : 'bg-orange-50 text-orange-700'
+                        }`}>
+                          {isScreenOnline(screen.last_seen_at) ? 'Online' : 'Offline'}
+                        </span>
+                      </div>
                       <div className="text-xs text-gray-500 font-mono">/tv-display/{screen.slug}</div>
-                      <div className="mt-1 inline-flex rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
-                        {screen.site || DEFAULT_SITE}
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        <span className="inline-flex rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
+                          {screen.site || DEFAULT_SITE}
+                        </span>
+                        <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                          {screen.screen_group || 'Algemeen'}
+                        </span>
+                        <span className="inline-flex rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                          laatste update {formatRelative(screen.last_seen_at)}
+                        </span>
                       </div>
                     </div>
                     <span className="text-xs text-gray-400">{screen.slideCount} slides</span>
@@ -402,41 +593,157 @@ export default function TvAdminPage() {
 
             {/* Slide toewijzing voor geselecteerd scherm */}
             {selectedScreen && (
-              <div className="mb-4 p-3 bg-indigo-50/50 rounded-lg border border-indigo-100">
-                <div className="text-xs font-semibold text-indigo-700 uppercase tracking-wide mb-2">
-                  Slides voor: {screens.find(s => s.id === selectedScreen)?.name}
-                </div>
-                <div className="space-y-1">
-                  {sortedSlides.map(slide => {
-                    const cfg = getSlideConfig(slide.type)
-                    const isLinked = screenSlideIds.includes(slide.id)
-                    return (
-                      <label
-                        key={slide.id}
-                        className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
-                          isLinked ? 'bg-indigo-100' : 'hover:bg-gray-50'
-                        }`}
-                      >
+              <div className="mb-4 rounded-lg border border-indigo-100 bg-indigo-50/50 p-3">
+                {selectedScreenData && (
+                  <div className="mb-3 grid gap-3 lg:grid-cols-[1fr_340px]">
+                    <div>
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <div className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">
+                            Slides voor: {selectedScreenData.name}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {selectedScreenData.screen_group || 'Algemeen'} - {selectedScreenData.site || DEFAULT_SITE} - laatste heartbeat {formatRelative(selectedScreenData.last_seen_at)}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => updateScreen(selectedScreenData, { active: selectedScreenData.active === false })}
+                          className={`rounded-lg px-3 py-1.5 text-xs font-bold ${
+                            selectedScreenData.active !== false
+                              ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                              : 'bg-green-100 text-green-700 hover:bg-green-200'
+                          }`}
+                        >
+                          {selectedScreenData.active !== false ? 'Pauzeer scherm' : 'Activeer scherm'}
+                        </button>
+                      </div>
+
+                      {selectedActiveSlideCount === 0 && (
+                        <div className="mb-3 rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm font-medium text-orange-800">
+                          Dit scherm toont nu niets: er zijn geen gekoppelde actieve slides.
+                        </div>
+                      )}
+
+                      {screenHealth && (
+                        <div className="mb-3 grid grid-cols-2 gap-2 md:grid-cols-5">
+                          <HealthPill label="Actieve slides" value={screenHealth.activeSlides} />
+                          <HealthPill label="Dagplanning" value={screenHealth.dagplanningEntries} />
+                          <HealthPill label="Productieorders" value={screenHealth.openProductionOrders} />
+                          <HealthPill label="Prio's" value={screenHealth.priorityItems} />
+                          <HealthPill label="Check" value={formatRelative(screenHealth.checkedAt)} />
+                        </div>
+                      )}
+
+                      <div className="mb-3 grid gap-2 md:grid-cols-3">
                         <input
-                          type="checkbox"
-                          checked={isLinked}
-                          onChange={() => toggleSlideForScreen(slide.id)}
-                          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                          value={selectedScreenData.name}
+                          onChange={e => updateScreen(selectedScreenData, { name: e.target.value })}
+                          className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                          placeholder="Schermnaam"
                         />
-                        <span className="text-sm">{cfg.icon}</span>
-                        <span className="text-sm text-gray-900 truncate">{slide.title || cfg.label}</span>
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${cfg.color} ${cfg.bgColor}`}>
-                          {cfg.label}
-                        </span>
-                      </label>
-                    )
-                  })}
-                </div>
+                        <select
+                          value={selectedScreenData.site || DEFAULT_SITE}
+                          onChange={e => updateScreen(selectedScreenData, { site: e.target.value })}
+                          className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                        >
+                          {SITES.map(siteOption => (
+                            <option key={siteOption} value={siteOption}>{siteOption}</option>
+                          ))}
+                        </select>
+                        <select
+                          value={selectedScreenData.screen_group || 'Algemeen'}
+                          onChange={e => updateScreen(selectedScreenData, { screen_group: e.target.value })}
+                          className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                        >
+                          {['Bureau', 'Productie', 'Inpak', 'Magazijn', 'Algemeen'].map(group => (
+                            <option key={group} value={group}>{group}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Gekoppelde slides - sleep om volgorde te wijzigen
+                      </div>
+                      <div className="mb-3 space-y-1">
+                        {selectedScreenSlides.length === 0 ? (
+                          <div className="rounded-lg border border-dashed border-gray-300 bg-white p-3 text-sm text-gray-500">
+                            Nog geen slides gekoppeld.
+                          </div>
+                        ) : (
+                          selectedScreenSlides.map(slide => {
+                            const cfg = getSlideConfig(slide.type)
+                            return (
+                              <div
+                                key={slide.id}
+                                draggable
+                                onDragStart={() => setDraggedSlideId(slide.id)}
+                                onDragOver={e => e.preventDefault()}
+                                onDrop={() => moveScreenSlide(slide.id)}
+                                className="flex cursor-move items-center gap-2 rounded-lg bg-white p-2 text-sm shadow-sm"
+                              >
+                                <span className="text-gray-400">↕</span>
+                                <span>{cfg.icon}</span>
+                                <span className="flex-1 truncate font-medium text-gray-900">{slide.title || cfg.label}</span>
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${cfg.color} ${cfg.bgColor}`}>{cfg.label}</span>
+                                {slide.active === false && <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold text-gray-500">inactief</span>}
+                                <button
+                                  type="button"
+                                  onClick={() => toggleSlideForScreen(slide.id)}
+                                  className="rounded px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50"
+                                >
+                                  Loskoppelen
+                                </button>
+                              </div>
+                            )
+                          })
+                        )}
+                      </div>
+
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Beschikbare slides toevoegen
+                      </div>
+                      <div className="grid gap-1 md:grid-cols-2">
+                        {sortedSlides.filter(slide => !screenSlideIds.includes(slide.id)).map(slide => {
+                          const cfg = getSlideConfig(slide.type)
+                          return (
+                            <button
+                              key={slide.id}
+                              type="button"
+                              onClick={() => toggleSlideForScreen(slide.id)}
+                              className="flex items-center gap-2 rounded-lg p-2 text-left text-sm hover:bg-white"
+                            >
+                              <span>{cfg.icon}</span>
+                              <span className="flex-1 truncate">{slide.title || cfg.label}</span>
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${cfg.color} ${cfg.bgColor}`}>{cfg.label}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-white p-3">
+                      <div className="mb-2 flex items-center justify-between">
+                        <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Live preview</div>
+                        <a href={`/tv-display/${selectedScreenData.slug}`} target="_blank" className="text-xs font-semibold text-indigo-600 hover:underline">
+                          Open groot
+                        </a>
+                      </div>
+                      <div className="aspect-video overflow-hidden rounded-lg border border-slate-200 bg-slate-900">
+                        <iframe
+                          src={`/tv-display/${selectedScreenData.slug}`}
+                          title={`Preview ${selectedScreenData.name}`}
+                          className="h-full w-full"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
             {/* Nieuw scherm */}
-            <div className="flex gap-2">
+            <div className="grid gap-2 md:grid-cols-[1fr_160px_140px_140px_160px_auto]">
               <input
                 type="text"
                 value={newScreenName}
@@ -447,22 +754,41 @@ export default function TvAdminPage() {
                   }
                 }}
                 placeholder="Naam (bv. Productiehal)"
-                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
               />
               <input
                 type="text"
                 value={newScreenSlug}
                 onChange={e => setNewScreenSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))}
                 placeholder="slug"
-                className="w-40 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
               />
               <select
                 value={newScreenSite}
                 onChange={e => setNewScreenSite(e.target.value as Site)}
-                className="w-36 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
               >
                 {SITES.map(siteOption => (
                   <option key={siteOption} value={siteOption}>{siteOption}</option>
+                ))}
+              </select>
+              <select
+                value={newScreenGroup}
+                onChange={e => setNewScreenGroup(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+              >
+                {['Bureau', 'Productie', 'Inpak', 'Magazijn', 'Algemeen'].map(group => (
+                  <option key={group} value={group}>{group}</option>
+                ))}
+              </select>
+              <select
+                value={templateScreenId}
+                onChange={e => setTemplateScreenId(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+              >
+                <option value="">Geen template</option>
+                {screens.map(screen => (
+                  <option key={screen.id} value={screen.id}>Kopieer {screen.name}</option>
                 ))}
               </select>
               <button
@@ -641,6 +967,15 @@ export default function TvAdminPage() {
   )
 }
 
+function HealthPill({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-lg border border-white/70 bg-white px-3 py-2 shadow-sm">
+      <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</div>
+      <div className="mt-0.5 text-sm font-bold text-slate-800">{value}</div>
+    </div>
+  )
+}
+
 function SlideEditor({
   slide, onChange, onSave, onUploadImage, saving,
 }: {
@@ -669,19 +1004,25 @@ function SlideEditor({
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
           />
         </div>
-        <div className="w-28">
-          <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Duur</label>
+        <div className="w-56">
+          <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">
+            Duur: {slide.duration ?? 15}s
+          </label>
           <div className="relative">
             <input
-              type="number"
+              type="range"
               min={5}
-              max={300}
-              value={slide.duration ?? ''}
-              onChange={e => update({ duration: e.target.value ? parseInt(e.target.value, 10) : null })}
-              placeholder="15"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 pr-8 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              max={120}
+              step={5}
+              value={slide.duration ?? 15}
+              onChange={e => update({ duration: parseInt(e.target.value, 10) })}
+              className="w-full accent-blue-600"
             />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">sec</span>
+          </div>
+          <div className="mt-1 flex justify-between text-[10px] font-medium text-gray-400">
+            <span>5s</span>
+            <button type="button" onClick={() => update({ duration: null })} className="text-blue-600 hover:underline">standaard 15s</button>
+            <span>120s</span>
           </div>
         </div>
       </div>

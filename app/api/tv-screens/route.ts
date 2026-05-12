@@ -18,6 +18,10 @@ export async function GET() {
       slug: s.slug,
       name: s.name,
       site: s.site || 'Wilrijk',
+      active: s.active !== false,
+      screen_group: s.screen_group || 'Algemeen',
+      last_seen_at: s.last_seen_at || null,
+      updated_at: s.updated_at || s.created_at,
       created_at: s.created_at,
       slideCount: (s.tv_screen_slides || []).length,
     }))
@@ -30,7 +34,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { slug, name, site: siteInput } = await request.json()
+    const { slug, name, site: siteInput, screen_group, active } = await request.json()
     const site = normalizeSite(siteInput)
 
     if (!slug || !name) {
@@ -44,7 +48,14 @@ export async function POST(request: NextRequest) {
 
     const { data, error } = await supabaseAdmin
       .from('tv_screens')
-      .insert({ slug: cleanSlug, name: String(name).trim(), site })
+      .insert({
+        slug: cleanSlug,
+        name: String(name).trim(),
+        site,
+        screen_group: String(screen_group || 'Algemeen').trim() || 'Algemeen',
+        active: active !== false,
+        updated_at: new Date().toISOString(),
+      })
       .select()
       .single()
 
@@ -63,12 +74,15 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const { id, slug, name, site } = await request.json()
+    const { id, slug, name, site, screen_group, active } = await request.json()
     if (!id) return NextResponse.json({ error: 'ID ontbreekt' }, { status: 400 })
 
     const updates: any = {}
     if (name !== undefined) updates.name = String(name).trim()
     if (site !== undefined) updates.site = normalizeSite(site)
+    if (screen_group !== undefined) updates.screen_group = String(screen_group || 'Algemeen').trim() || 'Algemeen'
+    if (active !== undefined) updates.active = active !== false
+    updates.updated_at = new Date().toISOString()
     if (slug !== undefined) {
       updates.slug = String(slug).toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
     }

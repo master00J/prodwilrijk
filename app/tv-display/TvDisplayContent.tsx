@@ -28,6 +28,15 @@ interface TvSlide {
   duration: number | null
 }
 
+interface TvScreenInfo {
+  slug: string
+  name: string
+  site: string
+  active: boolean
+  screen_group: string
+  last_seen_at: string | null
+}
+
 interface ProductionOrder {
   order_number: string
   sales_order_number: string | null
@@ -155,6 +164,9 @@ const TRANSPORT_POLL_INTERVAL = 60_000
 export function TvDisplay({ screenSlug }: { screenSlug?: string }) {
   const [slides, setSlides] = useState<TvSlide[]>([])
   const [screenSite, setScreenSite] = useState(DEFAULT_SITE)
+  const [screenInfo, setScreenInfo] = useState<TvScreenInfo | null>(null)
+  const [connectionState, setConnectionState] = useState<'online' | 'offline'>('online')
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [clock, setClock] = useState('')
   const [date, setDate] = useState('')
@@ -171,14 +183,41 @@ export function TvDisplay({ screenSlug }: { screenSlug?: string }) {
       const url = screenSlug ? `/api/tv-screens/${screenSlug}/slides` : '/api/tv-slides'
       const res = await fetch(url)
       const json = await res.json()
-      if (json.screen?.site) setScreenSite(json.screen.site)
+      if (json.screen) {
+        setScreenInfo(json.screen)
+        if (json.screen.site) setScreenSite(json.screen.site)
+      }
       const allSlides = json.data || []
+      if (json.screen?.active === false) {
+        setSlides([])
+        setConnectionState('online')
+        setLastRefresh(new Date())
+        return
+      }
       const active = screenSlug
-        ? allSlides.sort((a: TvSlide, b: TvSlide) => a.sort_order - b.sort_order)
+        ? allSlides.filter((s: TvSlide) => s.active).sort((a: TvSlide, b: TvSlide) => a.sort_order - b.sort_order)
         : allSlides.filter((s: TvSlide) => s.active).sort((a: TvSlide, b: TvSlide) => a.sort_order - b.sort_order)
       setSlides(active)
+      setConnectionState('online')
+      setLastRefresh(new Date())
     } catch (e) {
+      setConnectionState('offline')
       console.error('Fout bij laden slides:', e)
+    }
+  }, [screenSlug])
+
+  const sendHeartbeat = useCallback(async () => {
+    if (!screenSlug) return
+    try {
+      const res = await fetch(`/api/tv-screens/${screenSlug}/heartbeat`, { method: 'POST' })
+      const json = await res.json()
+      if (json.screen) {
+        setScreenInfo(json.screen)
+        if (json.screen.site) setScreenSite(json.screen.site)
+      }
+      setConnectionState('online')
+    } catch {
+      setConnectionState('offline')
     }
   }, [screenSlug])
 
@@ -238,6 +277,13 @@ export function TvDisplay({ screenSlug }: { screenSlug?: string }) {
   }, [])
 
   useEffect(() => { fetchSlides() }, [fetchSlides])
+
+  useEffect(() => {
+    if (!screenSlug) return
+    sendHeartbeat()
+    const interval = setInterval(sendHeartbeat, 30000)
+    return () => clearInterval(interval)
+  }, [screenSlug, sendHeartbeat])
 
   // Supabase Realtime voor handmatige slides
   useEffect(() => {
@@ -357,7 +403,9 @@ export function TvDisplay({ screenSlug }: { screenSlug?: string }) {
         <div className="flex items-center gap-4">
           <div className="w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: '#4ade80' }} />
           <span className="text-xl font-bold tracking-widest text-white">FORESCO</span>
-          <span className="text-sm font-medium tracking-wide" style={{ color: '#80bfaa' }}>PRODUCTIE DISPLAY</span>
+          <span className="text-sm font-medium tracking-wide" style={{ color: '#80bfaa' }}>
+            {screenInfo ? `${screenInfo.name} - ${screenInfo.site || DEFAULT_SITE}` : 'PRODUCTIE DISPLAY'}
+          </span>
         </div>
         {visibleSlides.length > 1 && (
           <div className="flex gap-2">
@@ -366,9 +414,18 @@ export function TvDisplay({ screenSlug }: { screenSlug?: string }) {
             ))}
           </div>
         )}
-        <div className="text-right">
+        <div className="flex items-center gap-5">
+          <div className="text-right text-xs" style={{ color: '#80bfaa' }}>
+            <div className="flex items-center justify-end gap-2">
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: connectionState === 'online' ? '#4ade80' : '#fb7185' }} />
+              {connectionState === 'online' ? 'online' : 'offline'}
+            </div>
+            <div>{lastRefresh ? `refresh ${lastRefresh.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}` : 'nog geen refresh'}</div>
+          </div>
+          <div className="text-right">
           <div className="text-3xl font-bold tabular-nums text-white">{clock}</div>
           <div className="text-sm capitalize" style={{ color: '#80bfaa' }}>{date}</div>
+          </div>
         </div>
       </div>
 
@@ -388,7 +445,7 @@ export function TvDisplay({ screenSlug }: { screenSlug?: string }) {
 
       <div className="flex-1 flex items-center justify-center min-h-0">
         {!currentSlide ? (
-          <div className="text-2xl" style={{ color: '#4a8a74' }}>Geen actieve slides</div>
+          <EmptyDisplayState screen={screenInfo} screenSlug={screenSlug} />
         ) : currentSlide.type === 'werkorders' ? (
           <WerkordersSlide slide={currentSlide} />
         ) : currentSlide.type === 'tekst' ? (
@@ -427,6 +484,38 @@ function formatElapsed(seconds: number): string {
   const m = Math.floor((seconds % 3600) / 60)
   if (h > 0) return `${h}u ${m}m`
   return `${m}m`
+}
+
+function EmptyDisplayState({ screen, screenSlug }: { screen: TvScreenInfo | null; screenSlug?: string }) {
+  return (
+    <div className="flex max-w-3xl flex-col items-center justify-center gap-5 px-8 text-center">
+      <div className="rounded-3xl border px-10 py-8" style={{ borderColor: '#1a5c47', backgroundColor: 'rgba(255,255,255,0.04)' }}>
+        <div className="mb-3 text-sm font-bold uppercase tracking-[0.3em]" style={{ color: TV_MUTED }}>
+          Narrowcasting scherm
+        </div>
+        <h1 className="text-5xl font-black text-white">
+          {screen?.name || screenSlug || 'TV Display'}
+        </h1>
+        <div className="mt-3 text-xl font-semibold" style={{ color: '#4ade80' }}>
+          {screen?.site || DEFAULT_SITE}{screen?.screen_group ? ` - ${screen.screen_group}` : ''}
+        </div>
+        {screen?.active === false ? (
+          <p className="mt-6 text-2xl font-semibold" style={{ color: '#fbbf24' }}>
+            Dit scherm is tijdelijk gepauzeerd.
+          </p>
+        ) : (
+          <>
+            <p className="mt-6 text-2xl font-semibold" style={{ color: TV_MUTED }}>
+              Geen slides gekoppeld of actief.
+            </p>
+            <p className="mt-2 text-lg" style={{ color: '#4a8a74' }}>
+              Koppel slides via TV-admin om dit scherm te activeren.
+            </p>
+          </>
+        )}
+      </div>
+    </div>
+  )
 }
 
 function BarLabel(props: any) {
