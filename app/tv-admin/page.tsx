@@ -1201,7 +1201,7 @@ interface ProdOrder {
   due_date: string | null
   tv_priority: number
   status: 'in_progress' | 'waiting'
-  lines: Array<{ item_number: string; description: string | null; quantity: number }>
+  lines: Array<{ id: number; line_no: number | null; item_number: string; description: string | null; quantity: number; tv_priority: number }>
 }
 
 function ProductieordersPriorityEditor() {
@@ -1246,6 +1246,104 @@ function ProductieordersPriorityEditor() {
       }
     } catch (err: any) {
       throw err
+    }
+  }
+
+  const saveLinePriority = async (lineId: number, priority: number) => {
+    const res = await fetch('/api/tv-slides/production-status', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ line_id: lineId, tv_priority: priority }),
+    })
+    if (!res.ok) {
+      const json = await res.json()
+      throw new Error(json.error || 'Lijnvolgorde opslaan mislukt')
+    }
+  }
+
+  const updateLocalLines = (orderNumber: string, lines: ProdOrder['lines']) => {
+    setOrders(prev => prev.map(order =>
+      order.order_number === orderNumber ? { ...order, lines } : order
+    ))
+  }
+
+  const moveLine = async (order: ProdOrder, lineId: number, direction: 'up' | 'down') => {
+    setSaving(true)
+    setMsg(null)
+    const ranked = [...order.lines]
+      .filter(line => (line.tv_priority || 0) > 0)
+      .sort((a, b) => (a.tv_priority || 0) - (b.tv_priority || 0))
+    const unranked = order.lines.filter(line => (line.tv_priority || 0) === 0)
+    const idx = ranked.findIndex(line => line.id === lineId)
+
+    if (direction === 'up') {
+      if (idx <= 0) { setSaving(false); return }
+      const temp = ranked[idx]
+      ranked[idx] = ranked[idx - 1]
+      ranked[idx - 1] = temp
+    } else {
+      if (idx < 0 || idx >= ranked.length - 1) { setSaving(false); return }
+      const temp = ranked[idx]
+      ranked[idx] = ranked[idx + 1]
+      ranked[idx + 1] = temp
+    }
+
+    try {
+      await Promise.all(ranked.map((line, i) => saveLinePriority(line.id, i + 1)))
+      const nextLines = [
+        ...ranked.map((line, i) => ({ ...line, tv_priority: i + 1 })),
+        ...unranked,
+      ]
+      updateLocalLines(order.order_number, nextLines)
+      setMsg({ type: 'success', text: 'Lijnvolgorde bijgewerkt' })
+      setTimeout(() => setMsg(null), 2000)
+    } catch (err: any) {
+      setMsg({ type: 'error', text: err.message })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const addLineToRanking = async (order: ProdOrder, lineId: number) => {
+    setSaving(true)
+    setMsg(null)
+    const ranked = order.lines.filter(line => (line.tv_priority || 0) > 0)
+    const newRank = ranked.length + 1
+    try {
+      await saveLinePriority(lineId, newRank)
+      updateLocalLines(order.order_number, order.lines.map(line =>
+        line.id === lineId ? { ...line, tv_priority: newRank } : line
+      ))
+      setMsg({ type: 'success', text: `Orderlijn toegevoegd als #${newRank}` })
+      setTimeout(() => setMsg(null), 2000)
+    } catch (err: any) {
+      setMsg({ type: 'error', text: err.message })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const removeLineFromRanking = async (order: ProdOrder, lineId: number) => {
+    setSaving(true)
+    setMsg(null)
+    try {
+      await saveLinePriority(lineId, 0)
+      const remaining = order.lines
+        .filter(line => (line.tv_priority || 0) > 0 && line.id !== lineId)
+        .sort((a, b) => (a.tv_priority || 0) - (b.tv_priority || 0))
+      await Promise.all(remaining.map((line, i) => saveLinePriority(line.id, i + 1)))
+      updateLocalLines(order.order_number, order.lines.map(line => {
+        if (line.id === lineId) return { ...line, tv_priority: 0 }
+        const newIdx = remaining.findIndex(item => item.id === line.id)
+        if (newIdx >= 0) return { ...line, tv_priority: newIdx + 1 }
+        return line
+      }))
+      setMsg({ type: 'success', text: 'Orderlijn verwijderd uit lijnvolgorde' })
+      setTimeout(() => setMsg(null), 2000)
+    } catch (err: any) {
+      setMsg({ type: 'error', text: err.message })
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -1339,8 +1437,8 @@ function ProductieordersPriorityEditor() {
   return (
     <div className="space-y-3">
       <InfoBox color="green" icon="⚙️" title="Productieorders — Volgorde">
-        Rangschik de productieorders op prioriteit. #1 = hoogste prioriteit en wordt bovenaan getoond op het display.
-        Gebruik de pijltjes om de volgorde aan te passen.
+        Rangschik productieorders én orderlijnen. Orderprioriteit bepaalt welke orders bovenaan komen;
+        lijnprioriteit bepaalt de volgorde van de lijnen binnen een order op het TV-display.
       </InfoBox>
 
       {msg && (
@@ -1411,11 +1509,13 @@ function ProductieordersPriorityEditor() {
                               </span>
                             )}
                           </div>
-                          {order.lines.length > 0 && (
-                            <div className="text-xs text-gray-500 mt-0.5 truncate">
-                              {order.lines.map(l => `${l.quantity}x ${l.item_number}`).join(', ')}
-                            </div>
-                          )}
+                          <LinePriorityList
+                            order={order}
+                            saving={isSaving}
+                            onMove={moveLine}
+                            onAdd={addLineToRanking}
+                            onRemove={removeLineFromRanking}
+                          />
                         </div>
 
                         <button
@@ -1460,11 +1560,13 @@ function ProductieordersPriorityEditor() {
                             {order.status === 'in_progress' ? 'ACTIEF' : 'WACHTEND'}
                           </span>
                         </div>
-                        {order.lines.length > 0 && (
-                          <div className="text-xs text-gray-500 mt-0.5 truncate">
-                            {order.lines.map(l => `${l.quantity}x ${l.item_number}`).join(', ')}
-                          </div>
-                        )}
+                        <LinePriorityList
+                          order={order}
+                          saving={saving}
+                          onMove={moveLine}
+                          onAdd={addLineToRanking}
+                          onRemove={removeLineFromRanking}
+                        />
                       </div>
 
                       <button
@@ -1482,6 +1584,93 @@ function ProductieordersPriorityEditor() {
           )}
         </>
       )}
+    </div>
+  )
+}
+
+function LinePriorityList({
+  order,
+  saving,
+  onMove,
+  onAdd,
+  onRemove,
+}: {
+  order: ProdOrder
+  saving: boolean
+  onMove: (order: ProdOrder, lineId: number, direction: 'up' | 'down') => void
+  onAdd: (order: ProdOrder, lineId: number) => void
+  onRemove: (order: ProdOrder, lineId: number) => void
+}) {
+  if (order.lines.length === 0) return null
+
+  const sortedLines = [...order.lines].sort((a, b) => {
+    const pa = a.tv_priority || 0
+    const pb = b.tv_priority || 0
+    if (pa > 0 && pb > 0) return pa - pb
+    if (pa > 0) return -1
+    if (pb > 0) return 1
+    return Number(a.line_no || 0) - Number(b.line_no || 0)
+  })
+  const rankedCount = sortedLines.filter(line => (line.tv_priority || 0) > 0).length
+
+  return (
+    <div className="mt-2 space-y-1">
+      {sortedLines.map(line => {
+        const rank = line.tv_priority || 0
+        const rankedIndex = rank > 0 ? rank - 1 : -1
+        return (
+          <div key={line.id} className="flex items-center gap-2 rounded border border-gray-100 bg-white/70 px-2 py-1 text-xs">
+            <div className="flex w-4 flex-col shrink-0">
+              <button
+                type="button"
+                onClick={() => onMove(order, line.id, 'up')}
+                disabled={saving || rank === 0 || rankedIndex <= 0}
+                className="h-3 text-[9px] leading-none text-gray-400 hover:text-gray-700 disabled:opacity-20"
+              >
+                ▲
+              </button>
+              <button
+                type="button"
+                onClick={() => onMove(order, line.id, 'down')}
+                disabled={saving || rank === 0 || rankedIndex >= rankedCount - 1}
+                className="h-3 text-[9px] leading-none text-gray-400 hover:text-gray-700 disabled:opacity-20"
+              >
+                ▼
+              </button>
+            </div>
+            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-black ${
+              rank > 0 ? 'bg-amber-400 text-white' : 'border border-dashed border-gray-300 text-gray-300'
+            }`}>
+              {rank > 0 ? rank : '-'}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="truncate font-semibold text-gray-800">
+                {line.quantity}x {line.item_number || '-'}
+              </div>
+              {line.description && <div className="truncate text-[10px] text-gray-400">{line.description}</div>}
+            </div>
+            {rank > 0 ? (
+              <button
+                type="button"
+                onClick={() => onRemove(order, line.id)}
+                disabled={saving}
+                className="rounded px-2 py-1 font-semibold text-red-500 hover:bg-red-50 disabled:opacity-40"
+              >
+                Los
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onAdd(order, line.id)}
+                disabled={saving}
+                className="rounded px-2 py-1 font-semibold text-blue-600 hover:bg-blue-50 disabled:opacity-40"
+              >
+                + Lijn
+              </button>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

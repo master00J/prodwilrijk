@@ -50,7 +50,7 @@ interface ProductionOrder {
     item_description: string | null
     elapsed_seconds: number
   }>
-  lines: Array<{ item_number: string; description: string | null; quantity: number }>
+  lines: Array<{ id: number; line_no: number | null; item_number: string; description: string | null; quantity: number; tv_priority: number }>
 }
 
 interface PackingStatsDaily {
@@ -815,8 +815,17 @@ function ProductieordersSlide({ orders, title }: { orders: ProductionOrder[]; ti
                   </thead>
                   <tbody>
                     {order.lines.map((line, i) => (
-                      <tr key={i} style={{ borderTop: '1px solid #1a5c4750' }}>
-                        <td className="px-4 py-2 font-mono font-bold text-white"><BcItemCode value={line.item_number} /></td>
+                      <tr key={line.id || i} style={{ borderTop: '1px solid #1a5c4750' }}>
+                        <td className="px-4 py-2 font-mono font-bold text-white">
+                          <span className="inline-flex items-center gap-2">
+                            {(line.tv_priority || 0) > 0 && (
+                              <span className="rounded-full px-2 py-0.5 text-xs font-black" style={{ backgroundColor: '#facc15', color: '#422006' }}>
+                                #{line.tv_priority}
+                              </span>
+                            )}
+                            <BcItemCode value={line.item_number} />
+                          </span>
+                        </td>
                         <td className="px-4 py-2" style={{ color: '#a0c4b8' }}>{line.description || '—'}</td>
                         <td className="px-4 py-2 text-right font-bold text-white">{line.quantity}</td>
                       </tr>

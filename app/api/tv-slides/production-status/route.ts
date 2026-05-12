@@ -8,11 +8,37 @@ export const revalidate = 0
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-    const { order_number, tv_priority } = body
+    const { order_number, line_id, tv_priority } = body
     const site = normalizeSite(body.site)
 
-    if (!order_number || tv_priority === undefined) {
-      return NextResponse.json({ error: 'order_number en tv_priority zijn verplicht' }, { status: 400 })
+    if (tv_priority === undefined) {
+      return NextResponse.json({ error: 'tv_priority is verplicht' }, { status: 400 })
+    }
+
+    if (line_id) {
+      const { data: line, error: lineError } = await supabaseAdmin
+        .from('production_order_lines')
+        .select('id, production_order_id, production_orders!inner(site)')
+        .eq('id', Number(line_id))
+        .eq('production_orders.site', site)
+        .maybeSingle()
+
+      if (lineError) throw lineError
+      if (!line?.id) {
+        return NextResponse.json({ error: 'Orderlijn niet gevonden voor deze vestiging' }, { status: 404 })
+      }
+
+      const { error } = await supabaseAdmin
+        .from('production_order_lines')
+        .update({ tv_priority: Number(tv_priority) })
+        .eq('id', Number(line_id))
+
+      if (error) throw error
+      return NextResponse.json({ success: true })
+    }
+
+    if (!order_number) {
+      return NextResponse.json({ error: 'order_number of line_id is verplicht' }, { status: 400 })
     }
 
     const { error } = await supabaseAdmin
@@ -66,8 +92,9 @@ export async function GET(request: NextRequest) {
     if (orderIds.length > 0) {
       const { data: lines } = await supabaseAdmin
         .from('production_order_lines')
-        .select('production_order_id, item_number, description, quantity')
+        .select('id, production_order_id, line_no, item_number, description, quantity, tv_priority')
         .in('production_order_id', orderIds)
+        .order('line_no', { ascending: true })
       ;(lines || []).forEach((l: any) => {
         const orderNumber = orderIdToNumber.get(l.production_order_id)
         if (!orderNumber) return
@@ -110,10 +137,22 @@ export async function GET(request: NextRequest) {
           ...log,
           item_description: descMap.get(log.production_item_number) || null,
         })),
-        lines: lines.map((l: any) => ({
+        lines: [...lines]
+          .sort((a: any, b: any) => {
+            const pa = Number(a.tv_priority || 0)
+            const pb = Number(b.tv_priority || 0)
+            if (pa > 0 && pb > 0) return pa - pb
+            if (pa > 0) return -1
+            if (pb > 0) return 1
+            return Number(a.line_no || 0) - Number(b.line_no || 0)
+          })
+          .map((l: any) => ({
+          id: l.id,
+          line_no: l.line_no,
           item_number: l.item_number,
           description: l.description,
           quantity: l.quantity,
+          tv_priority: l.tv_priority || 0,
         })),
       }
     })
