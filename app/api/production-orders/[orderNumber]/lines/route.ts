@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { normalizeSite } from '@/lib/sites'
 
 export const dynamic = 'force-dynamic'
 
 /** Returns lines for a production order. Only orders with for_time_registration = true are allowed (used by /production-order-time). */
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ orderNumber: string }> }
 ) {
   try {
@@ -13,12 +14,14 @@ export async function GET(
     if (!orderNumber) {
       return NextResponse.json({ error: 'Ordernummer ontbreekt' }, { status: 400 })
     }
+    const site = normalizeSite(request.nextUrl.searchParams.get('site'))
 
     const { data: order, error: orderError } = await supabaseAdmin
       .from('production_orders')
       .select('id')
       .eq('order_number', orderNumber)
       .eq('for_time_registration', true)
+      .eq('site', site)
       .maybeSingle()
 
     if (orderError) throw orderError

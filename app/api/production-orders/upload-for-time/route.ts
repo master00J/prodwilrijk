@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { normalizeSite } from '@/lib/sites'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +17,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { order, lines } = body
+    const site = normalizeSite(body.site || order?.site)
 
     if (!order?.order_number || !Array.isArray(lines) || lines.length === 0) {
       return NextResponse.json(
@@ -29,6 +31,7 @@ export async function POST(request: NextRequest) {
       .from('production_orders')
       .select('id')
       .eq('order_number', order.order_number)
+      .eq('site', site)
 
     for (const row of existingOrders || []) {
       const { error: deleteError } = await supabaseAdmin.from('production_orders').delete().eq('id', row.id)
@@ -45,6 +48,7 @@ export async function POST(request: NextRequest) {
         starting_date: order.starting_date || null,
         source_file_name: order.source_file_name || null,
         for_time_registration: true,
+        site,
       })
       .select()
       .single()
@@ -122,6 +126,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       order_number: createdOrder.order_number,
+      site,
       line_count: insertedLines.length,
     })
   } catch (error: any) {

@@ -1,13 +1,21 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import AdminGuard from '@/components/AdminGuard'
 import { parseProductionOrderXml } from '@/lib/production-order/parse-xml'
 import { processSalesOrderExcel } from '@/lib/sales-orders/parse-excel'
 import { BcItemCode } from '@/lib/bc-mapping/client'
+import { DEFAULT_SITE, SITES, type Site } from '@/lib/sites'
+import { useAuth } from '@/components/AuthProvider'
 
 export default function ProductionOrderUploadPage() {
+  const { allowedSites } = useAuth()
+  const availableSites = useMemo(
+    () => allowedSites.length > 0 ? SITES.filter(siteOption => allowedSites.includes(siteOption)) : [...SITES],
+    [allowedSites]
+  )
+  const [site, setSite] = useState<Site>(DEFAULT_SITE)
   const [xmlFile, setXmlFile] = useState<File | null>(null)
   const [excelFiles, setExcelFiles] = useState<File[]>([])
   const [uploading, setUploading] = useState(false)
@@ -41,9 +49,9 @@ export default function ProductionOrderUploadPage() {
   const fetchLatestOrder = useCallback(async () => {
     try {
       const [latestRes, detailsRes, woodAdviceRes] = await Promise.all([
-        fetch('/api/production-orders/latest-for-time'),
-        fetch('/api/production-order-time/order-details'),
-        fetch('/api/production-order-time/wood-advice'),
+        fetch(`/api/production-orders/latest-for-time?site=${encodeURIComponent(site)}`),
+        fetch(`/api/production-order-time/order-details?site=${encodeURIComponent(site)}`),
+        fetch(`/api/production-order-time/wood-advice?site=${encodeURIComponent(site)}`),
       ])
       if (!latestRes.ok) return
       const latestData = await latestRes.json()
@@ -70,11 +78,15 @@ export default function ProductionOrderUploadPage() {
       setOrderDetails(null)
       setWoodAdvice(null)
     }
-  }, [])
+  }, [site])
 
   useEffect(() => {
+    if (availableSites.length > 0 && !availableSites.includes(site)) {
+      setSite(availableSites[0])
+      return
+    }
     void fetchLatestOrder()
-  }, [fetchLatestOrder])
+  }, [availableSites, fetchLatestOrder, site])
 
   const handleXmlFiles = useCallback((files: FileList | File[]) => {
     const arr = Array.from(files)
@@ -187,13 +199,13 @@ export default function ProductionOrderUploadPage() {
       const res = await fetch('/api/production-orders/upload-for-time', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(parsed),
+        body: JSON.stringify({ ...parsed, site }),
       })
       const result = await res.json()
       if (!res.ok) throw new Error(result.error || 'Upload mislukt')
       setMessage({
         type: 'success',
-        text: `Productieorder ${result.order_number} geüpload met ${result.line_count} lijnen. Het order staat nu op de pagina Tijdregistratie (tab Actief).`,
+        text: `Productieorder ${result.order_number} geüpload voor ${site} met ${result.line_count} lijnen. Het order staat nu op de pagina Tijdregistratie (tab Actief).`,
       })
       setXmlFile(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -280,6 +292,22 @@ export default function ProductionOrderUploadPage() {
     <AdminGuard>
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         <h1 className="text-3xl font-bold mb-6">Productieorder upload (tijdregistratie)</h1>
+
+        <div className="mb-6 rounded-lg border border-slate-200 bg-white p-4 shadow">
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Vestiging voor deze productieorders</label>
+          <select
+            value={site}
+            onChange={(e) => setSite(e.target.value as Site)}
+            className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm font-medium"
+          >
+            {availableSites.map(siteOption => (
+              <option key={siteOption} value={siteOption}>{siteOption}</option>
+            ))}
+          </select>
+          <p className="mt-2 text-xs text-slate-500">
+            XML-uploads worden gekoppeld aan deze vestiging. Bestaande data blijft standaard op Wilrijk staan.
+          </p>
+        </div>
 
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 text-sm text-amber-800">
           <p className="font-medium mb-1">Tijdregistratie-flow</p>

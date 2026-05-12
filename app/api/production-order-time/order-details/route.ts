@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { normalizeSite } from '@/lib/sites'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,12 +23,14 @@ const getUnitCost = (component: any, price: number, unit: string) => {
 }
 
 /** Returns all production orders with for_time_registration=true including material cost breakdown. */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const site = normalizeSite(request.nextUrl.searchParams.get('site'))
     const { data: orders, error: orderError } = await supabaseAdmin
       .from('production_orders')
-      .select('id, order_number, sales_order_number, uploaded_at')
+      .select('id, order_number, sales_order_number, uploaded_at, site')
       .eq('for_time_registration', true)
+      .eq('site', site)
       .order('uploaded_at', { ascending: false })
 
     if (orderError) throw orderError

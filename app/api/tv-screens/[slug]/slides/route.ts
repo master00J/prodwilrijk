@@ -12,7 +12,7 @@ export async function GET(
 
     const { data: screen, error: screenErr } = await supabaseAdmin
       .from('tv_screens')
-      .select('id')
+      .select('id, site')
       .eq('slug', slug)
       .single()
 
@@ -30,7 +30,7 @@ export async function GET(
 
     const slideIds = (links || []).map((l: any) => l.slide_id)
     if (slideIds.length === 0) {
-      return NextResponse.json({ data: [] })
+      return NextResponse.json({ data: [], screen: { site: screen.site || 'Wilrijk' } })
     }
 
     const { data: slides, error: slidesErr } = await supabaseAdmin
@@ -45,7 +45,7 @@ export async function GET(
       return (sortMap.get(a.id) ?? 999) - (sortMap.get(b.id) ?? 999)
     })
 
-    return NextResponse.json({ data: sorted })
+    return NextResponse.json({ data: sorted, screen: { site: screen.site || 'Wilrijk' } })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

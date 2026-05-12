@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { BcItemCode } from '@/lib/bc-mapping/client'
+import { DEFAULT_SITE, employeeHasSite, SITES, type Site } from '@/lib/sites'
+import { useAuth } from '@/components/AuthProvider'
 
 interface Employee {
   id: number
   name: string
+  sites?: string[] | null
 }
 
 interface OrderLine {
@@ -21,6 +24,7 @@ interface OrderRow {
   sales_order_number: string | null
   uploaded_at: string
   finished_at: string | null
+  site?: string | null
 }
 
 interface ActiveLog {
@@ -33,6 +37,7 @@ interface ActiveLog {
   item_number: string
   step: string
   quantity: number | null
+  site?: string | null
 }
 
 const STEPS = ['Zagen', 'Hout Halen', 'Assemblage', 'Schuren', 'Afwerking']
@@ -54,6 +59,12 @@ function formatElapsed(seconds: number) {
 }
 
 export default function ProductionOrderTimePage() {
+  const { allowedSites } = useAuth()
+  const availableSites = useMemo(
+    () => allowedSites.length > 0 ? SITES.filter(siteOption => allowedSites.includes(siteOption)) : [...SITES],
+    [allowedSites]
+  )
+  const [site, setSite] = useState<Site>(DEFAULT_SITE)
   const [activeTab, setActiveTab] = useState<'actief' | 'afgewerkt'>('actief')
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<'recent' | 'order'>('recent')
@@ -82,24 +93,31 @@ export default function ProductionOrderTimePage() {
   const [stopQuantity, setStopQuantity] = useState(1)
   const [stopping, setStopping] = useState(false)
 
+  useEffect(() => {
+    if (availableSites.length > 0 && !availableSites.includes(site)) {
+      setSite(availableSites[0])
+    }
+  }, [availableSites, site])
+
   const fetchEmployees = useCallback(async () => {
     const response = await fetch('/api/employees')
     if (!response.ok) return
     const data = await response.json()
-    setEmployees(data || [])
-  }, [])
+    setEmployees((data || []).filter((employee: Employee) => employeeHasSite(employee, site)))
+  }, [site])
 
   const fetchActiveLogs = useCallback(async () => {
-    const response = await fetch('/api/production-order-time/active')
+    const response = await fetch(`/api/production-order-time/active?site=${encodeURIComponent(site)}`)
     if (!response.ok) return
     const data = await response.json()
     setActiveLogs(data || [])
-  }, [])
+  }, [site])
 
   const fetchOrders = useCallback(async (finished: boolean, q: string) => {
     setOrdersLoading(true)
     try {
       const params = new URLSearchParams()
+      params.set('site', site)
       if (finished) params.set('finished', 'true')
       if (q) params.set('q', q)
       const response = await fetch(`/api/production-orders/list?${params.toString()}`)
@@ -109,14 +127,15 @@ export default function ProductionOrderTimePage() {
     } finally {
       setOrdersLoading(false)
     }
-  }, [])
+  }, [site])
 
   const fetchOrderLines = useCallback(async (orderNumber: string) => {
     if (!orderNumber) {
       setOrderLines([])
       return
     }
-    const response = await fetch(`/api/production-orders/${encodeURIComponent(orderNumber)}/lines`)
+    const params = new URLSearchParams({ site })
+    const response = await fetch(`/api/production-orders/${encodeURIComponent(orderNumber)}/lines?${params.toString()}`)
     if (!response.ok) {
       setOrderLines([])
       return
@@ -128,14 +147,14 @@ export default function ProductionOrderTimePage() {
         quantity: Number(l.quantity) || 1,
       }))
     )
-  }, [])
+  }, [site])
 
   const fetchWoodAdviceSummary = useCallback(async () => {
-    const response = await fetch('/api/production-order-time/wood-advice')
+    const response = await fetch(`/api/production-order-time/wood-advice?site=${encodeURIComponent(site)}`)
     if (!response.ok) return
     const data = await response.json()
     setWoodAdviceSummary(data.summary || null)
-  }, [])
+  }, [site])
 
   useEffect(() => {
     setLoading(true)
@@ -197,6 +216,7 @@ export default function ProductionOrderTimePage() {
           orderNumber: modalOrder.order_number,
           itemNumber: selectedItem,
           step,
+          site,
         }),
       })
       if (!response.ok) {
@@ -214,7 +234,8 @@ export default function ProductionOrderTimePage() {
   }
 
   const openStopModal = async (log: ActiveLog) => {
-    const res = await fetch(`/api/production-orders/${encodeURIComponent(log.order_number)}/lines`)
+    const params = new URLSearchParams({ site })
+    const res = await fetch(`/api/production-orders/${encodeURIComponent(log.order_number)}/lines?${params.toString()}`)
     if (!res.ok) {
       if (confirm(`Stop tijdregistratie${log.employee_name ? ` voor ${log.employee_name}` : ''}?`)) {
         await doStop(log.id, null)
@@ -314,6 +335,21 @@ export default function ProductionOrderTimePage() {
       {/* Zoek en filters */}
       <div className="mb-6 flex flex-col lg:flex-row gap-4 items-center">
         <div className="w-full lg:w-1/3">
+          <select
+            value={site}
+            onChange={(e) => {
+              setSite(e.target.value as Site)
+              setSelectedEmployeeIds([])
+              setModalOrder(null)
+            }}
+            className="w-full px-4 py-3 min-h-[48px] border border-gray-300 rounded-lg shadow-sm"
+          >
+            {availableSites.map(siteOption => (
+              <option key={siteOption} value={siteOption}>{siteOption}</option>
+            ))}
+          </select>
+        </div>
+        <div className="w-full lg:w-1/3">
           <input
             type="text"
             value={searchQuery}
@@ -340,12 +376,12 @@ export default function ProductionOrderTimePage() {
           <div className="mt-1">
             {woodAdviceSummary.shortage_groups > 0 ? (
               <>
-                {woodAdviceSummary.shortage_groups} houtgroep(en) met tekort, totaal {woodAdviceSummary.total_shortage} plank(en).
+                {woodAdviceSummary.shortage_groups} houtgroep(en) met tekort voor {site}, totaal {woodAdviceSummary.total_shortage} plank(en).
                 Bekijk details bij <span className="font-medium">Admin &gt; Productieorder upload</span>.
               </>
             ) : (
               <>
-                Alle {woodAdviceSummary.groups} houtgroep(en) lijken gedekt door de huidige voorraad.
+                Alle {woodAdviceSummary.groups} houtgroep(en) voor {site} lijken gedekt door de huidige voorraad.
               </>
             )}
           </div>
@@ -383,7 +419,7 @@ export default function ProductionOrderTimePage() {
             ) : (
               sortedOrders.map((order) => (
                 <tr
-                  key={order.order_number}
+                  key={`${order.site || site}-${order.order_number}`}
                   className="border-t border-gray-200 hover:bg-gray-50"
                 >
                   <td className="px-6 py-3 text-sm font-medium text-gray-900">{order.order_number}</td>
@@ -420,7 +456,7 @@ export default function ProductionOrderTimePage() {
         ) : (
           sortedOrders.map((order) => (
             <div
-              key={order.order_number}
+              key={`${order.site || site}-${order.order_number}`}
               className="bg-white rounded-lg shadow p-4 border border-gray-200"
             >
               <div className="font-medium text-gray-900">{order.order_number}</div>

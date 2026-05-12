@@ -1,24 +1,30 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { normalizeSite } from '@/lib/sites'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const today = new Date().toISOString().split('T')[0]
+    const site = normalizeSite(request.nextUrl.searchParams.get('site'))
 
     const [statusRes, empRes, machineRes] = await Promise.all([
       supabaseAdmin
         .from('employee_daily_status')
         .select('employee_id, status, assigned_machine_id, notes')
-        .eq('date', today),
-      supabaseAdmin.from('employees').select('id, name'),
-      supabaseAdmin.from('machines').select('id, name'),
+        .eq('date', today)
+        .eq('site', site),
+      supabaseAdmin.from('employees').select('id, name, sites'),
+      supabaseAdmin.from('machines').select('id, name').eq('site', site),
     ])
 
     const statuses = statusRes.data || []
-    const employees = empRes.data || []
+    const employees = (empRes.data || []).filter((employee: any) => {
+      const sites = employee.sites && employee.sites.length > 0 ? employee.sites : ['Wilrijk']
+      return sites.includes(site)
+    })
     const machines = machineRes.data || []
 
     const empMap = new Map(employees.map((e: any) => [e.id, e.name]))

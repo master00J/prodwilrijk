@@ -66,15 +66,17 @@ export async function POST(
     }
 
     const orderNumber = log.production_order_number
+    const site = log.site || 'Wilrijk'
     if (orderNumber) {
-      void checkAndMarkOrderFinished(orderNumber)
+      void checkAndMarkOrderFinished(orderNumber, site)
     }
 
     if (log.production_order_number && log.production_item_number && log.production_step) {
       void syncPlanningAfterTimeLogStop(
         log.production_order_number,
         log.production_item_number,
-        log.production_step
+        log.production_step,
+        site
       )
     }
 

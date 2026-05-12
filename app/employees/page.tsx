@@ -3,6 +3,7 @@
 import AdminGuard from '@/components/AdminGuard'
 import { useState, useEffect } from 'react'
 import { Employee } from '@/types/database'
+import { SITES } from '@/lib/sites'
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([])
@@ -11,6 +12,7 @@ export default function EmployeesPage() {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null)
   const [formName, setFormName] = useState('')
   const [formActive, setFormActive] = useState(true)
+  const [formSites, setFormSites] = useState<string[]>(['Wilrijk'])
   const [includeInactive, setIncludeInactive] = useState(false)
 
   const fetchEmployees = async () => {
@@ -38,6 +40,7 @@ export default function EmployeesPage() {
     setEditingEmployee(null)
     setFormName('')
     setFormActive(true)
+    setFormSites(['Wilrijk'])
     setShowAddForm(true)
   }
 
@@ -45,6 +48,7 @@ export default function EmployeesPage() {
     setEditingEmployee(employee)
     setFormName(employee.name)
     setFormActive(employee.active !== false)
+    setFormSites(employee.sites && employee.sites.length > 0 ? employee.sites : ['Wilrijk'])
     setShowAddForm(true)
   }
 
@@ -53,6 +57,17 @@ export default function EmployeesPage() {
     setEditingEmployee(null)
     setFormName('')
     setFormActive(true)
+    setFormSites(['Wilrijk'])
+  }
+
+  const toggleSite = (site: string) => {
+    setFormSites(prev => {
+      if (prev.includes(site)) {
+        const next = prev.filter(s => s !== site)
+        return next.length > 0 ? next : prev
+      }
+      return [...prev, site]
+    })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -73,6 +88,7 @@ export default function EmployeesPage() {
             id: editingEmployee.id,
             name: formName.trim(),
             active: formActive,
+            sites: formSites,
           }),
         })
 
@@ -85,6 +101,7 @@ export default function EmployeesPage() {
           body: JSON.stringify({
             name: formName.trim(),
             active: formActive,
+            sites: formSites,
           }),
         })
 
@@ -130,6 +147,7 @@ export default function EmployeesPage() {
         body: JSON.stringify({
           id: employee.id,
           active: !employee.active,
+          sites: employee.sites && employee.sites.length > 0 ? employee.sites : ['Wilrijk'],
         }),
       })
 
@@ -195,6 +213,26 @@ export default function EmployeesPage() {
               />
             </div>
             <div className="mb-4">
+              <label className="block mb-2 font-medium">Vestigingen</label>
+              <div className="flex flex-wrap gap-2">
+                {SITES.map(site => (
+                  <button
+                    key={site}
+                    type="button"
+                    onClick={() => toggleSite(site)}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium border ${
+                      formSites.includes(site)
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {site}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-gray-500">Minstens één vestiging moet geselecteerd blijven.</p>
+            </div>
+            <div className="mb-4">
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -232,6 +270,7 @@ export default function EmployeesPage() {
               <tr>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">ID</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Name</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Vestigingen</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Status</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Created</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Actions</th>
@@ -240,7 +279,7 @@ export default function EmployeesPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {employees.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                     No employees found
                   </td>
                 </tr>
@@ -249,6 +288,15 @@ export default function EmployeesPage() {
                   <tr key={employee.id} className={employee.active === false ? 'bg-gray-50' : ''}>
                     <td className="px-4 py-3 text-sm text-gray-900">{employee.id}</td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">{employee.name}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      <div className="flex flex-wrap gap-1">
+                        {(employee.sites && employee.sites.length > 0 ? employee.sites : ['Wilrijk']).map(site => (
+                          <span key={site} className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-medium">
+                            {site}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-sm">
                       <span
                         className={`px-2 py-1 rounded-full text-xs font-medium ${

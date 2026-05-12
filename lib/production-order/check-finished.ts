@@ -1,11 +1,13 @@
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { DEFAULT_SITE, normalizeSite } from '@/lib/sites'
 
 /**
  * Check if a production order is complete (all quantities made) and set finished_at if so.
  * Call after stopping a time log.
  */
-export async function checkAndMarkOrderFinished(orderNumber: string): Promise<boolean> {
+export async function checkAndMarkOrderFinished(orderNumber: string, siteInput: string = DEFAULT_SITE): Promise<boolean> {
   const orderNum = String(orderNumber).trim()
+  const site = normalizeSite(siteInput)
   if (!orderNum) return false
 
   const { data: order, error: orderError } = await supabaseAdmin
@@ -13,6 +15,7 @@ export async function checkAndMarkOrderFinished(orderNumber: string): Promise<bo
     .select('id')
     .eq('order_number', orderNum)
     .eq('for_time_registration', true)
+    .eq('site', site)
     .is('finished_at', null)
     .maybeSingle()
 
@@ -35,6 +38,7 @@ export async function checkAndMarkOrderFinished(orderNumber: string): Promise<bo
       .eq('type', 'production_order')
       .eq('production_order_number', orderNum)
       .eq('production_item_number', itemNo || '')
+      .eq('site', site)
       .not('end_time', 'is', null)
 
     const completed = (logs || []).reduce((sum, log) => {

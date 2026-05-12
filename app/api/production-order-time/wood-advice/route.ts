@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { logApiError } from '@/lib/api/log-error'
 import { KNOWN_WOOD_TYPE_PREFIXES } from '@/lib/wood/houtsoort-codes'
+import { normalizeSite } from '@/lib/sites'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,11 +49,13 @@ function recommendLength(requiredLength: number) {
 export async function GET(request: NextRequest) {
   try {
     const orderNumber = request.nextUrl.searchParams.get('order_number')
+    const site = normalizeSite(request.nextUrl.searchParams.get('site'))
 
     let orderQuery = supabaseAdmin
       .from('production_orders')
       .select('id, order_number, sales_order_number, uploaded_at, finished_at')
       .eq('for_time_registration', true)
+      .eq('site', site)
       .order('uploaded_at', { ascending: false })
 
     if (orderNumber) {

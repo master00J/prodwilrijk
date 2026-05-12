@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { calculateWorkedSeconds } from '@/lib/utils/time'
+import { normalizeSite } from '@/lib/sites'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,11 +20,13 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const dateFrom = searchParams.get('date_from')
     const dateTo = searchParams.get('date_to')
+    const site = normalizeSite(searchParams.get('site'))
 
     let query = supabaseAdmin
       .from('time_logs')
       .select('id, employee_id, start_time, end_time, production_order_number, production_item_number, production_step, production_quantity')
       .eq('type', 'production_order')
+      .eq('site', site)
 
     if (dateFrom) {
       query = query.gte('start_time', dateFrom)

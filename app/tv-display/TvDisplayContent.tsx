@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { BcItemCode } from '@/lib/bc-mapping/client'
+import { DEFAULT_SITE } from '@/lib/sites'
 import {
   Bar,
   CartesianGrid,
@@ -153,6 +154,7 @@ const TRANSPORT_POLL_INTERVAL = 60_000
 
 export function TvDisplay({ screenSlug }: { screenSlug?: string }) {
   const [slides, setSlides] = useState<TvSlide[]>([])
+  const [screenSite, setScreenSite] = useState(DEFAULT_SITE)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [clock, setClock] = useState('')
   const [date, setDate] = useState('')
@@ -169,6 +171,7 @@ export function TvDisplay({ screenSlug }: { screenSlug?: string }) {
       const url = screenSlug ? `/api/tv-screens/${screenSlug}/slides` : '/api/tv-slides'
       const res = await fetch(url)
       const json = await res.json()
+      if (json.screen?.site) setScreenSite(json.screen.site)
       const allSlides = json.data || []
       const active = screenSlug
         ? allSlides.sort((a: TvSlide, b: TvSlide) => a.sort_order - b.sort_order)
@@ -181,13 +184,13 @@ export function TvDisplay({ screenSlug }: { screenSlug?: string }) {
 
   const fetchProductionStatus = useCallback(async () => {
     try {
-      const res = await fetch('/api/tv-slides/production-status')
+      const res = await fetch(`/api/tv-slides/production-status?site=${encodeURIComponent(screenSite)}`)
       const json = await res.json()
       setProductionOrders(json.orders || [])
     } catch (e) {
       console.error('Fout bij laden productie status:', e)
     }
-  }, [])
+  }, [screenSite])
 
   const fetchPackingStats = useCallback(async () => {
     try {
@@ -203,14 +206,14 @@ export function TvDisplay({ screenSlug }: { screenSlug?: string }) {
 
   const fetchDagplanning = useCallback(async () => {
     try {
-      const res = await fetch('/api/tv-slides/dagplanning')
+      const res = await fetch(`/api/tv-slides/dagplanning?site=${encodeURIComponent(screenSite)}`)
       if (!res.ok) throw new Error('dagplanning failed')
       const json = await res.json()
       setDagplanning(json.entries || [])
     } catch (e) {
       console.error('Fout bij laden dagplanning:', e)
     }
-  }, [])
+  }, [screenSite])
 
   const fetchWeather = useCallback(async () => {
     try {

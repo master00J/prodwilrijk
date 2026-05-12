@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { normalizeSite } from '@/lib/sites'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,11 +10,13 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const finished = searchParams.get('finished') === 'true'
     const q = (searchParams.get('q') || '').trim().toLowerCase()
+    const site = normalizeSite(searchParams.get('site'))
 
     let query = supabaseAdmin
       .from('production_orders')
-      .select('id, order_number, sales_order_number, uploaded_at, finished_at')
+      .select('id, order_number, sales_order_number, uploaded_at, finished_at, site')
       .eq('for_time_registration', true)
+      .eq('site', site)
 
     if (finished) {
       query = query.not('finished_at', 'is', null)
@@ -42,6 +45,7 @@ export async function GET(request: NextRequest) {
         sales_order_number: r.sales_order_number || null,
         uploaded_at: r.uploaded_at,
         finished_at: r.finished_at || null,
+        site: r.site || site,
       })),
     })
   } catch (error: any) {

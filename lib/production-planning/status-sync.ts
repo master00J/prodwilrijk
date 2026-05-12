@@ -1,6 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase/server'
-
-const DEFAULT_SITE = 'Wilrijk'
+import { DEFAULT_SITE, normalizeSite } from '@/lib/sites'
 
 function dateInputInBelgium(date = new Date()): string {
   const parts = new Intl.DateTimeFormat('en-GB', {
@@ -26,12 +25,14 @@ function utcDayRange(dateInput: string): { from: string; to: string } {
 export async function markPlanningInProgressForTimeLog(
   orderNumber: string,
   itemNumber: string,
-  step: string
+  step: string,
+  siteInput: string = DEFAULT_SITE
 ) {
   const plannedDate = dateInputInBelgium()
   const order = String(orderNumber || '').trim()
   const item = String(itemNumber || '').trim()
   const productionStep = String(step || '').trim()
+  const site = normalizeSite(siteInput)
   if (!order || !item || !productionStep) return
 
   const { error } = await supabaseAdmin
@@ -43,7 +44,7 @@ export async function markPlanningInProgressForTimeLog(
     .eq('order_number', order)
     .eq('item_number', item)
     .eq('production_step', productionStep)
-    .eq('site', DEFAULT_SITE)
+    .eq('site', site)
     .eq('planned_date', plannedDate)
     .in('status', ['planned', 'released'])
 
@@ -55,12 +56,14 @@ export async function markPlanningInProgressForTimeLog(
 export async function syncPlanningAfterTimeLogStop(
   orderNumber: string,
   itemNumber: string,
-  step: string
+  step: string,
+  siteInput: string = DEFAULT_SITE
 ) {
   const plannedDate = dateInputInBelgium()
   const order = String(orderNumber || '').trim()
   const item = String(itemNumber || '').trim()
   const productionStep = String(step || '').trim()
+  const site = normalizeSite(siteInput)
   if (!order || !item || !productionStep) return
 
   const { data: planningItems, error: planningError } = await supabaseAdmin
@@ -69,7 +72,7 @@ export async function syncPlanningAfterTimeLogStop(
     .eq('order_number', order)
     .eq('item_number', item)
     .eq('production_step', productionStep)
-    .eq('site', DEFAULT_SITE)
+    .eq('site', site)
     .eq('planned_date', plannedDate)
     .eq('status', 'in_progress')
 
@@ -87,6 +90,7 @@ export async function syncPlanningAfterTimeLogStop(
     .eq('production_order_number', order)
     .eq('production_item_number', item)
     .eq('production_step', productionStep)
+    .eq('site', site)
     .is('end_time', null)
 
   if (activeError) {
@@ -104,6 +108,7 @@ export async function syncPlanningAfterTimeLogStop(
     .eq('production_order_number', order)
     .eq('production_item_number', item)
     .eq('production_step', productionStep)
+    .eq('site', site)
     .not('end_time', 'is', null)
     .gte('start_time', from)
     .lte('start_time', to)

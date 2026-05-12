@@ -1,5 +1,6 @@
-﻿import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { SITES } from '@/lib/sites'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,13 +19,17 @@ export async function GET(request: NextRequest) {
   try {
     const { data, error } = await supabaseAdmin
       .from('user_roles')
-      .select('role, verified, username, must_change_password')
+      .select('role, verified, username, must_change_password, allowed_sites')
       .eq('user_id', userId)
       .maybeSingle()
 
     if (error || !data) {
       return NextResponse.json({ user: null, isAdmin: false, verified: false, mustChangePassword: false })
     }
+
+    const allowedSites = Array.isArray(data.allowed_sites) && data.allowed_sites.length > 0
+      ? data.allowed_sites
+      : [...SITES]
 
     return NextResponse.json({
       user: {
@@ -35,6 +40,7 @@ export async function GET(request: NextRequest) {
       isAdmin: data.role === 'admin',
       verified: data.verified === true,
       mustChangePassword: data.must_change_password === true,
+      allowedSites,
     })
   } catch {
     return NextResponse.json({ user: null, isAdmin: false, verified: false })

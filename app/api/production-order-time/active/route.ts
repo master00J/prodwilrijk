@@ -1,17 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { calculateWorkedSeconds } from '@/lib/utils/time'
+import { normalizeSite } from '@/lib/sites'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
+    const site = normalizeSite(request.nextUrl.searchParams.get('site'))
+
     const { data: timeLogs, error: logsError } = await supabaseAdmin
       .from('time_logs')
-      .select('id, employee_id, start_time, end_time, production_order_number, production_item_number, production_step, production_quantity')
+      .select('id, employee_id, start_time, end_time, production_order_number, production_item_number, production_step, production_quantity, site')
       .is('end_time', null)
       .eq('type', 'production_order')
+      .eq('site', site)
       .order('start_time', { ascending: false })
 
     if (logsError) {
@@ -51,6 +55,7 @@ export async function GET(_request: NextRequest) {
         item_number: log.production_item_number || '',
         step: log.production_step || '',
         quantity: log.production_quantity ?? null,
+        site: log.site || site,
       }
     })
 

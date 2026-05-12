@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { normalizeSite } from '@/lib/sites'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +17,7 @@ export async function GET() {
       id: s.id,
       slug: s.slug,
       name: s.name,
+      site: s.site || 'Wilrijk',
       created_at: s.created_at,
       slideCount: (s.tv_screen_slides || []).length,
     }))
@@ -28,7 +30,8 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { slug, name } = await request.json()
+    const { slug, name, site: siteInput } = await request.json()
+    const site = normalizeSite(siteInput)
 
     if (!slug || !name) {
       return NextResponse.json({ error: 'Slug en naam zijn verplicht' }, { status: 400 })
@@ -41,7 +44,7 @@ export async function POST(request: NextRequest) {
 
     const { data, error } = await supabaseAdmin
       .from('tv_screens')
-      .insert({ slug: cleanSlug, name: String(name).trim() })
+      .insert({ slug: cleanSlug, name: String(name).trim(), site })
       .select()
       .single()
 
@@ -60,11 +63,12 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const { id, slug, name } = await request.json()
+    const { id, slug, name, site } = await request.json()
     if (!id) return NextResponse.json({ error: 'ID ontbreekt' }, { status: 400 })
 
     const updates: any = {}
     if (name !== undefined) updates.name = String(name).trim()
+    if (site !== undefined) updates.site = normalizeSite(site)
     if (slug !== undefined) {
       updates.slug = String(slug).toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
     }

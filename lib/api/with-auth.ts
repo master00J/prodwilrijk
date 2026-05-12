@@ -4,6 +4,7 @@ export interface AuthenticatedUser {
   id: string
   email: string
   role: string
+  allowedSites: string[] | null
 }
 
 /**
@@ -13,12 +14,24 @@ export function getUserFromRequest(request: NextRequest): AuthenticatedUser | nu
   const userId = request.headers.get('x-user-id')
   const userEmail = request.headers.get('x-user-email')
   const userRole = request.headers.get('x-user-role')
+  const userSites = request.headers.get('x-user-sites')
 
   if (userId) {
-    return { id: userId, email: userEmail || '', role: userRole || 'user' }
+    return {
+      id: userId,
+      email: userEmail || '',
+      role: userRole || 'user',
+      allowedSites: userSites ? userSites.split(',').map(site => site.trim()).filter(Boolean) : null,
+    }
   }
 
   return null
+}
+
+export function canAccessSite(user: AuthenticatedUser, site: string): boolean {
+  if (user.role === 'admin') return true
+  if (!user.allowedSites || user.allowedSites.length === 0) return true
+  return user.allowedSites.includes(site)
 }
 
 type RouteHandler = (request: NextRequest, context?: any) => Promise<NextResponse>

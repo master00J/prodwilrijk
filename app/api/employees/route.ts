@@ -1,5 +1,6 @@
-﻿import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { normalizeSites } from '@/lib/sites'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, active = true } = body
+    const { name, active = true, sites } = body
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return NextResponse.json(
@@ -54,6 +55,7 @@ export async function POST(request: NextRequest) {
       .insert({
         name: name.trim(),
         active: active !== undefined ? active : true,
+        sites: normalizeSites(sites),
       })
       .select()
       .single()
@@ -82,7 +84,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-    const { id, name, active } = body
+    const { id, name, active, sites } = body
 
     if (!id) {
       return NextResponse.json(
@@ -103,6 +105,9 @@ export async function PUT(request: NextRequest) {
     }
     if (active !== undefined) {
       updateData.active = active
+    }
+    if (sites !== undefined) {
+      updateData.sites = normalizeSites(sites)
     }
 
     const { data, error } = await supabaseAdmin

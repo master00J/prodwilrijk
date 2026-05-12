@@ -354,6 +354,7 @@ export interface Employee {
   id: number
   name: string
   active?: boolean
+  sites?: string[]
   created_at?: string
   updated_at?: string
 }

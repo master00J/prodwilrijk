@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { calculateWorkedSeconds } from '@/lib/utils/time'
+import { normalizeSite } from '@/lib/sites'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -22,11 +23,13 @@ function getOrderStatus(requiredQty: number, completedQty: number, activeCount: 
 export async function GET(request: NextRequest) {
   try {
     const q = (request.nextUrl.searchParams.get('q') || '').trim().toLowerCase()
+    const site = normalizeSite(request.nextUrl.searchParams.get('site'))
 
     let orderQuery = supabaseAdmin
       .from('production_orders')
-      .select('id, order_number, sales_order_number, uploaded_at, finished_at')
+      .select('id, order_number, sales_order_number, uploaded_at, finished_at, site')
       .eq('for_time_registration', true)
+      .eq('site', site)
       .is('finished_at', null)
       .order('uploaded_at', { ascending: false })
 
@@ -59,6 +62,7 @@ export async function GET(request: NextRequest) {
         .from('time_logs')
         .select('id, employee_id, start_time, end_time, production_order_number, production_item_number, production_step, production_quantity')
         .eq('type', 'production_order')
+        .eq('site', site)
         .in('production_order_number', orderNumbers),
     ])
 
@@ -148,6 +152,7 @@ export async function GET(request: NextRequest) {
         orderNumber: order.order_number,
         salesOrderNumber: order.sales_order_number,
         uploadedAt: order.uploaded_at,
+        site: order.site || site,
         status,
         requiredQty,
         completedQty,

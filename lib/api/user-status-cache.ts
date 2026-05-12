@@ -11,23 +11,24 @@
 interface CachedStatus {
   verified: boolean
   role: string
+  allowedSites: string[] | null
   expires: number
 }
 
 const cache = new Map<string, CachedStatus>()
 const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
-export function getCachedStatus(userId: string): { verified: boolean; role: string } | null {
+export function getCachedStatus(userId: string): { verified: boolean; role: string; allowedSites: string[] | null } | null {
   const entry = cache.get(userId)
   if (entry && entry.expires > Date.now()) {
-    return { verified: entry.verified, role: entry.role }
+    return { verified: entry.verified, role: entry.role, allowedSites: entry.allowedSites }
   }
   if (entry) cache.delete(userId)
   return null
 }
 
-export function setCachedStatus(userId: string, status: { verified: boolean; role: string }) {
-  cache.set(userId, { ...status, expires: Date.now() + CACHE_TTL })
+export function setCachedStatus(userId: string, status: { verified: boolean; role: string; allowedSites?: string[] | null }) {
+  cache.set(userId, { ...status, allowedSites: status.allowedSites ?? null, expires: Date.now() + CACHE_TTL })
 }
 
 export function invalidateCachedStatus(userId: string) {

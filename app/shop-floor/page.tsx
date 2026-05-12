@@ -3,6 +3,8 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { BcItemCode } from '@/lib/bc-mapping/client'
+import { DEFAULT_SITE, SITES, type Site } from '@/lib/sites'
+import { useAuth } from '@/components/AuthProvider'
 
 type OrderStatus = 'not_started' | 'in_progress' | 'partial' | 'completed'
 
@@ -35,6 +37,7 @@ interface ShopFloorOrder {
   remainingQty: number
   progress: number
   activeEmployees: string[]
+  site?: string | null
   lines: ShopFloorLine[]
 }
 
@@ -79,17 +82,30 @@ function formatDate(value: string): string {
 }
 
 export default function ShopFloorPage() {
+  const { allowedSites } = useAuth()
+  const availableSites = useMemo(
+    () => allowedSites.length > 0 ? SITES.filter(siteOption => allowedSites.includes(siteOption)) : [...SITES],
+    [allowedSites]
+  )
   const [data, setData] = useState<ShopFloorResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [site, setSite] = useState<Site>(DEFAULT_SITE)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | OrderStatus>('all')
+
+  useEffect(() => {
+    if (availableSites.length > 0 && !availableSites.includes(site)) {
+      setSite(availableSites[0])
+    }
+  }, [availableSites, site])
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       const params = new URLSearchParams()
+      params.set('site', site)
       if (search.trim()) params.set('q', search.trim())
       const res = await fetch(`/api/shop-floor/production-orders?${params.toString()}`, {
         cache: 'no-store',
@@ -102,7 +118,7 @@ export default function ShopFloorPage() {
     } finally {
       setLoading(false)
     }
-  }, [search])
+  }, [search, site])
 
   useEffect(() => {
     void load()
@@ -166,12 +182,23 @@ export default function ShopFloorPage() {
 
         <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Zoek op productieorder of sales order..."
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200 md:max-w-md"
-            />
+            <div className="flex w-full flex-col gap-2 md:max-w-2xl md:flex-row">
+              <select
+                value={site}
+                onChange={(e) => setSite(e.target.value as Site)}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+              >
+                {availableSites.map(siteOption => (
+                  <option key={siteOption} value={siteOption}>{siteOption}</option>
+                ))}
+              </select>
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Zoek op productieorder of sales order..."
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+              />
+            </div>
             <div className="flex flex-wrap gap-2">
               {(['all', 'in_progress', 'partial', 'not_started', 'completed'] as const).map(status => (
                 <button
@@ -211,7 +238,7 @@ export default function ShopFloorPage() {
 
         <div className="space-y-4">
           {filteredOrders.map(order => (
-            <OrderCard key={order.orderNumber} order={order} />
+            <OrderCard key={`${order.site || site}-${order.orderNumber}`} order={order} />
           ))}
         </div>
       </div>

@@ -10,6 +10,7 @@ interface AuthContextType {
   loading: boolean
   isAdmin: boolean
   isVerified: boolean
+  allowedSites: string[]
   signOut: () => Promise<void>
 }
 
@@ -18,6 +19,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   isAdmin: false,
   isVerified: false,
+  allowedSites: [],
   signOut: async () => {},
 })
 
@@ -36,6 +38,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
   const [isVerified, setIsVerified] = useState(false)
+  const [allowedSites, setAllowedSites] = useState<string[]>([])
   const router = useRouter()
   const pathname = usePathname()
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -66,7 +69,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     }, COOKIE_REFRESH_INTERVAL)
   }, [syncSessionCookie])
 
-  const checkUserStatus = useCallback(async (): Promise<{ isAdmin: boolean; verified: boolean; mustChangePassword: boolean }> => {
+  const checkUserStatus = useCallback(async (): Promise<{ isAdmin: boolean; verified: boolean; mustChangePassword: boolean; allowedSites: string[] }> => {
     try {
       const response = await fetch('/api/auth/me')
       if (response.ok) {
@@ -75,12 +78,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           isAdmin: data.isAdmin || false,
           verified: data.verified || false,
           mustChangePassword: data.mustChangePassword || false,
+          allowedSites: Array.isArray(data.allowedSites) ? data.allowedSites : [],
         }
       }
     } catch {
       // Fall through
     }
-    return { isAdmin: false, verified: false, mustChangePassword: false }
+    return { isAdmin: false, verified: false, mustChangePassword: false, allowedSites: [] }
   }, [])
 
   useEffect(() => {
@@ -99,6 +103,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         const status = await checkUserStatus()
         setIsAdmin(status.isAdmin)
         setIsVerified(status.verified)
+        setAllowedSites(status.allowedSites)
 
         if (!status.verified) {
           await supabase.auth.signOut()
@@ -106,6 +111,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           setUser(null)
           setIsAdmin(false)
           setIsVerified(false)
+          setAllowedSites([])
           if (pathname !== '/pending-verification') {
             router.push('/pending-verification')
           }
@@ -121,6 +127,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       } else {
         setIsAdmin(false)
         setIsVerified(false)
+        setAllowedSites([])
       }
 
       setLoading(false)
@@ -140,6 +147,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         const status = await checkUserStatus()
         setIsAdmin(status.isAdmin)
         setIsVerified(status.verified)
+        setAllowedSites(status.allowedSites)
 
         if (!status.verified) {
           await supabase.auth.signOut()
@@ -147,6 +155,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           setUser(null)
           setIsAdmin(false)
           setIsVerified(false)
+          setAllowedSites([])
           if (pathname !== '/pending-verification') {
             router.push('/pending-verification')
           }
@@ -161,6 +170,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       } else {
         setIsAdmin(false)
         setIsVerified(false)
+        setAllowedSites([])
         if (refreshTimerRef.current) clearInterval(refreshTimerRef.current)
       }
 
@@ -183,6 +193,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     if (refreshTimerRef.current) clearInterval(refreshTimerRef.current)
     setUser(null)
     setIsAdmin(false)
+    setIsVerified(false)
+    setAllowedSites([])
     router.push('/login')
   }
 
@@ -195,7 +207,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, isAdmin, isVerified, signOut }}>
+    <AuthContext.Provider value={{ user, loading, isAdmin, isVerified, allowedSites, signOut }}>
       {children}
     </AuthContext.Provider>
   )

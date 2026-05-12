@@ -18,7 +18,6 @@ const PUBLIC_API_ROUTES = [
   '/api/auth/signup',
   '/api/auth/session',
   '/api/auth/create-user-role',
-  '/api/tv-screens',
   '/api/tv-slides/production-status',
   '/api/tv-slides/packing-stats',
   '/api/tv-slides/transport-planning',
@@ -31,7 +30,8 @@ const PUBLIC_API_ROUTES = [
   '/api/bc-mappings',
 ]
 
-function isPublicRoute(pathname: string): boolean {
+function isPublicRoute(pathname: string, method: string): boolean {
+  if (pathname.startsWith('/api/tv-screens') && method === 'GET') return true
   if (PUBLIC_API_ROUTES.some(route => pathname.startsWith(route))) return true
   // /api/tv-slides exact match (GET) or with query params, but NOT /api/tv-slides/upload-image
   if (pathname === '/api/tv-slides') return true
@@ -103,7 +103,7 @@ export async function middleware(req: NextRequest) {
 
   // --- API route protection ---
   if (pathname.startsWith('/api')) {
-    const isPublic = isPublicRoute(pathname)
+    const isPublic = isPublicRoute(pathname, req.method)
 
     // Rate limiting (applied to all API routes, including public)
     const ip = getClientIp(req)
@@ -172,13 +172,14 @@ export async function middleware(req: NextRequest) {
       )
       const { data: roleData } = await adminClient
         .from('user_roles')
-        .select('verified, role')
+        .select('verified, role, allowed_sites')
         .eq('user_id', userId)
         .maybeSingle()
 
       userStatus = {
         verified: roleData?.verified === true,
         role: roleData?.role || 'user',
+        allowedSites: Array.isArray(roleData?.allowed_sites) ? roleData.allowed_sites : null,
       }
       setCachedStatus(userId, userStatus)
     }
@@ -198,6 +199,9 @@ export async function middleware(req: NextRequest) {
     response.headers.set('x-user-id', data.user.id)
     response.headers.set('x-user-email', data.user.email || '')
     response.headers.set('x-user-role', userStatus.role)
+    if (userStatus.allowedSites) {
+      response.headers.set('x-user-sites', userStatus.allowedSites.join(','))
+    }
     response.headers.set('X-RateLimit-Remaining', String(rateResult.remaining))
 
     return addCorsHeaders(response, origin)

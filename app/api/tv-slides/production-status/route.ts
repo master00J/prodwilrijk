@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { normalizeSite } from '@/lib/sites'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -8,6 +9,7 @@ export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
     const { order_number, tv_priority } = body
+    const site = normalizeSite(body.site)
 
     if (!order_number || tv_priority === undefined) {
       return NextResponse.json({ error: 'order_number en tv_priority zijn verplicht' }, { status: 400 })
@@ -17,6 +19,7 @@ export async function PUT(request: NextRequest) {
       .from('production_orders')
       .update({ tv_priority: Number(tv_priority) })
       .eq('order_number', order_number)
+      .eq('site', site)
 
     if (error) throw error
     return NextResponse.json({ success: true })
@@ -25,13 +28,15 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const site = normalizeSite(request.nextUrl.searchParams.get('site'))
     // Actieve orders (niet afgewerkt, voor tijdregistratie)
     const { data: orders } = await supabaseAdmin
       .from('production_orders')
-      .select('order_number, sales_order_number, creation_date, due_date, starting_date, finished_at, tv_priority')
+      .select('id, order_number, sales_order_number, creation_date, due_date, starting_date, finished_at, tv_priority, site')
       .eq('for_time_registration', true)
+      .eq('site', site)
       .is('finished_at', null)
       .order('creation_date', { ascending: true })
 
@@ -41,6 +46,7 @@ export async function GET() {
       .select('id, employee_id, start_time, production_order_number, production_item_number, production_step')
       .is('end_time', null)
       .eq('type', 'production_order')
+      .eq('site', site)
 
     // Medewerker-namen
     const employeeIds = [...new Set((activeLogs || []).map((l: any) => l.employee_id))]
@@ -54,17 +60,20 @@ export async function GET() {
     }
 
     // Orderlijnen voor actieve orders
-    const orderNumbers = (orders || []).map((o: any) => o.order_number)
+    const orderIds = (orders || []).map((o: any) => o.id)
+    const orderIdToNumber = new Map((orders || []).map((o: any) => [o.id, o.order_number]))
     let linesMap = new Map<string, any[]>()
-    if (orderNumbers.length > 0) {
+    if (orderIds.length > 0) {
       const { data: lines } = await supabaseAdmin
         .from('production_order_lines')
-        .select('order_number, item_number, description, quantity')
-        .in('order_number', orderNumbers)
+        .select('production_order_id, item_number, description, quantity')
+        .in('production_order_id', orderIds)
       ;(lines || []).forEach((l: any) => {
-        const arr = linesMap.get(l.order_number) || []
+        const orderNumber = orderIdToNumber.get(l.production_order_id)
+        if (!orderNumber) return
+        const arr = linesMap.get(orderNumber) || []
         arr.push(l)
-        linesMap.set(l.order_number, arr)
+        linesMap.set(orderNumber, arr)
       })
     }
 
