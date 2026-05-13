@@ -1,7 +1,11 @@
 import tls, { type TLSSocket } from 'tls'
 import { NextRequest, NextResponse } from 'next/server'
-import { POST as uploadGroteInpakFile } from '@/app/api/grote-inpak/upload/route'
-import { POST as processGroteInpakData } from '@/app/api/grote-inpak/process/route'
+import { supabaseAdmin } from '@/lib/supabase/server'
+import {
+  getPackedSourceType,
+  parsePackedReviewRows,
+  type PackedSourceType,
+} from '@/lib/grote-inpak/packed-review'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -13,8 +17,9 @@ interface MailAttachment {
 
 interface ImportedAttachment {
   filename: string
+  sourceType: PackedSourceType
+  batchId: number
   rows: number
-  cases: number
 }
 
 class SimpleImapClient {
@@ -193,11 +198,11 @@ function collectAttachments(raw: string): MailAttachment[] {
     const filename =
       getHeaderParam(disposition, 'filename') ||
       getHeaderParam(contentType, 'name')
-    const looksLikeCsv =
-      Boolean(filename?.match(/\.csv$/i)) ||
-      /(^|\/)(csv|plain)|text\/comma-separated-values/i.test(contentType || '')
+    const looksLikeExcel =
+      Boolean(filename?.match(/\.(xlsx|xls)$/i)) ||
+      /spreadsheet|excel|officedocument/i.test(contentType || '')
 
-    if (!filename || !looksLikeCsv) return
+    if (!filename || !looksLikeExcel) return
 
     attachments.push({
       filename,
@@ -211,13 +216,13 @@ function collectAttachments(raw: string): MailAttachment[] {
 
 function isAuthorized(request: NextRequest): boolean {
   const secret =
-    process.env.GROTE_INPAK_PILS_MAIL_IMPORT_SECRET ||
+    process.env.GROTE_INPAK_PACKED_MAIL_IMPORT_SECRET ||
     process.env.AIRTEC_MAIL_IMPORT_SECRET ||
     process.env.CRON_SECRET
   if (!secret) return false
 
   const bearer = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
-  const headerSecret = request.headers.get('x-grote-inpak-pils-import-secret')
+  const headerSecret = request.headers.get('x-grote-inpak-packed-import-secret')
   const querySecret = request.nextUrl.searchParams.get('secret')
 
   return bearer === secret || headerSecret === secret || querySecret === secret
@@ -243,46 +248,60 @@ function toImapDate(date: string): string {
   return `${String(day).padStart(2, '0')}-${months[month - 1]}-${year}`
 }
 
-function getAttachmentPattern(): RegExp {
-  const configured = process.env.GROTE_INPAK_PILS_ATTACHMENT_PATTERN
-  return configured ? new RegExp(configured, 'i') : /(^|[_\-. ])FOR[_\-. ]?PILS|PILS|\.CSV$/i
-}
+async function importAttachment(
+  attachment: MailAttachment,
+  sourceType: PackedSourceType,
+  message: { id: string; messageId: string; date: string | null }
+): Promise<ImportedAttachment> {
+  const rows = parsePackedReviewRows(attachment.content, sourceType)
 
-async function importAttachment(attachment: MailAttachment, sourceFile: string): Promise<ImportedAttachment> {
-  const formData = new FormData()
-  const file = new Blob([new Uint8Array(attachment.content)], { type: 'text/csv' })
-  formData.set('fileType', 'pils')
-  formData.append('file', file, attachment.filename)
+  const { data: batch, error: batchError } = await supabaseAdmin
+    .from('grote_inpak_packed_import_batches')
+    .insert({
+      source_file: attachment.filename,
+      source_type: sourceType,
+      mail_message_id: message.messageId,
+      mail_date: message.date,
+      status: rows.length > 0 ? 'draft' : 'error',
+      error_message: rows.length > 0 ? null : 'Geen PACKED regels gevonden',
+    })
+    .select('id')
+    .single()
 
-  const uploadResponse = await uploadGroteInpakFile(new Request(
-    'http://internal/api/grote-inpak/upload',
-    { method: 'POST', body: formData }
-  ) as NextRequest)
-  const uploadResult = await uploadResponse.json()
-  if (!uploadResponse.ok || !uploadResult.success) {
-    throw new Error(uploadResult.error || `PILS upload parsing mislukt voor ${attachment.filename}`)
-  }
+  if (batchError) throw batchError
 
-  const processResponse = await processGroteInpakData(new Request(
-    'http://internal/api/grote-inpak/process',
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        pilsData: uploadResult.data,
-        sourceFile,
-      }),
-    }
-  ) as NextRequest)
-  const processResult = await processResponse.json()
-  if (!processResponse.ok || !processResult.success) {
-    throw new Error(processResult.error || `PILS verwerking mislukt voor ${attachment.filename}`)
+  await supabaseAdmin
+    .from('grote_inpak_file_uploads')
+    .insert({
+      file_type: 'packed',
+      file_name: attachment.filename,
+      file_size: attachment.content.byteLength,
+      status: rows.length > 0 ? 'completed' : 'error',
+      processed_at: new Date().toISOString(),
+      error_message: rows.length > 0 ? null : 'Geen PACKED regels gevonden',
+    })
+
+  if (rows.length > 0) {
+    const { error: rowsError } = await supabaseAdmin
+      .from('grote_inpak_packed_import_rows')
+      .insert(rows.map(row => ({
+        batch_id: batch.id,
+        row_index: row.row_index,
+        source_type: row.source_type,
+        case_label: row.case_label,
+        series: row.series,
+        case_type: row.case_type,
+        packed_date: row.packed_date,
+      })))
+
+    if (rowsError) throw rowsError
   }
 
   return {
     filename: attachment.filename,
-    rows: uploadResult.count,
-    cases: processResult.count,
+    sourceType,
+    batchId: batch.id,
+    rows: rows.length,
   }
 }
 
@@ -299,11 +318,11 @@ async function runImport(request: NextRequest) {
     return NextResponse.json({ error: 'Niet toegestaan' }, { status: 401 })
   }
 
-  const host = process.env.GROTE_INPAK_PILS_MAIL_HOST || process.env.AIRTEC_MAIL_HOST
-  const port = Number(process.env.GROTE_INPAK_PILS_MAIL_PORT || process.env.AIRTEC_MAIL_PORT || 993)
-  const user = process.env.GROTE_INPAK_PILS_MAIL_USER || process.env.AIRTEC_MAIL_USER
-  const password = process.env.GROTE_INPAK_PILS_MAIL_PASSWORD || process.env.AIRTEC_MAIL_PASSWORD
-  const mailbox = process.env.GROTE_INPAK_PILS_MAILBOX || 'INBOX'
+  const host = process.env.GROTE_INPAK_PACKED_MAIL_HOST || process.env.AIRTEC_MAIL_HOST
+  const port = Number(process.env.GROTE_INPAK_PACKED_MAIL_PORT || process.env.AIRTEC_MAIL_PORT || 993)
+  const user = process.env.GROTE_INPAK_PACKED_MAIL_USER || process.env.AIRTEC_MAIL_USER
+  const password = process.env.GROTE_INPAK_PACKED_MAIL_PASSWORD || process.env.AIRTEC_MAIL_PASSWORD
+  const mailbox = process.env.GROTE_INPAK_PACKED_MAILBOX || process.env.AIRTEC_MAILBOX || 'INBOX'
   const date = request.nextUrl.searchParams.get('date') || getBelgiumDate()
   const includeSeen = request.nextUrl.searchParams.get('includeSeen') === 'true'
 
@@ -314,7 +333,6 @@ async function runImport(request: NextRequest) {
   let client: SimpleImapClient | null = null
   const imported: ImportedAttachment[] = []
   const errors: Array<{ messageId: string; error: string }> = []
-  const attachmentPattern = getAttachmentPattern()
 
   try {
     client = await SimpleImapClient.connect(host, port)
@@ -335,18 +353,26 @@ async function runImport(request: NextRequest) {
         }
 
         const { headers } = splitHeaderAndBody(rawMessage)
-        const sourceMessage = headers['message-id'] || headers.date || `imap-${id}`
+        const messageId = headers['message-id'] || `imap-${id}`
         const attachments = collectAttachments(rawMessage)
-          .filter(attachment => attachmentPattern.test(attachment.filename))
-
-        for (const attachment of attachments) {
-          imported.push(await importAttachment(
+          .map(attachment => ({
             attachment,
-            `${attachment.filename} via mailbox ${sourceMessage}`
-          ))
+            sourceType: getPackedSourceType(attachment.filename),
+          }))
+          .filter((entry): entry is { attachment: MailAttachment; sourceType: PackedSourceType } => Boolean(entry.sourceType))
+
+        let importedConcept = false
+        for (const entry of attachments) {
+          const result = await importAttachment(entry.attachment, entry.sourceType, {
+            id,
+            messageId,
+            date: headers.date || null,
+          })
+          imported.push(result)
+          if (result.rows > 0) importedConcept = true
         }
 
-        if (attachments.length > 0) {
+        if (importedConcept) {
           await client.command(`STORE ${id} +FLAGS (\\Seen)`)
         }
       } catch (error) {
@@ -365,7 +391,7 @@ async function runImport(request: NextRequest) {
       errors,
     })
   } catch (error) {
-    console.error('Grote Inpak PILS mail import failed:', error)
+    console.error('Grote Inpak PACKED mail import failed:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Mail import mislukt' },
       { status: 500 }

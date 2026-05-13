@@ -4,9 +4,34 @@ import { useState, useEffect, useCallback } from 'react'
 import { Upload, Download, Package, RefreshCw } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
+type PackedReviewRow = {
+  id: number
+  batch_id: number
+  source_type: 'packed' | 'packed_n' | 'packed_y'
+  case_label: string
+  series: string
+  case_type: string
+  packed_date: string
+  excluded: boolean
+  notes: string | null
+}
+
+type PackedReviewBatch = {
+  id: number
+  source_file: string
+  source_type: 'packed' | 'packed_n' | 'packed_y'
+  status: string
+  imported_at: string
+  rows: PackedReviewRow[]
+}
+
 export default function PackedTab() {
   const [packedData, setPackedData] = useState<any[]>([])
+  const [reviewBatches, setReviewBatches] = useState<PackedReviewBatch[]>([])
   const [loading, setLoading] = useState(false)
+  const [reviewLoading, setReviewLoading] = useState(false)
+  const [savingReview, setSavingReview] = useState<number | null>(null)
+  const [exportingReview, setExportingReview] = useState<number | null>(null)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
@@ -43,9 +68,28 @@ export default function PackedTab() {
     }
   }, [dateFrom, dateTo])
 
+  const loadReviewBatches = useCallback(async () => {
+    setReviewLoading(true)
+    try {
+      const response = await fetch('/api/grote-inpak/packed-review?status=draft&limit=10')
+      if (response.ok) {
+        const result = await response.json()
+        setReviewBatches(result.data || [])
+      }
+    } catch (error) {
+      console.error('Error loading packed review batches:', error)
+    } finally {
+      setReviewLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     loadPacked()
   }, [loadPacked])
+
+  useEffect(() => {
+    loadReviewBatches()
+  }, [loadReviewBatches])
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -327,6 +371,85 @@ export default function PackedTab() {
     }
   }
 
+  const updateReviewRow = (batchId: number, rowId: number, field: keyof PackedReviewRow, value: any) => {
+    setReviewBatches((batches) =>
+      batches.map((batch) => {
+        if (batch.id !== batchId) return batch
+        return {
+          ...batch,
+          rows: batch.rows.map((row) =>
+            row.id === rowId ? { ...row, [field]: value } : row
+          ),
+        }
+      })
+    )
+  }
+
+  const saveReviewBatch = async (batch: PackedReviewBatch) => {
+    setSavingReview(batch.id)
+    try {
+      const response = await fetch('/api/grote-inpak/packed-review', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          batchId: batch.id,
+          rows: batch.rows,
+        }),
+      })
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Concept opslaan mislukt')
+      }
+      await loadReviewBatches()
+      return true
+    } catch (error: any) {
+      console.error('Error saving packed review batch:', error)
+      alert(`Concept opslaan mislukt: ${error.message || 'Onbekende fout'}`)
+      return false
+    } finally {
+      setSavingReview(null)
+    }
+  }
+
+  const exportReviewBatch = async (batch: PackedReviewBatch) => {
+    setExportingReview(batch.id)
+    try {
+      const saved = await saveReviewBatch(batch)
+      if (!saved) return
+
+      const response = await fetch(`/api/grote-inpak/packed-review/${batch.id}/export`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'XML export mislukt')
+      }
+
+      const result = await response.json()
+      const files = result.files || []
+      files.forEach((xmlFile: any) => {
+        const blob = new Blob([xmlFile.xml], { type: 'application/xml' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = xmlFile.filename
+        a.click()
+        URL.revokeObjectURL(url)
+      })
+
+      await loadReviewBatches()
+      await loadPacked()
+      alert(`${files.length} XML-bestand(en) aangemaakt`)
+    } catch (error: any) {
+      console.error('Error exporting packed review batch:', error)
+      alert(`XML export mislukt: ${error.message || 'Onbekende fout'}`)
+    } finally {
+      setExportingReview(null)
+    }
+  }
+
   const filteredData = packedData.filter(item =>
     !searchQuery || item.case_label?.toLowerCase().includes(searchQuery.toLowerCase())
   )
@@ -352,6 +475,128 @@ export default function PackedTab() {
             <Download className="w-4 h-4" />
             Download Excel
           </button>
+        </div>
+
+        <div className="bg-white border border-amber-200 rounded-xl p-5 mb-6 shadow-sm">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+            <div>
+              <h3 className="text-lg font-semibold text-slate-800">Concept imports uit mailbox</h3>
+              <p className="text-sm text-slate-500">
+                Controleer en pas PACKED-regels aan voordat je XML-bestanden maakt.
+              </p>
+            </div>
+            <button
+              onClick={loadReviewBatches}
+              disabled={reviewLoading}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-800 rounded-lg hover:bg-amber-200 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${reviewLoading ? 'animate-spin' : ''}`} />
+              Vernieuwen
+            </button>
+          </div>
+
+          {reviewBatches.length === 0 ? (
+            <p className="text-sm text-slate-500">
+              Geen conceptimports gevonden. Nieuwe PACKED-mails verschijnen hier na de automatische import.
+            </p>
+          ) : (
+            <div className="space-y-5">
+              {reviewBatches.map((batch) => (
+                <div key={batch.id} className="border border-slate-200 rounded-lg overflow-hidden">
+                  <div className="bg-slate-50 px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                    <div>
+                      <div className="font-semibold text-slate-800">{batch.source_file}</div>
+                      <div className="text-xs text-slate-500">
+                        Type: {batch.source_type.toUpperCase()} · {batch.rows.length} regel(s) · geïmporteerd{' '}
+                        {batch.imported_at ? new Date(batch.imported_at).toLocaleString('nl-BE') : '-'}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => saveReviewBatch(batch)}
+                        disabled={savingReview === batch.id || exportingReview === batch.id}
+                        className="px-3 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 disabled:opacity-50 text-sm"
+                      >
+                        {savingReview === batch.id ? 'Opslaan...' : 'Opslaan'}
+                      </button>
+                      <button
+                        onClick={() => exportReviewBatch(batch)}
+                        disabled={exportingReview === batch.id || savingReview === batch.id}
+                        className="px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm"
+                      >
+                        {exportingReview === batch.id ? 'XML maken...' : 'XML genereren'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-white">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase">Gebruik</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase">Case Label</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase">Serie</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase">Case Type</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase">Packed Date</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase">Notitie</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-100">
+                        {batch.rows.map((row) => (
+                          <tr key={row.id} className={row.excluded ? 'bg-slate-50 opacity-60' : 'hover:bg-gray-50'}>
+                            <td className="px-3 py-2">
+                              <input
+                                type="checkbox"
+                                checked={!row.excluded}
+                                onChange={(e) => updateReviewRow(batch.id, row.id, 'excluded', !e.target.checked)}
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <input
+                                value={row.case_label || ''}
+                                onChange={(e) => updateReviewRow(batch.id, row.id, 'case_label', e.target.value)}
+                                className="w-36 px-2 py-1 border border-gray-300 rounded"
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <input
+                                value={row.series || ''}
+                                onChange={(e) => updateReviewRow(batch.id, row.id, 'series', e.target.value)}
+                                className="w-24 px-2 py-1 border border-gray-300 rounded"
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <input
+                                value={row.case_type || ''}
+                                onChange={(e) => updateReviewRow(batch.id, row.id, 'case_type', e.target.value)}
+                                className="w-28 px-2 py-1 border border-gray-300 rounded"
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <input
+                                type="date"
+                                value={row.packed_date || ''}
+                                onChange={(e) => updateReviewRow(batch.id, row.id, 'packed_date', e.target.value)}
+                                className="w-36 px-2 py-1 border border-gray-300 rounded"
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <input
+                                value={row.notes || ''}
+                                onChange={(e) => updateReviewRow(batch.id, row.id, 'notes', e.target.value)}
+                                className="w-48 px-2 py-1 border border-gray-300 rounded"
+                                placeholder="Optioneel"
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div

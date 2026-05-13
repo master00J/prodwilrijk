@@ -52,7 +52,7 @@ class SimpleImapClient {
     return client
   }
 
-  async command(command: string): Promise<string> {
+  async command(command: string, label = command, timeoutMs = 30000): Promise<string> {
     const tag = `A${++this.tagCounter}`
     const start = this.buffer.length
 
@@ -61,8 +61,8 @@ class SimpleImapClient {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         cleanup()
-        reject(new Error(`IMAP command timeout: ${command}`))
-      }, 30000)
+        reject(new Error(`IMAP command timeout: ${label}`))
+      }, timeoutMs)
 
       const cleanup = () => {
         clearTimeout(timeout)
@@ -80,7 +80,7 @@ class SimpleImapClient {
 
         cleanup()
         if (done[1].toUpperCase() !== 'OK') {
-          reject(new Error(`IMAP command failed: ${command}\n${output}`))
+          reject(new Error(`IMAP command failed: ${label}`))
           return
         }
         resolve(output)
@@ -263,8 +263,8 @@ async function runImport(request: NextRequest) {
 
   try {
     client = await SimpleImapClient.connect(host, port)
-    await client.command(`LOGIN ${imapQuote(user)} ${imapQuote(password)}`)
-    await client.command(`SELECT ${imapQuote(mailbox)}`)
+    await client.command(`LOGIN ${imapQuote(user)} ${imapQuote(password)}`, 'LOGIN', 60000)
+    await client.command(`SELECT ${imapQuote(mailbox)}`, 'SELECT mailbox')
 
     const searchResponse = await client.command('SEARCH UNSEEN')
     const ids = extractSearchIds(searchResponse)

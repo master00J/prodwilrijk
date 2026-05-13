@@ -11,6 +11,10 @@
     {
       "path": "/api/grote-inpak/pils-mail-import",
       "schedule": "2 5 * * *"
+    },
+    {
+      "path": "/api/grote-inpak/packed-mail-import",
+      "schedule": "2 14 * * *"
     }
   ]
 }
