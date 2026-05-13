@@ -131,8 +131,9 @@ function normalizePilsYyyymmddCell(raw: unknown): string {
 }
 
 /**
- * Aankomst-/referentiedatum uit PILS-rij (incl. Oilfree-export met SQL-kolomnamen).
- * Voorkeur: Atlas-datumkolom (AT_FORES04 … 3,8)), daarna PCC/RDT-datum, daarna kolommen H/I, dan eerste geldige 8-cijferige cel.
+ * Datum voor `arrival_date` / kolom «PILS-datum» in het overzicht.
+ * In de Oilfree-export: **pccrdt** = wanneer de unit op **PAC3PL (Willebroek)** staat; Atlas-kolom (FORES04) is fallback.
+ * Daarna kolommen H/I, dan eerste geldige YYYYMMDD-cel.
  */
 function resolvePilsArrivalRaw(pilsRow: Record<string, unknown>): string {
   const named =
@@ -155,8 +156,9 @@ function resolvePilsArrivalRaw(pilsRow: Record<string, unknown>): string {
     if (/FORES04/i.test(key) && /3\s*,\s*8\s*\)/i.test(key)) atlas = v
     else if (/pccrdt/i.test(key)) pccrdt = v
   }
-  if (atlas) return atlas
+  // PAC3PL-datum eerst (zelfde als «PILS-datum» in UI)
   if (pccrdt) return pccrdt
+  if (atlas) return atlas
 
   const colI = normalizePilsYyyymmddCell(pilsRow['I'])
   if (colI) return colI

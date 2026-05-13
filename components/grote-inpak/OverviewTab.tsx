@@ -732,6 +732,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
               <th
                 className="cursor-pointer select-none whitespace-nowrap px-2 py-3 text-left text-xs font-semibold text-white hover:bg-white/10"
                 onClick={() => handleSort('arrival_date')}
+                title="Datum waarop de unit op locatie PAC3PL (Willebroek) staat — uit PILS-export (kolom pccrdt / aankomst WLB)"
               >
                 PILS-datum{getSortIcon('arrival_date')}
               </th>
