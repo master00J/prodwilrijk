@@ -55,16 +55,27 @@ export async function GET() {
       return r
     }
 
-    const [pilsRes, forecastRes, packedRes] = await Promise.all([
+    const fetchKistMailDaily = async () => {
+      const r = await supabaseAdmin
+        .from('grote_inpak_kist_mail_upload_log')
+        .select('log_date, mail_count, cases_inserted, cases_updated, case_labels, last_event_at')
+        .order('last_event_at', { ascending: false })
+        .limit(100)
+      return r
+    }
+
+    const [pilsRes, forecastRes, packedRes, kistRes] = await Promise.all([
       fetchPils(),
       fetchForecast(),
       fetchPacked(),
+      fetchKistMailDaily(),
     ])
 
     if (pilsRes.error)    throw pilsRes.error
     if (forecastRes.error) throw forecastRes.error
-    // packed tabel mag nog niet bestaan — dan gewoon leeg
+    // packed / kist-log tabellen mogen nog niet bestaan — dan gewoon leeg
     const packedData = packedRes.error ? [] : (packedRes.data || [])
+    const kistData = kistRes.error ? [] : (kistRes.data || [])
 
     const pils = (pilsRes.data || []).map((row: any) => ({
       id:            row.id,
@@ -114,9 +125,27 @@ export async function GET() {
       labels_removed: row.labels_removed ?? null,
     }))
 
-    const merged = [...pils, ...forecast, ...packed]
+    const kist = kistData.map((row: any) => {
+      const logDate = row.log_date as string
+      return {
+        id:            `kist-daily-${logDate}`,
+        uploaded_at:   row.last_event_at,
+        upload_type:   'kist_mail' as const,
+        source:        `Kist-mails (dag ${logDate}, Europe/Brussels)`,
+        cnt_added:     row.cases_inserted ?? 0,
+        cnt_removed:   0,
+        cnt_updated:   row.cases_updated ?? 0,
+        total_records: row.mail_count ?? 0,
+        cnt_date_change: null,
+        case_types_new:  null,
+        labels_added:    Array.isArray(row.case_labels) && row.case_labels.length ? row.case_labels : null,
+        labels_removed:  null,
+      }
+    })
+
+    const merged = [...pils, ...forecast, ...packed, ...kist]
       .sort((a, b) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime())
-      .slice(0, 150)
+      .slice(0, 200)
 
     return NextResponse.json({ data: merged })
   } catch (error: any) {

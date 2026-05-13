@@ -6,7 +6,7 @@ import { RefreshCw, History, FileUp, ChevronDown, ChevronUp } from 'lucide-react
 interface UploadLogEntry {
   id: string
   uploaded_at: string
-  upload_type: 'pils' | 'forecast' | 'packed'
+  upload_type: 'pils' | 'forecast' | 'packed' | 'kist_mail'
   source: string
   cnt_added: number
   cnt_removed: number
@@ -26,9 +26,10 @@ function fmtTs(d: string) {
 }
 
 const TYPE_STYLE: Record<string, { bg: string; text: string; label: string }> = {
-  pils:     { bg: 'bg-blue-100',    text: 'text-blue-800',    label: 'PILS'     },
-  forecast: { bg: 'bg-emerald-100', text: 'text-emerald-800', label: 'Forecast' },
-  packed:   { bg: 'bg-purple-100',  text: 'text-purple-800',  label: 'Packed'   },
+  pils:      { bg: 'bg-blue-100',    text: 'text-blue-800',    label: 'PILS'      },
+  forecast:  { bg: 'bg-emerald-100', text: 'text-emerald-800', label: 'Forecast'  },
+  packed:    { bg: 'bg-purple-100',  text: 'text-purple-800',  label: 'Packed'    },
+  kist_mail: { bg: 'bg-amber-100',   text: 'text-amber-900',    label: 'Kist-mail' },
 }
 
 const PREVIEW = 10 // max labels direct zichtbaar
@@ -137,11 +138,17 @@ function DetailRow({ row }: { row: UploadLogEntry }) {
               {/* Bijgekomen labels */}
               {(row.labels_added?.length ?? 0) > 0 && (
                 <div>
-                  <p className="text-xs font-semibold text-green-700 mb-2 flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
-                    Bijgekomen ({row.labels_added!.length})
+                  <p className={`text-xs font-semibold mb-2 flex items-center gap-1 ${
+                    row.upload_type === 'kist_mail' ? 'text-amber-800' : 'text-green-700'
+                  }`}>
+                    <span className={`w-2 h-2 rounded-full inline-block ${
+                      row.upload_type === 'kist_mail' ? 'bg-amber-500' : 'bg-green-500'
+                    }`} />
+                    {row.upload_type === 'kist_mail'
+                      ? `Caselabels via mail (${row.labels_added!.length})`
+                      : `Bijgekomen (${row.labels_added!.length})`}
                   </p>
-                  <LabelList labels={row.labels_added!} color="green" />
+                  <LabelList labels={row.labels_added!} color={row.upload_type === 'kist_mail' ? 'purple' : 'green'} />
                 </div>
               )}
 
@@ -183,7 +190,7 @@ interface UploadLogTabProps {
 export default function UploadLogTab({ refreshTrigger = 0 }: UploadLogTabProps) {
   const [data, setData]       = useState<UploadLogEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter]   = useState<'all' | 'pils' | 'forecast' | 'packed'>('all')
+  const [filter, setFilter]   = useState<'all' | 'pils' | 'forecast' | 'packed' | 'kist_mail'>('all')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -218,6 +225,7 @@ export default function UploadLogTab({ refreshTrigger = 0 }: UploadLogTabProps) 
             <option value="pils">Alleen PILS</option>
             <option value="forecast">Alleen Forecast</option>
             <option value="packed">Alleen Packed</option>
+            <option value="kist_mail">Alleen kist-mail</option>
           </select>
           <button
             onClick={load}
@@ -230,7 +238,7 @@ export default function UploadLogTab({ refreshTrigger = 0 }: UploadLogTabProps) 
       </div>
 
       <p className="text-gray-600 text-sm">
-        Klik op een rij met ▼ om de exacte bijgekomen en afgegane caselabels te zien.
+        Klik op een rij met ▼ om details te zien. Kist-mail: één rij per kalenderdag (Brussel), kolom Totaal = aantal verwerkte mails.
       </p>
 
       {loading ? (
