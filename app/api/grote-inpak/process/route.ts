@@ -553,6 +553,43 @@ function addBusinessDays(startDate: string, days: number): string {
   return date.toISOString().split('T')[0]
 }
 
+/**
+ * PILS-rij leeg voor dit veld → behoud waarde die al in de DB stond (bv. van kist-mail vóór PILS).
+ */
+function pickPilsOrExisting(pilsValue: unknown, existingValue: unknown): unknown {
+  if (pilsValue !== null && pilsValue !== undefined && String(pilsValue).trim() !== '') return pilsValue
+  if (existingValue !== null && existingValue !== undefined && String(existingValue).trim() !== '') return existingValue
+  return pilsValue ?? existingValue ?? null
+}
+
+function recomputeDeadlineAndLateDays(arrivalDate: string | null, caseType: string | null, inWillebroek: boolean) {
+  const termWerkdagen = calculateTerm(String(caseType || ''))
+  let deadline: string | null = null
+  if (arrivalDate && termWerkdagen > 0) {
+    const d = addBusinessDays(String(arrivalDate), termWerkdagen)
+    deadline = d || null
+  }
+
+  let dagenTeLaat = 0
+  if (deadline) {
+    const today = new Date()
+    const deadlineDate = new Date(deadline)
+    const diffTime = today.getTime() - deadlineDate.getTime()
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+    dagenTeLaat = diffDays > 0 ? diffDays : 0
+  }
+
+  let dagenInWillebroek = 0
+  if (inWillebroek && arrivalDate) {
+    const today = new Date()
+    const arrival = new Date(String(arrivalDate))
+    const diffTime = today.getTime() - arrival.getTime()
+    dagenInWillebroek = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+  }
+
+  return { term_werkdagen: termWerkdagen, deadline, dagen_te_laat: dagenTeLaat, dagen_in_willebroek: dagenInWillebroek }
+}
+
 async function buildTransport(overview: any[]): Promise<any[]> {
   // Transport nodig: ALLE Genk cases (ongeacht of ze al in Willebroek zijn)
   // Dit omdat de transportplanning ook cases toont die al in Willebroek zijn voor overzicht
@@ -586,13 +623,19 @@ async function saveCasesToDatabase(cases: any[]) {
       bc_line_description: string | null
       bc_shop_lines_source_file: string | null
       bc_shop_lines_matched_at: string | null
+      serial_number: string | null
+      item_number: string | null
+      arrival_date: string | null
+      case_type: string | null
+      locatie: string | null
+      stock_location: string | null
     }
   >()
   if (caseLabels.length > 0) {
     const { data: existingData } = await supabaseAdmin
       .from('grote_inpak_cases')
       .select(
-        'case_label, comment, status, priority, atlas_planner_email, bc_fp_item_no, bc_shop_order_no, bc_sales_order_no, bc_customer_order_no, bc_line_description, bc_shop_lines_source_file, bc_shop_lines_matched_at',
+        'case_label, comment, status, priority, atlas_planner_email, bc_fp_item_no, bc_shop_order_no, bc_sales_order_no, bc_customer_order_no, bc_line_description, bc_shop_lines_source_file, bc_shop_lines_matched_at, serial_number, item_number, arrival_date, case_type, locatie, stock_location',
       )
       .in('case_label', caseLabels)
 
@@ -610,6 +653,12 @@ async function saveCasesToDatabase(cases: any[]) {
           bc_line_description: row.bc_line_description ?? null,
           bc_shop_lines_source_file: row.bc_shop_lines_source_file ?? null,
           bc_shop_lines_matched_at: row.bc_shop_lines_matched_at ?? null,
+          serial_number: row.serial_number ?? null,
+          item_number: row.item_number ?? null,
+          arrival_date: row.arrival_date ?? null,
+          case_type: row.case_type ?? null,
+          locatie: row.locatie ?? null,
+          stock_location: row.stock_location ?? null,
         })
       })
     }
@@ -622,8 +671,29 @@ async function saveCasesToDatabase(cases: any[]) {
     // Oude "Atlas"-datums uit vroeger PILS kolom H bleven anders eindeloos bestaan door: null ?? existing.
     const bcFromExcel = Boolean(existing?.bc_shop_lines_matched_at)
 
+    const serial_number = pickPilsOrExisting(case_.serial_number, existing?.serial_number) as string | null
+    const item_number = pickPilsOrExisting(case_.item_number, existing?.item_number) as string | null
+    const arrival_date = pickPilsOrExisting(case_.arrival_date, existing?.arrival_date) as string | null
+    const case_type = pickPilsOrExisting(case_.case_type, existing?.case_type) as string | null
+    const locatie = pickPilsOrExisting(case_.locatie, existing?.locatie) as string | null
+    const stock_location = pickPilsOrExisting(case_.stock_location, existing?.stock_location) as string | null
+
+    const late = recomputeDeadlineAndLateDays(arrival_date, case_type, Boolean(case_.in_willebroek))
+    const pils_shop_order_key = shopOrderMatchKey(serial_number ? String(serial_number) : null)
+
     return {
       ...case_,
+      serial_number,
+      item_number,
+      arrival_date,
+      case_type,
+      locatie,
+      stock_location,
+      pils_shop_order_key,
+      term_werkdagen: late.term_werkdagen,
+      deadline: late.deadline,
+      dagen_te_laat: late.dagen_te_laat,
+      dagen_in_willebroek: late.dagen_in_willebroek,
       comment: existing?.comment ?? case_.comment,
       status: existing?.status ?? case_.status,
       priority: existing?.priority ?? case_.priority,
