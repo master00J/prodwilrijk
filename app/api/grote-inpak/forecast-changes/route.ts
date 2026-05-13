@@ -12,21 +12,32 @@ export async function GET(request: NextRequest) {
     const snapshotId  = searchParams.get('snapshot_id')
     const changeType  = searchParams.get('change_type')
 
-    let query = supabaseAdmin
-      .from('grote_inpak_forecast_changes')
-      .select('*')
-      .order('changed_at', { ascending: false })
+    const pageSize = 1000
+    let from = 0
+    const all: any[] = []
 
-    if (caseLabel)   query = query.eq('case_label', caseLabel)
-    if (snapshotId)  query = query.eq('snapshot_id', snapshotId)
-    if (changeType)  query = query.eq('change_type', changeType)
-    if (dateFrom)    query = query.gte('changed_at', dateFrom)
-    if (dateTo)      query = query.lte('changed_at', dateTo)
+    while (true) {
+      let query = supabaseAdmin
+        .from('grote_inpak_forecast_changes')
+        .select('*')
+        .order('changed_at', { ascending: false })
+        .order('case_label', { ascending: true })
 
-    const { data, error } = await query
-    if (error) throw error
+      if (caseLabel) query = query.eq('case_label', caseLabel)
+      if (snapshotId) query = query.eq('snapshot_id', snapshotId)
+      if (changeType) query = query.eq('change_type', changeType)
+      if (dateFrom) query = query.gte('changed_at', dateFrom)
+      if (dateTo) query = query.lte('changed_at', dateTo)
 
-    return NextResponse.json({ data: data || [] })
+      const { data, error } = await query.range(from, from + pageSize - 1)
+      if (error) throw error
+      const rows = data || []
+      if (rows.length === 0) break
+      all.push(...rows)
+      from += rows.length
+    }
+
+    return NextResponse.json({ data: all, count: all.length })
   } catch (error: any) {
     console.error('Error fetching forecast changes:', error)
     return NextResponse.json(

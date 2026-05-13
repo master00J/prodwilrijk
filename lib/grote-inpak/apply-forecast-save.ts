@@ -19,10 +19,12 @@ export type ApplyForecastSaveResult =
 
 /**
  * Zelfde gedrag als POST /api/grote-inpak/forecast: dedupe op case_label, optioneel volledige replace + snapshot.
+ * `uploadedFileNames`: bestandsnamen uit de upload-sessie (UI); snapshot `source_files` toont dan altijd alle gekozen files, ook als dedupe geen winnende rij meer voor een file heeft.
  */
 export async function applyForecastSave(
   forecastData: any[],
-  replace: boolean
+  replace: boolean,
+  options?: { uploadedFileNames?: string[] }
 ): Promise<ApplyForecastSaveResult | { ok: false; error: string }> {
   if (!Array.isArray(forecastData)) {
     return { ok: false, error: 'forecastData must be an array' }
@@ -153,9 +155,13 @@ export async function applyForecastSave(
     const labelsAdded = addedChanges.map((c) => c.case_label).sort().slice(0, 500)
     const labelsRemoved = removedChanges.map((c) => c.case_label).sort().slice(0, 500)
 
+    const fromRows = deduped.map((r: any) => String(r.source_file || '').trim()).filter(Boolean)
+    const fromUpload = (options?.uploadedFileNames || []).map((n) => String(n || '').trim()).filter(Boolean)
+    const sourceFilesUnion = [...new Set([...fromUpload, ...fromRows])].sort((a, b) => a.localeCompare(b))
+
     await supabaseAdmin.from('grote_inpak_forecast_snapshots').insert({
       id: snapshotId,
-      source_files: [...new Set(deduped.map((r: any) => r.source_file).filter(Boolean))],
+      source_files: sourceFilesUnion.length > 0 ? sourceFilesUnion : null,
       total_records: deduped.length,
       cnt_added: cntAdded,
       cnt_removed: cntRemoved,
@@ -165,8 +171,12 @@ export async function applyForecastSave(
     })
 
     if (changes.length > 0) {
-      const { error: changeError } = await supabaseAdmin.from('grote_inpak_forecast_changes').insert(changes)
-      if (changeError) throw changeError
+      const CHG_BATCH = 500
+      for (let i = 0; i < changes.length; i += CHG_BATCH) {
+        const slice = changes.slice(i, i + CHG_BATCH)
+        const { error: changeError } = await supabaseAdmin.from('grote_inpak_forecast_changes').insert(slice)
+        if (changeError) throw changeError
+      }
     }
 
     return {

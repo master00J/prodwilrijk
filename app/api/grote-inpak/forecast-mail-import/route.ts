@@ -178,7 +178,7 @@ async function runImport(request: NextRequest) {
           continue
         }
 
-        const save = await applyForecastSave(rows, true)
+        const save = await applyForecastSave(rows, true, { uploadedFileNames: [picked.filename] })
         if (!save.ok) {
           errors.push({ messageId: dedupeKey, error: save.error })
           continue

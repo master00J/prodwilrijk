@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { forecastData, replace } = body
+    const { forecastData, replace, uploadedFileNames } = body
 
     if (!Array.isArray(forecastData)) {
       return NextResponse.json(
@@ -76,7 +76,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const result = await applyForecastSave(forecastData, Boolean(replace))
+    const result = await applyForecastSave(forecastData, Boolean(replace), {
+      uploadedFileNames: Array.isArray(uploadedFileNames) ? uploadedFileNames : undefined,
+    })
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 400 })
     }

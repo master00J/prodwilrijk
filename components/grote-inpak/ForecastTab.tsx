@@ -165,7 +165,11 @@ export default function ForecastTab() {
         const saveRes = await fetch('/api/grote-inpak/forecast', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ forecastData: allRows, replace: true }),
+          body: JSON.stringify({
+            forecastData: allRows,
+            replace: true,
+            uploadedFileNames: files.map((f) => f.name),
+          }),
         })
         if (!saveRes.ok) {
           const err = await saveRes.json()
