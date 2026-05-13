@@ -391,7 +391,15 @@ async function runImport(request: NextRequest) {
   const password = process.env.GROTE_INPAK_PILS_MAIL_PASSWORD || process.env.AIRTEC_MAIL_PASSWORD
   const mailbox = process.env.GROTE_INPAK_PILS_MAILBOX || 'INBOX'
   const date = request.nextUrl.searchParams.get('date') || getBelgiumDate()
-  const includeSeen = request.nextUrl.searchParams.get('includeSeen') === 'true'
+  // Standaard géén UNSEEN: mailclients markeren berichten snel als gelezen → dan zou de import ze anders overslaan.
+  // Dubbele verwerking voorkomen we met grote_inpak_kist_mail_processed (Message-ID).
+  // ?unseenOnly=true of ?includeSeen=false → alleen ongelezen (vroegere default).
+  // GROTE_INPAK_KIST_MAIL_UNSEEN_ONLY=true → zelfde, tenzij ?includeSeen=true meegeeft.
+  const useUnseenOnly =
+    request.nextUrl.searchParams.get('unseenOnly') === 'true' ||
+    request.nextUrl.searchParams.get('includeSeen') === 'false' ||
+    (process.env.GROTE_INPAK_KIST_MAIL_UNSEEN_ONLY === 'true' &&
+      request.nextUrl.searchParams.get('includeSeen') !== 'true')
 
   if (!host || !user || !password) {
     return NextResponse.json({ error: 'Mail import env vars ontbreken' }, { status: 500 })
@@ -407,9 +415,15 @@ async function runImport(request: NextRequest) {
     await client.command(`LOGIN ${imapQuote(user)} ${imapQuote(password)}`, 'LOGIN', 60000)
     await client.command(`SELECT ${imapQuote(mailbox)}`, 'SELECT mailbox')
 
-    const searchQuery = `${includeSeen ? '' : 'UNSEEN '}SINCE ${toImapDate(date)}`.trim()
+    const searchQuery = `${useUnseenOnly ? 'UNSEEN ' : ''}SINCE ${toImapDate(date)}`.trim()
     const searchResponse = await client.command(`SEARCH ${searchQuery}`)
+    const maxScan = Math.min(500, Math.max(20, Number(process.env.GROTE_INPAK_KIST_MAIL_MAX_SCAN || 150)))
     const ids = extractSearchIds(searchResponse)
+      .map(id => Number(id))
+      .filter(n => !Number.isNaN(n))
+      .sort((a, b) => b - a)
+      .slice(0, maxScan)
+      .map(String)
 
     for (const id of ids) {
       const refLabel = `imap-${id}`
@@ -464,6 +478,8 @@ async function runImport(request: NextRequest) {
     return NextResponse.json({
       success: errors.length === 0,
       date,
+      imapSearch: searchQuery,
+      unseenOnly: useUnseenOnly,
       checkedMessages: ids.length,
       imported,
       skipped,
