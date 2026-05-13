@@ -12,9 +12,9 @@ export interface ParsedKistTePakkenMail {
   arrival_date: string | null
 }
 
-/** Onderwerp mag o.a. RE:/FW: (meerdere keren) vooraan hebben. */
+/** Onderwerp mag o.a. RE:/FW:/Fwd: (meerdere keren) vooraan hebben. */
 const SUBJECT_RE =
-  /^(?:(?:RE|FW|AW|VS|ANTWOORD)\s*:\s*)*\s*Kist\s+(\S+)\s+type\s+(.+?)\s+in\s+te\s+pakken\s*$/i
+  /^(?:(?:RE|FW|FWD|AW|VS|ANTWOORD)\s*:\s*)*\s*Kist\s+(\S+)\s+type\s+(.+?)\s+in\s+te\s+pakken\s*$/i
 
 export function parseKistTePakkenSubject(subjectRaw: string): { case_label: string; case_type: string } | null {
   const subject = decodeRfc2047Subject(subjectRaw.trim()).replace(/\s+/g, ' ')
