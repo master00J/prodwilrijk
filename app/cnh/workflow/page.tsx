@@ -206,6 +206,7 @@ export default function CNHWorkflowPage() {
 
           // Render PDF page to canvas with better quality
           await page.render({
+            canvas,
             canvasContext: context,
             viewport: viewport,
           }).promise

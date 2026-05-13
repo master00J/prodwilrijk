@@ -16,6 +16,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate and prepare data
+    type SalesOrderInsert = {
+      item_number: string
+      price: number
+      description: string | null
+    }
+
     const validItems = items
       .map((item: any) => {
         const itemNumber = item.item_number?.toString().trim()
@@ -31,7 +37,7 @@ export async function POST(request: NextRequest) {
           description: item.description || null,
         }
       })
-      .filter((item: any) => item !== null)
+      .filter((item: SalesOrderInsert | null): item is SalesOrderInsert => item !== null)
 
     if (validItems.length === 0) {
       return NextResponse.json(

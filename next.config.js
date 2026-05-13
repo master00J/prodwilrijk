@@ -8,7 +8,15 @@ const nextConfig = {
     proxyClientMaxBodySize: '50mb',
   },
   images: {
-    domains: ['localhost'],
+    remotePatterns: [
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+      },
+    ],
+  },
+  turbopack: {
+    root: __dirname,
   },
   webpack: (config, { isServer }) => {
     // Exclude canvas from bundle (pdfjs-dist tries to import it but we use dynamic import)

@@ -17,7 +17,7 @@ function getRecipients(): string[] {
 
 function isAuthorized(request: NextRequest): boolean {
   const secret = process.env.CRON_SECRET || process.env.AIRTEC_DAILY_REPORT_SECRET
-  if (!secret) return true
+  if (!secret) return false
   return request.headers.get('authorization') === `Bearer ${secret}`
 }
 

@@ -19,10 +19,10 @@ const DEFAULTS = {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const batchId = Number(params.id)
+    const batchId = Number((await params).id)
     if (!batchId) {
       return NextResponse.json({ error: 'Ongeldige batch id' }, { status: 400 })
     }

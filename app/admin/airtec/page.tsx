@@ -566,14 +566,16 @@ export default function AirtecMonitorPage() {
                 <YAxis />
                 <Tooltip
                   labelFormatter={(value) => formatDate(value as string)}
-                  formatter={(value: number, name: string) => {
-                    if (name === 'Manuren') {
-                      return [`${value.toFixed(2)} uur`, 'Manuren']
+                  formatter={(value: any, name: any) => {
+                    const numericValue = Number(value ?? 0)
+                    const label = String(name ?? '')
+                    if (label === 'Manuren') {
+                      return [`${numericValue.toFixed(2)} uur`, 'Manuren']
                     }
-                    if (name === 'FTE') {
-                      return [value.toFixed(2), 'FTE']
+                    if (label === 'FTE') {
+                      return [numericValue.toFixed(2), 'FTE']
                     }
-                    return [value, name]
+                    return [numericValue, label]
                   }}
                 />
                 <Legend />
@@ -606,7 +608,7 @@ export default function AirtecMonitorPage() {
                 <YAxis tickFormatter={(value) => `€${(value / 1000).toFixed(0)}k`} />
                 <Tooltip
                   labelFormatter={(value) => formatDate(value as string)}
-                  formatter={(value: number, name: string) => [formatCurrency(value), name]}
+                  formatter={(value: any, name: any) => [formatCurrency(Number(value ?? 0)), String(name ?? '')]}
                 />
                 <Line type="monotone" dataKey="revenue" stroke="#f59e0b" strokeWidth={3} name="Omzet" dot={{ fill: '#f59e0b', r: 3 }} />
                 <Line type="monotone" dataKey="materialCost" stroke="#f97316" strokeWidth={3} name="Materiaalkost" dot={{ fill: '#f97316', r: 3 }} />
@@ -638,7 +640,7 @@ export default function AirtecMonitorPage() {
                 <YAxis />
                 <Tooltip
                   labelFormatter={(value) => formatDate(value as string)}
-                  formatter={(value: number) => [`${value.toFixed(2)} items/FTE`, 'Productiviteit']}
+                  formatter={(value: any) => [`${Number(value ?? 0).toFixed(2)} items/FTE`, 'Productiviteit']}
                 />
                 <Line type="monotone" dataKey="itemsPerFte" stroke="#8b5cf6" strokeWidth={3} name="Items/FTE" dot={false} />
               </ComposedChart>
@@ -669,11 +671,13 @@ export default function AirtecMonitorPage() {
                 <YAxis />
                 <Tooltip
                   labelFormatter={(value) => formatDate(value as string)}
-                  formatter={(value: number, name: string) => {
-                    if (name === 'FTE') {
-                      return [value.toFixed(2), 'FTE']
+                  formatter={(value: any, name: any) => {
+                    const numericValue = Number(value ?? 0)
+                    const label = String(name ?? '')
+                    if (label === 'FTE') {
+                      return [numericValue.toFixed(2), 'FTE']
                     }
-                    return [value, name]
+                    return [numericValue, label]
                   }}
                 />
                 <Legend />

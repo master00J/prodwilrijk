@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { requireSiteAccess } from '@/lib/api/with-auth'
+import { normalizeSite } from '@/lib/sites'
 import { checkAndMarkOrderFinished } from '@/lib/production-order/check-finished'
 import { syncPlanningAfterTimeLogStop } from '@/lib/production-planning/status-sync'
 
@@ -32,6 +34,10 @@ export async function POST(
         { status: 404 }
       )
     }
+
+    const site = normalizeSite(log.site)
+    const siteAccessError = requireSiteAccess(request, site)
+    if (siteAccessError) return siteAccessError
 
     if (log.end_time) {
       return NextResponse.json({
@@ -66,7 +72,6 @@ export async function POST(
     }
 
     const orderNumber = log.production_order_number
-    const site = log.site || 'Wilrijk'
     if (orderNumber) {
       void checkAndMarkOrderFinished(orderNumber, site)
     }

@@ -1442,12 +1442,12 @@ function VerbruiksanalyseView({
                 <XAxis type="number" tick={{ fontSize: 11 }} />
                 <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fontWeight: 600 }} width={52} />
                 <Tooltip
-                  formatter={(val: number, name: string) => [
-                    name === 'total' ? `${val} stuks` : `${val}/dag`,
-                    name === 'total' ? 'Totaal' : 'Gem/dag',
+                  formatter={(val: any, name: any) => [
+                    String(name ?? '') === 'total' ? `${Number(val ?? 0)} stuks` : `${Number(val ?? 0)}/dag`,
+                    String(name ?? '') === 'total' ? 'Totaal' : 'Gem/dag',
                   ]}
                 />
-                <Bar dataKey="total" radius={[0, 4, 4, 0]} onClick={(d) => onSelectKist(d.name === selectedKist ? null : d.name)}>
+                <Bar dataKey="total" radius={[0, 4, 4, 0]} onClick={(d) => onSelectKist(d.name === selectedKist ? null : d.name ?? null)}>
                   {chartData.map((entry, i) => (
                     <Cell
                       key={entry.name}
@@ -1522,7 +1522,10 @@ function VerbruiksanalyseView({
                       <BarChart data={selectedStat.monthly} margin={{ left: -20, right: 4, top: 4, bottom: 0 }}>
                         <XAxis dataKey="month" tick={{ fontSize: 9 }} tickFormatter={(v: string) => v.slice(5)} />
                         <YAxis tick={{ fontSize: 9 }} />
-                        <Tooltip formatter={(v: number) => [`${v} stuks`, 'Verbruik']} labelFormatter={(l: string) => l} />
+                        <Tooltip
+                          formatter={(v: any) => [`${Number(v ?? 0)} stuks`, 'Verbruik']}
+                          labelFormatter={(l) => String(l ?? '')}
+                        />
                         <Bar dataKey="count" fill="#8b5cf6" radius={[2, 2, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>

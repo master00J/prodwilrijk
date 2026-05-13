@@ -14,32 +14,38 @@ const ALLOWED_ORIGINS = [
 ].filter(Boolean) as string[]
 
 const PUBLIC_API_ROUTES = [
-  '/api/auth/login',
-  '/api/auth/signup',
-  '/api/auth/session',
-  '/api/auth/create-user-role',
   '/api/tv-slides/production-status',
   '/api/tv-slides/packing-stats',
   '/api/tv-slides/transport-planning',
   '/api/tv-slides/priorities',
   '/api/tv-slides/weather',
   '/api/tv-slides/dagplanning',
-  '/api/packed-items-airtec/send-daily-report',
-  '/api/grote-inpak/pils-mail-import',
-  '/api/grote-inpak/packed-mail-import',
-  '/api/grote-inpak/kist-mail-import',
-  '/api/grote-inpak/forecast-mail-import',
   // Publiek leesbare vertaaltabel (oud ↔ nieuw BC item nr).
   // Bevat geen gevoelige data; handig voor lokale scripts/BC36-filters.
   '/api/bc-mappings',
 ]
 
 function isPublicRoute(pathname: string, method: string): boolean {
+  if (pathname === '/api/auth/login' && method === 'POST') return true
+  if (pathname === '/api/auth/signup' && method === 'POST') return true
+  if (pathname === '/api/auth/session' && (method === 'POST' || method === 'DELETE')) return true
   if (pathname.startsWith('/api/tv-screens') && method === 'GET') return true
   if (pathname.includes('/heartbeat') && pathname.startsWith('/api/tv-screens') && method === 'POST') return true
-  if (PUBLIC_API_ROUTES.some(route => pathname.startsWith(route))) return true
-  // /api/tv-slides exact match (GET) or with query params, but NOT /api/tv-slides/upload-image
-  if (pathname === '/api/tv-slides') return true
+  if (pathname === '/api/tv-slides' && method === 'GET') return true
+  if (
+    method === 'GET' &&
+    PUBLIC_API_ROUTES.some(route => pathname === route || pathname.startsWith(`${route}/`))
+  ) return true
+  if (
+    (method === 'GET' || method === 'POST') &&
+    (
+      pathname === '/api/packed-items-airtec/send-daily-report' ||
+      pathname.startsWith('/api/grote-inpak/pils-mail-import') ||
+      pathname.startsWith('/api/grote-inpak/packed-mail-import') ||
+      pathname.startsWith('/api/grote-inpak/kist-mail-import') ||
+      pathname.startsWith('/api/grote-inpak/forecast-mail-import')
+    )
+  ) return true
   return false
 }
 
@@ -75,7 +81,7 @@ function getRateLimitConfig(pathname: string): RateLimitConfig {
 }
 
 function addCorsHeaders(response: NextResponse, origin: string | null): NextResponse {
-  const isAllowed = !origin || ALLOWED_ORIGINS.some(o => origin.startsWith(o))
+  const isAllowed = !origin || ALLOWED_ORIGINS.includes(origin)
 
   if (origin && isAllowed) {
     response.headers.set('Access-Control-Allow-Origin', origin)
@@ -132,7 +138,12 @@ export async function middleware(req: NextRequest) {
 
     // Public routes: allow without auth, still apply rate limiting
     if (isPublic) {
-      const pubResponse = NextResponse.next()
+      const requestHeaders = new Headers(req.headers)
+      requestHeaders.delete('x-user-id')
+      requestHeaders.delete('x-user-email')
+      requestHeaders.delete('x-user-role')
+      requestHeaders.delete('x-user-sites')
+      const pubResponse = NextResponse.next({ request: { headers: requestHeaders } })
       pubResponse.headers.set('X-RateLimit-Remaining', String(rateResult.remaining))
       return addCorsHeaders(pubResponse, origin)
     }
@@ -200,13 +211,17 @@ export async function middleware(req: NextRequest) {
     }
 
     // Inject user info into request headers for route handlers
-    const response = NextResponse.next()
-    response.headers.set('x-user-id', data.user.id)
-    response.headers.set('x-user-email', data.user.email || '')
-    response.headers.set('x-user-role', userStatus.role)
+    const requestHeaders = new Headers(req.headers)
+    requestHeaders.set('x-user-id', data.user.id)
+    requestHeaders.set('x-user-email', data.user.email || '')
+    requestHeaders.set('x-user-role', userStatus.role)
     if (userStatus.allowedSites) {
-      response.headers.set('x-user-sites', userStatus.allowedSites.join(','))
+      requestHeaders.set('x-user-sites', userStatus.allowedSites.join(','))
+    } else {
+      requestHeaders.delete('x-user-sites')
     }
+
+    const response = NextResponse.next({ request: { headers: requestHeaders } })
     response.headers.set('X-RateLimit-Remaining', String(rateResult.remaining))
 
     return addCorsHeaders(response, origin)

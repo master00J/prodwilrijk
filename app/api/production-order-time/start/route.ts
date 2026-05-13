@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { markPlanningInProgressForTimeLog } from '@/lib/production-planning/status-sync'
 import { employeeHasSite, normalizeSite } from '@/lib/sites'
+import { requireSiteAccess } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,6 +11,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { employeeIds, orderNumber, itemNumber, step } = body
     const site = normalizeSite(body.site)
+    const siteAccessError = requireSiteAccess(request, site)
+    if (siteAccessError) return siteAccessError
 
     if (!Array.isArray(employeeIds) || employeeIds.length === 0) {
       return NextResponse.json(

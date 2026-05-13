@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { calculateWorkedSeconds } from '@/lib/utils/time'
 import { normalizeSite } from '@/lib/sites'
+import { requireSiteAccess } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -24,6 +25,8 @@ export async function GET(request: NextRequest) {
   try {
     const q = (request.nextUrl.searchParams.get('q') || '').trim().toLowerCase()
     const site = normalizeSite(request.nextUrl.searchParams.get('site'))
+    const siteAccessError = requireSiteAccess(request, site)
+    if (siteAccessError) return siteAccessError
 
     let orderQuery = supabaseAdmin
       .from('production_orders')

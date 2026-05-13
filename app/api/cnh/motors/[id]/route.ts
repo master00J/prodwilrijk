@@ -7,10 +7,10 @@ export const revalidate = 0
 // PUT /api/cnh/motors/[id] - Update a motor
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = params.id
+    const id = (await params).id
     const body = await request.json()
     const { motor_nr, location, shipping_note, state, bodem_low, bodem_high, load_reference, container_number, truck_plate } = body
 
@@ -79,10 +79,10 @@ export async function PUT(
 // DELETE /api/cnh/motors/[id] - Delete a motor
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = params.id
+    const id = (await params).id
     if (!id) {
       return NextResponse.json(
         { error: 'id is required' },

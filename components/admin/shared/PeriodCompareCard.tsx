@@ -308,9 +308,9 @@ export default function PeriodCompareCard({
                       <XAxis dataKey="metric" tick={{ fontSize: 12 }} />
                       <YAxis tick={{ fontSize: 11 }} />
                       <Tooltip
-                        formatter={(v: number, name: string) => [
-                          v.toLocaleString('nl-NL'),
-                          name === 'A' ? 'Periode A' : 'Periode B',
+                        formatter={(v: any, name: any) => [
+                          Number(v ?? 0).toLocaleString('nl-NL'),
+                          String(name ?? '') === 'A' ? 'Periode A' : 'Periode B',
                         ]}
                         labelFormatter={(label) => String(label)}
                       />

@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { requireSiteAccess } from '@/lib/api/with-auth'
+import { DEFAULT_SITE, normalizeSite } from '@/lib/sites'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 const VALID_SHIFTS = new Set(['dag', 'vroeg', 'laat', 'nacht'])
 const VALID_STATUSES = new Set(['planned', 'released', 'in_progress', 'done', 'cancelled'])
-const DEFAULT_SITE = 'Wilrijk'
 
 function todayInput(): string {
   return new Date().toISOString().slice(0, 10)
@@ -52,7 +53,9 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const dateFrom = searchParams.get('date_from') || searchParams.get('date') || todayInput()
     const dateTo = searchParams.get('date_to') || dateFrom
-    const site = searchParams.get('site') || DEFAULT_SITE
+    const site = normalizeSite(searchParams.get('site'))
+    const siteAccessError = requireSiteAccess(request, site)
+    if (siteAccessError) return siteAccessError
 
     let query = supabaseAdmin
       .from('production_planning_items')
@@ -97,7 +100,9 @@ export async function POST(request: NextRequest) {
     const shift = VALID_SHIFTS.has(body.shift) ? body.shift : 'dag'
     const status = VALID_STATUSES.has(body.status) ? body.status : 'planned'
     const lineId = body.production_order_line_id ? Number(body.production_order_line_id) : null
-    const site = String(body.site || DEFAULT_SITE).trim() || DEFAULT_SITE
+    const site = normalizeSite(body.site)
+    const siteAccessError = requireSiteAccess(request, site)
+    if (siteAccessError) return siteAccessError
 
     let lineData: any = null
     let orderData: any = null
@@ -112,10 +117,16 @@ export async function POST(request: NextRequest) {
       if (line?.production_order_id) {
         const { data: order, error: orderError } = await supabaseAdmin
           .from('production_orders')
-          .select('id, order_number, sales_order_number')
+          .select('id, order_number, sales_order_number, site')
           .eq('id', line.production_order_id)
           .maybeSingle()
         if (orderError) throw orderError
+        if (order?.site && normalizeSite(order.site) !== site) {
+          return NextResponse.json(
+            { error: 'Orderlijn hoort niet bij deze vestiging' },
+            { status: 400 }
+          )
+        }
         orderData = order
       }
     }
@@ -168,9 +179,26 @@ export async function PATCH(request: NextRequest) {
     const id = Number(body.id)
     if (!id) return NextResponse.json({ error: 'id is verplicht' }, { status: 400 })
 
+    const { data: existing, error: existingError } = await supabaseAdmin
+      .from('production_planning_items')
+      .select('site')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (existingError) throw existingError
+    if (!existing) return NextResponse.json({ error: 'Planning item niet gevonden' }, { status: 404 })
+
+    const existingSite = normalizeSite(existing.site)
+    const existingSiteAccessError = requireSiteAccess(request, existingSite)
+    if (existingSiteAccessError) return existingSiteAccessError
+
+    const targetSite = body.site !== undefined ? normalizeSite(body.site) : existingSite
+    const targetSiteAccessError = requireSiteAccess(request, targetSite)
+    if (targetSiteAccessError) return targetSiteAccessError
+
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
     if (body.planned_date !== undefined) updates.planned_date = String(body.planned_date).slice(0, 10)
-    if (body.site !== undefined) updates.site = String(body.site || DEFAULT_SITE).trim() || DEFAULT_SITE
+    if (body.site !== undefined) updates.site = targetSite
     if (body.shift !== undefined && VALID_SHIFTS.has(body.shift)) updates.shift = body.shift
     if (body.production_step !== undefined) updates.production_step = String(body.production_step).trim()
     if (body.machine_id !== undefined) updates.machine_id = body.machine_id ? Number(body.machine_id) : null
@@ -204,6 +232,18 @@ export async function DELETE(request: NextRequest) {
   try {
     const id = Number(request.nextUrl.searchParams.get('id'))
     if (!id) return NextResponse.json({ error: 'id is verplicht' }, { status: 400 })
+
+    const { data: existing, error: existingError } = await supabaseAdmin
+      .from('production_planning_items')
+      .select('site')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (existingError) throw existingError
+    if (!existing) return NextResponse.json({ error: 'Planning item niet gevonden' }, { status: 404 })
+
+    const siteAccessError = requireSiteAccess(request, normalizeSite(existing.site))
+    if (siteAccessError) return siteAccessError
 
     const { error } = await supabaseAdmin
       .from('production_planning_items')

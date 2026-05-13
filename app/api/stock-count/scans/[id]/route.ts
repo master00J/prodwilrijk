@@ -6,9 +6,9 @@ export const dynamic = 'force-dynamic'
 // PATCH /api/stock-count/scans/:id — bewerk scan (item, pallet, qty, note)
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const scanId = Number(params.id)
+  const scanId = Number((await params).id)
   if (!Number.isFinite(scanId)) {
     return NextResponse.json({ error: 'Ongeldige id' }, { status: 400 })
   }
@@ -55,9 +55,9 @@ export async function PATCH(
 // DELETE /api/stock-count/scans/:id
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const scanId = Number(params.id)
+  const scanId = Number((await params).id)
   if (!Number.isFinite(scanId)) {
     return NextResponse.json({ error: 'Ongeldige id' }, { status: 400 })
   }

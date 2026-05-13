@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { calculateWorkedSeconds } from '@/lib/utils/time'
 import { normalizeSite } from '@/lib/sites'
+import { requireSiteAccess } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -9,6 +10,8 @@ export const revalidate = 0
 export async function GET(request: NextRequest) {
   try {
     const site = normalizeSite(request.nextUrl.searchParams.get('site'))
+    const siteAccessError = requireSiteAccess(request, site)
+    if (siteAccessError) return siteAccessError
 
     const { data: timeLogs, error: logsError } = await supabaseAdmin
       .from('time_logs')

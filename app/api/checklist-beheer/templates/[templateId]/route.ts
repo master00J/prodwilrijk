@@ -5,10 +5,10 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { templateId: string } }
+  { params }: { params: Promise<{ templateId: string }> }
 ) {
   try {
-    const templateId = Number(params.templateId)
+    const templateId = Number((await params).templateId)
     if (!Number.isFinite(templateId)) {
       return NextResponse.json({ error: 'Invalid template ID' }, { status: 400 })
     }
@@ -44,10 +44,10 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { templateId: string } }
+  { params }: { params: Promise<{ templateId: string }> }
 ) {
   try {
-    const templateId = Number(params.templateId)
+    const templateId = Number((await params).templateId)
     if (!Number.isFinite(templateId)) {
       return NextResponse.json({ error: 'Invalid template ID' }, { status: 400 })
     }
@@ -118,10 +118,10 @@ export async function PUT(
 
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: { templateId: string } }
+  { params }: { params: Promise<{ templateId: string }> }
 ) {
   try {
-    const templateId = Number(params.templateId)
+    const templateId = Number((await params).templateId)
     if (!Number.isFinite(templateId)) {
       return NextResponse.json({ error: 'Invalid template ID' }, { status: 400 })
     }

@@ -21,9 +21,9 @@ interface ScanBody {
 // GET /api/stock-count/sessions/:id/scans — lijst
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const sessionId = Number(params.id)
+  const sessionId = Number((await params).id)
   if (!Number.isFinite(sessionId)) {
     return NextResponse.json({ error: 'Ongeldige id' }, { status: 400 })
   }
@@ -39,9 +39,9 @@ export async function GET(
 // POST /api/stock-count/sessions/:id/scans — voeg een scan toe met duplicaatcheck
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const sessionId = Number(params.id)
+  const sessionId = Number((await params).id)
   if (!Number.isFinite(sessionId)) {
     return NextResponse.json({ error: 'Ongeldige id' }, { status: 400 })
   }

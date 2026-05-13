@@ -1,18 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { getUserFromRequest } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    // Get user ID from query parameter
-    const searchParams = request.nextUrl.searchParams
-    const userId = searchParams.get('userId')
+    const user = getUserFromRequest(request)
+    if (!user) {
+      return NextResponse.json({ error: 'Niet ingelogd' }, { status: 401 })
+    }
 
-    if (!userId) {
+    const searchParams = request.nextUrl.searchParams
+    const requestedUserId = searchParams.get('userId')
+    const userId = requestedUserId || user.id
+
+    if (requestedUserId && requestedUserId !== user.id && user.role !== 'admin') {
       return NextResponse.json(
-        { error: 'User ID is required' },
-        { status: 400 }
+        { error: 'Geen toegang tot deze gebruiker' },
+        { status: 403 }
       )
     }
 

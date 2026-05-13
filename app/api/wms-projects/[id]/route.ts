@@ -4,9 +4,9 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const projectId = Number(params.id)
+    const projectId = Number((await params).id)
     if (!Number.isFinite(projectId)) {
       return NextResponse.json({ error: 'Invalid project id' }, { status: 400 })
     }

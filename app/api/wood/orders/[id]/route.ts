@@ -7,10 +7,10 @@ export const revalidate = 0
 // PUT - Update a specific field of an order
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id)
+    const id = parseInt((await params).id)
     const body = await request.json()
     const { field, value } = body
 

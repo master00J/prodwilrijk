@@ -34,6 +34,22 @@ export function canAccessSite(user: AuthenticatedUser, site: string): boolean {
   return user.allowedSites.includes(site)
 }
 
+export function requireSiteAccess(request: NextRequest, site: string): NextResponse | null {
+  const user = getUserFromRequest(request)
+  if (!user) {
+    return NextResponse.json({ error: 'Niet ingelogd' }, { status: 401 })
+  }
+
+  if (!canAccessSite(user, site)) {
+    return NextResponse.json(
+      { error: `Geen toegang tot vestiging ${site}` },
+      { status: 403 }
+    )
+  }
+
+  return null
+}
+
 type RouteHandler = (request: NextRequest, context?: any) => Promise<NextResponse>
 type AuthenticatedHandler = (request: NextRequest, user: AuthenticatedUser, context?: any) => Promise<NextResponse>
 

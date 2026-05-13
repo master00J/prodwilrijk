@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { normalizeSite } from '@/lib/sites'
+import { withAdmin } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,7 +33,7 @@ export async function GET() {
   }
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withAdmin(async (request: NextRequest) => {
   try {
     const { slug, name, site: siteInput, screen_group, active } = await request.json()
     const site = normalizeSite(siteInput)
@@ -70,9 +71,9 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-}
+})
 
-export async function PUT(request: NextRequest) {
+export const PUT = withAdmin(async (request: NextRequest) => {
   try {
     const { id, slug, name, site, screen_group, active } = await request.json()
     if (!id) return NextResponse.json({ error: 'ID ontbreekt' }, { status: 400 })
@@ -99,9 +100,9 @@ export async function PUT(request: NextRequest) {
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-}
+})
 
-export async function DELETE(request: NextRequest) {
+export const DELETE = withAdmin(async (request: NextRequest) => {
   try {
     const { id } = await request.json()
     if (!id) return NextResponse.json({ error: 'ID ontbreekt' }, { status: 400 })
@@ -116,4 +117,4 @@ export async function DELETE(request: NextRequest) {
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-}
+})

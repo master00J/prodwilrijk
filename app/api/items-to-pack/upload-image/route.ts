@@ -1,7 +1,24 @@
-﻿import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
+
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
+const MAX_IMAGES_PER_UPLOAD = 10
+const ALLOWED_ITEM_TYPES = new Set([
+  'items_to_pack',
+  'items_to_pack_airtec',
+  'returned_items',
+  'wms_project',
+  'wms_package',
+  'wms_project_line',
+])
+const ALLOWED_IMAGE_TYPES: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,9 +34,33 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const itemIdNumber = Number(itemId)
+    const itemTypeValue = itemType.toString()
+
+    if (!Number.isInteger(itemIdNumber) || itemIdNumber <= 0) {
+      return NextResponse.json(
+        { error: 'Invalid item ID' },
+        { status: 400 }
+      )
+    }
+
+    if (!ALLOWED_ITEM_TYPES.has(itemTypeValue)) {
+      return NextResponse.json(
+        { error: 'Invalid item type' },
+        { status: 400 }
+      )
+    }
+
     if (images.length === 0) {
       return NextResponse.json(
         { error: 'No images provided' },
+        { status: 400 }
+      )
+    }
+
+    if (images.length > MAX_IMAGES_PER_UPLOAD) {
+      return NextResponse.json(
+        { error: `Maximaal ${MAX_IMAGES_PER_UPLOAD} afbeeldingen per upload` },
         { status: 400 }
       )
     }
@@ -28,14 +69,28 @@ export async function POST(request: NextRequest) {
 
     // Upload each image to Supabase Storage
     for (const image of images) {
+      const fileExt = ALLOWED_IMAGE_TYPES[image.type]
+      if (!fileExt) {
+        return NextResponse.json(
+          { error: 'Ongeldig afbeeldingsformaat' },
+          { status: 400 }
+        )
+      }
+
+      if (image.size > MAX_IMAGE_SIZE_BYTES) {
+        return NextResponse.json(
+          { error: 'Afbeelding te groot (max 5MB)' },
+          { status: 400 }
+        )
+      }
+
       const arrayBuffer = await image.arrayBuffer()
       const buffer = Buffer.from(arrayBuffer)
       
       // Generate unique filename
       const timestamp = Date.now()
       const randomStr = Math.random().toString(36).substring(2, 15)
-      const fileExt = image.name.split('.').pop() || 'jpg'
-      const fileName = `${itemType}/${itemId}/${timestamp}_${randomStr}.${fileExt}`
+      const fileName = `${itemTypeValue}/${itemIdNumber}/${timestamp}_${randomStr}.${fileExt}`
 
       // Upload to Supabase Storage
       const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
@@ -62,8 +117,8 @@ export async function POST(request: NextRequest) {
         await supabaseAdmin
           .from('item_images')
           .insert({
-            item_id: parseInt(itemId.toString()),
-            item_type: itemType.toString(),
+            item_id: itemIdNumber,
+            item_type: itemTypeValue,
             image_url: urlData.publicUrl,
           })
       }

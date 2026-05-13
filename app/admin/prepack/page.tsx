@@ -1117,10 +1117,12 @@ export default function PrepackMonitorPage() {
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip
                   contentStyle={{ borderRadius: 8, fontSize: 12 }}
-                  formatter={(value: number, name: string) => {
-                    if (name === 'Manuren') return [`${value.toFixed(2)} uur`, name]
-                    if (name === 'FTE') return [value.toFixed(2), name]
-                    return [value, name]
+                  formatter={(value: any, name: any) => {
+                    const numericValue = Number(value ?? 0)
+                    const label = String(name ?? '')
+                    if (label === 'Manuren') return [`${numericValue.toFixed(2)} uur`, label]
+                    if (label === 'FTE') return [numericValue.toFixed(2), label]
+                    return [numericValue, label]
                   }}
                 />
                 <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
@@ -1175,7 +1177,7 @@ export default function PrepackMonitorPage() {
                 <YAxis tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
                 <Tooltip
                   contentStyle={{ borderRadius: 8, fontSize: 12 }}
-                  formatter={(value: number, name: string) => [formatCurrency(value), name]}
+                  formatter={(value: any, name: any) => [formatCurrency(Number(value ?? 0)), String(name ?? '')]}
                 />
                 <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
                 <Area type="monotone" dataKey="revenue" stroke="#f59e0b" fill="url(#gradRevenue)" strokeWidth={2.5} name="Omzet" dot={false} />
@@ -1224,7 +1226,7 @@ export default function PrepackMonitorPage() {
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip
                   contentStyle={{ borderRadius: 8, fontSize: 12 }}
-                  formatter={(value: number) => [`${value.toFixed(2)} items/FTE`, 'Productiviteit']}
+                  formatter={(value: any) => [`${Number(value ?? 0).toFixed(2)} items/FTE`, 'Productiviteit']}
                 />
                 <Area type="monotone" dataKey="itemsPerFte" stroke="#8b5cf6" fill="url(#gradProd)" strokeWidth={2.5} name="Items/FTE" dot={false} />
               </ComposedChart>
@@ -1252,9 +1254,11 @@ export default function PrepackMonitorPage() {
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip
                   contentStyle={{ borderRadius: 8, fontSize: 12 }}
-                  formatter={(value: number, name: string) => {
-                    if (name === 'FTE') return [value.toFixed(2), name]
-                    return [value, name]
+                  formatter={(value: any, name: any) => {
+                    const numericValue = Number(value ?? 0)
+                    const label = String(name ?? '')
+                    if (label === 'FTE') return [numericValue.toFixed(2), label]
+                    return [numericValue, label]
                   }}
                 />
                 <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
@@ -1290,10 +1294,12 @@ export default function PrepackMonitorPage() {
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip
                     contentStyle={{ borderRadius: 8, fontSize: 12 }}
-                    formatter={(value: number, name: string) => {
-                      if (name === 'Manuren') return [`${value.toFixed(1)} u`, name]
-                      if (name === 'Items/FTE') return [value.toFixed(2), name]
-                      return [value, name]
+                    formatter={(value: any, name: any) => {
+                      const numericValue = Number(value ?? 0)
+                      const label = String(name ?? '')
+                      if (label === 'Manuren') return [`${numericValue.toFixed(1)} u`, label]
+                      if (label === 'Items/FTE') return [numericValue.toFixed(2), label]
+                      return [numericValue, label]
                     }}
                   />
                   <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />

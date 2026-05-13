@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { normalizeSite } from '@/lib/sites'
+import { requireSiteAccess } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,6 +12,8 @@ export async function GET(request: NextRequest) {
     const finished = searchParams.get('finished') === 'true'
     const q = (searchParams.get('q') || '').trim().toLowerCase()
     const site = normalizeSite(searchParams.get('site'))
+    const siteAccessError = requireSiteAccess(request, site)
+    if (siteAccessError) return siteAccessError
 
     let query = supabaseAdmin
       .from('production_orders')

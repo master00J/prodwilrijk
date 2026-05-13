@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { normalizeSite } from '@/lib/sites'
+import { withAdmin } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,7 +14,7 @@ const chunkArray = <T,>(items: T[], size: number): T[][] => {
 }
 
 /** Upload production order XML data for the time-registration flow. Only these orders appear on /production-order-time. */
-export async function POST(request: NextRequest) {
+export const POST = withAdmin(async (request: NextRequest) => {
   try {
     const body = await request.json()
     const { order, lines } = body
@@ -136,4 +137,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

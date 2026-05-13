@@ -4,9 +4,9 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const locationId = Number(params.id)
+    const locationId = Number((await params).id)
     if (!Number.isFinite(locationId)) {
       return NextResponse.json({ error: 'Invalid location id' }, { status: 400 })
     }
@@ -40,9 +40,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   }
 }
 
-export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const locationId = Number(params.id)
+    const locationId = Number((await params).id)
     if (!Number.isFinite(locationId)) {
       return NextResponse.json({ error: 'Invalid location id' }, { status: 400 })
     }

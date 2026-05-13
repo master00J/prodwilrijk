@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { callOpenAIVision, isLabelProvider, type LabelProvider } from '@/lib/labels/openai-vision'
+import { isErrorResponse, scanLabelSchema, validateBody } from '@/lib/api/validation'
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
 
@@ -158,7 +159,11 @@ async function extractLabelWithClaude(base64Image: string, mediaType: string): P
     throw new Error('Claude returned no valid JSON')
   }
 
-  return postProcessPrepack(JSON.parse(jsonMatch[0]))
+  try {
+    return postProcessPrepack(JSON.parse(jsonMatch[0]))
+  } catch {
+    throw new Error('Claude returned invalid JSON')
+  }
 }
 
 async function extractLabelWithOpenAI(base64Image: string, mediaType: string): Promise<LabelData> {
@@ -197,7 +202,8 @@ function detectLabelType(label: LabelData): 'prepack' | 'powertools' | 'd_nummer
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json()
+    const body = await validateBody(request, scanLabelSchema)
+    if (isErrorResponse(body)) return body
     const { image, mediaType, provider: providerRaw } = body
 
     if (!image || !mediaType) {

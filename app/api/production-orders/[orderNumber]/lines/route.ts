@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { normalizeSite } from '@/lib/sites'
+import { requireSiteAccess } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,6 +16,8 @@ export async function GET(
       return NextResponse.json({ error: 'Ordernummer ontbreekt' }, { status: 400 })
     }
     const site = normalizeSite(request.nextUrl.searchParams.get('site'))
+    const siteAccessError = requireSiteAccess(request, site)
+    if (siteAccessError) return siteAccessError
 
     const { data: order, error: orderError } = await supabaseAdmin
       .from('production_orders')

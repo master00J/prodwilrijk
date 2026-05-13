@@ -4,9 +4,9 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export async function PATCH(request: NextRequest, { params }: { params: { lineId: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ lineId: string }> }) {
   try {
-    const lineId = Number(params.lineId)
+    const lineId = Number((await params).lineId)
     if (!Number.isFinite(lineId)) {
       return NextResponse.json({ error: 'Invalid line id' }, { status: 400 })
     }

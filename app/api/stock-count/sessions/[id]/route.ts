@@ -6,9 +6,9 @@ export const dynamic = 'force-dynamic'
 // GET /api/stock-count/sessions/:id — session + scans
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const sessionId = Number(params.id)
+  const sessionId = Number((await params).id)
   if (!Number.isFinite(sessionId)) {
     return NextResponse.json({ error: 'Ongeldige id' }, { status: 400 })
   }
@@ -34,9 +34,9 @@ export async function GET(
 // PATCH /api/stock-count/sessions/:id — sluit (of hernoem) sessie
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const sessionId = Number(params.id)
+  const sessionId = Number((await params).id)
   if (!Number.isFinite(sessionId)) {
     return NextResponse.json({ error: 'Ongeldige id' }, { status: 400 })
   }

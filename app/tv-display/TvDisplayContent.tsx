@@ -713,10 +713,12 @@ function PackingStatsSlide({
               <Tooltip
                 contentStyle={{ backgroundColor: '#002b20', border: '1px solid #00664d', borderRadius: 8, color: '#fff', fontSize: 13 }}
                 labelStyle={{ color: TV_MUTED, fontWeight: 600 }}
-                formatter={(value: number, name: string) => {
-                  if (name.includes('uren')) return [`${Number(value).toFixed(1)} u`, name]
-                  if (name.includes('Score')) return [`${Number(value).toLocaleString('nl-NL', { maximumFractionDigits: 1 })} pt`, name]
-                  return [Number(value).toLocaleString('nl-NL') + ' stuks', name]
+                formatter={(value: any, name: any) => {
+                  const numericValue = Number(value ?? 0)
+                  const label = String(name ?? '')
+                  if (label.includes('uren')) return [`${numericValue.toFixed(1)} u`, label]
+                  if (label.includes('Score')) return [`${numericValue.toLocaleString('nl-NL', { maximumFractionDigits: 1 })} pt`, label]
+                  return [numericValue.toLocaleString('nl-NL') + ' stuks', label]
                 }}
               />
               <Legend verticalAlign="top" height={28} wrapperStyle={{ fontSize: 12, paddingBottom: 4 }} iconType="circle" iconSize={8} />

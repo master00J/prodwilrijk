@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { withAdmin } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -60,10 +61,11 @@ export async function GET(
   }
 }
 
-export async function PUT(
+export const PUT = withAdmin(async (
   request: NextRequest,
+  _user,
   { params }: { params: Promise<{ slug: string }> }
-) {
+) => {
   try {
     const { slug } = await params
     const { slideIds } = await request.json()
@@ -105,4 +107,4 @@ export async function PUT(
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-}
+})

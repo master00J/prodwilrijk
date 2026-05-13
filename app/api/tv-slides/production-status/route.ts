@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { normalizeSite } from '@/lib/sites'
+import { withAdmin } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export async function PUT(request: NextRequest) {
+export const PUT = withAdmin(async (request: NextRequest) => {
   try {
     const body = await request.json()
     const { order_number, line_id, tv_priority } = body
@@ -52,7 +53,7 @@ export async function PUT(request: NextRequest) {
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-}
+})
 
 export async function GET(request: NextRequest) {
   try {

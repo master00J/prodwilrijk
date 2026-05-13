@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 import { logApiError } from '@/lib/api/log-error'
 import { KNOWN_WOOD_TYPE_PREFIXES } from '@/lib/wood/houtsoort-codes'
 import { normalizeSite } from '@/lib/sites'
+import { requireSiteAccess } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,6 +51,8 @@ export async function GET(request: NextRequest) {
   try {
     const orderNumber = request.nextUrl.searchParams.get('order_number')
     const site = normalizeSite(request.nextUrl.searchParams.get('site'))
+    const siteAccessError = requireSiteAccess(request, site)
+    if (siteAccessError) return siteAccessError
 
     let orderQuery = supabaseAdmin
       .from('production_orders')

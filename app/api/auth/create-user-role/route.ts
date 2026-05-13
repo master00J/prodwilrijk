@@ -1,19 +1,20 @@
-﻿import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { withAdmin } from '@/lib/api/with-auth'
+import { isErrorResponse, validateBody } from '@/lib/api/validation'
+import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json()
-    const { userId, role = 'user' } = body
+const createUserRoleSchema = z.object({
+  userId: z.string().uuid('Ongeldig user ID'),
+})
 
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'User ID is required' },
-        { status: 400 }
-      )
-    }
+export const POST = withAdmin(async (request: NextRequest) => {
+  try {
+    const body = await validateBody(request, createUserRoleSchema)
+    if (isErrorResponse(body)) return body
+    const { userId } = body
 
     // Check if role already exists
     const { data: existing } = await supabaseAdmin
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
       .from('user_roles')
       .insert({
         user_id: userId,
-        role: role,
+        role: 'user',
         verified: false, // New accounts need manual verification
       })
       .select()
@@ -56,5 +57,5 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 

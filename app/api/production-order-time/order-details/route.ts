@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { normalizeSite } from '@/lib/sites'
+import { requireSiteAccess } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,6 +27,9 @@ const getUnitCost = (component: any, price: number, unit: string) => {
 export async function GET(request: NextRequest) {
   try {
     const site = normalizeSite(request.nextUrl.searchParams.get('site'))
+    const siteAccessError = requireSiteAccess(request, site)
+    if (siteAccessError) return siteAccessError
+
     const { data: orders, error: orderError } = await supabaseAdmin
       .from('production_orders')
       .select('id, order_number, sales_order_number, uploaded_at, site')

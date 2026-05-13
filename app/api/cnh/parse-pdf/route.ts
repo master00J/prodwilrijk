@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import pdfParse from 'pdf-parse'
+import { PDFParse } from 'pdf-parse'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -33,8 +33,13 @@ export async function POST(request: NextRequest) {
     // Parse PDF
     let text = ''
     try {
-      const pdfData = await pdfParse(buffer)
-      text = pdfData.text
+      const parser = new PDFParse({ data: buffer })
+      try {
+        const pdfData = await parser.getText()
+        text = pdfData.text
+      } finally {
+        await parser.destroy()
+      }
     } catch (parseError: any) {
       // PDF might be scanned (image-based)
       return NextResponse.json(

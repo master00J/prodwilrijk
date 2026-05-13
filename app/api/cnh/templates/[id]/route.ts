@@ -7,10 +7,10 @@ export const revalidate = 0
 // PUT /api/cnh/templates/[id] - Update template
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = params.id
+    const id = (await params).id
     const body = await request.json()
     const {
       name,
@@ -72,10 +72,10 @@ export async function PUT(
 // DELETE /api/cnh/templates/[id] - Delete template
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = params.id
+    const id = (await params).id
 
     if (!id) {
       return NextResponse.json(

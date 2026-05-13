@@ -7,10 +7,10 @@ export const revalidate = 0
 // PUT /api/cnh/sessions/[id] - Update a session
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = params.id
+    const id = (await params).id
     const body = await request.json()
 
     if (!id) {
