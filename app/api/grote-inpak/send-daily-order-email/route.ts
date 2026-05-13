@@ -80,7 +80,7 @@ async function fetchProductieByLocatie(locatie: 'Genk' | 'Wilrijk'): Promise<Map
       const erpNorm = s.erp_code ? normalizeErpCode(s.erp_code) : null
       if (!kist && erpNorm) kist = erpToKist.get(erpNorm) || null
       if (kist) {
-        if (kist.startsWith('V')) kist = 'K' + kist.substring(1)
+        kist = normalizeKistnummer(kist)
         map.set(kist, (map.get(kist) || 0) + prod)
       }
     })
@@ -96,7 +96,7 @@ async function fetchKKistenForExcel(
     const specialeFilter = SPECIALE_C_KISTEN.map(ct => `case_type.eq.${ct}`).join(',')
     const { data: cases } = await supabaseAdmin
       .from('grote_inpak_cases')
-      .select('case_label, case_type, arrival_date, erp_code, stapel, dagen_te_laat')
+      .select('case_label, case_type, arrival_date, erp_code, stapel, dagen_te_laat, bc_fp_item_no')
       .or(`case_type.ilike.K%,case_type.ilike.V%,${specialeFilter}`)
       .eq('productielocatie', location)
 
@@ -123,7 +123,7 @@ async function fetchKKistenForExcel(
     ;(erpLink || []).forEach((e: any) => {
       if (e.erp_code && e.kistnummer) {
         const erpNorm = normalizeErpCode(e.erp_code)
-        if (erpNorm) erpToKist.set(erpNorm, String(e.kistnummer).toUpperCase().trim())
+        if (erpNorm) erpToKist.set(erpNorm, normalizeKistnummer(String(e.kistnummer).trim()))
       }
     })
     const erpToCaseType = new Map<string, string>()
@@ -184,12 +184,34 @@ async function fetchKKistenForExcel(
       if (f.case_label) forecastByLabel.set(f.case_label, f.arrival_date || '')
     })
 
-    const grouped = new Map<string, { case_type: string; total_count: number; oldest_arrival: string | null; has_overdue: boolean; notOnForecast: number; forecastDates: string[] }>()
+    const grouped = new Map<
+      string,
+      {
+        case_type: string
+        total_count: number
+        oldest_arrival: string | null
+        has_overdue: boolean
+        notOnForecast: number
+        forecastDates: string[]
+        fpCodes: Set<string>
+      }
+    >()
     ;(cases || []).forEach((c: any) => {
       const kt = norm(c.case_type || '')
-      if (!grouped.has(kt)) grouped.set(kt, { case_type: kt, total_count: 0, oldest_arrival: null, has_overdue: false, notOnForecast: 0, forecastDates: [] })
+      if (!grouped.has(kt))
+        grouped.set(kt, {
+          case_type: kt,
+          total_count: 0,
+          oldest_arrival: null,
+          has_overdue: false,
+          notOnForecast: 0,
+          forecastDates: [],
+          fpCodes: new Set(),
+        })
       const g = grouped.get(kt)!
       g.total_count++
+      const fpRaw = (c.bc_fp_item_no || c.erp_code || '').trim()
+      if (fpRaw) g.fpCodes.add(String(fpRaw).toUpperCase())
       if (c.arrival_date) {
         const d = String(c.arrival_date).split('T')[0]
         if (!g.oldest_arrival || d < g.oldest_arrival) g.oldest_arrival = d
@@ -259,6 +281,7 @@ async function fetchKKistenForExcel(
 
       kRows.push({
         case_type: caseType,
+        bc_fp: [...data.fpCodes].sort().join(', ') || '—',
         productielocatie: location,
         max_voorraad: data.total_count,
         stock_in_rek: stockWB,
@@ -426,7 +449,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Stock server-side ophalen (zelfde logica als kanban-besteladvies) i.p.v. client-data
-    const normCase = (x: string) => { const t = String(x || '').trim().toUpperCase(); return t.startsWith('V') ? 'K' + t.substring(1) : t }
+    const normCase = (x: string) => normalizeKistnummer(String(x || '').trim())
     const caseTypes = [...new Set(locRows.map((r: any) => normCase(r.case_type || '')))] as string[]
     const stockByKist = await fetchStockForCKisten(caseTypes)
     const locRowsWithStock = locRows.map((r: any) => {

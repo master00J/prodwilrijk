@@ -49,10 +49,22 @@ export function normalizeErpCode(erpCode: string | null | undefined): string | n
 /**
  * Normaliseert kistnummer/case_type consistent voor matching en lookups.
  * Verwijdert spaties zodat "C 352" en "C352" hetzelfde worden.
+ *
+ * Kisten met nummer **1–99** (V027, K027, V01, …): één sleutel **`V` + dezelfde cijfers**
+ * — PILS gebruikt vaak V, ERP/stock vaak K; die horen bij elkaar en mogen niet als K027
+ * in exports terechtkomen.
+ * Vanaf **100**: oude gedrag — `V154` → `K154` voor matching met ERP.
  */
 export function normalizeKistnummer(value: string | null | undefined): string {
   const normalized = String(value || '').trim().replace(/\s+/g, '').toUpperCase()
   if (!normalized) return ''
+  const m = normalized.match(/^([KV])(\d+)$/)
+  if (m) {
+    const num = parseInt(m[2], 10)
+    if (num >= 1 && num <= 99) return `V${m[2]}`
+    if (m[1] === 'V') return `K${m[2]}`
+    return normalized
+  }
   if (normalized.startsWith('V')) return `K${normalized.slice(1)}`
   return normalized
 }

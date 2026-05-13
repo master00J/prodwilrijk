@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { normalizeKistnummer } from '@/lib/utils/erp-code-normalizer'
 
 function countBusinessDays(start: Date, end: Date): number {
   let count = 0
@@ -67,7 +68,7 @@ export async function GET(request: NextRequest) {
 
     packedData?.forEach((row: any) => {
       let caseType = row.case_type || caseTypeMap.get(row.case_label) || ''
-      caseType = String(caseType || '').trim().toUpperCase().replace(/^[V]/, 'K')
+      caseType = normalizeKistnummer(String(caseType || '').trim())
       if (!caseType) return
       if (onlyC && !caseType.startsWith('C')) return
       statsMap.set(caseType, (statsMap.get(caseType) || 0) + 1)
@@ -86,7 +87,7 @@ export async function GET(request: NextRequest) {
     const erpMap = new Map<string, { stapel: number; productielocatie: string }>()
     erpData?.forEach((row: any) => {
       if (!row.kistnummer) return
-      const key = String(row.kistnummer).trim().toUpperCase().replace(/^[V]/, 'K')
+      const key = normalizeKistnummer(String(row.kistnummer).trim())
       erpMap.set(key, {
         stapel: Math.max(1, Number(row.stapel) || 1),
         productielocatie: row.productielocatie || 'Wilrijk',

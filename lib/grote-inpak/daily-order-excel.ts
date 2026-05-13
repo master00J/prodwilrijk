@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs'
 import type { EndingDateEntry } from './production-orders'
+import { normalizeKistnummer } from '@/lib/utils/erp-code-normalizer'
 
 const thin = { style: 'thin' as const }
 const border = { top: thin, left: thin, bottom: thin, right: thin }
@@ -22,7 +23,7 @@ function mapStatusForDisplay(status: string, inProductie: number): string {
 }
 
 const headersC = ['Prioriteit', 'Kisttype', 'Prod.locatie', 'Max voorraad', 'Stock in rek', 'Stock Genk', 'Stock Wilrijk', 'Prod. Genk', 'Prod. Wilrijk', 'Prod. Willebroek', 'In transfer', 'Op PILS', 'Productie nog aanmaken', 'Effectief te produceren', 'Einddatum productie', 'Status']
-const headersK = ['Prioriteit', 'Kisttype', 'Prod.locatie', 'Stock Genk', 'Stock Wilrijk', 'Stock Willebroek', 'Prod. Genk', 'Prod. Wilrijk', 'Prod. Willebroek', 'In transfer', 'Op PILS', 'Productie nog aanmaken', 'Effectief te produceren', 'Einddatum productie', 'Status', 'Info']
+const headersK = ['Prioriteit', 'Kisttype', 'BC FP', 'Prod.locatie', 'Stock Genk', 'Stock Wilrijk', 'Stock Willebroek', 'Prod. Genk', 'Prod. Wilrijk', 'Prod. Willebroek', 'In transfer', 'Op PILS', 'Productie nog aanmaken', 'Effectief te produceren', 'Einddatum productie', 'Status', 'Info']
 
 // Bereken hoeveel stuks er nog een nieuwe productie-order voor aangemaakt moet worden
 // = effectieve behoefte − wat al op een productie-order staat (in productie totaal)
@@ -48,7 +49,7 @@ function addDailyOrderSheet(
   const ws = wb.addWorksheet(sheetTitle)
   ws.columns = variant === 'k'
     ? [
-        { width: 10 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 13 }, { width: 14 },
+        { width: 10 }, { width: 12 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 13 }, { width: 14 },
         { width: 11 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 10 }, { width: 22 }, { width: 22 }, { width: 24 }, { width: 16 }, { width: 28 },
       ]
     : [
@@ -76,7 +77,7 @@ function addDailyOrderSheet(
 
   const lookupEinddatum = (caseType: string | null | undefined): string => {
     if (!endingDatesByKist || !caseType) return ''
-    const key = String(caseType).toUpperCase().trim()
+    const key = normalizeKistnummer(String(caseType).toUpperCase().trim())
     const list = endingDatesByKist.get(key)
     if (!list || list.length === 0) return ''
     // Formaat per regel: "DD/MM/YYYY (qty)" — qty = openstaand aantal op de PO-lijn(en)
@@ -110,7 +111,10 @@ function addDailyOrderSheet(
     const nogAanmaken = computeNogAanmaken(row, effectief)
     const einddatum = lookupEinddatum(row.case_type)
     return [
-      row.priority_rank ?? i + 1, row.case_type, row.productielocatie || '—',
+      row.priority_rank ?? i + 1,
+      row.case_type,
+      row.bc_fp || '—',
+      row.productielocatie || '—',
       row.stock_genk ?? 0, row.stock_wilrijk ?? 0, row.stock_willebroek ?? row.stock_in_rek ?? 0,
       row.in_productie_genk ?? 0, row.in_productie_wilrijk ?? 0, row.in_productie_willebroek ?? 0,
       row.in_transfer ?? 0, row.op_pils ?? 0, nogAanmaken, effectief, einddatum, status,
@@ -122,17 +126,17 @@ function addDailyOrderSheet(
     const fgColor = i % 2 === 0 ? 'FFFFFFFF' : 'FFF2F2F2'
     const values = variant === 'k' ? rowValuesK(row, i) : rowValuesC(row, i)
     const dRow = ws.addRow(values)
-    const colStockGenk = variant === 'k' ? 4 : 6
-    const colStockWilrijk = variant === 'k' ? 5 : 7
-    const colStockWillebroek = variant === 'k' ? 6 : 0
-    const colNogAanmaken = variant === 'k' ? 12 : 13
-    const colEffectief = variant === 'k' ? 13 : 14
-    const colEinddatum = variant === 'k' ? 14 : 15
-    const colStatus = variant === 'k' ? 15 : 16
+    const colStockGenk = variant === 'k' ? 5 : 6
+    const colStockWilrijk = variant === 'k' ? 6 : 7
+    const colStockWillebroek = variant === 'k' ? 7 : 0
+    const colNogAanmaken = variant === 'k' ? 13 : 13
+    const colEffectief = variant === 'k' ? 14 : 14
+    const colEinddatum = variant === 'k' ? 15 : 15
+    const colStatus = variant === 'k' ? 16 : 16
 
-    const colInfo = variant === 'k' ? 16 : 0
+    const colInfo = variant === 'k' ? 17 : 0
     dRow.eachCell((cell, col) => {
-      const isTextCol = col === 2 || col === 3 || col === colInfo
+      const isTextCol = variant === 'k' ? col === 2 || col === 3 || col === 4 || col === colInfo : col === 2 || col === 3 || col === colInfo
       cell.style = {
         fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: fgColor } },
         border,
@@ -171,7 +175,7 @@ function addDailyOrderSheet(
         }
       }
       if (col === colEinddatum && endingDatesByKist) {
-        const key = row.case_type ? String(row.case_type).toUpperCase().trim() : ''
+        const key = row.case_type ? normalizeKistnummer(String(row.case_type).toUpperCase().trim()) : ''
         const list = key ? endingDatesByKist.get(key) : undefined
         if (list && list.length > 0) {
           const now = Date.now()

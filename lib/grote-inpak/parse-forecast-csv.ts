@@ -1,6 +1,8 @@
 /**
  * Forecast CSV (FORESCO / FOR#### / standaard-kolomindeling) — zelfde logica als handmatige upload.
  */
+import { normalizeKistnummer } from '@/lib/utils/erp-code-normalizer'
+
 export function parseForecastCSV(csvText: string, fileName: string): any[] {
   const firstLine = csvText.split('\n')[0]
   let delimiter = ','
@@ -68,7 +70,7 @@ export function parseForecastCSV(csvText: string, fileName: string): any[] {
 
     const arrivalDate = parseDate(dateRaw)
     if (!caseLabel || !caseType || !arrivalDate) return
-    const normalizedType = String(caseType || '').trim().replace(/^\s*[Vv]/, 'K')
+    const normalizedType = normalizeKistnummer(String(caseType || '').trim())
 
     output.push({
       case_label: String(caseLabel || '').trim(),

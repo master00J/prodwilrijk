@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { logApiError } from '@/lib/api/log-error'
 import { shopOrderMatchKey } from '@/lib/grote-inpak/pils-serial'
+import { normalizeKistnummer } from '@/lib/utils/erp-code-normalizer'
 
 export const dynamic = 'force-dynamic'
 
@@ -181,22 +182,13 @@ async function buildOverview(
   // Create ERP map - match on kistnummer (which matches case_type from PILS)
   const erpMapByKistnummer = new Map()
   erpData.forEach((item: any) => {
-    if (item.kistnummer) {
-      // Normalize kistnummer for matching (remove slashes, spaces, convert to uppercase)
-      const normalizedKistnummer = String(item.kistnummer).trim().toUpperCase().replace(/\s+/g, '').replace(/\//g, '')
-      // Store both the normalized version and the original item
-      erpMapByKistnummer.set(normalizedKistnummer, item)
-      
-      // Also store individual parts if kistnummer contains "/" (e.g., "K107/K109")
-      if (String(item.kistnummer).includes('/')) {
-        const parts = String(item.kistnummer).split('/').map(p => p.trim().toUpperCase())
-        parts.forEach(part => {
-          if (part && !erpMapByKistnummer.has(part)) {
-            erpMapByKistnummer.set(part, item)
-          }
-        })
-      }
-    }
+    if (!item.kistnummer) return
+    const raw = String(item.kistnummer).trim().toUpperCase().replace(/\s+/g, '')
+    const segments = raw.includes('/') ? raw.split('/').map((p) => p.trim()).filter(Boolean) : [raw]
+    segments.forEach((seg) => {
+      const nk = normalizeKistnummer(seg)
+      if (nk) erpMapByKistnummer.set(nk, item)
+    })
   })
   
   // Also create a map by item_number as fallback (for backwards compatibility)
@@ -226,10 +218,9 @@ async function buildOverview(
     // Also map by kistnummer if the ERP code is actually a kistnummer (starts with K or C)
     if (item.erp_code) {
       const code = String(item.erp_code).trim().toUpperCase()
-      // If code starts with K or C, it's a kistnummer
-      if (code.match(/^[KC]/)) {
-        // Normalize: V-kisten -> K-kisten
-        const kistnummer = code.startsWith('V') ? 'K' + code.substring(1) : code
+      // Als code een kistnummer is (K/C/V), ook onder genormaliseerde sleutel mappen
+      if (code.match(/^[KCV]/)) {
+        const kistnummer = normalizeKistnummer(code)
         if (!stockMapByKistnummer.has(kistnummer)) {
           stockMapByKistnummer.set(kistnummer, [])
         }
@@ -241,12 +232,7 @@ async function buildOverview(
   // Helper function to check if kist is in Willebroek
   // Check via: 1) kistnummer (direct match), 2) ERP code (via ERP LINK)
   const isKistInWillebroek = (caseType: string, erpCode: string | null): boolean => {
-    // Normalize case_type for matching
-    let normalizedCaseType = String(caseType || '').trim().toUpperCase()
-    // V-kisten -> K-kisten for matching
-    if (normalizedCaseType.startsWith('V')) {
-      normalizedCaseType = 'K' + normalizedCaseType.substring(1)
-    }
+    const normalizedCaseType = normalizeKistnummer(String(caseType || '').trim().replace(/\s+/g, ''))
     
     // Method 1: Direct match via kistnummer
     const kistStockEntries = stockMapByKistnummer.get(normalizedCaseType) || []
@@ -289,14 +275,7 @@ async function buildOverview(
     }
     
     // Match ERP data by case_type (from PILS) with kistnummer (from ERP LINK)
-    // Normalize case_type for matching (remove spaces, slashes, convert to uppercase)
-    let normalizedCaseType = String(caseType || '').trim().toUpperCase().replace(/\s+/g, '')
-    
-    // If case_type starts with "V" (vaszak), replace with "K" for matching
-    // V154 should match K154 in ERP LINK (same kist, but with vaszak)
-    if (normalizedCaseType.startsWith('V')) {
-      normalizedCaseType = 'K' + normalizedCaseType.substring(1)
-    }
+    const normalizedCaseType = normalizeKistnummer(String(caseType || '').trim().replace(/\s+/g, ''))
     
     let erpInfo = erpMapByKistnummer.get(normalizedCaseType) || {}
     
@@ -374,10 +353,7 @@ async function buildOverview(
     let stockLocationFromStock: string | null = null
     if (inWillebroek) {
       // Find stock entry in Willebroek
-      let normalizedCaseType = String(caseType || '').trim().toUpperCase()
-      if (normalizedCaseType.startsWith('V')) {
-        normalizedCaseType = 'K' + normalizedCaseType.substring(1)
-      }
+      let normalizedCaseType = normalizeKistnummer(String(caseType || '').trim().replace(/\s+/g, ''))
       
       const kistStockEntries = stockMapByKistnummer.get(normalizedCaseType) || []
       const wbEntry = kistStockEntries.find((entry: any) => {

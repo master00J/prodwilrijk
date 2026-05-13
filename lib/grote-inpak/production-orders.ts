@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { normalizeKistnummer } from '@/lib/utils/erp-code-normalizer'
 
 export interface EndingDateEntry {
   /** ISO-datum van de productie-order (ending_date). */
@@ -38,7 +39,7 @@ export async function getEndingDatesByKist(): Promise<Map<string, EndingDateEntr
     // samen getoond worden als één regel.
     const agg = new Map<string, Map<string, number>>()
     for (const row of data || []) {
-      const key = String(row.kistnummer || '').toUpperCase().trim()
+      const key = normalizeKistnummer(String(row.kistnummer || '').toUpperCase().trim())
       if (!key || !row.ending_date) continue
       const iso = String(row.ending_date)
       const qty = Number(row.remaining_quantity ?? 0)
