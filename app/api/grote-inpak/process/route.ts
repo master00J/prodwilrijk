@@ -121,6 +121,55 @@ async function processGroteInpakPilsData({
   }
 }
 
+/** Alleen cellen die als YYYYMMDD bruikbaar zijn (geen 00000000). */
+function normalizePilsYyyymmddCell(raw: unknown): string {
+  const v = String(raw ?? '')
+    .trim()
+    .replace(/\s+/g, '')
+  if (!/^\d{8}$/.test(v) || v === '00000000') return ''
+  return v
+}
+
+/**
+ * Aankomst-/referentiedatum uit PILS-rij (incl. Oilfree-export met SQL-kolomnamen).
+ * Voorkeur: Atlas-datumkolom (AT_FORES04 … 3,8)), daarna PCC/RDT-datum, daarna kolommen H/I, dan eerste geldige 8-cijferige cel.
+ */
+function resolvePilsArrivalRaw(pilsRow: Record<string, unknown>): string {
+  const named =
+    (pilsRow['Arrival Date'] ||
+      pilsRow['arrival_date'] ||
+      pilsRow['Date'] ||
+      pilsRow['ARRIVAL DATE'] ||
+      pilsRow['ARRIVAL_DATE'] ||
+      pilsRow['Datum'] ||
+      pilsRow['datum'] ||
+      pilsRow['DATUM'] ||
+      '') as string
+  if (String(named).trim()) return String(named).trim()
+
+  let atlas = ''
+  let pccrdt = ''
+  for (const key of Object.keys(pilsRow)) {
+    const v = normalizePilsYyyymmddCell(pilsRow[key])
+    if (!v) continue
+    if (/FORES04/i.test(key) && /3\s*,\s*8\s*\)/i.test(key)) atlas = v
+    else if (/pccrdt/i.test(key)) pccrdt = v
+  }
+  if (atlas) return atlas
+  if (pccrdt) return pccrdt
+
+  const colI = normalizePilsYyyymmddCell(pilsRow['I'])
+  if (colI) return colI
+  const colH = normalizePilsYyyymmddCell(pilsRow['H'])
+  if (colH) return colH
+
+  for (const key of Object.keys(pilsRow).sort()) {
+    const v = normalizePilsYyyymmddCell(pilsRow[key])
+    if (v) return v
+  }
+  return ''
+}
+
 async function buildOverview(
   pilsData: any[],
   erpData: any[],
@@ -222,37 +271,16 @@ async function buildOverview(
 
   // Process PILS data
   const overview: any[] = []
-  
+
   for (const pilsRow of pilsData) {
     // Extract case_label - adjust based on actual PILS structure
     // Try multiple possible column name variations
     const caseLabel = pilsRow['Case Label'] || pilsRow['case_label'] || pilsRow['Case'] || pilsRow['CASE LABEL'] || pilsRow['CASE_LABEL'] || ''
     const caseType = pilsRow['Case Type'] || pilsRow['case_type'] || pilsRow['Type'] || pilsRow['CASE TYPE'] || pilsRow['CASE_TYPE'] || ''
     const itemNumber = pilsRow['Item Number'] || pilsRow['item_number'] || pilsRow['Item'] || pilsRow['ITEM NUMBER'] || pilsRow['ITEM_NUMBER'] || ''
-    
-    // Extract arrival_date - try all possible variations and format it properly
-    // First try known column names
-    let arrivalDate = pilsRow['Arrival Date'] || pilsRow['arrival_date'] || pilsRow['Date'] || 
-                      pilsRow['ARRIVAL DATE'] || pilsRow['ARRIVAL_DATE'] || pilsRow['Datum'] || 
-                      pilsRow['datum'] || pilsRow['DATUM'] || ''
-    
-    // If not found, try column I (9th column, index 8) - common location for dates in PILS files
-    if (!arrivalDate && pilsRow['I']) {
-      arrivalDate = pilsRow['I']
-    }
-    
-    // If still not found, try to find any column with YYYYMMDD format (8 digits like 20251218)
-    if (!arrivalDate) {
-      for (const key in pilsRow) {
-        const value = String(pilsRow[key] || '').trim()
-        // Check if it's an 8-digit number (YYYYMMDD format)
-        if (/^\d{8}$/.test(value)) {
-          arrivalDate = value
-          break
-        }
-      }
-    }
-    
+
+    let arrivalDate = resolvePilsArrivalRaw(pilsRow as Record<string, unknown>)
+
     // Format date if it exists - handle various date formats (including YYYYMMDD)
     if (arrivalDate) {
       arrivalDate = formatDate(arrivalDate)
