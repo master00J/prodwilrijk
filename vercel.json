@@ -15,6 +15,10 @@
     {
       "path": "/api/grote-inpak/packed-mail-import",
       "schedule": "2 14 * * *"
+    },
+    {
+      "path": "/api/grote-inpak/kist-mail-import",
+      "schedule": "*/10 * * * *"
     }
   ]
 }

@@ -1,0 +1,420 @@
+import { createHash } from 'crypto'
+import tls, { type TLSSocket } from 'tls'
+import { NextRequest, NextResponse } from 'next/server'
+import { parseKistTePakkenBody, parseKistTePakkenSubject } from '@/lib/grote-inpak/parse-kist-te-pakken-mail'
+import { shopOrderMatchKey } from '@/lib/grote-inpak/pils-serial'
+import { supabaseAdmin } from '@/lib/supabase/server'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+interface ImportedKistMail {
+  case_label: string
+  case_type: string
+  item_number: string
+  serial_number: string | null
+  arrival_date: string | null
+}
+
+class SimpleImapClient {
+  private socket: TLSSocket
+  private buffer = ''
+  private tagCounter = 0
+
+  private constructor(socket: TLSSocket) {
+    this.socket = socket
+    this.socket.setEncoding('utf8')
+    this.socket.on('data', chunk => {
+      this.buffer += chunk
+    })
+  }
+
+  static async connect(host: string, port: number): Promise<SimpleImapClient> {
+    const socket = tls.connect({ host, port, servername: host })
+    const client = new SimpleImapClient(socket)
+
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('IMAP connect timeout')), 15000)
+      socket.once('error', reject)
+      const check = () => {
+        if (/^\* OK/im.test(client.buffer)) {
+          clearTimeout(timeout)
+          socket.off('data', check)
+          socket.off('error', reject)
+          resolve()
+        }
+      }
+      socket.on('data', check)
+      check()
+    })
+
+    return client
+  }
+
+  async command(command: string, label = command, timeoutMs = 30000): Promise<string> {
+    const tag = `A${++this.tagCounter}`
+    const start = this.buffer.length
+
+    this.socket.write(`${tag} ${command}\r\n`)
+
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        cleanup()
+        reject(new Error(`IMAP command timeout: ${label}`))
+      }, timeoutMs)
+
+      const cleanup = () => {
+        clearTimeout(timeout)
+        this.socket.off('data', check)
+        this.socket.off('error', onError)
+      }
+      const onError = (error: Error) => {
+        cleanup()
+        reject(error)
+      }
+      const check = () => {
+        const output = this.buffer.slice(start)
+        const done = output.match(new RegExp(`(?:^|\\r?\\n)${tag} (OK|NO|BAD)`, 'i'))
+        if (!done) return
+
+        cleanup()
+        if (done[1].toUpperCase() !== 'OK') {
+          reject(new Error(`IMAP command failed: ${label}`))
+          return
+        }
+        resolve(output)
+      }
+
+      this.socket.on('data', check)
+      this.socket.once('error', onError)
+      check()
+    })
+  }
+
+  async close() {
+    try {
+      await this.command('LOGOUT')
+    } catch {
+      this.socket.end()
+    }
+  }
+}
+
+function imapQuote(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+}
+
+function extractSearchIds(response: string): string[] {
+  const match = response.match(/^\* SEARCH\s*(.*)$/im)
+  if (!match) return []
+  return match[1].trim().split(/\s+/).filter(Boolean)
+}
+
+function extractFetchBody(response: string): string | null {
+  const match = response.match(/\{(\d+)\}\r\n/)
+  if (!match || match.index == null) return null
+
+  const start = match.index + match[0].length
+  const length = Number(match[1])
+  return response.slice(start, start + length)
+}
+
+function splitHeaderAndBody(raw: string): { headers: Record<string, string>; body: string } {
+  const separator = raw.search(/\r?\n\r?\n/)
+  const headerText = separator >= 0 ? raw.slice(0, separator) : raw
+  const body = separator >= 0 ? raw.slice(separator).replace(/^\r?\n\r?\n/, '') : ''
+  const unfolded = headerText.replace(/\r?\n[ \t]+/g, ' ')
+  const headers: Record<string, string> = {}
+
+  for (const line of unfolded.split(/\r?\n/)) {
+    const colon = line.indexOf(':')
+    if (colon <= 0) continue
+    headers[line.slice(0, colon).trim().toLowerCase()] = line.slice(colon + 1).trim()
+  }
+
+  return { headers, body }
+}
+
+function getHeaderParam(header: string | undefined, name: string): string | null {
+  if (!header) return null
+
+  const encoded = header.match(new RegExp(`${name}\\*=([^;]+)`, 'i'))?.[1]?.trim()
+  if (encoded) {
+    const value = encoded.replace(/^['"]|['"]$/g, '')
+    const parts = value.split("''")
+    try {
+      return decodeURIComponent(parts.length === 2 ? parts[1] : value)
+    } catch {
+      return parts.length === 2 ? parts[1] : value
+    }
+  }
+
+  const plain = header.match(new RegExp(`${name}=("[^"]+"|[^;]+)`, 'i'))?.[1]?.trim()
+  return plain ? plain.replace(/^"|"$/g, '') : null
+}
+
+function getBoundary(contentType: string | undefined): string | null {
+  return getHeaderParam(contentType, 'boundary')
+}
+
+function decodePartBody(body: string, encoding: string | undefined): Buffer {
+  const normalizedEncoding = (encoding || '').toLowerCase()
+  if (normalizedEncoding.includes('base64')) {
+    return Buffer.from(body.replace(/\s/g, ''), 'base64')
+  }
+  if (normalizedEncoding.includes('quoted-printable')) {
+    const decoded = body
+      .replace(/=\r?\n/g, '')
+      .replace(/=([0-9A-F]{2})/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)))
+    return Buffer.from(decoded, 'binary')
+  }
+  return Buffer.from(body, 'utf8')
+}
+
+function bufferToPlainString(buf: Buffer, charsetRaw: string | undefined): string {
+  const c = (charsetRaw || 'utf-8').toLowerCase().replace(/['"]/g, '').split(';')[0].trim()
+  if (c === 'utf-8' || c === 'utf8') return buf.toString('utf8')
+  return buf.toString('latin1')
+}
+
+function collectPlainText(raw: string): string {
+  const chunks: string[] = []
+
+  const visit = (partRaw: string) => {
+    const { headers, body } = splitHeaderAndBody(partRaw)
+    const contentTypeHeader = headers['content-type'] || ''
+    const boundary = getBoundary(contentTypeHeader)
+
+    if (boundary) {
+      const marker = `--${boundary}`
+      for (const segment of body.split(marker).slice(1)) {
+        if (segment.startsWith('--')) continue
+        visit(segment.replace(/^\r?\n/, '').replace(/\r?\n$/, ''))
+      }
+      return
+    }
+
+    if (!/text\/plain/i.test(contentTypeHeader)) return
+
+    const buf = decodePartBody(body, headers['content-transfer-encoding'])
+    const charsetMatch = contentTypeHeader.match(/charset\s*=\s*"?([^";\s]+)/i)
+    chunks.push(bufferToPlainString(buf, charsetMatch?.[1]))
+  }
+
+  visit(raw)
+  return chunks.join('\n\n')
+}
+
+function getMessageDedupeKey(headers: Record<string, string>, raw: string): string {
+  const mid = (headers['message-id'] || '').trim()
+  if (mid) return mid
+  return `no-mid:${createHash('sha256').update(raw.slice(0, 16_000)).digest('hex')}`
+}
+
+function isAuthorized(request: NextRequest): boolean {
+  const secret =
+    process.env.GROTE_INPAK_KIST_MAIL_IMPORT_SECRET ||
+    process.env.GROTE_INPAK_PILS_MAIL_IMPORT_SECRET ||
+    process.env.AIRTEC_MAIL_IMPORT_SECRET ||
+    process.env.CRON_SECRET
+  if (!secret) return false
+
+  const bearer = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
+  const headerSecret = request.headers.get('x-grote-inpak-kist-import-secret')
+  const querySecret = request.nextUrl.searchParams.get('secret')
+
+  return bearer === secret || headerSecret === secret || querySecret === secret
+}
+
+function getBelgiumDate(): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Brussels',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())
+
+  const year = parts.find(part => part.type === 'year')?.value
+  const month = parts.find(part => part.type === 'month')?.value
+  const day = parts.find(part => part.type === 'day')?.value
+  return `${year}-${month}-${day}`
+}
+
+function toImapDate(date: string): string {
+  const [year, month, day] = date.split('-').map(Number)
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  return `${String(day).padStart(2, '0')}-${months[month - 1]}-${year}`
+}
+
+async function isMessageAlreadyProcessed(messageId: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin
+    .from('grote_inpak_kist_mail_processed')
+    .select('message_id')
+    .eq('message_id', messageId)
+    .maybeSingle()
+
+  if (error) throw new Error(error.message)
+  return Boolean(data)
+}
+
+async function recordProcessedMessage(messageId: string, caseLabel: string): Promise<void> {
+  const { error } = await supabaseAdmin.from('grote_inpak_kist_mail_processed').insert({
+    message_id: messageId,
+    case_label: caseLabel,
+  })
+  if (error && error.code !== '23505') throw new Error(error.message)
+}
+
+async function applyKistMailToCase(row: ImportedKistMail): Promise<void> {
+  const now = new Date().toISOString()
+  const hasSerial = Boolean(row.serial_number?.trim())
+
+  const basePatch = {
+    case_type: row.case_type,
+    item_number: row.item_number,
+    arrival_date: row.arrival_date,
+    updated_at: now,
+  }
+
+  /** Alleen zetten als de mail een serienummer bevat; anders bestaande DB-waarden laten staan. */
+  const serialPatch = hasSerial
+    ? {
+        serial_number: row.serial_number!.trim(),
+        pils_shop_order_key: shopOrderMatchKey(row.serial_number),
+      }
+    : {}
+
+  const { data: existing, error: selErr } = await supabaseAdmin
+    .from('grote_inpak_cases')
+    .select('case_label')
+    .eq('case_label', row.case_label)
+    .maybeSingle()
+
+  if (selErr) throw new Error(selErr.message)
+
+  if (existing) {
+    const patch = { ...basePatch, ...serialPatch }
+    const { error } = await supabaseAdmin.from('grote_inpak_cases').update(patch).eq('case_label', row.case_label)
+    if (error) throw new Error(error.message)
+    return
+  }
+
+  const { error } = await supabaseAdmin.from('grote_inpak_cases').insert({
+    case_label: row.case_label,
+    ...basePatch,
+    serial_number: hasSerial ? row.serial_number!.trim() : null,
+    pils_shop_order_key: hasSerial ? shopOrderMatchKey(row.serial_number) : null,
+    in_willebroek: false,
+    dagen_te_laat: 0,
+    dagen_in_willebroek: 0,
+    priority: false,
+  })
+  if (error) throw new Error(error.message)
+}
+
+export async function GET(request: NextRequest) {
+  return runImport(request)
+}
+
+export async function POST(request: NextRequest) {
+  return runImport(request)
+}
+
+async function runImport(request: NextRequest) {
+  if (!isAuthorized(request)) {
+    return NextResponse.json({ error: 'Niet toegestaan' }, { status: 401 })
+  }
+
+  const host = process.env.GROTE_INPAK_PILS_MAIL_HOST || process.env.AIRTEC_MAIL_HOST
+  const port = Number(process.env.GROTE_INPAK_PILS_MAIL_PORT || process.env.AIRTEC_MAIL_PORT || 993)
+  const user = process.env.GROTE_INPAK_PILS_MAIL_USER || process.env.AIRTEC_MAIL_USER
+  const password = process.env.GROTE_INPAK_PILS_MAIL_PASSWORD || process.env.AIRTEC_MAIL_PASSWORD
+  const mailbox = process.env.GROTE_INPAK_PILS_MAILBOX || 'INBOX'
+  const date = request.nextUrl.searchParams.get('date') || getBelgiumDate()
+  const includeSeen = request.nextUrl.searchParams.get('includeSeen') === 'true'
+
+  if (!host || !user || !password) {
+    return NextResponse.json({ error: 'Mail import env vars ontbreken' }, { status: 500 })
+  }
+
+  let client: SimpleImapClient | null = null
+  const imported: ImportedKistMail[] = []
+  const skipped: Array<{ messageId: string; reason: string }> = []
+  const errors: Array<{ messageId: string; error: string }> = []
+
+  try {
+    client = await SimpleImapClient.connect(host, port)
+    await client.command(`LOGIN ${imapQuote(user)} ${imapQuote(password)}`, 'LOGIN', 60000)
+    await client.command(`SELECT ${imapQuote(mailbox)}`, 'SELECT mailbox')
+
+    const searchQuery = `${includeSeen ? '' : 'UNSEEN '}SINCE ${toImapDate(date)}`.trim()
+    const searchResponse = await client.command(`SEARCH ${searchQuery}`)
+    const ids = extractSearchIds(searchResponse)
+
+    for (const id of ids) {
+      const refLabel = `imap-${id}`
+      try {
+        const fetchResponse = await client.command(`FETCH ${id} BODY.PEEK[]`)
+        const rawMessage = extractFetchBody(fetchResponse)
+        if (!rawMessage) {
+          errors.push({ messageId: refLabel, error: 'Mail body niet gevonden' })
+          continue
+        }
+
+        const { headers } = splitHeaderAndBody(rawMessage)
+        const dedupeKey = getMessageDedupeKey(headers, rawMessage)
+
+        if (await isMessageAlreadyProcessed(dedupeKey)) {
+          skipped.push({ messageId: dedupeKey, reason: 'al_verwerkt' })
+          await client.command(`STORE ${id} +FLAGS (\\Seen)`)
+          continue
+        }
+
+        const subject = headers.subject || ''
+        const head = parseKistTePakkenSubject(subject)
+        if (!head) {
+          continue
+        }
+
+        const plain = collectPlainText(rawMessage)
+        const body = parseKistTePakkenBody(plain)
+        if (!body) {
+          errors.push({
+            messageId: dedupeKey,
+            error: 'Kist-mail herkend in onderwerp maar itemnummer niet gevonden in tekst',
+          })
+          await client.command(`STORE ${id} +FLAGS (\\Seen)`)
+          continue
+        }
+
+        const parsed: ImportedKistMail = { ...head, ...body }
+        await applyKistMailToCase(parsed)
+        await recordProcessedMessage(dedupeKey, parsed.case_label)
+        imported.push(parsed)
+        await client.command(`STORE ${id} +FLAGS (\\Seen)`)
+      } catch (error) {
+        errors.push({
+          messageId: refLabel,
+          error: error instanceof Error ? error.message : 'Onbekende fout',
+        })
+      }
+    }
+
+    return NextResponse.json({
+      success: errors.length === 0,
+      date,
+      checkedMessages: ids.length,
+      imported,
+      skipped,
+      errors,
+    })
+  } catch (error) {
+    console.error('Grote Inpak kist-mail import failed:', error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Mail import mislukt' },
+      { status: 500 }
+    )
+  } finally {
+    if (client) await client.close()
+  }
+}
