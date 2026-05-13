@@ -373,7 +373,10 @@ export default function ForecastTab() {
                   </button>
                 )}
               </div>
-              <p className="text-xs text-gray-400 mt-2">Upload alle forecast CSV bestanden tegelijk (FOR1953 en FORESCO)</p>
+              <p className="text-xs text-gray-400 mt-2">
+                Upload alle forecast-CSV’s tegelijk. <strong>FOR####</strong>: kolom A datum, B caselabel, C casetype.
+                <strong> FORESCO</strong>: A datum, E caselabel, F casetype.
+              </p>
             </div>
 
             {lastUploadResult && (

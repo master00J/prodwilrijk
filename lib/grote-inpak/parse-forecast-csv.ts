@@ -1,10 +1,24 @@
 /**
- * Forecast CSV — drie Atlas-varianten:
- * - **FOR####** (FOR1953): `;`-gescheiden; kolom 0 datum (YYYYMMDD), 1 = Case Number, 2 = Case Type; vaak kopregel.
- * - **FORESCO.CSV** (standaard/specials): zelfde scheiding; kolom 0 datum; **label en type in kolom 5 en 6** (index 4–5), bv. `QB52F`, `V361`.
- * - **Bestandsnaam “standaard”**: zelfde kolommen als FORESCO (4–5).
+ * Atlas forecast-CSV — twee kolomindelingen (Excel 1-based ↔ array 0-based):
+ *
+ * **FOR####** (FOR1953, onderwerp FOR1953, …)
+ * - Kolom **A** = datum (YYYYMMDD), **B** = caselabel, **C** = casetype → indices `0, 1, 2`
+ * - Vaak kopregel met o.a. "Case Number" / "Case Type"; scheiding meestal `;`
+ *
+ * **FORESCO** (FORESCO.CSV, specials, … — bestandsnaam begint met `foresco`)
+ * - Kolom **A** = datum, **E** = caselabel, **F** = casetype → indices `0, 4, 5`
+ * - Meestal geen kopregel; bestandsnaam “standaard” gebruikt dezelfde E/F-kolommen.
  */
 import { normalizeKistnummer } from '@/lib/utils/erp-code-normalizer'
+
+/** FORESCO: Excel A/E/F */
+const COL_FORESCO_DATE = 0
+const COL_FORESCO_LABEL = 4
+const COL_FORESCO_TYPE = 5
+
+/** FOR####: Excel A/B/C */
+const COL_FOR_LABEL = 1
+const COL_FOR_TYPE = 2
 
 /** UTF-16 BOM / UTF-8 BOM; anders Latin-1 (behoudt Atlas/OS-400 bytes zoals in IMAP). */
 export function decodeForecastCsvBuffer(buf: Buffer): string {
@@ -82,7 +96,7 @@ export function parseForecastCSV(csvText: string, fileName: string): any[] {
   let stem = nameLower
   while (stem.endsWith('.csv')) stem = stem.slice(0, -4)
   const stemClean = stem.replace(/^[^a-z0-9]+|[^a-z0-9]+$/gi, '')
-  /** FORESCO-atlas (incl. hernoemde varianten zoals FORESCOspecials): kolom 5–6 = label/type. */
+  /** FORESCO-atlas (incl. hernoemde varianten zoals FORESCOspecials): Excel A/E/F. */
   const isForescoCsvName = stemClean.startsWith('foresco')
   /** Atlas FOR-mails: FOR1953.CSV, maar ook afwijkende namen zoals _FOR1953.CSV_.CSV. */
   const isForDigitsFile =
@@ -105,15 +119,15 @@ export function parseForecastCSV(csvText: string, fileName: string): any[] {
 
   const output: any[] = []
   rows.forEach((row) => {
-    const dateRaw = getCol(row, 0)
+    const dateRaw = getCol(row, COL_FORESCO_DATE)
     let caseLabel = ''
     let caseType = ''
     if (isAtlasForLayout && !isForescoStandaard) {
-      caseLabel = getCol(row, 1)
-      caseType = getCol(row, 2)
+      caseLabel = getCol(row, COL_FOR_LABEL)
+      caseType = getCol(row, COL_FOR_TYPE)
     } else {
-      caseLabel = getCol(row, 4)
-      caseType = getCol(row, 5)
+      caseLabel = getCol(row, COL_FORESCO_LABEL)
+      caseType = getCol(row, COL_FORESCO_TYPE)
     }
 
     const arrivalDate = parseDate(dateRaw)
