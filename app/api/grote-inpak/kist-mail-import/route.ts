@@ -177,6 +177,24 @@ function bufferToPlainString(buf: Buffer, charsetRaw: string | undefined): strin
   return buf.toString('latin1')
 }
 
+/** Ruwe HTML → leesbare tekst (alleen voor item/serienummer-patroon in mail zonder text/plain). */
+function htmlToRoughPlain(html: string): string {
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ')
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|tr|h[1-6])\s*>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim()
+}
+
 function collectPlainText(raw: string): string {
   const chunks: string[] = []
 
@@ -194,11 +212,20 @@ function collectPlainText(raw: string): string {
       return
     }
 
-    if (!/text\/plain/i.test(contentTypeHeader)) return
+    if (/text\/plain/i.test(contentTypeHeader)) {
+      const buf = decodePartBody(body, headers['content-transfer-encoding'])
+      const charsetMatch = contentTypeHeader.match(/charset\s*=\s*"?([^";\s]+)/i)
+      chunks.push(bufferToPlainString(buf, charsetMatch?.[1]))
+      return
+    }
 
-    const buf = decodePartBody(body, headers['content-transfer-encoding'])
-    const charsetMatch = contentTypeHeader.match(/charset\s*=\s*"?([^";\s]+)/i)
-    chunks.push(bufferToPlainString(buf, charsetMatch?.[1]))
+    if (/text\/html/i.test(contentTypeHeader)) {
+      const buf = decodePartBody(body, headers['content-transfer-encoding'])
+      const charsetMatch = contentTypeHeader.match(/charset\s*=\s*"?([^";\s]+)/i)
+      const html = bufferToPlainString(buf, charsetMatch?.[1])
+      const plain = htmlToRoughPlain(html)
+      if (plain) chunks.push(plain)
+    }
   }
 
   visit(raw)
@@ -233,6 +260,22 @@ function getBelgiumDate(): string {
     month: '2-digit',
     day: '2-digit',
   }).formatToParts(new Date())
+
+  const year = parts.find(part => part.type === 'year')?.value
+  const month = parts.find(part => part.type === 'month')?.value
+  const day = parts.find(part => part.type === 'day')?.value
+  return `${year}-${month}-${day}`
+}
+
+/** Kalenderdag in Brussel, `daysAgo` terug (0 = vandaag). */
+function getBelgiumDateDaysAgo(daysAgo: number): string {
+  const shifted = new Date(Date.now() - daysAgo * 86400000)
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Brussels',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(shifted)
 
   const year = parts.find(part => part.type === 'year')?.value
   const month = parts.find(part => part.type === 'month')?.value
@@ -390,7 +433,12 @@ async function runImport(request: NextRequest) {
   const user = process.env.GROTE_INPAK_PILS_MAIL_USER || process.env.AIRTEC_MAIL_USER
   const password = process.env.GROTE_INPAK_PILS_MAIL_PASSWORD || process.env.AIRTEC_MAIL_PASSWORD
   const mailbox = process.env.GROTE_INPAK_PILS_MAILBOX || 'INBOX'
-  const date = request.nextUrl.searchParams.get('date') || getBelgiumDate()
+  // Standaard sinds gisteren (Brussel): IMAP SINCE filtert op berichtdatum; die staat soms vóór “nu”,
+  // waardoor “alleen vandaag” een verse mail kan missen. `?sinceDaysAgo=0` = alleen vandaag.
+  const explicitDate = request.nextUrl.searchParams.get('date')
+  const rawSince = Number(request.nextUrl.searchParams.get('sinceDaysAgo'))
+  const sinceDaysAgo = Number.isFinite(rawSince) ? Math.min(14, Math.max(0, rawSince)) : 1
+  const date = explicitDate || getBelgiumDateDaysAgo(sinceDaysAgo)
   // Standaard géén UNSEEN: mailclients markeren berichten snel als gelezen → dan zou de import ze anders overslaan.
   // Dubbele verwerking voorkomen we met grote_inpak_kist_mail_processed (Message-ID).
   // ?unseenOnly=true of ?includeSeen=false → alleen ongelezen (vroegere default).
@@ -478,6 +526,7 @@ async function runImport(request: NextRequest) {
     return NextResponse.json({
       success: errors.length === 0,
       date,
+      sinceDaysAgo: explicitDate ? null : sinceDaysAgo,
       imapSearch: searchQuery,
       unseenOnly: useUnseenOnly,
       checkedMessages: ids.length,

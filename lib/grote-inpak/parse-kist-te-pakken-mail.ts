@@ -12,7 +12,9 @@ export interface ParsedKistTePakkenMail {
   arrival_date: string | null
 }
 
-const SUBJECT_RE = /^Kist\s+(\S+)\s+type\s+(.+?)\s+in\s+te\s+pakken\s*$/i
+/** Onderwerp mag o.a. RE:/FW: (meerdere keren) vooraan hebben. */
+const SUBJECT_RE =
+  /^(?:(?:RE|FW|AW|VS|ANTWOORD)\s*:\s*)*\s*Kist\s+(\S+)\s+type\s+(.+?)\s+in\s+te\s+pakken\s*$/i
 
 export function parseKistTePakkenSubject(subjectRaw: string): { case_label: string; case_type: string } | null {
   const subject = decodeRfc2047Subject(subjectRaw.trim()).replace(/\s+/g, ' ')
@@ -24,7 +26,11 @@ export function parseKistTePakkenSubject(subjectRaw: string): { case_label: stri
 export function parseKistTePakkenBody(plainText: string): Omit<ParsedKistTePakkenMail, 'case_label' | 'case_type'> | null {
   const text = plainText.replace(/\r\n/g, '\n')
 
-  const itemM = text.match(/Item\s*nummer\s*[:]\s*(\S+)/i)
+  const itemM =
+    text.match(/Item\s*nummer\s*[:]\s*(\S+)/i) ||
+    text.match(/Itemnummer\s*[:]\s*(\S+)/i) ||
+    text.match(/Item\s*nr\.?\s*[:]\s*(\S+)/i) ||
+    text.match(/Artikel(?:nummer)?\s*[:]\s*(\S+)/i)
   const serialM = text.match(/Serienummer\s*[:]\s*(\S+)/i)
   const datumM = text.match(/Datum\s*[:]\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i)
 
