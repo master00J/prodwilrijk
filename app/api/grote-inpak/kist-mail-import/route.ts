@@ -119,6 +119,57 @@ function extractFetchBody(response: string): string | null {
   return response.slice(start, start + length)
 }
 
+/** IMAP INTERNALDATE uit FETCH-antwoord (zonder volledige BODY). */
+function extractInternalDateFromFetch(response: string): string | null {
+  const m = response.match(/INTERNALDATE\s+"([^"]+)"/i)
+  return m?.[1]?.trim() || null
+}
+
+function parseImapInternalDateToMs(raw: string): number | null {
+  const normalized = raw.trim().replace(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})/, (_a, d: string, mon: string, y: string) => `${d} ${mon} ${y}`)
+  const t = Date.parse(normalized)
+  return Number.isNaN(t) ? null : t
+}
+
+function parseBrusselsClockHHmm(s: string): { h: number; m: number } | null {
+  const m = s.trim().match(/^(\d{1,2}):(\d{2})$/)
+  if (!m) return null
+  const h = Number(m[1])
+  const min = Number(m[2])
+  if (!Number.isFinite(h) || !Number.isFinite(min) || h < 0 || h > 23 || min < 0 || min > 59) return null
+  return { h, m: min }
+}
+
+/** Kalenderdag + uur in Europe/Brussels voor een UTC-tijdstempel. */
+function brusselsDayAndClockFromMs(ms: number): { dayYmd: string; H: number; M: number } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Brussels',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date(ms))
+  const y = parts.find(p => p.type === 'year')?.value
+  const mo = parts.find(p => p.type === 'month')?.value
+  const d = parts.find(p => p.type === 'day')?.value
+  const H = Number(parts.find(p => p.type === 'hour')?.value)
+  const M = Number(parts.find(p => p.type === 'minute')?.value)
+  return { dayYmd: `${y}-${mo}-${d}`, H, M }
+}
+
+function internalDateMeetsBrusselsNotBefore(
+  internalMs: number,
+  filterDayYmd: string,
+  minH: number,
+  minM: number
+): boolean {
+  const { dayYmd, H, M } = brusselsDayAndClockFromMs(internalMs)
+  if (dayYmd !== filterDayYmd) return false
+  return H > minH || (H === minH && M >= minM)
+}
+
 function splitHeaderAndBody(raw: string): { headers: Record<string, string>; body: string } {
   const separator = raw.search(/\r?\n\r?\n/)
   const headerText = separator >= 0 ? raw.slice(0, separator) : raw
@@ -435,9 +486,14 @@ async function runImport(request: NextRequest) {
   const mailbox = process.env.GROTE_INPAK_PILS_MAILBOX || 'INBOX'
   // Standaard sinds gisteren (Brussel): IMAP SINCE filtert op berichtdatum; die staat soms vóór “nu”,
   // waardoor “alleen vandaag” een verse mail kan missen. `?sinceDaysAgo=0` = alleen vandaag.
-  const explicitDate = request.nextUrl.searchParams.get('date')
+  const rawExplicit = request.nextUrl.searchParams.get('date')
   const rawSince = Number(request.nextUrl.searchParams.get('sinceDaysAgo'))
   const sinceDaysAgo = Number.isFinite(rawSince) ? Math.min(14, Math.max(0, rawSince)) : 1
+  const brusselsClock = parseBrusselsClockHHmm(request.nextUrl.searchParams.get('brusselsNotBefore') || '')
+  const brusselsFilterDayYmd =
+    request.nextUrl.searchParams.get('brusselsFilterDay') || getBelgiumDate()
+  // Alleen `brusselsNotBefore` → SINCE die filterdag (meestal vandaag), zodat één URL volstaat voor catch-up.
+  const explicitDate = rawExplicit || (brusselsClock ? brusselsFilterDayYmd : null)
   const date = explicitDate || getBelgiumDateDaysAgo(sinceDaysAgo)
   // Standaard géén UNSEEN: mailclients markeren berichten snel als gelezen → dan zou de import ze anders overslaan.
   // Dubbele verwerking voorkomen we met grote_inpak_kist_mail_processed (Message-ID).
@@ -465,7 +521,8 @@ async function runImport(request: NextRequest) {
 
     const searchQuery = `${useUnseenOnly ? 'UNSEEN ' : ''}SINCE ${toImapDate(date)}`.trim()
     const searchResponse = await client.command(`SEARCH ${searchQuery}`)
-    const maxScan = Math.min(500, Math.max(20, Number(process.env.GROTE_INPAK_KIST_MAIL_MAX_SCAN || 150)))
+    const maxScanBase = Number(process.env.GROTE_INPAK_KIST_MAIL_MAX_SCAN || (brusselsClock ? 300 : 150))
+    const maxScan = Math.min(500, Math.max(20, maxScanBase))
     const ids = extractSearchIds(searchResponse)
       .map(id => Number(id))
       .filter(n => !Number.isNaN(n))
@@ -476,6 +533,18 @@ async function runImport(request: NextRequest) {
     for (const id of ids) {
       const refLabel = `imap-${id}`
       try {
+        if (brusselsClock) {
+          const intResp = await client.command(`FETCH ${id} (INTERNALDATE)`)
+          const rawInt = extractInternalDateFromFetch(intResp)
+          const internalMs = rawInt ? parseImapInternalDateToMs(rawInt) : null
+          if (
+            internalMs === null ||
+            !internalDateMeetsBrusselsNotBefore(internalMs, brusselsFilterDayYmd, brusselsClock.h, brusselsClock.m)
+          ) {
+            continue
+          }
+        }
+
         const fetchResponse = await client.command(`FETCH ${id} BODY.PEEK[]`)
         const rawMessage = extractFetchBody(fetchResponse)
         if (!rawMessage) {
@@ -526,7 +595,11 @@ async function runImport(request: NextRequest) {
     return NextResponse.json({
       success: errors.length === 0,
       date,
-      sinceDaysAgo: explicitDate ? null : sinceDaysAgo,
+      sinceDaysAgo: (rawExplicit || brusselsClock) ? null : sinceDaysAgo,
+      brusselsNotBefore: brusselsClock
+        ? `${String(brusselsClock.h).padStart(2, '0')}:${String(brusselsClock.m).padStart(2, '0')}`
+        : null,
+      brusselsFilterDay: brusselsClock ? brusselsFilterDayYmd : null,
       imapSearch: searchQuery,
       unseenOnly: useUnseenOnly,
       checkedMessages: ids.length,
