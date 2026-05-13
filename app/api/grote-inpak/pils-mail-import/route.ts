@@ -75,7 +75,7 @@ class SimpleImapClient {
       }
       const check = () => {
         const output = this.buffer.slice(start)
-        const done = output.match(new RegExp(`\\r?\\n${tag} (OK|NO|BAD)`, 'i'))
+        const done = output.match(new RegExp(`(?:^|\\r?\\n)${tag} (OK|NO|BAD)`, 'i'))
         if (!done) return
 
         cleanup()
