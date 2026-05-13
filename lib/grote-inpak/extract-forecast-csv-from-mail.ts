@@ -137,7 +137,10 @@ export function pickForecastCsvForMail(
     if (hit) return hit
   }
   if (/^foresco\.csv$/i.test(subj)) {
-    const hit = attachments.find((a) => forecastAttachmentStem(a.filename) === 'foresco')
+    const hit = attachments.find((a) => {
+      const s = forecastAttachmentStem(a.filename)
+      return s === 'foresco' || s.startsWith('foresco')
+    })
     if (hit) return hit
     const hitLoose = attachments.find(
       (a) => basenameLower(a.filename).includes('foresco') && basenameLower(a.filename).endsWith('.csv')

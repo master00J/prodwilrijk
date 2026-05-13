@@ -51,24 +51,34 @@ export async function applyForecastSave(
 
   let currentForecast: any[] = []
   if (replace) {
-    const { data: currentData, error: currentError } = await supabaseAdmin
-      .from('grote_inpak_forecast')
-      .select('case_label, case_type, arrival_date, source_file')
+    const pageSize = 1000
+    let from = 0
+    while (true) {
+      const { data: currentData, error: currentError } = await supabaseAdmin
+        .from('grote_inpak_forecast')
+        .select('case_label, case_type, arrival_date, source_file')
+        .range(from, from + pageSize - 1)
 
-    if (currentError) throw currentError
-    currentForecast = currentData || []
+      if (currentError) throw currentError
+      const chunk = currentData || []
+      if (chunk.length === 0) break
+      currentForecast.push(...chunk)
+      from += chunk.length
+    }
 
     const { error: deleteError } = await supabaseAdmin.from('grote_inpak_forecast').delete().not('id', 'is', null)
 
     if (deleteError) throw deleteError
   }
 
-  const { data, error } = await supabaseAdmin
-    .from('grote_inpak_forecast')
-    .upsert(deduped, { onConflict: 'case_label', ignoreDuplicates: false })
-    .select()
-
-  if (error) throw error
+  const UPSERT_BATCH = 500
+  for (let i = 0; i < deduped.length; i += UPSERT_BATCH) {
+    const slice = deduped.slice(i, i + UPSERT_BATCH)
+    const { error } = await supabaseAdmin
+      .from('grote_inpak_forecast')
+      .upsert(slice, { onConflict: 'case_label', ignoreDuplicates: false })
+    if (error) throw error
+  }
 
   if (replace) {
     const snapshotId = randomUUID()
@@ -157,12 +167,12 @@ export async function applyForecastSave(
     return {
       ok: true,
       replace: true,
-      data: data || [],
-      count: data?.length || 0,
+      data: deduped,
+      count: deduped.length,
       snapshot_id: snapshotId,
       changes: { added: cntAdded, removed: cntRemoved, date_change: cntDateChange },
     }
   }
 
-  return { ok: true, replace: false, data: data || [], count: data?.length || 0 }
+  return { ok: true, replace: false, data: deduped, count: deduped.length }
 }

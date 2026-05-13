@@ -12,34 +12,45 @@ export async function GET(request: NextRequest) {
     const dateFrom = searchParams.get('date_from')
     const dateTo = searchParams.get('date_to')
 
-    let query = supabaseAdmin
-      .from('grote_inpak_forecast')
-      .select('*')
-      .order('arrival_date', { ascending: true })
+    const pageSize = 1000
+    let from = 0
+    const all: any[] = []
 
-    if (caseLabel) {
-      query = query.eq('case_label', caseLabel)
+    while (true) {
+      let query = supabaseAdmin
+        .from('grote_inpak_forecast')
+        .select('*')
+        .order('arrival_date', { ascending: true })
+
+      if (caseLabel) {
+        query = query.eq('case_label', caseLabel)
+      }
+
+      if (caseType) {
+        query = query.eq('case_type', caseType)
+      }
+
+      if (dateFrom) {
+        query = query.gte('arrival_date', dateFrom)
+      }
+
+      if (dateTo) {
+        query = query.lte('arrival_date', dateTo)
+      }
+
+      const { data, error } = await query.range(from, from + pageSize - 1)
+
+      if (error) {
+        throw error
+      }
+
+      const rows = data || []
+      if (rows.length === 0) break
+      all.push(...rows)
+      from += rows.length
     }
 
-    if (caseType) {
-      query = query.eq('case_type', caseType)
-    }
-
-    if (dateFrom) {
-      query = query.gte('arrival_date', dateFrom)
-    }
-
-    if (dateTo) {
-      query = query.lte('arrival_date', dateTo)
-    }
-
-    const { data, error } = await query
-
-    if (error) {
-      throw error
-    }
-
-    return NextResponse.json({ data: data || [], count: data?.length || 0 })
+    return NextResponse.json({ data: all, count: all.length })
   } catch (error: any) {
     console.error('Error fetching forecast:', error)
     return NextResponse.json(

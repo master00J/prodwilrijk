@@ -82,8 +82,8 @@ export function parseForecastCSV(csvText: string, fileName: string): any[] {
   let stem = nameLower
   while (stem.endsWith('.csv')) stem = stem.slice(0, -4)
   const stemClean = stem.replace(/^[^a-z0-9]+|[^a-z0-9]+$/gi, '')
-  /** FORESCO-atlas: datum kolom 0; case label / type in kolom 5–6 (index 4–5), zelfde als “standaard”-bestandsnaam. */
-  const isForescoCsvName = /^foresco$/i.test(stemClean)
+  /** FORESCO-atlas (incl. hernoemde varianten zoals FORESCOspecials): kolom 5–6 = label/type. */
+  const isForescoCsvName = stemClean.startsWith('foresco')
   /** Atlas FOR-mails: FOR1953.CSV, maar ook afwijkende namen zoals _FOR1953.CSV_.CSV. */
   const isForDigitsFile =
     /^for\d+$/i.test(stemClean) || /\bfor\d{3,}\b/i.test(fileBasename)
