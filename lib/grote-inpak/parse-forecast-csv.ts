@@ -12,7 +12,12 @@ export function decodeForecastCsvBuffer(buf: Buffer): string {
     return buf.slice(2).toString('utf16le').replace(/\0/g, '')
   }
   if (buf.length >= 2 && buf[0] === 0xfe && buf[1] === 0xff) {
-    return buf.slice(2).toString('utf16be').replace(/\0/g, '')
+    const body = Buffer.from(buf.subarray(2))
+    if (body.length >= 2 && body.length % 2 === 0) {
+      body.swap16()
+      return body.toString('utf16le').replace(/\0/g, '')
+    }
+    return body.toString('latin1').replace(/\0/g, '')
   }
   if (buf.length >= 3 && buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) {
     return buf.slice(3).toString('utf8').replace(/\0/g, '')
