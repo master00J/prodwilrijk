@@ -8,95 +8,11 @@ export const dynamic = 'force-dynamic'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { pilsData, erpData, stockData, sourceFile } = body
+    const result = await processGroteInpakPilsData(body)
 
-    if (!pilsData) {
-      return NextResponse.json(
-        { error: 'PILS data is required' },
-        { status: 400 }
-      )
-    }
-
-    // Haal huidige case_labels op vóór verwerking (voor upload-log)
-    const { data: existingRows } = await supabaseAdmin
-      .from('grote_inpak_cases')
-      .select('case_label')
-    const existingLabels = new Set(
-      (existingRows || []).map((r: any) => String(r.case_label || '').trim()).filter(Boolean)
-    )
-
-    // If no ERP data provided, try to load from database
-    let finalErpData = erpData || []
-    if (!finalErpData || finalErpData.length === 0) {
-      try {
-        const { data: dbErpData, error: dbError } = await supabaseAdmin
-          .from('grote_inpak_erp_link')
-          .select('*')
-        
-        if (!dbError && dbErpData) {
-          // Convert database format to expected format
-          finalErpData = dbErpData.map((item: any) => ({
-            kistnummer: item.kistnummer,
-            erp_code: item.erp_code,
-            productielocatie: item.productielocatie,
-            description: item.description,
-            stapel: item.stapel,
-          }))
-        }
-      } catch (err) {
-        console.warn('Could not load ERP LINK from database:', err)
-      }
-    }
-
-    // Process and build overview (ERP is optional)
-    const overview = await buildOverview(pilsData, finalErpData, stockData || [])
-    const transport = await buildTransport(overview)
-
-    // Save to database
-    await saveCasesToDatabase(overview)
-    await saveTransportToDatabase(transport)
-
-    // Remove cases that are no longer present in the latest PILS upload
-    await removeMissingCases(overview)
-
-    // PILS upload log: bijgekomen vs verwijderd — inclusief exacte labellijsten
-    const newLabels = new Set(
-      overview.map((r: any) => String(r.case_label || '').trim()).filter(Boolean)
-    )
-    const labelsAdded   = [...newLabels].filter((l) => !existingLabels.has(l)).sort()
-    const labelsRemoved = [...existingLabels].filter((l) => !newLabels.has(l)).sort()
-    await supabaseAdmin.from('grote_inpak_pils_upload_log').insert({
-      source_file:    sourceFile || null,
-      cnt_added:      labelsAdded.length,
-      cnt_removed:    labelsRemoved.length,
-      total_records:  overview.length,
-      labels_added:   labelsAdded.length   > 0 ? labelsAdded   : null,
-      labels_removed: labelsRemoved.length > 0 ? labelsRemoved : null,
-    })
-
-    // Save stock data if provided
-    if (stockData && stockData.length > 0) {
-      await saveStockToDatabase(stockData)
-    }
-
-    // Save backlog snapshot (once per day)
-    try {
-      const backlogOverdue = overview.filter((item: any) => (item.dagen_te_laat || 0) > 0).length
-      const today = new Date().toISOString().split('T')[0]
-      await supabaseAdmin
-        .from('grote_inpak_backlog_history')
-        .upsert(
-          { snapshot_date: today, backlog_overdue: backlogOverdue },
-          { onConflict: 'snapshot_date' }
-        )
-    } catch (err) {
-      console.warn('Could not save backlog history snapshot:', err)
-    }
     return NextResponse.json({
       success: true,
-      overview,
-      transport,
-      count: overview.length,
+      ...result,
     })
   } catch (error: any) {
     logApiError(error, { route: '/api/grote-inpak/process', method: 'POST' })
@@ -104,6 +20,104 @@ export async function POST(request: NextRequest) {
       { error: error.message || 'Error processing data' },
       { status: 500 }
     )
+  }
+}
+
+async function processGroteInpakPilsData({
+  pilsData,
+  erpData,
+  stockData,
+  sourceFile,
+}: {
+  pilsData: any[]
+  erpData?: any[]
+  stockData?: any[]
+  sourceFile?: string
+}) {
+  if (!pilsData) {
+    throw new Error('PILS data is required')
+  }
+
+  // Haal huidige case_labels op vóór verwerking (voor upload-log)
+  const { data: existingRows } = await supabaseAdmin
+    .from('grote_inpak_cases')
+    .select('case_label')
+  const existingLabels = new Set(
+    (existingRows || []).map((r: any) => String(r.case_label || '').trim()).filter(Boolean)
+  )
+
+  // If no ERP data provided, try to load from database
+  let finalErpData = erpData || []
+  if (!finalErpData || finalErpData.length === 0) {
+    try {
+      const { data: dbErpData, error: dbError } = await supabaseAdmin
+        .from('grote_inpak_erp_link')
+        .select('*')
+      
+      if (!dbError && dbErpData) {
+        // Convert database format to expected format
+        finalErpData = dbErpData.map((item: any) => ({
+          kistnummer: item.kistnummer,
+          erp_code: item.erp_code,
+          productielocatie: item.productielocatie,
+          description: item.description,
+          stapel: item.stapel,
+        }))
+      }
+    } catch (err) {
+      console.warn('Could not load ERP LINK from database:', err)
+    }
+  }
+
+  // Process and build overview (ERP is optional)
+  const overview = await buildOverview(pilsData, finalErpData, stockData || [])
+  const transport = await buildTransport(overview)
+
+  // Save to database
+  await saveCasesToDatabase(overview)
+  await saveTransportToDatabase(transport)
+
+  // Remove cases that are no longer present in the latest PILS upload
+  await removeMissingCases(overview)
+
+  // PILS upload log: bijgekomen vs verwijderd — inclusief exacte labellijsten
+  const newLabels = new Set(
+    overview.map((r: any) => String(r.case_label || '').trim()).filter(Boolean)
+  )
+  const labelsAdded   = [...newLabels].filter((l) => !existingLabels.has(l)).sort()
+  const labelsRemoved = [...existingLabels].filter((l) => !newLabels.has(l)).sort()
+  await supabaseAdmin.from('grote_inpak_pils_upload_log').insert({
+    source_file:    sourceFile || null,
+    cnt_added:      labelsAdded.length,
+    cnt_removed:    labelsRemoved.length,
+    total_records:  overview.length,
+    labels_added:   labelsAdded.length   > 0 ? labelsAdded   : null,
+    labels_removed: labelsRemoved.length > 0 ? labelsRemoved : null,
+  })
+
+  // Save stock data if provided
+  if (stockData && stockData.length > 0) {
+    await saveStockToDatabase(stockData)
+  }
+
+  // Save backlog snapshot (once per day)
+  try {
+    const backlogOverdue = overview.filter((item: any) => (item.dagen_te_laat || 0) > 0).length
+    const today = new Date().toISOString().split('T')[0]
+    await supabaseAdmin
+      .from('grote_inpak_backlog_history')
+      .upsert(
+        { snapshot_date: today, backlog_overdue: backlogOverdue },
+        { onConflict: 'snapshot_date' }
+      )
+  } catch (err) {
+    console.warn('Could not save backlog history snapshot:', err)
+  }
+
+  return {
+    overview,
+    transport,
+    count: overview.length,
   }
 }
 
