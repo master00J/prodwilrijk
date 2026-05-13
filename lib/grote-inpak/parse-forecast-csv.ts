@@ -1,10 +1,49 @@
 /**
- * Forecast CSV (FORESCO / FOR#### / standaard-kolomindeling) — zelfde logica als handmatige upload.
+ * Forecast CSV — drie Atlas-varianten:
+ * - **FOR####** (FOR1953): `;`-gescheiden; kolom 0 datum (YYYYMMDD), 1 = Case Number, 2 = Case Type; vaak kopregel.
+ * - **FORESCO.CSV** (standaard/specials): zelfde scheiding; kolom 0 datum; **label en type in kolom 5 en 6** (index 4–5), bv. `QB52F`, `V361`.
+ * - **Bestandsnaam “standaard”**: zelfde kolommen als FORESCO (4–5).
  */
 import { normalizeKistnummer } from '@/lib/utils/erp-code-normalizer'
 
+/** UTF-16 BOM / UTF-8 BOM; anders Latin-1 (behoudt Atlas/OS-400 bytes zoals in IMAP). */
+export function decodeForecastCsvBuffer(buf: Buffer): string {
+  if (buf.length >= 2 && buf[0] === 0xff && buf[1] === 0xfe) {
+    return buf.slice(2).toString('utf16le').replace(/\0/g, '')
+  }
+  if (buf.length >= 2 && buf[0] === 0xfe && buf[1] === 0xff) {
+    return buf.slice(2).toString('utf16be').replace(/\0/g, '')
+  }
+  if (buf.length >= 3 && buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) {
+    return buf.slice(3).toString('utf8').replace(/\0/g, '')
+  }
+  return buf.toString('latin1').replace(/\0/g, '')
+}
+
+function normalizeForecastCsvText(csvText: string): string {
+  return String(csvText || '')
+    .replace(/\0/g, '')
+    .replace(/^\uFEFF/, '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+}
+
+/** Atlas FOR####-export: datum kolom 0, case label 1, case type 2 (puntkomma, kopregel). */
+function isAtlasForCaseHeaderLine(line: string): boolean {
+  const h = line.toLowerCase()
+  return (
+    h.includes('case number') &&
+    h.includes('case type') &&
+    (h.includes('sched') || h.includes('shg') || h.includes('item number'))
+  )
+}
+
 export function parseForecastCSV(csvText: string, fileName: string): any[] {
-  const firstLine = csvText.split('\n')[0]
+  const normalized = normalizeForecastCsvText(csvText)
+  const lines = normalized.split('\n').map((l) => l.trim()).filter(Boolean)
+  if (lines.length < 2) return []
+
+  const firstLine = lines[0]
   let delimiter = ','
   if (firstLine.includes(';') && firstLine.split(';').length > firstLine.split(',').length) {
     delimiter = ';'
@@ -31,15 +70,22 @@ export function parseForecastCSV(csvText: string, fileName: string): any[] {
     return result.map((v) => v.replace(/^"|"$/g, '').trim())
   }
 
-  const lines = csvText.split('\n').filter((line) => line.trim())
-  if (lines.length < 2) return []
-
   const rows = lines.map(parseCSVLine)
-  const nameLower = (fileName || '').toLowerCase()
-  const baseName = nameLower.replace(/\.csv$/i, '').replace(/^.*[/\\]/, '')
-  /** Atlas-mails: FOR1953.CSV, FOR2044.CSV, … (niet FORESCO / standaard). */
-  const isForDigitsFile = /^for\d+$/.test(baseName)
+
+  const fileBasename = (fileName || '').replace(/^.*[/\\]/, '').trim()
+  const nameLower = fileBasename.toLowerCase()
+  let stem = nameLower
+  while (stem.endsWith('.csv')) stem = stem.slice(0, -4)
+  const stemClean = stem.replace(/^[^a-z0-9]+|[^a-z0-9]+$/gi, '')
+  /** FORESCO-atlas: datum kolom 0; case label / type in kolom 5–6 (index 4–5), zelfde als “standaard”-bestandsnaam. */
+  const isForescoCsvName = /^foresco$/i.test(stemClean)
+  /** Atlas FOR-mails: FOR1953.CSV, maar ook afwijkende namen zoals _FOR1953.CSV_.CSV. */
+  const isForDigitsFile =
+    /^for\d+$/i.test(stemClean) || /\bfor\d{3,}\b/i.test(fileBasename)
   const isForescoStandaard = nameLower.includes('standaard')
+  /** Nooit FOR-layout op FORESCO-bestanden (woord “foresco” bevat “for”). */
+  const isAtlasForLayout =
+    !isForescoCsvName && (isForDigitsFile || isAtlasForCaseHeaderLine(firstLine))
 
   const getCol = (row: string[], idx: number) => (idx < row.length ? row[idx] : '')
   const parseDate = (value: string): string | null => {
@@ -57,12 +103,9 @@ export function parseForecastCSV(csvText: string, fileName: string): any[] {
     const dateRaw = getCol(row, 0)
     let caseLabel = ''
     let caseType = ''
-    if (isForDigitsFile) {
+    if (isAtlasForLayout && !isForescoStandaard) {
       caseLabel = getCol(row, 1)
       caseType = getCol(row, 2)
-    } else if (isForescoStandaard) {
-      caseLabel = getCol(row, 4)
-      caseType = getCol(row, 5)
     } else {
       caseLabel = getCol(row, 4)
       caseType = getCol(row, 5)

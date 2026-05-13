@@ -5,7 +5,7 @@ import { expandWorksheetRef } from '@/lib/xlsx/expand-worksheet-ref'
 
 export const dynamic = 'force-dynamic'
 import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
-import { parseForecastCSV } from '@/lib/grote-inpak/parse-forecast-csv'
+import { decodeForecastCsvBuffer, parseForecastCSV } from '@/lib/grote-inpak/parse-forecast-csv'
 
 export async function POST(request: NextRequest) {
   try {
@@ -59,8 +59,8 @@ export async function POST(request: NextRequest) {
           processedData = await parseStockExcel(workbook)
         }
       } else if (fileType === 'forecast') {
-        // Parse Forecast CSV
-        const csvText = buffer.toString('utf-8')
+        // Parse Forecast CSV (UTF-8 / UTF-16 BOM, OS/400 NUL)
+        const csvText = decodeForecastCsvBuffer(buffer)
         processedData = parseForecastCSV(csvText, file.name)
       } else if (fileType === 'packed') {
         // Parse Packed Excel

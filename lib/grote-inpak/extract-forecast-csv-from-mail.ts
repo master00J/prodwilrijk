@@ -4,6 +4,7 @@ import {
   decodePartBody,
   getHeaderParam,
 } from '@/lib/grote-inpak/imap-mail-core'
+import { decodeForecastCsvBuffer } from '@/lib/grote-inpak/parse-forecast-csv'
 
 function decodeBufferWithCharset(buf: Buffer, charset: string): string {
   const c = charset.toLowerCase().replace(/[^a-z0-9_-]/g, '')
@@ -41,6 +42,13 @@ function basenameLower(p: string): string {
   return p.replace(/^.*[/\\]/, '').trim().toLowerCase()
 }
 
+/** Zelfde logica als forecast-parser: `_FOR1953.CSV_.CSV` → `for1953`, `_FORESCO.CSV_.CSV` → `foresco`. */
+function forecastAttachmentStem(filename: string): string {
+  let n = basenameLower(filename)
+  while (n.endsWith('.csv')) n = n.slice(0, -4)
+  return n.replace(/^[^a-z0-9]+|[^a-z0-9]+$/gi, '')
+}
+
 function partFilename(headers: Record<string, string>): string {
   const cd = headers['content-disposition'] || ''
   let raw = ''
@@ -64,10 +72,6 @@ function partFilename(headers: Record<string, string>): string {
     ''
   const pick = raw || fromParam
   return decodeMimeWords(pick.replace(/^["']|["']$/g, '')).trim()
-}
-
-function csvBytesToString(buf: Buffer): string {
-  return buf.toString('latin1')
 }
 
 /** Alle MIME-onderdelen die als forecast-CSV gelden (.csv-naam of text/csv). */
@@ -98,7 +102,7 @@ export function extractForecastCsvAttachmentsFromRawMessage(raw: string): Foreca
     if (isOctet && !isCsvName) return
 
     const buf = decodePartBody(body, headers['content-transfer-encoding'])
-    const text = csvBytesToString(buf)
+    const text = decodeForecastCsvBuffer(buf)
     if (!text.trim()) return
 
     out.push({ filename: fn || 'attachment.csv', csvText: text })
@@ -128,15 +132,17 @@ export function pickForecastCsvForMail(
   const subLower = subj.toLowerCase()
 
   if (/^for\d+$/i.test(subj)) {
-    const target = `${subLower}.csv`
-    const hit = attachments.find((a) => basenameLower(a.filename) === target)
+    const bare = subLower
+    const hit = attachments.find((a) => forecastAttachmentStem(a.filename) === bare)
     if (hit) return hit
   }
   if (/^foresco\.csv$/i.test(subj)) {
-    const hit = attachments.find(
+    const hit = attachments.find((a) => forecastAttachmentStem(a.filename) === 'foresco')
+    if (hit) return hit
+    const hitLoose = attachments.find(
       (a) => basenameLower(a.filename).includes('foresco') && basenameLower(a.filename).endsWith('.csv')
     )
-    if (hit) return hit
+    if (hitLoose) return hitLoose
   }
   return attachments[0]
 }
