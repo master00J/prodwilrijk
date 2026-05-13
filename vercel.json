@@ -19,6 +19,10 @@
     {
       "path": "/api/grote-inpak/kist-mail-import",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/grote-inpak/forecast-mail-import",
+      "schedule": "7,22,37,52 * * * *"
     }
   ]
 }

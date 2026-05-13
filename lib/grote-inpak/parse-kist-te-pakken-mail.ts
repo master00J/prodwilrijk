@@ -31,13 +31,14 @@ export function parseKistTePakkenBody(plainText: string): Omit<ParsedKistTePakke
     text.match(/Itemnummer\s*[:]\s*(\S+)/i) ||
     text.match(/Item\s*nr\.?\s*[:]\s*(\S+)/i) ||
     text.match(/Artikel(?:nummer)?\s*[:]\s*(\S+)/i)
-  const serialM = text.match(/Serienummer\s*[:]\s*(\S+)/i)
+  // Alleen waarde op dezelfde regel: \s na ':' zou newline meenemen en dan (\S+) bv. "Aankooporder" van de volgende regel pakken.
+  const serialM = text.match(/Serienummer\s*:[ \t]*([^\n\r]*)/i)
   const datumM = text.match(/Datum\s*[:]\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i)
 
   if (!itemM) return null
 
-  const serialRaw = serialM?.[1]?.trim()
-  const serial_number = serialRaw ? serialRaw : null
+  const serialRaw = serialM?.[1]?.trim() ?? ''
+  const serial_number = serialRaw.length > 0 ? serialRaw : null
 
   const arrival_date = datumM ? parseBelgianSlashDate(datumM[1]) : null
 

@@ -28,6 +28,7 @@ const PUBLIC_API_ROUTES = [
   '/api/grote-inpak/pils-mail-import',
   '/api/grote-inpak/packed-mail-import',
   '/api/grote-inpak/kist-mail-import',
+  '/api/grote-inpak/forecast-mail-import',
   // Publiek leesbare vertaaltabel (oud ↔ nieuw BC item nr).
   // Bevat geen gevoelige data; handig voor lokale scripts/BC36-filters.
   '/api/bc-mappings',
