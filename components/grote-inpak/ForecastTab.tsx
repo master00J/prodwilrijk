@@ -85,7 +85,7 @@ export default function ForecastTab() {
       const params = new URLSearchParams()
       if (dateFrom) params.append('date_from', dateFrom)
       if (dateTo) params.append('date_to', dateTo)
-      const res = await fetch(`/api/grote-inpak/forecast?${params}`)
+      const res = await fetch(`/api/grote-inpak/forecast?${params}`, { cache: 'no-store' })
       if (res.ok) {
         const result = await res.json()
         setForecastData(result.data || [])

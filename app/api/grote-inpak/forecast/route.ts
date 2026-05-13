@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
         .from('grote_inpak_forecast')
         .select('*')
         .order('arrival_date', { ascending: true })
+        .order('case_label', { ascending: true })
 
       if (caseLabel) {
         query = query.eq('case_label', caseLabel)
@@ -50,7 +51,10 @@ export async function GET(request: NextRequest) {
       from += rows.length
     }
 
-    return NextResponse.json({ data: all, count: all.length })
+    return NextResponse.json(
+      { data: all, count: all.length },
+      { headers: { 'Cache-Control': 'private, no-store, max-age=0', Pragma: 'no-cache' } }
+    )
   } catch (error: any) {
     console.error('Error fetching forecast:', error)
     return NextResponse.json(

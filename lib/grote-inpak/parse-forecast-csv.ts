@@ -141,7 +141,9 @@ export function parseForecastCSV(csvText: string, fileName: string): any[] {
     }
     const existingDate = new Date(existing.arrival_date)
     const newDate = new Date(row.arrival_date)
-    if (!Number.isNaN(newDate.getTime()) && newDate > existingDate) {
+    const exMs = existingDate.getTime()
+    const nwMs = newDate.getTime()
+    if (!Number.isNaN(nwMs) && (Number.isNaN(exMs) || nwMs >= exMs)) {
       byLabel.set(key, row)
     }
   })

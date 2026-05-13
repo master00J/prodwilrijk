@@ -41,7 +41,10 @@ export async function applyForecastSave(
     if (arrivalDate) {
       const currentDate = new Date(existing.arrival_date)
       const newDate = new Date(arrivalDate)
-      if (!Number.isNaN(newDate.getTime()) && (Number.isNaN(currentDate.getTime()) || newDate > currentDate)) {
+      const curMs = currentDate.getTime()
+      const newMs = newDate.getTime()
+      // Bij gelijke datum wint de **laatste** rij in de upload-array (zodat o.a. FORESCO specials na standaard nog zichtbaar is in source_file).
+      if (!Number.isNaN(newMs) && (Number.isNaN(curMs) || newMs >= curMs)) {
         dedupedMap.set(label, { ...row, case_label: label })
       }
     }
@@ -57,6 +60,8 @@ export async function applyForecastSave(
       const { data: currentData, error: currentError } = await supabaseAdmin
         .from('grote_inpak_forecast')
         .select('case_label, case_type, arrival_date, source_file')
+        .order('arrival_date', { ascending: true })
+        .order('case_label', { ascending: true })
         .range(from, from + pageSize - 1)
 
       if (currentError) throw currentError

@@ -10,21 +10,44 @@ export async function GET(request: NextRequest) {
     const caseType = searchParams.get('case_type') || ''
     const onlyChanged = searchParams.get('only_changed') === '1'
 
-    // Alle historische datumwijzigingen ophalen, gesorteerd op caselabel + tijdstip
-    const { data: changes, error: changesError } = await supabaseAdmin
-      .from('grote_inpak_forecast_changes')
-      .select('case_label, case_type, old_arrival_date, new_arrival_date, change_type, changed_at')
-      .order('case_label', { ascending: true })
-      .order('changed_at', { ascending: true })
+    const pageSize = 1000
 
-    if (changesError) throw changesError
+    const changes: any[] = []
+    {
+      let from = 0
+      while (true) {
+        const { data: chunk, error: changesError } = await supabaseAdmin
+          .from('grote_inpak_forecast_changes')
+          .select('case_label, case_type, old_arrival_date, new_arrival_date, change_type, changed_at')
+          .order('case_label', { ascending: true })
+          .order('changed_at', { ascending: true })
+          .range(from, from + pageSize - 1)
 
-    // Huidige forecast ophalen
-    const { data: current, error: currentError } = await supabaseAdmin
-      .from('grote_inpak_forecast')
-      .select('case_label, case_type, arrival_date')
+        if (changesError) throw changesError
+        const rows = chunk || []
+        if (rows.length === 0) break
+        changes.push(...rows)
+        from += rows.length
+      }
+    }
 
-    if (currentError) throw currentError
+    const current: any[] = []
+    {
+      let from = 0
+      while (true) {
+        const { data: chunk, error: currentError } = await supabaseAdmin
+          .from('grote_inpak_forecast')
+          .select('case_label, case_type, arrival_date')
+          .order('case_label', { ascending: true })
+          .range(from, from + pageSize - 1)
+
+        if (currentError) throw currentError
+        const rows = chunk || []
+        if (rows.length === 0) break
+        current.push(...rows)
+        from += rows.length
+      }
+    }
 
     const currentMap = new Map<string, { case_type: string; arrival_date: string }>()
     ;(current || []).forEach((row: any) => {
