@@ -149,21 +149,12 @@ export default function LumipaperImportPage() {
           </form>
 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-sm text-blue-900">
-            <h2 className="text-lg font-semibold mb-2">Automatische mailbox</h2>
-            <p>
-              De route <code className="font-mono">/api/lumipaper/mail-import</code> scant periodiek dezelfde mailbox
-              die de bestaande mail-imports gebruiken.
-            </p>
-            <p className="mt-3">
-              Standaard gebruikt dit <code className="font-mono">AIRTEC_MAIL_*</code> of{' '}
-              <code className="font-mono">GROTE_INPAK_PILS_MAIL_*</code>. Alleen als Lumipaper ooit een aparte mailbox
-              krijgt, kan je optioneel <code className="font-mono">LUMIPAPER_MAIL_*</code> invullen.
-            </p>
+            <h2 className="text-lg font-semibold mb-2">Mailbox ophalen</h2>
             <button
               type="button"
               onClick={scanMailboxNow}
               disabled={scanningMailbox}
-              className="mt-4 w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+              className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
             >
               {scanningMailbox ? 'Mailbox scannen...' : 'Haal mail nu op'}
             </button>

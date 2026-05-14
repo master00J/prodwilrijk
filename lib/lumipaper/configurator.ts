@@ -65,8 +65,44 @@ export function parseLumipaperOrderNumber(text: string): string {
   return `lumipaper-${new Date().toISOString().slice(0, 10)}`
 }
 
-export function parseLumipaperOrderLines(rawText: string): LumipaperOrderLine[] {
-  const text = decodeQuotedPrintable(rawText)
+function parseExtraDimensions(description: string) {
+  const dimensionMatches = [...description.matchAll(/(\d{3,4})\s*x\s*(\d{3,4})(?:\/(\d+))?/gi)]
+
+  return dimensionMatches.slice(1).map((match) => ({
+    length: Number(match[1]),
+    width: Number(match[2]),
+    divisor: match[3] ? Number(match[3]) : null,
+  }))
+}
+
+function parseLumipaperCsvOrderLines(text: string): LumipaperOrderLine[] {
+  const result: LumipaperOrderLine[] = []
+  const csvStart = text.search(/(?:^|\n)\s*1,[A-Z0-9-]+,,/)
+  if (csvStart < 0) return result
+
+  const csvText = text.slice(csvStart)
+  const recordPattern =
+    /(?:^|\s)(\d+),([A-Z0-9-]+),,(\d+),(\d+),(\d+),(\d+),([^,\r\n]+),([^,\r\n]+),[\s\S]*?(\d{2}-\d{2}-\d{4})(?=\s+\d+,[A-Z0-9-]+,,|\s*$)/g
+
+  for (const match of csvText.matchAll(recordPattern)) {
+    const description = normalizeSpaces(match[7])
+    result.push({
+      lineNo: Number(match[1]),
+      itemCode: match[2],
+      quantity: Number(match[3]),
+      length: Number(match[4]),
+      width: Number(match[5]),
+      height: Number(match[6]),
+      description,
+      deliveryDate: match[9],
+      extraDimensions: parseExtraDimensions(description),
+    })
+  }
+
+  return result
+}
+
+function parseLumipaperVisualOrderLines(text: string): LumipaperOrderLine[] {
   const lines = text.split(/\r?\n/)
   const result: LumipaperOrderLine[] = []
 
@@ -90,15 +126,19 @@ export function parseLumipaperOrderLines(rawText: string): LumipaperOrderLine[] 
       length: Number(firstDimension[1]),
       width: Number(firstDimension[2]),
       height: 150,
-      extraDimensions: dimensionMatches.slice(1).map((match) => ({
-        length: Number(match[1]),
-        width: Number(match[2]),
-        divisor: match[3] ? Number(match[3]) : null,
-      })),
+      extraDimensions: parseExtraDimensions(description),
     })
   }
 
   return result
+}
+
+export function parseLumipaperOrderLines(rawText: string): LumipaperOrderLine[] {
+  const text = decodeQuotedPrintable(rawText)
+  const csvLines = parseLumipaperCsvOrderLines(text)
+  if (csvLines.length > 0) return csvLines
+
+  return parseLumipaperVisualOrderLines(text)
 }
 
 export function selectLumipaperConfigurator(orderLine: LumipaperOrderLine): string | null {
