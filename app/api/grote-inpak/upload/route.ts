@@ -8,6 +8,13 @@ import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
 import { decodeForecastCsvBuffer, parseForecastCSV } from '@/lib/grote-inpak/parse-forecast-csv'
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+const ALLOWED_FILE_TYPES = new Set(['pils', 'erp', 'stock', 'forecast', 'packed'])
+const EXCEL_EXTENSIONS = new Set(['.xlsx', '.xls', '.xlsm'])
+
+function hasExtension(fileName: string, extensions: Set<string>): boolean {
+  const lower = fileName.toLowerCase()
+  return [...extensions].some(extension => lower.endsWith(extension))
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,10 +29,27 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (!ALLOWED_FILE_TYPES.has(fileType)) {
+      return NextResponse.json(
+        { error: 'Ongeldig fileType' },
+        { status: 400 }
+      )
+    }
+
     if (file.size > MAX_UPLOAD_BYTES) {
       return NextResponse.json(
         { error: 'Bestand is te groot. Maximum is 10 MB.' },
         { status: 413 }
+      )
+    }
+
+    const isCsv = file.name.toLowerCase().endsWith('.csv')
+    const isExcel = hasExtension(file.name, EXCEL_EXTENSIONS)
+    const expectsCsv = fileType === 'pils' || fileType === 'forecast'
+    if ((expectsCsv && !isCsv) || (!expectsCsv && !isCsv && !isExcel)) {
+      return NextResponse.json(
+        { error: 'Ongeldig bestandstype voor deze upload.' },
+        { status: 400 }
       )
     }
 

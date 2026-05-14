@@ -80,6 +80,13 @@ export default function XMLGeneratorPage() {
   }, [division])
 
   const sanitizeDigits = (value: string): string => value.replace(/\D/g, '')
+  const escapeHtml = (value: string): string =>
+    value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
 
   useEffect(() => {
     if (division !== 'AID') return
@@ -192,7 +199,7 @@ export default function XMLGeneratorPage() {
         margin: 0,
       })
 
-      return `<img src="${canvas.toDataURL()}" style="max-width: 100%; height: auto;" alt="Barcode: ${text}">`
+      return `<img src="${canvas.toDataURL()}" style="max-width: 100%; height: auto;" alt="Barcode: ${escapeHtml(text)}">`
     } catch (error) {
       console.warn('Barcode generatie gefaald voor:', text, error)
       return `<div style="font-family: monospace; font-size: 8px; text-align: center;">|||||||||||||||||||</div>`
@@ -227,9 +234,16 @@ export default function XMLGeneratorPage() {
     const prefixedItem = `P${itemNumber}`
     const prefixedSupplier = `V${prepackVendorCode}`
     const prefixedQuantity = `Q${labelQuantity}`
+    const safePrefixedPO = escapeHtml(prefixedPO)
+    const safePrefixedItem = escapeHtml(prefixedItem)
+    const safePrefixedSupplier = escapeHtml(prefixedSupplier)
+    const safePrefixedQuantity = escapeHtml(prefixedQuantity)
+    const safeDeliveryNotice = escapeHtml(deliveryNotice)
+    const safeShopOrder = escapeHtml(shopOrder)
 
     // Parcel nummer met random deel
     const parcelNumber = `${prepackVendorCode}${randomParcelSuffix}01`
+    const safeParcelNumber = escapeHtml(parcelNumber)
 
     // Barcodes
     const poBarcode = generateBarcodeWithPrefix('K', poNumber, 1.8, 30)
@@ -261,45 +275,45 @@ export default function XMLGeneratorPage() {
         <tr style="height: 20%;">
           <td class="label-po-left" colspan="2"> 
             <div class="label-po-label">PO Line: (K)</div>
-            <div class="label-po-number">${prefixedPO}</div>
+            <div class="label-po-number">${safePrefixedPO}</div>
             <div class="label-po-barcode">${poBarcode}</div>
           </td>
         </tr>
         <tr style="height: 20%;">
           <td class="label-part-left" colspan="2"> 
             <div class="label-part-label">Part nr.: (P)</div>
-            <div class="label-part-number">${prefixedItem}</div>
+            <div class="label-part-number">${safePrefixedItem}</div>
             <div class="label-part-barcode">${partBarcode}</div>
           </td>
         </tr>
         <tr style="height: 15%;">
           <td class="label-qty-left">
             <div class="label-qty-label">Quantity: (Q)</div>
-            <div class="label-qty-number">${prefixedQuantity}</div>
+            <div class="label-qty-number">${safePrefixedQuantity}</div>
             <div class="label-qty-barcode">${quantityBarcode}</div>
           </td>
           <td class="label-info-right">
             <div class="label-info-code">Delivery Notice nr.: (H)</div>
-            <div class="label-info-number">${deliveryNotice}</div>
+            <div class="label-info-number">${safeDeliveryNotice}</div>
             <div class="label-info-barcode">${deliveryNoticeBarcode}</div>
           </td>
         </tr>
         <tr style="height: 15%;">
           <td class="label-supplier-left">
             <div class="label-supplier-label">Supplier code: (V)</div>
-            <div class="label-supplier-number">${prefixedSupplier}</div>
+            <div class="label-supplier-number">${safePrefixedSupplier}</div>
             <div class="label-supplier-barcode">${supplierBarcode}</div>
           </td>
           <td class="label-info-right">
             <div class="label-info-code">Shop order: (2W)</div>
-            <div class="label-info-number">${shopOrder}</div>
+            <div class="label-info-number">${safeShopOrder}</div>
             <div class="label-info-barcode">${shopOrderBarcode}</div>
           </td>
         </tr>
         <tr style="height: 15%;">
           <td class="label-parcel-left">
             <div class="label-parcel-label">Parcel nr.: (S)</div>
-            <div class="label-parcel-number">S${parcelNumber}</div>
+            <div class="label-parcel-number">S${safeParcelNumber}</div>
             <div class="label-parcel-barcode">${parcelBarcode}</div>
           </td>
           <td class="label-date-section">
