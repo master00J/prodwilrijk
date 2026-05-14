@@ -55,6 +55,15 @@ function normalizeSpaces(value: string): string {
   return value.replace(/\s+/g, ' ').trim()
 }
 
+function escapeXml(value: string | number | boolean | null | undefined): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+}
+
 export function parseLumipaperOrderNumber(text: string): string {
   const subjectMatch = text.match(/Bestelbon\s*:\s*(AK\d+)/i)
   if (subjectMatch) return subjectMatch[1]
@@ -243,6 +252,52 @@ async function generateConfiguratorFile(
   }
 }
 
+function generateLumipaperXmlFile(
+  orderNumber: string,
+  orderLines: Array<LumipaperOrderLine & { configurator: string | null }>
+): LumipaperGeneratedFile {
+  const createdAt = new Date().toISOString()
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<LumipaperOrder>
+  <Header>
+    <OrderNumber>${escapeXml(orderNumber)}</OrderNumber>
+    <CustomerName>LUMIPAPER NV</CustomerName>
+    <ShipToName>FORESCO GENK</ShipToName>
+    <CreatedAt>${escapeXml(createdAt)}</CreatedAt>
+  </Header>
+  <Lines>
+${orderLines.map((line) => `    <Line>
+      <LineNo>${escapeXml(line.lineNo)}</LineNo>
+      <SourceNo>${escapeXml(line.itemCode)}</SourceNo>
+      <BomCalcTemplateCode>${escapeXml(line.configurator)}</BomCalcTemplateCode>
+      <Description>${escapeXml(line.description)}</Description>
+      <Quantity>${escapeXml(line.quantity)}</Quantity>
+      <Length>${escapeXml(line.length)}</Length>
+      <Width>${escapeXml(line.width)}</Width>
+      <Height>${escapeXml(line.height)}</Height>
+      <DeliveryDate>${escapeXml(line.deliveryDate)}</DeliveryDate>
+      <ExtraDimensions>
+${line.extraDimensions.map((dim) => `        <ExtraDimension>
+          <Length>${escapeXml(dim.length)}</Length>
+          <Width>${escapeXml(dim.width)}</Width>
+          <Divisor>${escapeXml(dim.divisor)}</Divisor>
+        </ExtraDimension>`).join('\n')}
+      </ExtraDimensions>
+    </Line>`).join('\n')}
+  </Lines>
+</LumipaperOrder>
+`
+  const buffer = Buffer.from(xml, 'utf8')
+
+  return {
+    filename: `${orderNumber} - EDI.xml`,
+    configuratorCode: 'EDI XML',
+    lineCount: orderLines.length,
+    contentType: 'application/xml',
+    base64: buffer.toString('base64'),
+  }
+}
+
 export async function generateLumipaperImport(rawText: string): Promise<LumipaperImportResult> {
   const decoded = decodeQuotedPrintable(rawText)
   const orderNumber = parseLumipaperOrderNumber(decoded)
@@ -267,7 +322,14 @@ export async function generateLumipaperImport(rawText: string): Promise<Lumipape
     grouped.set(configuratorCode, lines)
   }
 
-  const generatedFiles: LumipaperGeneratedFile[] = []
+  const mappedLines = orderLines.map((line) => ({
+    ...line,
+    configurator: selectLumipaperConfigurator(line),
+  }))
+
+  const generatedFiles: LumipaperGeneratedFile[] = [
+    generateLumipaperXmlFile(orderNumber, mappedLines),
+  ]
   for (const [configuratorCode, lines] of grouped.entries()) {
     generatedFiles.push(await generateConfiguratorFile(orderNumber, configuratorCode, lines))
   }
@@ -277,9 +339,6 @@ export async function generateLumipaperImport(rawText: string): Promise<Lumipape
     totalLines: orderLines.length,
     unmapped,
     generatedFiles,
-    lines: orderLines.map((line) => ({
-      ...line,
-      configurator: selectLumipaperConfigurator(line),
-    })),
+    lines: mappedLines,
   }
 }
