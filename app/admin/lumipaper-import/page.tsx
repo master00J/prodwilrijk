@@ -40,6 +40,7 @@ export default function LumipaperImportPage() {
   const [imports, setImports] = useState<LumipaperImport[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [scanningMailbox, setScanningMailbox] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const loadImports = async () => {
@@ -89,6 +90,33 @@ export default function LumipaperImportPage() {
     }
   }
 
+  const scanMailboxNow = async () => {
+    setScanningMailbox(true)
+    setMessage(null)
+
+    try {
+      const response = await fetch('/api/lumipaper/import/mail-scan', {
+        method: 'POST',
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data?.error || 'Mailbox scan mislukt.')
+
+      const importedCount = data.imported?.length || 0
+      const skippedCount = data.skipped?.length || 0
+      const errorCount = data.errors?.length || 0
+
+      setMessage({
+        type: errorCount > 0 ? 'error' : 'success',
+        text: `Mailbox gescand: ${importedCount} nieuwe import(s), ${skippedCount} overgeslagen, ${errorCount} fout(en).`,
+      })
+      await loadImports()
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.message || 'Mailbox scan mislukt.' })
+    } finally {
+      setScanningMailbox(false)
+    }
+  }
+
   return (
     <AdminGuard>
       <div className="container mx-auto px-4 py-8 max-w-6xl">
@@ -131,6 +159,14 @@ export default function LumipaperImportPage() {
               <code className="font-mono">GROTE_INPAK_PILS_MAIL_*</code>. Alleen als Lumipaper ooit een aparte mailbox
               krijgt, kan je optioneel <code className="font-mono">LUMIPAPER_MAIL_*</code> invullen.
             </p>
+            <button
+              type="button"
+              onClick={scanMailboxNow}
+              disabled={scanningMailbox}
+              className="mt-4 w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+            >
+              {scanningMailbox ? 'Mailbox scannen...' : 'Haal mail nu op'}
+            </button>
           </div>
         </div>
 
