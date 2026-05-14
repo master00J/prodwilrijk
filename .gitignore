@@ -21,6 +21,7 @@
 
 # local duplicate / migration copy
 /prodwilrijk nieuw/
+/configuratoren/Lumipaper/generated/
 
 # debug
 npm-debug.log*

@@ -43,7 +43,8 @@ function isPublicRoute(pathname: string, method: string): boolean {
       pathname.startsWith('/api/grote-inpak/pils-mail-import') ||
       pathname.startsWith('/api/grote-inpak/packed-mail-import') ||
       pathname.startsWith('/api/grote-inpak/kist-mail-import') ||
-      pathname.startsWith('/api/grote-inpak/forecast-mail-import')
+      pathname.startsWith('/api/grote-inpak/forecast-mail-import') ||
+      pathname.startsWith('/api/lumipaper/mail-import')
     )
   ) return true
   return false

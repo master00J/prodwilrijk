@@ -108,6 +108,14 @@ export default function AdminPage() {
       icon: '📅',
       color: 'blue',
     },
+    {
+      title: 'Lumipaper import',
+      description:
+        'Verwerk Lumipaper bestelbon-mails naar Business Central configurator-Excels per DC-template.',
+      href: '/admin/lumipaper-import',
+      icon: '🧾',
+      color: 'purple',
+    },
   ]
 
   const getColorClasses = (color: string) => {
