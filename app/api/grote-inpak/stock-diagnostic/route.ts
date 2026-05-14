@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { sanitizePostgrestOrValue } from '@/lib/api/postgrest-filter'
 import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
 import { getBcMappingLookup } from '@/lib/bc-mapping/server'
 
@@ -13,8 +14,8 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = request.nextUrl
-    const kistParam = searchParams.get('kist')?.trim()
-    const erpParam = searchParams.get('erp')?.trim()
+    const kistParam = sanitizePostgrestOrValue(searchParams.get('kist'))
+    const erpParam = sanitizePostgrestOrValue(searchParams.get('erp'))
     const kist = kistParam ? kistParam.toUpperCase().replace(/^V/, 'K') : null
     const erp = erpParam?.trim() || null
 

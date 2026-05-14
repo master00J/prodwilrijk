@@ -39,9 +39,8 @@ function isAuthorized(request: NextRequest): boolean {
   const headerSecret =
     request.headers.get('x-grote-inpak-forecast-import-secret') ||
     request.headers.get('x-grote-inpak-kist-import-secret')
-  const querySecret = request.nextUrl.searchParams.get('secret')
 
-  return bearer === secret || headerSecret === secret || querySecret === secret
+  return bearer === secret || headerSecret === secret
 }
 
 async function isForecastMailAlreadyProcessed(messageId: string): Promise<boolean> {

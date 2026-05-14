@@ -5,7 +5,7 @@ import { withAdmin } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export const GET = withAdmin(async () => {
   try {
     const { data: screens, error } = await supabaseAdmin
       .from('tv_screens')
@@ -31,7 +31,7 @@ export async function GET() {
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-}
+})
 
 export const POST = withAdmin(async (request: NextRequest) => {
   try {

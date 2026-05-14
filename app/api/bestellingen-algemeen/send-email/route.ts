@@ -39,7 +39,6 @@ export async function POST(request: NextRequest) {
     const transporter = nodemailer.createTransport({
       host, port, secure,
       auth: { user, pass: password },
-      tls: { rejectUnauthorized: false },
     })
 
     // Vertaal de BC-codes: toon zowel oud (huidige ERP) als nieuw (BC36).

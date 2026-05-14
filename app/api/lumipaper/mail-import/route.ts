@@ -30,9 +30,8 @@ function isAuthorized(request: NextRequest): boolean {
 
   const bearer = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
   const headerSecret = request.headers.get('x-lumipaper-import-secret')
-  const querySecret = request.nextUrl.searchParams.get('secret')
 
-  return bearer === secret || headerSecret === secret || querySecret === secret
+  return bearer === secret || headerSecret === secret
 }
 
 function htmlToPlain(html: string): string {

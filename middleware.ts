@@ -29,7 +29,6 @@ function isPublicRoute(pathname: string, method: string): boolean {
   if (pathname === '/api/auth/login' && method === 'POST') return true
   if (pathname === '/api/auth/signup' && method === 'POST') return true
   if (pathname === '/api/auth/session' && (method === 'POST' || method === 'DELETE')) return true
-  if (pathname.startsWith('/api/tv-screens') && method === 'GET') return true
   if (pathname.includes('/heartbeat') && pathname.startsWith('/api/tv-screens') && method === 'POST') return true
   if (pathname === '/api/tv-slides' && method === 'GET') return true
   if (

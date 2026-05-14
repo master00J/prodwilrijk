@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { logApiError } from '@/lib/api/log-error'
+import { sanitizePostgrestOrValue } from '@/lib/api/postgrest-filter'
 import { groupActiveProductionLogsByFp, type ProductionTimeActiveSummary } from '@/lib/grote-inpak/production-time-floor'
 import { PORTAL_CASE_SELECT, mapCaseRowToPortalLine } from '@/lib/grote-inpak/portal-case'
 
@@ -11,10 +12,6 @@ const MAX_FETCH = 3000
 const DEFAULT_PAGE_SIZE = 50
 const MAX_PAGE_SIZE = 100
 
-function sanitizeIlikeFragment(s: string): string {
-  return s.replace(/[%_]/g, '').trim()
-}
-
 export async function GET(request: NextRequest) {
   try {
     const sp = request.nextUrl.searchParams
@@ -23,9 +20,9 @@ export async function GET(request: NextRequest) {
       MAX_PAGE_SIZE,
       Math.max(10, parseInt(sp.get('pageSize') || String(DEFAULT_PAGE_SIZE), 10) || DEFAULT_PAGE_SIZE),
     )
-    const kist = sanitizeIlikeFragment(sp.get('kist') || '')
-    const order = sanitizeIlikeFragment(sp.get('order') || '')
-    const item = sanitizeIlikeFragment(sp.get('item') || '')
+    const kist = sanitizePostgrestOrValue(sp.get('kist'))
+    const order = sanitizePostgrestOrValue(sp.get('order'))
+    const item = sanitizePostgrestOrValue(sp.get('item'))
     const statusFilter = (sp.get('status') || '').trim()
 
     let query = supabaseAdmin

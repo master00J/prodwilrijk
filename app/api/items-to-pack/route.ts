@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { consumeStageKistenForPackedPowertoolsItems } from '@/lib/prepack/stage-kisten-stock'
+import { sanitizePostgrestOrValue } from '@/lib/api/postgrest-filter'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -10,7 +11,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const page = parseInt(searchParams.get('page') || '1')
     const pageSize = parseInt(searchParams.get('pageSize') || '100')
-    const search = searchParams.get('search') || ''
+    const search = sanitizePostgrestOrValue(searchParams.get('search'))
     const dateFilter = searchParams.get('date') || ''
     const priorityOnly = searchParams.get('priority') === 'true'
     const measurementOnly = searchParams.get('measurement') === 'true'

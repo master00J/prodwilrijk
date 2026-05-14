@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { withAdmin } from '@/lib/api/with-auth'
 import nodemailer from 'nodemailer'
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
 
@@ -18,7 +19,7 @@ const getEmailConfig = () => {
 }
 
 // POST /api/cnh/motors/email-received-packaged - Send email with overview of motors currently at Foresco
-export async function POST(request: NextRequest) {
+export const POST = withAdmin(async (request: NextRequest) => {
   try {
     const body = await request.json()
     const { toEmail } = body
@@ -514,4 +515,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

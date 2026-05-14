@@ -349,9 +349,6 @@ export async function POST(request: NextRequest) {
       auth: {
         user,
         pass: password,
-      },
-      tls: {
-        rejectUnauthorized: false
       }
     })
 

@@ -11,7 +11,7 @@ async function sendOrderEmail(rows: { artikel_omschrijving: string; artikelnumme
   const from = process.env.SMTP_FROM || user
   if (!user || !password) return
 
-  const transporter = nodemailer.createTransport({ host, port, secure, auth: { user, pass: password }, tls: { rejectUnauthorized: false } })
+  const transporter = nodemailer.createTransport({ host, port, secure, auth: { user, pass: password } })
 
   const tableRows = rows.map(r => `
     <tr>
