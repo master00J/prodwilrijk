@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { withAdmin } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 
-export async function DELETE(
+export const DELETE = withAdmin(async (
   request: NextRequest,
+  _user,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   try {
     // Await params first (required in Next.js 15)
     const { id: idParam } = await params
@@ -40,7 +42,7 @@ export async function DELETE(
       { status: 500 }
     )
   }
-}
+})
 
 
 

@@ -1,5 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase/server'
+import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,40 +7,25 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { username } = body
 
-    if (!username) {
+    if (!username || typeof username !== 'string') {
       return NextResponse.json(
         { error: 'Username is required' },
         { status: 400 }
       )
     }
 
-    // Find user by username
-    const { data: userRole, error: roleError } = await supabaseAdmin
-      .from('user_roles')
-      .select('user_id')
-      .eq('username', username)
-      .maybeSingle()
-
-    if (roleError || !userRole) {
+    const normalizedUsername = username.trim().toLowerCase()
+    if (!/^[a-z0-9_]{3,64}$/.test(normalizedUsername)) {
       return NextResponse.json(
         { error: 'Invalid username' },
-        { status: 401 }
+        { status: 400 }
       )
     }
 
-    // Get user email from auth.users
-    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.getUserById(userRole.user_id)
-
-    if (authError || !authUser?.user?.email) {
-      return NextResponse.json(
-        { error: 'Invalid username' },
-        { status: 401 }
-      )
-    }
-
-    // Return the email (password validation happens client-side with Supabase Auth)
+    // Do not look up the user here: existence is validated by Supabase Auth
+    // during sign-in, which avoids username enumeration on this public route.
     return NextResponse.json({
-      email: authUser.user.email,
+      email: `${normalizedUsername}@system.local`,
     })
   } catch (error) {
     console.error('Unexpected error:', error)

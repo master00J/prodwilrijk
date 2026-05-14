@@ -4,6 +4,10 @@ import { logApiError } from '@/lib/api/log-error'
 
 export const dynamic = 'force-dynamic'
 
+const MAX_MESSAGES = 12
+const MAX_MESSAGE_LENGTH = 2000
+const MAX_PAGE_PATH_LENGTH = 200
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -13,6 +17,34 @@ export async function POST(request: NextRequest) {
     if (!Array.isArray(messages)) {
       return NextResponse.json(
         { error: 'messages is verplicht' },
+        { status: 400 }
+      )
+    }
+
+    if (messages.length > MAX_MESSAGES) {
+      return NextResponse.json(
+        { error: 'Te veel berichten in een aanvraag' },
+        { status: 400 }
+      )
+    }
+
+    if (
+      messages.some(message =>
+        !message ||
+        (message.role !== 'user' && message.role !== 'assistant') ||
+        typeof message.content !== 'string' ||
+        message.content.length > MAX_MESSAGE_LENGTH
+      )
+    ) {
+      return NextResponse.json(
+        { error: 'Ongeldige berichtinhoud' },
+        { status: 400 }
+      )
+    }
+
+    if (pagePath && pagePath.length > MAX_PAGE_PATH_LENGTH) {
+      return NextResponse.json(
+        { error: 'Ongeldige pagina-context' },
         { status: 400 }
       )
     }

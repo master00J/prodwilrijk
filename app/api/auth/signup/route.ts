@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
@@ -6,7 +6,8 @@ export const dynamic = 'force-dynamic'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { username, password } = body
+    const username = typeof body.username === 'string' ? body.username.trim().toLowerCase() : ''
+    const password = typeof body.password === 'string' ? body.password : ''
 
     if (!username || !password) {
       return NextResponse.json(
@@ -16,16 +17,30 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate username
-    if (username.length < 3) {
+    if (username.length < 3 || username.length > 64) {
       return NextResponse.json(
-        { error: 'Username must be at least 3 characters long' },
+        { error: 'Username must be between 3 and 64 characters long' },
         { status: 400 }
       )
     }
 
-    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+    if (!/^[a-z0-9_]+$/.test(username)) {
       return NextResponse.json(
-        { error: 'Username can only contain letters, numbers, and underscores' },
+        { error: 'Username can only contain lowercase letters, numbers, and underscores' },
+        { status: 400 }
+      )
+    }
+
+    if (password.length < 8 || password.length > 128) {
+      return NextResponse.json(
+        { error: 'Password must be between 8 and 128 characters long' },
+        { status: 400 }
+      )
+    }
+
+    if (!/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password)) {
+      return NextResponse.json(
+        { error: 'Password must contain uppercase, lowercase, and a number' },
         { status: 400 }
       )
     }
@@ -47,7 +62,7 @@ export async function POST(request: NextRequest) {
 
     if (existingUser) {
       return NextResponse.json(
-        { error: 'Username already exists' },
+        { error: 'Account aanmaken mislukt' },
         { status: 400 }
       )
     }

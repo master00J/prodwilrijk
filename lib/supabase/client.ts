@@ -1,15 +1,23 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co'
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key'
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+if (process.env.NODE_ENV === 'production' && (!supabaseUrl || !supabaseAnonKey)) {
+  throw new Error('Supabase client environment variables are required in production.')
+}
 
 // Create client with localStorage for session persistence
-// During build time, use placeholder values to prevent build errors
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-  },
-})
+// Development/build fallbacks keep local tooling working without real access.
+export const supabase = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder-key',
+  {
+    auth: {
+      persistSession: true,
+      storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    },
+  }
+)
 
 

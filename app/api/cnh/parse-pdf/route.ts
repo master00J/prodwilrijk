@@ -4,6 +4,8 @@ import { PDFParse } from 'pdf-parse'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+const MAX_PDF_BYTES = 10 * 1024 * 1024
+
 // POST /api/cnh/parse-pdf - Parse PDF and extract motor numbers and shipping note
 // Note: Currently supports text-based PDFs only. Scanned PDFs require OCR which is not yet implemented server-side.
 export async function POST(request: NextRequest) {
@@ -15,6 +17,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Geen bestand geüpload' },
         { status: 400 }
+      )
+    }
+
+    if (file.size > MAX_PDF_BYTES) {
+      return NextResponse.json(
+        { error: 'PDF is te groot. Maximum is 10 MB.' },
+        { status: 413 }
       )
     }
 

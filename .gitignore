@@ -18,10 +18,15 @@
 # misc
 .DS_Store
 *.pem
+.deploy-hook
+*.sql
+!supabase/migrations/*.sql
+!supabase/*.sql
 
 # local duplicate / migration copy
 /prodwilrijk nieuw/
 /configuratoren/Lumipaper/generated/
+/oude data/
 
 # debug
 npm-debug.log*

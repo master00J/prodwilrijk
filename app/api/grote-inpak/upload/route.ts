@@ -7,6 +7,8 @@ export const dynamic = 'force-dynamic'
 import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
 import { decodeForecastCsvBuffer, parseForecastCSV } from '@/lib/grote-inpak/parse-forecast-csv'
 
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
@@ -17,6 +19,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'No file provided' },
         { status: 400 }
+      )
+    }
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return NextResponse.json(
+        { error: 'Bestand is te groot. Maximum is 10 MB.' },
+        { status: 413 }
       )
     }
 

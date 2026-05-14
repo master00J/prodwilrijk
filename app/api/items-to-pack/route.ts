@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
-import { consumeStageKistenForPackedPowertoolsItems } from '@/lib/prepack/stage-kisten-stock'
 import { sanitizePostgrestOrValue } from '@/lib/api/postgrest-filter'
+import { withAdmin } from '@/lib/api/with-auth'
+import { consumeStageKistenForPackedPowertoolsItems } from '@/lib/prepack/stage-kisten-stock'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -232,7 +233,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function DELETE(request: NextRequest) {
+export const DELETE = withAdmin(async (request: NextRequest) => {
   try {
     const body = await request.json()
     const { ids } = body
@@ -269,5 +270,5 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
