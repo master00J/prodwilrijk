@@ -34,23 +34,23 @@ const ANTHROPIC_MODEL = process.env.ORDERFLOW_ANTHROPIC_MODEL || 'claude-sonnet-
 const ORDERFLOW_SCHEMA_DESCRIPTION = `{
   "schema_version": "orderflow.v1",
   "header": {
-    "customer_name": {"value": string|null, "source_quote": string|null, "warnings": []},
-    "customer_order_number": {"value": string|null, "source_quote": string|null, "warnings": []},
-    "order_date": {"value": "YYYY-MM-DD"|null, "source_quote": string|null, "warnings": []},
-    "requested_delivery_date": {"value": "YYYY-MM-DD"|null, "source_quote": string|null, "warnings": []},
-    "delivery_address": {"value": string|null, "source_quote": string|null, "warnings": []},
-    "currency": {"value": string|null, "source_quote": string|null, "warnings": []}
+    "customer_name": {"value": string|null, "source_quote": string|null, "warnings": [{"field": string|null, "message": string, "source_quote": string|null}]},
+    "customer_order_number": {"value": string|null, "source_quote": string|null, "warnings": [{"field": string|null, "message": string, "source_quote": string|null}]},
+    "order_date": {"value": "YYYY-MM-DD"|null, "source_quote": string|null, "warnings": [{"field": string|null, "message": string, "source_quote": string|null}]},
+    "requested_delivery_date": {"value": "YYYY-MM-DD"|null, "source_quote": string|null, "warnings": [{"field": string|null, "message": string, "source_quote": string|null}]},
+    "delivery_address": {"value": string|null, "source_quote": string|null, "warnings": [{"field": string|null, "message": string, "source_quote": string|null}]},
+    "currency": {"value": string|null, "source_quote": string|null, "warnings": [{"field": string|null, "message": string, "source_quote": string|null}]}
   },
   "lines": [
     {
       "line_number": number,
-      "sku": {"value": string|null, "source_quote": string|null, "warnings": []},
-      "sku_raw": {"value": string|null, "source_quote": string|null, "warnings": []},
-      "description": {"value": string|null, "source_quote": string|null, "warnings": []},
-      "quantity": {"value": number|null, "source_quote": string|null, "warnings": []},
-      "unit_of_measure": {"value": string|null, "source_quote": string|null, "warnings": []},
-      "unit_price": {"value": number|null, "source_quote": string|null, "warnings": []},
-      "requested_delivery_date": {"value": "YYYY-MM-DD"|null, "source_quote": string|null, "warnings": []},
+      "sku": {"value": string|null, "source_quote": string|null, "warnings": [{"field": string|null, "message": string, "source_quote": string|null}]},
+      "sku_raw": {"value": string|null, "source_quote": string|null, "warnings": [{"field": string|null, "message": string, "source_quote": string|null}]},
+      "description": {"value": string|null, "source_quote": string|null, "warnings": [{"field": string|null, "message": string, "source_quote": string|null}]},
+      "quantity": {"value": number|null, "source_quote": string|null, "warnings": [{"field": string|null, "message": string, "source_quote": string|null}]},
+      "unit_of_measure": {"value": string|null, "source_quote": string|null, "warnings": [{"field": string|null, "message": string, "source_quote": string|null}]},
+      "unit_price": {"value": number|null, "source_quote": string|null, "warnings": [{"field": string|null, "message": string, "source_quote": string|null}]},
+      "requested_delivery_date": {"value": "YYYY-MM-DD"|null, "source_quote": string|null, "warnings": [{"field": string|null, "message": string, "source_quote": string|null}]},
       "raw_source_text": string|null,
       "validation_status": "unvalidated",
       "validation_notes": string|null,

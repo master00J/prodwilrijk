@@ -1,16 +1,32 @@
 import { z } from 'zod'
 
-export const orderflowWarningSchema = z.object({
+const orderflowWarningObjectSchema = z.object({
   field: z.string().nullable().default(null),
   message: z.string(),
   source_quote: z.string().nullable().default(null),
 })
 
+export const orderflowWarningSchema = z.preprocess((value) => {
+  if (typeof value === 'string') {
+    return {
+      field: null,
+      message: value,
+      source_quote: null,
+    }
+  }
+  return value
+}, orderflowWarningObjectSchema)
+
+export const orderflowWarningsSchema = z.preprocess((value) => {
+  if (value === null || value === undefined) return []
+  return Array.isArray(value) ? value : [value]
+}, z.array(orderflowWarningSchema))
+
 export const orderflowSourceValueSchema = <T extends z.ZodTypeAny>(valueSchema: T) =>
   z.object({
     value: valueSchema.nullable(),
     source_quote: z.string().nullable().default(null),
-    warnings: z.array(orderflowWarningSchema).default([]),
+    warnings: orderflowWarningsSchema,
   })
 
 export const orderflowOrderHeaderSchema = z.object({
@@ -34,14 +50,14 @@ export const orderflowOrderLineSchema = z.object({
   raw_source_text: z.string().nullable().default(null),
   validation_status: z.enum(['unvalidated', 'matched', 'unmatched', 'ambiguous']).default('unvalidated'),
   validation_notes: z.string().nullable().default(null),
-  _warnings: z.array(orderflowWarningSchema).default([]),
+  _warnings: orderflowWarningsSchema,
 })
 
 export const orderflowExtractedOrderSchema = z.object({
   schema_version: z.literal('orderflow.v1').default('orderflow.v1'),
   header: orderflowOrderHeaderSchema,
   lines: z.array(orderflowOrderLineSchema),
-  _warnings: z.array(orderflowWarningSchema).default([]),
+  _warnings: orderflowWarningsSchema,
 })
 
 export const orderflowUploadResponseSchema = z.object({
