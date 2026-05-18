@@ -29,6 +29,7 @@ export default function OrderflowPage() {
   const [documents, setDocuments] = useState<OrderflowDocument[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [extractingId, setExtractingId] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const loadDocuments = useCallback(async () => {
@@ -81,6 +82,32 @@ export default function OrderflowPage() {
     }
   }
 
+  const startExtraction = async (document: OrderflowDocument) => {
+    setExtractingId(document.id)
+    setMessage(null)
+
+    try {
+      const response = await fetch('/api/orderflow/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentId: document.id }),
+      })
+      const data: { extraction?: { id: string; model: string }; error?: string } = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Extractie mislukt.')
+
+      setMessage({
+        type: 'success',
+        text: `Extractie gestart en opgeslagen voor ${document.original_filename} (${data.extraction?.model || 'AI'}).`,
+      })
+      await loadDocuments()
+    } catch (error) {
+      setMessage({ type: 'error', text: getErrorMessage(error, 'Extractie mislukt.') })
+      await loadDocuments()
+    } finally {
+      setExtractingId(null)
+    }
+  }
+
   return (
     <main className="min-h-screen bg-slate-50">
       <div className="mx-auto max-w-6xl px-4 py-8">
@@ -89,7 +116,7 @@ export default function OrderflowPage() {
           <h1 className="text-3xl font-bold text-slate-900">Order intake queue</h1>
           <p className="mt-2 max-w-3xl text-sm text-slate-600">
             Eerste scaffold voor manuele uploads. Deze stap bewaart het originele document en raw tekst waar
-            beschikbaar; extractie, review en BC-staging volgen in aparte kleine diffs.
+            beschikbaar; AI-extractie kan nu gestart worden voor documenten met tekstinput.
           </p>
         </div>
 
@@ -135,8 +162,8 @@ export default function OrderflowPage() {
           <div className="rounded-xl border border-blue-200 bg-blue-50 p-6 text-sm text-blue-950">
             <h2 className="text-lg font-semibold">Waarom deze beperkte start?</h2>
             <p className="mt-2">
-              Er is nog geen gekozen klant, geen vaste BC-importshape en geen globale customer/SKU-master in de repo.
-              Daarom bewaart deze stap alleen controleerbare input zonder businessregels te verzinnen.
+              OpenAI is standaard voor extractie via de orderflow provider-config. PDF-upload wordt al bewaard,
+              maar PDF-tekstextractie volgt nog; Excel, CSV, EML en TXT hebben wel raw tekst.
             </p>
           </div>
         </div>
@@ -181,12 +208,16 @@ export default function OrderflowPage() {
                     <th className="px-5 py-3 font-semibold">Type</th>
                     <th className="px-5 py-3 font-semibold">Grootte</th>
                     <th className="px-5 py-3 font-semibold">Ontvangen</th>
+                    <th className="px-5 py-3 font-semibold">Actie</th>
                   </tr>
                 </thead>
                 <tbody>
                   {documents.map(document => (
-                    <tr key={document.id} className="border-b border-slate-50 last:border-0">
-                      <td className="px-5 py-3 font-medium text-slate-900">{document.original_filename}</td>
+                    <tr key={document.id} className="border-b border-slate-50 last:border-0 align-top">
+                      <td className="px-5 py-3">
+                        <div className="font-medium text-slate-900">{document.original_filename}</div>
+                        {document.error && <div className="mt-1 max-w-md text-xs text-red-700">{document.error}</div>}
+                      </td>
                       <td className="px-5 py-3 text-slate-600">{document.customer_label || '-'}</td>
                       <td className="px-5 py-3">
                         <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
@@ -197,6 +228,19 @@ export default function OrderflowPage() {
                       <td className="px-5 py-3 text-slate-600">{formatFileSize(document.file_size_bytes)}</td>
                       <td className="px-5 py-3 text-slate-600">
                         {new Date(document.received_at || document.created_at).toLocaleString('nl-BE')}
+                      </td>
+                      <td className="px-5 py-3">
+                        <button
+                          type="button"
+                          onClick={() => startExtraction(document)}
+                          disabled={
+                            extractingId === document.id ||
+                            !['uploaded', 'error'].includes(document.status)
+                          }
+                          className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:bg-slate-300"
+                        >
+                          {extractingId === document.id ? 'Bezig...' : 'Extractie starten'}
+                        </button>
                       </td>
                     </tr>
                   ))}
