@@ -1,4 +1,6 @@
+import 'pdf-parse/worker'
 import { NextRequest, NextResponse } from 'next/server'
+import { PDFParse } from 'pdf-parse'
 import * as XLSX from 'xlsx'
 import { withAuth } from '@/lib/api/with-auth'
 import { supabaseAdmin } from '@/lib/supabase/server'
@@ -19,6 +21,10 @@ const TEXT_MIME_TYPES = new Set([
   'text/plain',
   'message/rfc822',
 ])
+
+function isPdf(file: File, mimeType: string): boolean {
+  return mimeType === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+}
 
 function sanitizeFileName(name: string): string {
   return name
@@ -92,7 +98,22 @@ function extractExcelAsMarkdown(buffer: Buffer): string {
     .join('\n\n')
 }
 
+async function extractPdfText(buffer: Buffer): Promise<string | null> {
+  const parser = new PDFParse({ data: buffer })
+  try {
+    const pdfData = await parser.getText()
+    const text = (pdfData.text || '').trim()
+    return text.length > 0 ? text : null
+  } finally {
+    await parser.destroy()
+  }
+}
+
 async function extractRawText(file: File, buffer: Buffer, mimeType: string): Promise<string | null> {
+  if (isPdf(file, mimeType)) {
+    return extractPdfText(buffer)
+  }
+
   if (EXCEL_MIME_TYPES.has(mimeType) || /\.(xlsx|xls)$/i.test(file.name)) {
     return extractExcelAsMarkdown(buffer)
   }

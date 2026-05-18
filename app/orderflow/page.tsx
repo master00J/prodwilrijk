@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 
 type OrderflowDocument = {
@@ -162,8 +163,8 @@ export default function OrderflowPage() {
           <div className="rounded-xl border border-blue-200 bg-blue-50 p-6 text-sm text-blue-950">
             <h2 className="text-lg font-semibold">Waarom deze beperkte start?</h2>
             <p className="mt-2">
-              OpenAI is standaard voor extractie via de orderflow provider-config. PDF-upload wordt al bewaard,
-              maar PDF-tekstextractie volgt nog; Excel, CSV, EML en TXT hebben wel raw tekst.
+              OpenAI is standaard voor extractie via de orderflow provider-config. Digitale PDF-bestanden met
+              tekstlaag, Excel, CSV, EML en TXT krijgen raw tekst; gescande PDF-bestanden volgen later via OCR/vision.
             </p>
           </div>
         </div>
@@ -230,17 +231,27 @@ export default function OrderflowPage() {
                         {new Date(document.received_at || document.created_at).toLocaleString('nl-BE')}
                       </td>
                       <td className="px-5 py-3">
-                        <button
-                          type="button"
-                          onClick={() => startExtraction(document)}
-                          disabled={
-                            extractingId === document.id ||
-                            !['uploaded', 'error'].includes(document.status)
-                          }
-                          className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:bg-slate-300"
-                        >
-                          {extractingId === document.id ? 'Bezig...' : 'Extractie starten'}
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => startExtraction(document)}
+                            disabled={
+                              extractingId === document.id ||
+                              !['uploaded', 'error'].includes(document.status)
+                            }
+                            className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:bg-slate-300"
+                          >
+                            {extractingId === document.id ? 'Bezig...' : 'Extractie starten'}
+                          </button>
+                          {['extracted', 'error'].includes(document.status) && (
+                            <Link
+                              href={`/orderflow/queue/${document.id}`}
+                              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                            >
+                              Bekijk review
+                            </Link>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}

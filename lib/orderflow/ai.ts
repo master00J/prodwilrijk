@@ -77,7 +77,7 @@ function getDocumentText(document: OrderflowDocumentForExtraction): string {
   const rawText = document.raw_text?.trim()
   if (!rawText) {
     throw new Error(
-      `Document ${document.original_filename} heeft nog geen raw tekst. Excel, CSV, EML en TXT worden nu ondersteund; PDF-extractie volgt in een aparte stap.`
+      `Document ${document.original_filename} heeft geen raw tekst. Excel, CSV, EML, TXT en digitale PDF's met tekstlaag worden ondersteund; gescande PDF's hebben nog OCR/vision nodig.`
     )
   }
   return rawText.length > MAX_DOCUMENT_CHARS
