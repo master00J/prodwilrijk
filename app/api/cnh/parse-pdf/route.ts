@@ -1,8 +1,10 @@
+import 'pdf-parse/worker'
 import { NextRequest, NextResponse } from 'next/server'
 import { PDFParse } from 'pdf-parse'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+export const maxDuration = 60
 
 const MAX_PDF_BYTES = 10 * 1024 * 1024
 

@@ -160,11 +160,41 @@ export default function CNHWorkflowPage() {
         method: 'POST',
         body: formData,
       })
-      const data = await resp.json()
+      const rawBody = await resp.text()
+      let data: {
+        success?: boolean
+        error?: string
+        isScanned?: boolean
+        shippingNote?: string | null
+        motorNumbers?: string[]
+      } | null = null
 
-      // If server indicates it's a scanned PDF, use client-side OCR
-      if (!resp.ok && data.isScanned) {
-        showStatus('Gescand PDF gedetecteerd. OCR wordt uitgevoerd in de browser...', 'info')
+      const looksLikeHtml = /^\s*</.test(rawBody)
+      if (!looksLikeHtml && rawBody.trim()) {
+        try {
+          data = JSON.parse(rawBody)
+        } catch {
+          data = null
+        }
+      }
+
+      if (resp.status === 401 || resp.status === 403) {
+        throw new Error(data?.error || 'Niet ingelogd of geen toegang.')
+      }
+
+      const useClientOcr =
+        looksLikeHtml ||
+        !data ||
+        data.isScanned === true ||
+        (!resp.ok && resp.status >= 500)
+
+      // Gescande PDF, serverfout of geen JSON → OCR in de browser
+      if (useClientOcr) {
+        if (looksLikeHtml || !data) {
+          showStatus('Server kon PDF niet verwerken. OCR wordt uitgevoerd in de browser...', 'info')
+        } else {
+          showStatus('Gescand PDF gedetecteerd. OCR wordt uitgevoerd in de browser...', 'info')
+        }
         
         // Dynamic import of pdfjs-dist to avoid SSR issues
         const pdfjsLib = await import('pdfjs-dist')
