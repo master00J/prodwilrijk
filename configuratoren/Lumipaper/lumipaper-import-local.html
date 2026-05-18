@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lumipaper import (lokaal)</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+  <style>
+    :root {
+      --bg: #f4f6f9;
+      --card: #fff;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --muted: #64748b;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --danger: #dc2626;
+      --warn: #d97706;
+      --ok: #16a34a;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    .wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px 20px 48px;
+    }
+
+    h1 { margin: 0 0 8px; font-size: 1.75rem; }
+    .lead { color: var(--muted); margin: 0 0 24px; }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .card h2 {
+      margin: 0 0 12px;
+      font-size: 1.1rem;
+    }
+
+    .card p.hint {
+      margin: 0 0 12px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 6px;
+      font-size: 0.9rem;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 220px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 12px;
+      resize: vertical;
+    }
+
+    input[type="file"] {
+      width: 100%;
+      padding: 8px 0;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      margin-top: 12px;
+    }
+
+    button, .btn {
+      appearance: none;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--primary);
+      color: #fff;
+    }
+
+    button:hover:not(:disabled), .btn:hover { background: var(--primary-hover); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    button.secondary {
+      background: #e2e8f0;
+      color: var(--text);
+    }
+
+    button.secondary:hover { background: #cbd5e1; }
+
+    .alert {
+      padding: 12px 14px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 0.95rem;
+    }
+
+    .alert.error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+    .alert.success { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+    .alert.warn { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .meta dt { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .meta dd { margin: 4px 0 0; font-weight: 600; font-size: 1.05rem; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--border);
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f8fafc;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: var(--muted);
+    }
+
+    tr.unmapped td { background: #fff7ed; }
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .tag.ok { background: #dcfce7; color: #166534; }
+    .tag.miss { background: #fee2e2; color: #991b1b; }
+
+    .downloads {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .downloads a, .downloads button {
+      text-decoration: none;
+    }
+
+    .downloads button.highlight {
+      background: var(--ok);
+      color: #fff;
+    }
+
+    .downloads button.highlight:hover {
+      background: #15803d;
+    }
+
+    .template-status {
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+
+    .template-status.loaded { color: var(--ok); font-weight: 600; }
+
+    code {
+      background: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.85em;
+    }
+
+    .steps {
+      margin: 0;
+      padding-left: 1.2rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .steps li { margin-bottom: 6px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Lumipaper import (lokaal)</h1>
+    <p class="lead">
+      Parse Lumipaper bestelbon-mails offline. Zelfde logica als Prodwilrijk — geen server nodig.
+      Open dit bestand in Chrome of Edge (<code>file://</code> of lokaal gehost).
+    </p>
+
+    <div class="card">
+      <h2>Gebruik</h2>
+      <ol class="steps">
+        <li>Laad één keer de DC-templates uit <code>export excels\</code> (alle <code>DC*.xlsx</code>).</li>
+        <li>Plak mailtekst of upload een <code>.eml</code> / <code>.txt</code> bestand.</li>
+        <li>Klik <strong>Parseer</strong> en download XML, gecombineerde Excel (1 verkooporder) en per configurator.</li>
+        <li>Zet bestanden in de Montova-map of importeer in BC Configuration Journal.</li>
+      </ol>
+    </div>
+
+    <div id="alertBox" hidden></div>
+
+    <div class="card">
+      <h2>1. BC-templates (Excel)</h2>
+      <p class="hint">
+        Selecteer alle bestanden uit
+        <code>configuratoren/Lumipaper/export excels/</code>.
+        Templates worden in de browser onthouden (localStorage).
+      </p>
+      <input type="file" id="templateInput" accept=".xlsx" multiple />
+      <div class="row">
+        <button type="button" class="secondary" id="clearTemplatesBtn">Templates wissen</button>
+      </div>
+      <p class="template-status" id="templateStatus">Nog geen templates geladen.</p>
+    </div>
+
+    <div class="card">
+      <h2>2. Lumipaper mail</h2>
+      <label for="mailFile">Mailbestand (.eml, .txt, .html)</label>
+      <input type="file" id="mailFile" accept=".eml,.txt,.html,.htm" />
+      <label for="mailText" style="margin-top: 16px;">Of plak ruwe mailtekst</label>
+      <textarea id="mailText" placeholder="Plak hier de volledige mail (quoted-printable mag)…"></textarea>
+      <div class="row">
+        <button type="button" id="parseBtn">Parseer</button>
+        <button type="button" class="secondary" id="clearMailBtn">Wissen</button>
+      </div>
+    </div>
+
+    <div id="resultsSection" hidden>
+      <div class="card">
+        <h2>3. Resultaat</h2>
+        <dl class="meta" id="orderMeta"></dl>
+        <div id="unmappedBox" hidden class="alert warn"></div>
+        <div style="overflow-x: auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Artikel</th>
+                <th>Omschrijving</th>
+                <th>Aantal</th>
+                <th>L × B × H</th>
+                <th>Configurator</th>
+              </tr>
+            </thead>
+            <tbody id="linesBody"></tbody>
+          </table>
+        </div>
+        <h2 style="margin-top: 20px;">Downloads</h2>
+        <div class="downloads" id="downloads"></div>
+        <div class="row" style="margin-top: 12px;">
+          <button type="button" id="downloadAllBtn">Alles downloaden</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const CONFIGURATORS = [
+      { code: 'DC31 LUMI NS DK SK', family: 'NS', bodem: 'DKZ', deksel: 'SKZ' },
+      { code: 'DC32 LUMI NS DK SL', family: 'NS', bodem: 'DKZ', deksel: 'SLZ' },
+      { code: 'DC34 LUMI NS DL SL', family: 'NS', bodem: 'DLZ', deksel: 'SLZ' },
+      { code: 'DC35 LUMI FNS DK SK', family: 'FNS', bodem: 'DKZ', deksel: 'SKZ' },
+      { code: 'DC36 LUMI FNS DK SL', family: 'FNS', bodem: 'DKZ', deksel: 'SLZ' },
+      { code: 'DC54 LUMI GD DLZ SKZ', family: 'GD', bodem: 'DLZ', deksel: 'SKZ' },
+      { code: 'DC55 LUMI GD DLZ SLZ', family: 'GD', bodem: 'DLZ', deksel: 'SLZ' },
+    ]
+
+    const TEMPLATE_STORAGE_KEY = 'lumipaper_dc_templates_v1'
+    /** @type {Map<string, ArrayBuffer>} */
+    let templateBuffers = new Map()
+    let lastResult = null
+
+    // ——— Parsing (zelfde logica als lib/lumipaper/configurator.ts) ———
+
+    function decodeQuotedPrintable(input) {
+      return input
+        .replace(/=\r?\n/g, '')
+        .replace(/=([A-Fa-f0-9]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    }
+
+    function normalizeSpaces(value) {
+      return value.replace(/\s+/g, ' ').trim()
+    }
+
+    function escapeXml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;')
+    }
+
+    function parseLumipaperOrderNumber(text) {
+      const subjectMatch = text.match(/Bestelbon\s*:\s*(AK\d+)/i)
+      if (subjectMatch) return subjectMatch[1]
+      const bodyMatch = text.match(/Bestelnummer\s*:\s*(AK\d+)/i)
+      if (bodyMatch) return bodyMatch[1]
+      return `lumipaper-${new Date().toISOString().slice(0, 10)}`
+    }
+
+    function parseExtraDimensions(description) {
+      const dimensionMatches = [...description.matchAll(/(\d{3,4})\s*x\s*(\d{3,4})(?:\/(\d+))?/gi)]
+      return dimensionMatches.slice(1).map((match) => ({
+        length: Number(match[1]),
+        width: Number(match[2]),
+        divisor: match[3] ? Number(match[3]) : null,
+      }))
+    }
+
+    function parseLumipaperCsvOrderLines(text) {
+      const result = []
+      const csvStart = text.search(/(?:^|\n)\s*1,[A-Z0-9-]+,,/)
+      if (csvStart < 0) return result
+
+      const csvText = text.slice(csvStart)
+      const recordPattern =
+        /(?:^|\s)(\d+),([A-Z0-9-]+),,(\d+),(\d+),(\d+),(\d+),([^,\r\n]+),([^,\r\n]+),[\s\S]*?(\d{2}-\d{2}-\d{4})(?=\s+\d+,[A-Z0-9-]+,,|\s*$)/g
+
+      for (const match of csvText.matchAll(recordPattern)) {
+        const description = normalizeSpaces(match[7])
+        result.push({
+          lineNo: Number(match[1]),
+          itemCode: match[2],
+          quantity: Number(match[3]),
+          length: Number(match[4]),
+          width: Number(match[5]),
+          height: Number(match[6]),
+          description,
+          deliveryDate: match[9],
+          extraDimensions: parseExtraDimensions(description),
+        })
+      }
+      return result
+    }
+
+    function parseLumipaperVisualOrderLines(text) {
+      const lines = text.split(/\r?\n/)
+      const result = []
+
+      for (const line of lines) {
+        const itemMatch = line.match(
+          /^\s*(\d+)\s+([A-Z0-9-]+)\s+(.+?)\s+(\d+)\s+ST\s+([0-9]{1,2}-[a-z]{3}-[0-9]{2})\s*$/i
+        )
+        if (!itemMatch) continue
+
+        const description = normalizeSpaces(itemMatch[3])
+        const dimensionMatches = [...description.matchAll(/(\d{3,4})\s*x\s*(\d{3,4})(?:\/(\d+))?/gi)]
+        const firstDimension = dimensionMatches[0]
+        if (!firstDimension) continue
+
+        result.push({
+          lineNo: Number(itemMatch[1]),
+          itemCode: itemMatch[2],
+          description,
+          quantity: Number(itemMatch[4]),
+          deliveryDate: itemMatch[5],
+          length: Number(firstDimension[1]),
+          width: Number(firstDimension[2]),
+          height: 150,
+          extraDimensions: parseExtraDimensions(description),
+        })
+      }
+      return result
+    }
+
+    function parseLumipaperOrderLines(rawText) {
+      const text = decodeQuotedPrintable(rawText)
+      const csvLines = parseLumipaperCsvOrderLines(text)
+      if (csvLines.length > 0) return csvLines
+      return parseLumipaperVisualOrderLines(text)
+    }
+
+    function selectLumipaperConfigurator(orderLine) {
+      const text = orderLine.description.toUpperCase()
+      const family = text.includes('FNS') ? 'FNS' : text.includes('GD') ? 'GD' : 'NS'
+      const bodem = text.includes('DLZ') ? 'DLZ' : 'DKZ'
+      const deksel = text.includes('SLZ') ? 'SLZ' : 'SKZ'
+
+      return CONFIGURATORS.find(
+        (config) =>
+          config.family === family && config.bodem === bodem && config.deksel === deksel
+      )?.code || null
+    }
+
+    function generateLumipaperXml(orderNumber, orderLines) {
+      const createdAt = new Date().toISOString()
+      return `<?xml version="1.0" encoding="UTF-8"?>
+<LumipaperOrder>
+  <Header>
+    <OrderNumber>${escapeXml(orderNumber)}</OrderNumber>
+    <CustomerName>LUMIPAPER NV</CustomerName>
+    <ShipToName>FORESCO GENK</ShipToName>
+    <CreatedAt>${escapeXml(createdAt)}</CreatedAt>
+  </Header>
+  <Lines>
+${orderLines
+  .map(
+    (line) => `    <Line>
+      <LineNo>${escapeXml(line.lineNo)}</LineNo>
+      <SourceNo>${escapeXml(line.itemCode)}</SourceNo>
+      <BomCalcTemplateCode>${escapeXml(line.configurator)}</BomCalcTemplateCode>
+      <Description>${escapeXml(line.description)}</Description>
+      <Quantity>${escapeXml(line.quantity)}</Quantity>
+      <Length>${escapeXml(line.length)}</Length>
+      <Width>${escapeXml(line.width)}</Width>
+      <Height>${escapeXml(line.height)}</Height>
+      <DeliveryDate>${escapeXml(line.deliveryDate)}</DeliveryDate>
+      <ExtraDimensions>
+${line.extraDimensions
+  .map(
+    (dim) => `        <ExtraDimension>
+          <Length>${escapeXml(dim.length)}</Length>
+          <Width>${escapeXml(dim.width)}</Width>
+          <Divisor>${escapeXml(dim.divisor)}</Divisor>
+        </ExtraDimension>`
+  )
+  .join('\n')}
+      </ExtraDimensions>
+    </Line>`
+  )
+  .join('\n')}
+  </Lines>
+</LumipaperOrder>
+`
+    }
+
+    function buildImportResult(rawText) {
+      const decoded = decodeQuotedPrintable(rawText)
+      const orderNumber = parseLumipaperOrderNumber(decoded)
+      const orderLines = parseLumipaperOrderLines(decoded)
+
+      if (orderLines.length === 0) {
+        throw new Error('Geen Lumipaper-bestellijnen gevonden in de mail.')
+      }
+
+      const grouped = new Map()
+      const unmapped = []
+
+      for (const orderLine of orderLines) {
+        const configuratorCode = selectLumipaperConfigurator(orderLine)
+        if (!configuratorCode) {
+          unmapped.push(orderLine)
+          continue
+        }
+        const lines = grouped.get(configuratorCode) || []
+        lines.push(orderLine)
+        grouped.set(configuratorCode, lines)
+      }
+
+      const mappedLines = orderLines.map((line) => ({
+        ...line,
+        configurator: selectLumipaperConfigurator(line),
+      }))
+
+      return { orderNumber, orderLines, mappedLines, grouped, unmapped }
+    }
+
+    // ——— Excel (ExcelJS) ———
+
+    function copyRowValues(sourceRow, targetRow) {
+      sourceRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        const targetCell = targetRow.getCell(colNumber)
+        targetCell.value = cell.value
+        targetCell.style = JSON.parse(JSON.stringify(cell.style || {}))
+        targetCell.numFmt = cell.numFmt
+        targetCell.alignment = cell.alignment
+        targetCell.border = cell.border
+        targetCell.fill = cell.fill
+        targetCell.font = cell.font
+        targetCell.protection = cell.protection
+      })
+    }
+
+    function getColumnByHeader(worksheet, headerName) {
+      const headerRow = worksheet.getRow(1)
+      let targetColumn = 0
+      headerRow.eachCell((cell, colNumber) => {
+        if (String(cell.value || '').trim() === headerName) targetColumn = colNumber
+      })
+      if (!targetColumn) throw new Error(`Kolom "${headerName}" niet gevonden`)
+      return targetColumn
+    }
+
+    function setByHeader(worksheet, row, headerName, value) {
+      row.getCell(getColumnByHeader(worksheet, headerName)).value = value
+    }
+
+    function fillConfiguratorWorksheet(worksheet, rows) {
+      const templateRow = worksheet.getRow(2)
+
+      rows.forEach(({ orderLine, configuratorCode }, index) => {
+        const rowNumber = 2 + index
+        const row = worksheet.getRow(rowNumber)
+        if (rowNumber !== 2) copyRowValues(templateRow, row)
+
+        setByHeader(worksheet, row, 'BOM Calc. Template Code', configuratorCode)
+        setByHeader(worksheet, row, 'Type', 'Item Configuration')
+        setByHeader(worksheet, row, 'Source No.', orderLine.itemCode)
+        setByHeader(worksheet, row, 'Length', orderLine.length)
+        setByHeader(worksheet, row, 'Width', orderLine.width)
+        setByHeader(worksheet, row, 'Height', orderLine.height)
+        setByHeader(worksheet, row, 'PG Weight [kg]', 0)
+        setByHeader(worksheet, row, 'Unit', orderLine.quantity)
+
+        const headerValues = worksheet.getRow(1).values
+        const flexoColumn = headerValues.findIndex((v) => String(v || '').trim() === 'DCX LUMI FLEXO')
+        if (flexoColumn > 0) {
+          row.getCell(flexoColumn).value =
+            orderLine.extraDimensions.length > 0
+              ? orderLine.extraDimensions
+                  .map((d) => `${d.length}x${d.width}${d.divisor ? `/${d.divisor}` : ''}`)
+                  .join(' / ')
+              : 0
+        }
+        row.commit()
+      })
+
+      worksheet.spliceRows(2 + rows.length, Math.max(0, worksheet.rowCount - (1 + rows.length)))
+    }
+
+    function getBaseTemplateBuffer(mappedLines) {
+      for (const line of mappedLines) {
+        if (line.configurator && templateBuffers.has(line.configurator)) {
+          return templateBuffers.get(line.configurator)
+        }
+      }
+      return templateBuffers.values().next().value || null
+    }
+
+    async function buildConfiguratorWorkbook(templateBuffer, rows) {
+      const workbook = new ExcelJS.Workbook()
+      await workbook.xlsx.load(templateBuffer)
+      const worksheet = workbook.getWorksheet('Lines') || workbook.worksheets[0]
+      fillConfiguratorWorksheet(worksheet, rows)
+      return workbook
+    }
+
+    async function workbookToDownload(workbook, filename, configuratorCode) {
+      const out = await workbook.xlsx.writeBuffer()
+      return {
+        filename,
+        configuratorCode,
+        blob: new Blob([out], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        }),
+      }
+    }
+
+    async function generateConfiguratorFile(orderNumber, configuratorCode, orderLines) {
+      const buffer = templateBuffers.get(configuratorCode)
+      if (!buffer) {
+        throw new Error(`Template ontbreekt voor "${configuratorCode}". Laad de DC*.xlsx bestanden.`)
+      }
+
+      const rows = orderLines.map((orderLine) => ({ orderLine, configuratorCode }))
+      const workbook = await buildConfiguratorWorkbook(buffer, rows)
+      return workbookToDownload(workbook, `${orderNumber} - ${configuratorCode}.xlsx`, configuratorCode)
+    }
+
+    async function generateCombinedConfiguratorFile(orderNumber, mappedLines) {
+      const rows = mappedLines
+        .filter((line) => line.configurator)
+        .sort((a, b) => a.lineNo - b.lineNo)
+        .map((line) => ({ orderLine: line, configuratorCode: line.configurator }))
+
+      if (rows.length === 0) return null
+
+      const baseBuffer = getBaseTemplateBuffer(mappedLines)
+      if (!baseBuffer) return null
+
+      const workbook = await buildConfiguratorWorkbook(baseBuffer, rows)
+      return workbookToDownload(workbook, `${orderNumber} - Gecombineerd.xlsx`, 'Gecombineerd')
+    }
+
+    async function generateAllFiles(result) {
+      const files = []
+      const xml = generateLumipaperXml(result.orderNumber, result.mappedLines)
+      files.push({
+        filename: `${result.orderNumber} - EDI.xml`,
+        configuratorCode: 'EDI XML',
+        blob: new Blob([xml], { type: 'application/xml' }),
+      })
+
+      const missingTemplates = []
+      const combined = await generateCombinedConfiguratorFile(result.orderNumber, result.mappedLines)
+      if (combined) {
+        files.push(combined)
+      }
+
+      for (const [configuratorCode, lines] of result.grouped.entries()) {
+        if (!templateBuffers.has(configuratorCode)) {
+          missingTemplates.push(configuratorCode)
+          continue
+        }
+        files.push(await generateConfiguratorFile(result.orderNumber, configuratorCode, lines))
+      }
+
+      if (!combined && result.grouped.size > 0 && templateBuffers.size === 0) {
+        missingTemplates.push('(geen templates geladen)')
+      }
+
+      return { files, missingTemplates }
+    }
+
+    // ——— Templates opslag ———
+
+    function arrayBufferToBase64(buffer) {
+      const bytes = new Uint8Array(buffer)
+      let binary = ''
+      const chunk = 0x8000
+      for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
+      }
+      return btoa(binary)
+    }
+
+    function base64ToArrayBuffer(base64) {
+      const binary = atob(base64)
+      const bytes = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+      return bytes.buffer
+    }
+
+    function configuratorCodeFromFilename(name) {
+      return name.replace(/\.xlsx$/i, '').trim()
+    }
+
+    function updateTemplateStatus() {
+      const el = document.getElementById('templateStatus')
+      const codes = [...templateBuffers.keys()].sort()
+      if (codes.length === 0) {
+        el.textContent = 'Nog geen templates geladen.'
+        el.classList.remove('loaded')
+        return
+      }
+      el.textContent = `${codes.length} template(s): ${codes.join(', ')}`
+      el.classList.add('loaded')
+    }
+
+    async function saveTemplatesToStorage() {
+      const payload = {}
+      for (const [code, buf] of templateBuffers.entries()) {
+        payload[code] = arrayBufferToBase64(buf)
+      }
+      try {
+        localStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(payload))
+      } catch (e) {
+        showAlert('Templates te groot voor localStorage — ze blijven alleen deze sessie bewaard.', 'warn')
+      }
+    }
+
+    function loadTemplatesFromStorage() {
+      try {
+        const raw = localStorage.getItem(TEMPLATE_STORAGE_KEY)
+        if (!raw) return
+        const payload = JSON.parse(raw)
+        templateBuffers = new Map()
+        for (const [code, b64] of Object.entries(payload)) {
+          templateBuffers.set(code, base64ToArrayBuffer(b64))
+        }
+        updateTemplateStatus()
+      } catch {
+        localStorage.removeItem(TEMPLATE_STORAGE_KEY)
+      }
+    }
+
+    async function loadTemplateFiles(fileList) {
+      for (const file of fileList) {
+        if (!/\.xlsx$/i.test(file.name)) continue
+        const code = configuratorCodeFromFilename(file.name)
+        templateBuffers.set(code, await file.arrayBuffer())
+      }
+      await saveTemplatesToStorage()
+      updateTemplateStatus()
+      showAlert(`${templateBuffers.size} template(s) geladen.`, 'success')
+    }
+
+    // ——— UI ———
+
+    function showAlert(message, type = 'error') {
+      const box = document.getElementById('alertBox')
+      box.hidden = false
+      box.className = `alert ${type}`
+      box.textContent = message
+    }
+
+    function hideAlert() {
+      document.getElementById('alertBox').hidden = true
+    }
+
+    function triggerDownload(blob, filename) {
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+
+    function renderResults(result, files) {
+      lastResult = { result, files: files || [] }
+      document.getElementById('resultsSection').hidden = false
+
+      const meta = document.getElementById('orderMeta')
+      meta.innerHTML = `
+        <div><dt>Ordernummer</dt><dd>${escapeHtml(result.orderNumber)}</dd></div>
+        <div><dt>Lijnen</dt><dd>${result.orderLines.length}</dd></div>
+        <div><dt>Configuratoren</dt><dd>${result.grouped.size}</dd></div>
+        <div><dt>Niet gemapt</dt><dd>${result.unmapped.length}</dd></div>
+      `
+
+      const unmappedBox = document.getElementById('unmappedBox')
+      if (result.unmapped.length > 0) {
+        unmappedBox.hidden = false
+        unmappedBox.textContent = `${result.unmapped.length} lijn(en) zonder configurator — controleer omschrijving (FNS/GD/NS, DKZ/DLZ, SKZ/SLZ).`
+      } else {
+        unmappedBox.hidden = true
+      }
+
+      const tbody = document.getElementById('linesBody')
+      tbody.innerHTML = result.mappedLines
+        .map((line) => {
+          const unmapped = !line.configurator
+          return `<tr class="${unmapped ? 'unmapped' : ''}">
+            <td>${line.lineNo}</td>
+            <td>${escapeHtml(line.itemCode)}</td>
+            <td>${escapeHtml(line.description)}</td>
+            <td>${line.quantity}</td>
+            <td>${line.length} × ${line.width} × ${line.height}</td>
+            <td>${
+              line.configurator
+                ? `<span class="tag ok">${escapeHtml(line.configurator)}</span>`
+                : '<span class="tag miss">—</span>'
+            }</td>
+          </tr>`
+        })
+        .join('')
+
+      const downloads = document.getElementById('downloads')
+      downloads.innerHTML = files
+        .map((f, i) => {
+          const isCombined = f.configuratorCode === 'Gecombineerd'
+          const cls = isCombined ? 'highlight' : 'secondary'
+          return `<button type="button" class="${cls}" data-dl="${i}">${escapeHtml(f.filename)} (${f.configuratorCode})</button>`
+        })
+        .join('')
+
+      downloads.querySelectorAll('[data-dl]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const f = files[Number(btn.getAttribute('data-dl'))]
+          triggerDownload(f.blob, f.filename)
+        })
+      })
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+    }
+
+    async function runParse() {
+      hideAlert()
+      const text = document.getElementById('mailText').value.trim()
+      if (!text) {
+        showAlert('Plak mailtekst of upload een mailbestand.')
+        return
+      }
+
+      const parseBtn = document.getElementById('parseBtn')
+      parseBtn.disabled = true
+      parseBtn.textContent = 'Bezig…'
+
+      try {
+        const result = buildImportResult(text)
+        const { files, missingTemplates } = await generateAllFiles(result)
+        renderResults(result, files)
+        let msg = `Import klaar: ${files.length} bestand(en) gegenereerd.`
+        if (missingTemplates.length > 0) {
+          msg += ` Excel overgeslagen (template ontbreekt): ${missingTemplates.join(', ')}.`
+        }
+        showAlert(msg, missingTemplates.length && files.length === 1 ? 'warn' : 'success')
+      } catch (err) {
+        showAlert(err.message || String(err))
+        document.getElementById('resultsSection').hidden = true
+      } finally {
+        parseBtn.disabled = false
+        parseBtn.textContent = 'Parseer'
+      }
+    }
+
+    // ——— Events ———
+
+    document.getElementById('templateInput').addEventListener('change', async (e) => {
+      const files = e.target.files
+      if (!files?.length) return
+      await loadTemplateFiles(files)
+      e.target.value = ''
+    })
+
+    document.getElementById('clearTemplatesBtn').addEventListener('click', () => {
+      templateBuffers.clear()
+      localStorage.removeItem(TEMPLATE_STORAGE_KEY)
+      updateTemplateStatus()
+      showAlert('Templates gewist.', 'success')
+    })
+
+    document.getElementById('mailFile').addEventListener('change', async (e) => {
+      const file = e.target.files?.[0]
+      if (!file) return
+      const text = await file.text()
+      document.getElementById('mailText').value = text
+      hideAlert()
+    })
+
+    document.getElementById('parseBtn').addEventListener('click', runParse)
+
+    document.getElementById('clearMailBtn').addEventListener('click', () => {
+      document.getElementById('mailText').value = ''
+      document.getElementById('mailFile').value = ''
+      document.getElementById('resultsSection').hidden = true
+      hideAlert()
+    })
+
+    document.getElementById('downloadAllBtn').addEventListener('click', () => {
+      if (!lastResult?.files?.length) return
+      lastResult.files.forEach((f, i) => {
+        setTimeout(() => triggerDownload(f.blob, f.filename), i * 350)
+      })
+    })
+
+    loadTemplatesFromStorage()
+  </script>
+</body>
+</html>

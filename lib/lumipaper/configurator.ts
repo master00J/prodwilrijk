@@ -198,19 +198,18 @@ function setByHeader(worksheet: ExcelJS.Worksheet, row: ExcelJS.Row, headerName:
   row.getCell(getColumnByHeader(worksheet, headerName)).value = value
 }
 
-async function generateConfiguratorFile(
-  orderNumber: string,
-  configuratorCode: string,
-  orderLines: LumipaperOrderLine[]
-): Promise<LumipaperGeneratedFile> {
-  const templateFile = path.join(TEMPLATE_DIR, `${configuratorCode}.xlsx`)
-  const workbook = new ExcelJS.Workbook()
-  await workbook.xlsx.readFile(templateFile)
+type ConfiguratorWorksheetRow = {
+  orderLine: LumipaperOrderLine
+  configuratorCode: string
+}
 
-  const worksheet = workbook.getWorksheet('Lines') || workbook.worksheets[0]
+function fillConfiguratorWorksheet(
+  worksheet: ExcelJS.Worksheet,
+  rows: ConfiguratorWorksheetRow[]
+) {
   const templateRow = worksheet.getRow(2)
 
-  orderLines.forEach((orderLine, index) => {
+  rows.forEach(({ orderLine, configuratorCode }, index) => {
     const rowNumber = 2 + index
     const row = worksheet.getRow(rowNumber)
 
@@ -240,16 +239,74 @@ async function generateConfiguratorFile(
     row.commit()
   })
 
-  worksheet.spliceRows(2 + orderLines.length, Math.max(0, worksheet.rowCount - (1 + orderLines.length)))
+  worksheet.spliceRows(2 + rows.length, Math.max(0, worksheet.rowCount - (1 + rows.length)))
+}
 
+async function workbookFromTemplate(
+  templateFile: string,
+  rows: ConfiguratorWorksheetRow[]
+): Promise<ExcelJS.Workbook> {
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(templateFile)
+  const worksheet = workbook.getWorksheet('Lines') || workbook.worksheets[0]
+  fillConfiguratorWorksheet(worksheet, rows)
+  return workbook
+}
+
+async function workbookToGeneratedFile(
+  workbook: ExcelJS.Workbook,
+  filename: string,
+  configuratorCode: string,
+  lineCount: number
+): Promise<LumipaperGeneratedFile> {
   const buffer = Buffer.from(await workbook.xlsx.writeBuffer())
   return {
-    filename: `${orderNumber} - ${configuratorCode}.xlsx`,
+    filename,
     configuratorCode,
-    lineCount: orderLines.length,
+    lineCount,
     contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     base64: buffer.toString('base64'),
   }
+}
+
+async function generateConfiguratorFile(
+  orderNumber: string,
+  configuratorCode: string,
+  orderLines: LumipaperOrderLine[]
+): Promise<LumipaperGeneratedFile> {
+  const templateFile = path.join(TEMPLATE_DIR, `${configuratorCode}.xlsx`)
+  const rows = orderLines.map((orderLine) => ({ orderLine, configuratorCode }))
+  const workbook = await workbookFromTemplate(templateFile, rows)
+
+  return workbookToGeneratedFile(
+    workbook,
+    `${orderNumber} - ${configuratorCode}.xlsx`,
+    configuratorCode,
+    orderLines.length
+  )
+}
+
+async function generateCombinedConfiguratorFile(
+  orderNumber: string,
+  orderLines: Array<LumipaperOrderLine & { configurator: string | null }>
+): Promise<LumipaperGeneratedFile | null> {
+  const rows = orderLines
+    .filter((line): line is LumipaperOrderLine & { configurator: string } => Boolean(line.configurator))
+    .sort((a, b) => a.lineNo - b.lineNo)
+    .map((line) => ({ orderLine: line, configuratorCode: line.configurator }))
+
+  if (rows.length === 0) return null
+
+  const templateCode = rows[0].configuratorCode
+  const templateFile = path.join(TEMPLATE_DIR, `${templateCode}.xlsx`)
+  const workbook = await workbookFromTemplate(templateFile, rows)
+
+  return workbookToGeneratedFile(
+    workbook,
+    `${orderNumber} - Gecombineerd.xlsx`,
+    'Gecombineerd',
+    rows.length
+  )
 }
 
 function generateLumipaperXmlFile(
@@ -330,6 +387,12 @@ export async function generateLumipaperImport(rawText: string): Promise<Lumipape
   const generatedFiles: LumipaperGeneratedFile[] = [
     generateLumipaperXmlFile(orderNumber, mappedLines),
   ]
+
+  const combinedFile = await generateCombinedConfiguratorFile(orderNumber, mappedLines)
+  if (combinedFile) {
+    generatedFiles.push(combinedFile)
+  }
+
   for (const [configuratorCode, lines] of grouped.entries()) {
     generatedFiles.push(await generateConfiguratorFile(orderNumber, configuratorCode, lines))
   }
