@@ -225,8 +225,8 @@ export default function OrderflowReviewPage() {
               </pre>
             ) : (
               <div className="p-4 text-sm text-slate-600">
-                Geen raw tekst beschikbaar voor dit document. Dit gebeurt meestal bij gescande PDF-bestanden zonder tekstlaag;
-                OCR/vision en PDF-weergave komen in een aparte stap.
+                Geen raw tekst beschikbaar voor dit document. Bij PDF-bestanden is digitale tekstextractie en vision
+                geprobeerd; PDF-weergave komt nog in een aparte stap.
               </div>
             )}
           </section>

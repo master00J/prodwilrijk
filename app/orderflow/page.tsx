@@ -164,7 +164,7 @@ export default function OrderflowPage() {
             <h2 className="text-lg font-semibold">Waarom deze beperkte start?</h2>
             <p className="mt-2">
               OpenAI is standaard voor extractie via de orderflow provider-config. Digitale PDF-bestanden met
-              tekstlaag, Excel, CSV, EML en TXT krijgen raw tekst; gescande PDF-bestanden volgen later via OCR/vision.
+              tekstlaag, Excel, CSV, EML en TXT krijgen raw tekst; gescande PDF-bestanden worden via vision geprobeerd.
             </p>
           </div>
         </div>

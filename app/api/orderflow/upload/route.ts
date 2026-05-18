@@ -1,12 +1,12 @@
-import 'pdf-parse/worker'
 import { NextRequest, NextResponse } from 'next/server'
-import { PDFParse } from 'pdf-parse'
 import * as XLSX from 'xlsx'
 import { withAuth } from '@/lib/api/with-auth'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { extractOrderflowPdfText } from '@/lib/orderflow/pdf'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+export const maxDuration = 120
 
 const BUCKET = 'orderflow-documents'
 const MAX_PREVIEW_ROWS = 200
@@ -98,20 +98,9 @@ function extractExcelAsMarkdown(buffer: Buffer): string {
     .join('\n\n')
 }
 
-async function extractPdfText(buffer: Buffer): Promise<string | null> {
-  const parser = new PDFParse({ data: buffer })
-  try {
-    const pdfData = await parser.getText()
-    const text = (pdfData.text || '').trim()
-    return text.length > 0 ? text : null
-  } finally {
-    await parser.destroy()
-  }
-}
-
 async function extractRawText(file: File, buffer: Buffer, mimeType: string): Promise<string | null> {
   if (isPdf(file, mimeType)) {
-    return extractPdfText(buffer)
+    return extractOrderflowPdfText(buffer)
   }
 
   if (EXCEL_MIME_TYPES.has(mimeType) || /\.(xlsx|xls)$/i.test(file.name)) {
