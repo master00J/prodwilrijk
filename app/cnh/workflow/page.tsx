@@ -144,6 +144,54 @@ export default function CNHWorkflowPage() {
     })
   }, [])
 
+  const applyPdfParseResult = useCallback(
+    (result: { shippingNote?: string | null; motorNumbers?: string[] }, successMessage: string) => {
+      if (result.shippingNote) {
+        setIncomingShippingNote(result.shippingNote)
+      }
+      if (result.motorNumbers && result.motorNumbers.length > 0) {
+        setIncomingMotors(
+          result.motorNumbers.map((motorNr) => ({
+            motorNr,
+            location: 'China',
+          }))
+        )
+        showStatus(successMessage, 'success')
+      } else {
+        showStatus('Geen motornummers gevonden in PDF. Controleer het bestand.', 'warning')
+      }
+      setPdfFile(null)
+    },
+    [showStatus]
+  )
+
+  const parsePdfApiResponse = useCallback(async (response: Response) => {
+    const rawBody = await response.text()
+    const looksLikeHtml = /^\s*</.test(rawBody)
+
+    if (looksLikeHtml || !rawBody.trim()) {
+      return { response, data: null as null, looksLikeHtml: true }
+    }
+
+    try {
+      return {
+        response,
+        data: JSON.parse(rawBody) as {
+          success?: boolean
+          error?: string
+          isScanned?: boolean
+          useClientOcr?: boolean
+          shippingNote?: string | null
+          motorNumbers?: string[]
+          method?: string
+        },
+        looksLikeHtml: false,
+      }
+    } catch {
+      return { response, data: null as null, looksLikeHtml: true }
+    }
+  }, [])
+
   const parsePdf = useCallback(async () => {
     if (!pdfFile) {
       showStatus('Geen PDF bestand geselecteerd', 'warning')
@@ -152,48 +200,53 @@ export default function CNHWorkflowPage() {
 
     setParsingPdf(true)
     try {
-      // First, try server-side parsing (for text-based PDFs)
       const formData = new FormData()
       formData.append('file', pdfFile)
 
-      const resp = await fetch('/api/cnh/parse-pdf', {
-        method: 'POST',
-        body: formData,
-      })
-      const rawBody = await resp.text()
-      let data: {
-        success?: boolean
-        error?: string
-        isScanned?: boolean
-        shippingNote?: string | null
-        motorNumbers?: string[]
-      } | null = null
-
-      const looksLikeHtml = /^\s*</.test(rawBody)
-      if (!looksLikeHtml && rawBody.trim()) {
-        try {
-          data = JSON.parse(rawBody)
-        } catch {
-          data = null
-        }
-      }
+      const { response: resp, data, looksLikeHtml } = await parsePdfApiResponse(
+        await fetch('/api/cnh/parse-pdf', { method: 'POST', body: formData })
+      )
 
       if (resp.status === 401 || resp.status === 403) {
         throw new Error(data?.error || 'Niet ingelogd of geen toegang.')
       }
 
-      const useClientOcr =
+      if (resp.ok && data?.success && data.motorNumbers && data.motorNumbers.length > 0) {
+        applyPdfParseResult(
+          data,
+          `${data.motorNumbers.length} motornummers gevonden in PDF!`
+        )
+        return
+      }
+
+      const useAiOrOcr =
         looksLikeHtml ||
         !data ||
         data.isScanned === true ||
+        data.useClientOcr === true ||
         (!resp.ok && resp.status >= 500)
 
-      // Gescande PDF, serverfout of geen JSON → OCR in de browser
-      if (useClientOcr) {
+      if (useAiOrOcr) {
+        showStatus('PDF wordt geanalyseerd met AI...', 'info')
+
+        const aiFormData = new FormData()
+        aiFormData.append('file', pdfFile)
+        const { response: aiResp, data: aiData } = await parsePdfApiResponse(
+          await fetch('/api/cnh/parse-pdf-ai', { method: 'POST', body: aiFormData })
+        )
+
+        if (aiResp.ok && aiData?.success && aiData.motorNumbers && aiData.motorNumbers.length > 0) {
+          applyPdfParseResult(
+            aiData,
+            `✅ AI: ${aiData.motorNumbers.length} motornummers gevonden (${aiData.method === 'text' ? 'tekst' : 'vision'})!`
+          )
+          return
+        }
+
         if (looksLikeHtml || !data) {
-          showStatus('Server kon PDF niet verwerken. OCR wordt uitgevoerd in de browser...', 'info')
+          showStatus('Server/AI kon PDF niet verwerken. OCR in browser...', 'info')
         } else {
-          showStatus('Gescand PDF gedetecteerd. OCR wordt uitgevoerd in de browser...', 'info')
+          showStatus('Gescand PDF — OCR in browser...', 'info')
         }
         
         // Dynamic import of pdfjs-dist to avoid SSR issues
@@ -440,54 +493,34 @@ export default function CNHWorkflowPage() {
         console.log('Totaal unieke motornummers gevonden:', uniqueMotorNumbers.length)
         console.log('Motornummers (originele volgorde):', uniqueMotorNumbers)
 
-        // Fill in the extracted data
-        if (shippingNote) {
-          setIncomingShippingNote(shippingNote)
-        }
         if (uniqueMotorNumbers.length > 0) {
-          setIncomingMotors(
-            uniqueMotorNumbers.map((motorNr: string) => ({
-              motorNr: motorNr,
-              location: 'China',
-            }))
+          applyPdfParseResult(
+            { shippingNote: shippingNote || null, motorNumbers: uniqueMotorNumbers },
+            `✅ OCR: ${uniqueMotorNumbers.length} motornummers gevonden.`
           )
-          showStatus(`✅ OCR voltooid! ${uniqueMotorNumbers.length} motornummers gevonden.`, 'success')
         } else {
           console.warn('Geen motornummers gevonden. OCR tekst:', allText.substring(0, 1000))
           showStatus('Geen motornummers gevonden na OCR. Controleer de browser console voor details.', 'warning')
+          setPdfFile(null)
         }
-        setPdfFile(null)
         return
       }
 
-      // If server-side parsing succeeded
-      if (!resp.ok || !data.success) {
-        throw new Error(data.error || 'Fout bij het lezen van PDF')
+      if (!data || !resp.ok || !data.success) {
+        throw new Error(data?.error || 'Fout bij het lezen van PDF')
       }
 
-      // Fill in the extracted data
-      if (data.shippingNote) {
-        setIncomingShippingNote(data.shippingNote)
-      }
-      if (data.motorNumbers && data.motorNumbers.length > 0) {
-        setIncomingMotors(
-          data.motorNumbers.map((motorNr: string) => ({
-            motorNr: motorNr,
-            location: 'China',
-          }))
-        )
-        showStatus(`${data.motorNumbers.length} motornummers gevonden in PDF!`, 'success')
-      } else {
-        showStatus('Geen motornummers gevonden in PDF. Controleer het bestand.', 'warning')
-      }
-      setPdfFile(null)
+      applyPdfParseResult(
+        data,
+        `${data.motorNumbers?.length || 0} motornummers gevonden in PDF!`
+      )
     } catch (e: any) {
       console.error(e)
       showStatus('Fout bij het lezen van PDF: ' + e.message, 'error')
     } finally {
       setParsingPdf(false)
     }
-  }, [pdfFile, showStatus])
+  }, [pdfFile, showStatus, applyPdfParseResult, parsePdfApiResponse])
 
   const handlePdfChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
