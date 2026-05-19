@@ -51,7 +51,10 @@ Antwoord in duidelijk Nederlands.
 
 Belangrijk:
 - Gebruik alleen de meegegeven context. Verzin geen cases, datums, stock of BC-nummers.
-- Geef een korte conclusie en daarna concrete acties.
+- Antwoord alsof je met iemand praat in de ChatGPT app: natuurlijk, rustig en praktisch.
+- Gebruik geen Markdown-opmaak: geen **vet**, geen ### titels, geen bullettekens, geen genummerde lijsten, geen tabellen.
+- Schrijf in gewone zinnen en korte alinea's. Als je meerdere cases noemt, doe dat in lopende tekst met komma's.
+- Geef eerst een korte conclusie en daarna concrete acties in natuurlijke taal.
 - Als je prioriteiten adviseert, leg kort uit waarom.
 - Noem caselabels exact zoals ze in de context staan.
 - Je mag redeneren in het antwoord, maar hou het praktisch: signalen, risico's, advies.
@@ -91,6 +94,22 @@ function buildContextMessage(input: AssistantRequest): string {
   })
 }
 
+function cleanAssistantAnswer(answer: string): string {
+  return answer
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/^#{1,6}\s*/gm, '')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/^[-*]\s+/gm, '')
+    .replace(/^\d+\.\s+/gm, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[>#_*~|]/g, ' ')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 async function answerGroteInpakQuestion(input: AssistantRequest): Promise<string> {
   if (!OPENAI_API_KEY) {
     throw new Error('OPENAI_API_KEY niet geconfigureerd op de server.')
@@ -123,7 +142,7 @@ async function answerGroteInpakQuestion(input: AssistantRequest): Promise<string
   }
 
   const result = JSON.parse(rawText)
-  const answer = String(result.choices?.[0]?.message?.content || '').trim()
+  const answer = cleanAssistantAnswer(String(result.choices?.[0]?.message?.content || '').trim())
   if (!answer) throw new Error('De assistent gaf geen antwoord terug.')
   return answer
 }

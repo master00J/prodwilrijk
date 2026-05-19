@@ -93,14 +93,31 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
   const voiceChunksRef = useRef<Blob[]>([])
   const voiceStreamRef = useRef<MediaStream | null>(null)
 
+  const makeSpeakableText = useCallback((text: string): string => {
+    return text
+      .replace(/```[\s\S]*?```/g, ' ')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/^#{1,6}\s*/gm, '')
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/\*([^*]+)\*/g, '$1')
+      .replace(/^[-*]\s+/gm, '')
+      .replace(/^\d+\.\s+/gm, '')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/[>#_*~|]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  }, [])
+
   const speakVoiceConfirmation = useCallback((text: string) => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return
+    const speakableText = makeSpeakableText(text)
+    if (!speakableText) return
     window.speechSynthesis.cancel()
-    const utterance = new SpeechSynthesisUtterance(text)
+    const utterance = new SpeechSynthesisUtterance(speakableText)
     utterance.lang = 'nl-BE'
     utterance.rate = 1
     window.speechSynthesis.speak(utterance)
-  }, [])
+  }, [makeSpeakableText])
 
   useEffect(() => {
     setVoiceSupported(
