@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import {
   Search,
   Save,
@@ -16,6 +16,8 @@ import {
   Truck,
   AlertTriangle,
   XCircle,
+  Mic,
+  MicOff,
 } from 'lucide-react'
 import type { GroteInpakCase, ProductionTimeActive } from '@/types/database'
 import { BcItemCode } from '@/lib/bc-mapping/client'
@@ -76,6 +78,22 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
   const [verbergInProductie, setVerbergInProductie] = useState(false)
   const [verbergOpStock, setVerbergOpStock] = useState(false)
   const [verbergInTransfer, setVerbergInTransfer] = useState(false)
+  const [voiceSupported, setVoiceSupported] = useState(false)
+  const [voiceListening, setVoiceListening] = useState(false)
+  const [voiceBusy, setVoiceBusy] = useState(false)
+  const [voiceTranscript, setVoiceTranscript] = useState('')
+  const [voiceMessage, setVoiceMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const voiceChunksRef = useRef<Blob[]>([])
+  const voiceStreamRef = useRef<MediaStream | null>(null)
+
+  useEffect(() => {
+    setVoiceSupported(
+      typeof window !== 'undefined' &&
+      Boolean(navigator.mediaDevices?.getUserMedia) &&
+      typeof MediaRecorder !== 'undefined'
+    )
+  }, [])
 
   // Get unique values for filters
   const locations = useMemo(() => {
@@ -397,6 +415,93 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
     }
   }
 
+  const submitVoiceAudio = useCallback(async (audioBlob: Blob) => {
+    setVoiceBusy(true)
+    setVoiceMessage({ type: 'info', text: 'Audio naar AI sturen...' })
+
+    try {
+      const formData = new FormData()
+      formData.append('audio', audioBlob, 'grote-inpak-voice.webm')
+
+      const response = await fetch('/api/grote-inpak/voice-priority', {
+        method: 'POST',
+        body: formData,
+      })
+      const result: {
+        error?: string
+        transcript?: string
+        case?: { case_label: string; priority: boolean; comment: string | null }
+      } = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.error || 'Voice actie opslaan mislukt')
+
+      if (result.transcript) setVoiceTranscript(result.transcript)
+      if (!result.case?.case_label) throw new Error('Voice actie gaf geen case terug')
+
+      const edited = editedData.get(result.case.case_label) || {}
+      const newEdited = new Map(editedData)
+      newEdited.set(result.case.case_label, {
+        ...edited,
+        priority: true,
+        comment: result.case.comment || '',
+      })
+      setEditedData(newEdited)
+      setVoiceMessage({
+        type: 'success',
+        text: `${result.case.case_label} staat op priority met notitie "${result.case.comment || ''}".`,
+      })
+    } catch (error) {
+      setVoiceMessage({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Voice actie mislukt',
+      })
+    } finally {
+      setVoiceBusy(false)
+    }
+  }, [editedData])
+
+  const stopVoicePriority = useCallback(() => {
+    mediaRecorderRef.current?.stop()
+    voiceStreamRef.current?.getTracks().forEach(track => track.stop())
+    voiceStreamRef.current = null
+    setVoiceListening(false)
+  }, [])
+
+  const startVoicePriority = useCallback(async () => {
+    if (!voiceSupported) {
+      setVoiceMessage({ type: 'error', text: 'Audio-opname wordt niet ondersteund in deze browser.' })
+      return
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const recorder = new MediaRecorder(stream)
+      voiceChunksRef.current = []
+      voiceStreamRef.current = stream
+      mediaRecorderRef.current = recorder
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) voiceChunksRef.current.push(event.data)
+      }
+
+      recorder.onstop = () => {
+        const blob = new Blob(voiceChunksRef.current, { type: recorder.mimeType || 'audio/webm' })
+        voiceChunksRef.current = []
+        void submitVoiceAudio(blob)
+      }
+
+      setVoiceTranscript('')
+      setVoiceMessage({ type: 'info', text: 'Opnemen... zeg bijvoorbeeld: "K12345 prio klant wacht op levering". Klik opnieuw om te stoppen.' })
+      setVoiceListening(true)
+      recorder.start()
+    } catch (error) {
+      setVoiceListening(false)
+      setVoiceMessage({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Microfoon kon niet gestart worden.',
+      })
+    }
+  }, [submitVoiceAudio, voiceSupported])
+
   const handleSelectCase = (caseLabel: string) => {
     const newSelected = new Set(selectedCases)
     if (newSelected.has(caseLabel)) {
@@ -426,6 +531,50 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
           productieordernummer. Gebruik de filters hieronder; klik kolomtitels om te sorteren.
         </p>
       </header>
+
+      <section className="rounded-lg border border-indigo-200 bg-indigo-50/70 p-4 shadow-sm" aria-label="Voice acties">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-indigo-950">Voice actie: case op priority zetten</h3>
+            <p className="mt-1 text-sm text-indigo-900/80">
+              Zeg een caselabel en je notitie, bijvoorbeeld: “K12345 prio klant wacht op levering”.
+              De case krijgt priority en de notitie wordt aangevuld met “Prio: ...”.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={voiceListening ? stopVoicePriority : startVoicePriority}
+            disabled={!voiceSupported || voiceBusy}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:bg-slate-300"
+          >
+            {voiceListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            {voiceListening ? 'Stop opname' : voiceBusy ? 'AI verwerkt...' : 'Spreek actie in'}
+          </button>
+        </div>
+        {!voiceSupported && (
+          <p className="mt-2 text-xs text-indigo-900">
+            Audio-opname is niet beschikbaar in deze browser. Gebruik Chrome of Edge op een HTTPS-verbinding.
+          </p>
+        )}
+        {voiceTranscript && (
+          <p className="mt-3 rounded bg-white/80 px-3 py-2 text-sm text-slate-700">
+            Gehoord: “{voiceTranscript}”
+          </p>
+        )}
+        {voiceMessage && (
+          <p
+            className={`mt-3 rounded px-3 py-2 text-sm ${
+              voiceMessage.type === 'success'
+                ? 'bg-emerald-100 text-emerald-900'
+                : voiceMessage.type === 'error'
+                  ? 'bg-red-100 text-red-900'
+                  : 'bg-white/80 text-indigo-900'
+            }`}
+          >
+            {voiceMessage.text}
+          </p>
+        )}
+      </section>
 
       <section aria-label="Kerncijfers">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
