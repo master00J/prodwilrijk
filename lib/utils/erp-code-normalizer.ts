@@ -55,6 +55,14 @@ export function normalizeErpCode(erpCode: string | null | undefined): string | n
  * in exports terechtkomen.
  * Vanaf **100**: oude gedrag — `V154` → `K154` voor matching met ERP.
  */
+/**
+ * Opslag in ERP LINK-beheer: alleen trimmen/hoofdletters, geen V↔K-omzetting.
+ * Matching (stock, kanban, PILS) gebruikt nog steeds normalizeKistnummer().
+ */
+export function formatKistnummerForErpLink(value: string | null | undefined): string {
+  return String(value || '').trim().replace(/\s+/g, '').toUpperCase()
+}
+
 export function normalizeKistnummer(value: string | null | undefined): string {
   const normalized = String(value || '').trim().replace(/\s+/g, '').toUpperCase()
   if (!normalized) return ''

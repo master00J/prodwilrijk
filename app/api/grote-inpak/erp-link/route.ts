@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
-import { normalizeErpCode, normalizeKistnummer } from '@/lib/utils/erp-code-normalizer'
+import {
+  formatKistnummerForErpLink,
+  normalizeErpCode,
+  normalizeKistnummer,
+} from '@/lib/utils/erp-code-normalizer'
 
 function normalizeBouwpakketCode(value: unknown): string | null {
   if (value === undefined || value === null) return null
@@ -79,7 +83,7 @@ function buildErpLinkRow(body: {
   }
 
   return {
-    kistnummer: normalizeKistnummer(kistnummer) || String(kistnummer).trim().toUpperCase(),
+    kistnummer: formatKistnummerForErpLink(kistnummer),
     erp_code: erp_code ? normalizeErpCode(String(erp_code)) || String(erp_code).trim() : null,
     productielocatie: normalizedProductielocatie || null,
     description: description ? String(description).trim() : null,
@@ -160,16 +164,47 @@ export async function POST(request: NextRequest) {
     const numericId = bodyId != null ? Number(bodyId) : null
     const existing = await findExistingErpLinkRow(kistnummer, numericId)
 
+    if (!row.kistnummer) {
+      return NextResponse.json({ error: 'Kistnummer is ongeldig' }, { status: 400 })
+    }
+
+    if (existing?.id) {
+      const { data: conflict } = await supabaseAdmin
+        .from('grote_inpak_erp_link')
+        .select('id, kistnummer')
+        .eq('kistnummer', row.kistnummer)
+        .neq('id', existing.id)
+        .maybeSingle()
+
+      if (conflict) {
+        return NextResponse.json(
+          { error: `Kistnummer ${row.kistnummer} bestaat al (rij id ${conflict.id})` },
+          { status: 400 }
+        )
+      }
+    }
+
     let data
     let error
 
     if (existing?.id) {
+      const oldKist = existing.kistnummer ? String(existing.kistnummer).trim() : ''
       ;({ data, error } = await supabaseAdmin
         .from('grote_inpak_erp_link')
         .update(row)
         .eq('id', existing.id)
         .select()
         .single())
+
+      if (!error && oldKist && oldKist !== row.kistnummer) {
+        const oldVariants = new Set([oldKist, ...kistLookupCandidates(oldKist)])
+        for (const oldCase of oldVariants) {
+          await supabaseAdmin
+            .from('grote_inpak_kanban_config')
+            .update({ case_type: row.kistnummer })
+            .eq('case_type', oldCase)
+        }
+      }
     } else {
       ;({ data, error } = await supabaseAdmin
         .from('grote_inpak_erp_link')

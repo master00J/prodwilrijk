@@ -29,6 +29,7 @@ export default function ErpLinkTab() {
   const [filterKisttype, setFilterKisttype] = useState<string>('')
   const [copyMessage, setCopyMessage] = useState<string | null>(null)
   const [syncingKanban, setSyncingKanban] = useState(false)
+  const [editOriginalKistnummer, setEditOriginalKistnummer] = useState<string | null>(null)
   const [formData, setFormData] = useState<ErpLinkEntry>({
     kistnummer: '',
     erp_code: '',
@@ -85,6 +86,7 @@ export default function ErpLinkTab() {
       return
     }
     setEditingId(rowId)
+    setEditOriginalKistnummer(entry.kistnummer || null)
     setFormData({
       kistnummer: entry.kistnummer || '',
       erp_code: entry.erp_code || '',
@@ -99,6 +101,7 @@ export default function ErpLinkTab() {
   const handleAdd = () => {
     setIsAdding(true)
     setEditingId(null)
+    setEditOriginalKistnummer(null)
     setFormData({
       kistnummer: '',
       erp_code: '',
@@ -112,6 +115,7 @@ export default function ErpLinkTab() {
   const handleCancel = () => {
     setIsAdding(false)
     setEditingId(null)
+    setEditOriginalKistnummer(null)
     setFormData({
       kistnummer: '',
       erp_code: '',
@@ -147,6 +151,7 @@ export default function ErpLinkTab() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...(editingId ? { id: editingId } : {}),
+          ...(editOriginalKistnummer ? { previous_kistnummer: editOriginalKistnummer } : {}),
           ...payload,
         }),
       })
@@ -163,10 +168,15 @@ export default function ErpLinkTab() {
       await loadEntries()
       handleCancel()
       const kistLabel = saved?.kistnummer || payload.kistnummer
+      const renamed =
+        editOriginalKistnummer &&
+        editOriginalKistnummer.trim().toUpperCase() !== kistLabel.trim().toUpperCase()
       setSuccess(
-        savedBp
-          ? `Opgeslagen voor ${kistLabel} (bouwpakket: ${savedBp})`
-          : `Opgeslagen voor ${kistLabel}`
+        renamed
+          ? `Kistnummer gewijzigd: ${editOriginalKistnummer} → ${kistLabel}${savedBp ? ` (bouwpakket: ${savedBp})` : ''}`
+          : savedBp
+            ? `Opgeslagen voor ${kistLabel} (bouwpakket: ${savedBp})`
+            : `Opgeslagen voor ${kistLabel}`
       )
       setTimeout(() => setSuccess(null), 4000)
     } catch (err: any) {
@@ -478,6 +488,9 @@ export default function ErpLinkTab() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Bijv. K003, K107/K109"
               />
+              <p className="text-xs text-gray-500 mt-1">
+                Wordt exact opgeslagen zoals ingevoerd (hoofdletters, zonder spaties). K- en V-kisten worden hier niet automatisch omgezet.
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
