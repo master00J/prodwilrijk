@@ -87,6 +87,15 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
   const voiceChunksRef = useRef<Blob[]>([])
   const voiceStreamRef = useRef<MediaStream | null>(null)
 
+  const speakVoiceConfirmation = useCallback((text: string) => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return
+    window.speechSynthesis.cancel()
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.lang = 'nl-BE'
+    utterance.rate = 1
+    window.speechSynthesis.speak(utterance)
+  }, [])
+
   useEffect(() => {
     setVoiceSupported(
       typeof window !== 'undefined' &&
@@ -430,6 +439,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
       const result: {
         error?: string
         transcript?: string
+        confirmation?: string
         case?: { case_label: string; priority: boolean; comment: string | null }
       } = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.error || 'Voice actie opslaan mislukt')
@@ -447,8 +457,9 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
       setEditedData(newEdited)
       setVoiceMessage({
         type: 'success',
-        text: `${result.case.case_label} staat op priority met notitie "${result.case.comment || ''}".`,
+        text: result.confirmation || `${result.case.case_label} staat op priority met notitie "${result.case.comment || ''}".`,
       })
+      speakVoiceConfirmation(result.confirmation || `${result.case.case_label} staat op priority.`)
     } catch (error) {
       setVoiceMessage({
         type: 'error',
@@ -457,7 +468,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
     } finally {
       setVoiceBusy(false)
     }
-  }, [editedData])
+  }, [editedData, speakVoiceConfirmation])
 
   const stopVoicePriority = useCallback(() => {
     mediaRecorderRef.current?.stop()

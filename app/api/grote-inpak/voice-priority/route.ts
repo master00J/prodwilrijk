@@ -61,6 +61,12 @@ function buildVoicePriorityNote(existingComment: string | null | undefined, note
   return `${current} | ${nextNote}`
 }
 
+function buildConfirmation(caseLabel: string, noteText: string): string {
+  return noteText
+    ? `${caseLabel} staat op priority. Notitie toegevoegd: ${noteText}.`
+    : `${caseLabel} staat op priority.`
+}
+
 function findCase(transcript: string, cases: CaseRow[]): CaseRow | null {
   const normalizedTranscript = normalizeVoiceText(transcript)
   return [...cases]
@@ -153,6 +159,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       transcript,
+      confirmation: buildConfirmation(data.case_label, noteText),
       case: data,
     })
   } catch (error: any) {
