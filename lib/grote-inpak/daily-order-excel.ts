@@ -254,6 +254,17 @@ function addDailyOrderSheet(
       }
     })
   })
+
+  // Kolommen A–D + titel en koprij vast bij horizontaal scrollen
+  ws.views = [
+    {
+      state: 'frozen',
+      xSplit: 4,
+      ySplit: 3,
+      topLeftCell: 'E4',
+      activeCell: 'E4',
+    },
+  ]
 }
 
 function addOverdueSheet(
