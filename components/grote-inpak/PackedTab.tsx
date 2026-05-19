@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Upload, Download, Package, RefreshCw } from 'lucide-react'
+import { Upload, Download, Package, RefreshCw, ChevronDown, ChevronRight, Mail } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
 type PackedReviewRow = {
@@ -30,6 +30,7 @@ export default function PackedTab() {
   const [reviewBatches, setReviewBatches] = useState<PackedReviewBatch[]>([])
   const [loading, setLoading] = useState(false)
   const [reviewLoading, setReviewLoading] = useState(false)
+  const [mailScanning, setMailScanning] = useState(false)
   const [savingReview, setSavingReview] = useState<number | null>(null)
   const [exportingReview, setExportingReview] = useState<number | null>(null)
   const [dateFrom, setDateFrom] = useState('')
@@ -37,6 +38,7 @@ export default function PackedTab() {
   const [searchQuery, setSearchQuery] = useState('')
   const [dragActive, setDragActive] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [showPackedHistory, setShowPackedHistory] = useState(false)
 
   const [packedXmlFiles, setPackedXmlFiles] = useState<File[]>([])
   const [poNumbers, setPoNumbers] = useState({
@@ -82,6 +84,31 @@ export default function PackedTab() {
       setReviewLoading(false)
     }
   }, [])
+
+  const scanPackedMailbox = async (includeSeen: boolean) => {
+    setMailScanning(true)
+    try {
+      const response = await fetch('/api/grote-inpak/packed-mail-scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ includeSeen }),
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(result?.error || 'Mailbox scan mislukt')
+      }
+
+      await loadReviewBatches()
+      const imported = result?.imported?.length || 0
+      const skipped = result?.skipped?.length || 0
+      const errors = result?.errors?.length || 0
+      alert(`PACKED mailbox gescand: ${imported} import(s), ${skipped} overgeslagen, ${errors} fout(en).`)
+    } catch (error: any) {
+      alert(`PACKED mailbox scan mislukt: ${error.message || 'Onbekende fout'}`)
+    } finally {
+      setMailScanning(false)
+    }
+  }
 
   useEffect(() => {
     loadPacked()
@@ -485,14 +512,35 @@ export default function PackedTab() {
                 Controleer en pas PACKED-regels aan voordat je XML-bestanden maakt.
               </p>
             </div>
-            <button
-              onClick={loadReviewBatches}
-              disabled={reviewLoading}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-800 rounded-lg hover:bg-amber-200 disabled:opacity-50"
-            >
-              <RefreshCw className={`w-4 h-4 ${reviewLoading ? 'animate-spin' : ''}`} />
-              Vernieuwen
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => scanPackedMailbox(false)}
+                disabled={mailScanning}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
+                title="Haalt ongelezen PACKED-mails op"
+              >
+                <Mail className="w-4 h-4" />
+                {mailScanning ? 'Scannen...' : 'Haal mails op'}
+              </button>
+              <button
+                type="button"
+                onClick={() => scanPackedMailbox(true)}
+                disabled={mailScanning}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-amber-300 text-amber-800 rounded-lg hover:bg-amber-50 disabled:opacity-50"
+                title="Scant ook gelezen mails van vandaag. Alleen gebruiken als mails eerder gemist zijn."
+              >
+                Ook gelezen
+              </button>
+              <button
+                onClick={loadReviewBatches}
+                disabled={reviewLoading}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-800 rounded-lg hover:bg-amber-200 disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${reviewLoading ? 'animate-spin' : ''}`} />
+                Vernieuwen
+              </button>
+            </div>
           </div>
 
           {reviewBatches.length === 0 ? (
@@ -714,26 +762,39 @@ export default function PackedTab() {
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden mb-10">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Case Label</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Case Type</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Packed Date</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Packed File</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {filteredData.map((item) => (
-              <tr key={`${item.case_label}-${item.packed_date}`} className="hover:bg-gray-50">
-                <td className="px-4 py-3 text-sm text-gray-900">{item.case_label}</td>
-                <td className="px-4 py-3 text-sm text-gray-700">{item.case_type || '-'}</td>
-                <td className="px-4 py-3 text-sm text-gray-700">{item.packed_date || '-'}</td>
-                <td className="px-4 py-3 text-sm text-gray-700">{item.packed_file || '-'}</td>
+        <button
+          type="button"
+          onClick={() => setShowPackedHistory(value => !value)}
+          className="flex w-full items-center justify-between bg-gray-50 px-4 py-3 text-left hover:bg-gray-100"
+        >
+          <div>
+            <h3 className="font-semibold text-slate-800">Historiek packed items</h3>
+            <p className="text-sm text-slate-500">{filteredData.length} regel(s), standaard ingeklapt</p>
+          </div>
+          {showPackedHistory ? <ChevronDown className="h-5 w-5 text-slate-500" /> : <ChevronRight className="h-5 w-5 text-slate-500" />}
+        </button>
+        {showPackedHistory && (
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Case Label</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Case Type</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Packed Date</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Packed File</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredData.map((item) => (
+                <tr key={`${item.case_label}-${item.packed_date}`} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 text-sm text-gray-900">{item.case_label}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700">{item.case_type || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700">{item.packed_date || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700">{item.packed_file || '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg p-6 mb-8">
