@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { buildDailyOrderWorkbook } from '@/lib/grote-inpak/daily-order-excel'
+import {
+  buildCombinedDailyOrderWorkbook,
+  buildDailyOrderWorkbook,
+  type DailyOrderLocationOptions,
+} from '@/lib/grote-inpak/daily-order-excel'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { normalizeErpCode, normalizeKistnummer } from '@/lib/utils/erp-code-normalizer'
 import { getEndingDatesByKist } from '@/lib/grote-inpak/production-orders'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 120
 
 // Speciale C-kisten die op het K-tabblad verschijnen (geen standaard voorraadkisten)
 const SPECIALE_C_KISTEN = ['C791', 'C792', 'C794', 'C795', 'C796']
@@ -424,63 +429,125 @@ async function fetchOverdueKisten(location: 'Genk' | 'Wilrijk'): Promise<any[]> 
   }
 }
 
+type DailyOrderLocation = 'Genk' | 'Wilrijk'
+
+function isCKistRow(r: any) {
+  const ct = String(r.case_type || '').trim().toUpperCase()
+  return ct.startsWith('C') && !SPECIALE_C_KISTEN.includes(ct)
+}
+
+function locationHasExportData(cRows: any[], kKisten: any[], overdueKisten: any[]) {
+  return cRows.length > 0 || kKisten.length > 0 || overdueKisten.length > 0
+}
+
+async function buildLocationDailyOrderPayload(
+  rows: any[],
+  location: DailyOrderLocation,
+  alleenBestellen: boolean
+): Promise<{ data: any[]; options: DailyOrderLocationOptions }> {
+  const keyword = location.toLowerCase()
+  const toExport = alleenBestellen ? rows.filter((r: any) => r.bestel_aantal > 0) : rows
+  const locRows = toExport
+    .filter(isCKistRow)
+    .filter((r: any) => String(r.productielocatie || '').toLowerCase().includes(keyword))
+
+  const normCase = (x: string) => normalizeKistnummer(String(x || '').trim())
+  const caseTypes = [...new Set(locRows.map((r: any) => normCase(r.case_type || '')))] as string[]
+  const stockByKist = await fetchStockForCKisten(caseTypes)
+  const locRowsWithStock = locRows.map((r: any) => {
+    const kt = normCase(r.case_type || '')
+    const stock = stockByKist.get(kt) || { genk: 0, willebroek: 0, wilrijk: 0 }
+    return {
+      ...r,
+      stock_genk: stock.genk,
+      stock_wilrijk: stock.wilrijk,
+      stock_in_rek: stock.willebroek,
+    }
+  })
+
+  const productieAndereLoc = await fetchProductieByLocatie(location === 'Genk' ? 'Wilrijk' : 'Genk')
+  const renumbered = locRowsWithStock.map((r: any, i: number) => {
+    const kt = normCase(r.case_type || '')
+    const inProdOther = productieAndereLoc.get(kt) || 0
+    const tekort = Math.max(0, (r.tekort ?? 0) - inProdOther)
+    return { ...r, priority_rank: i + 1, tekort }
+  })
+
+  const kKisten = await fetchKKistenForExcel(location, productieAndereLoc)
+  const overdueKisten = await fetchOverdueKisten(location)
+
+  return {
+    data: renumbered,
+    options: { kKisten, overdueKisten },
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { rows, alleenBestellen, location: locParam } = body
-    const location = (locParam === 'Wilrijk' ? 'Wilrijk' : 'Genk') as 'Genk' | 'Wilrijk'
+    const isCombined = locParam === 'both' || locParam === 'Alle' || locParam === 'all'
 
     if (!rows || rows.length === 0) {
       return NextResponse.json({ error: 'Geen data om te downloaden' }, { status: 400 })
     }
 
-    const keyword = location.toLowerCase()
-    const isCKist = (r: any) => {
-      const ct = String(r.case_type || '').trim().toUpperCase()
-      return ct.startsWith('C') && !SPECIALE_C_KISTEN.includes(ct)
-    }
-    const toExport = alleenBestellen
-      ? rows.filter((r: any) => r.bestel_aantal > 0)
-      : rows
-    const locRows = toExport
-      .filter(isCKist)
-      .filter((r: any) => String(r.productielocatie || '').toLowerCase().includes(keyword))
+    const today = new Date().toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    const dateStr = new Date().toISOString().split('T')[0]
+    const endingDatesByKist = await getEndingDatesByKist()
 
-    if (locRows.length === 0) {
+    if (isCombined) {
+      const [genkPayload, wilrijkPayload] = await Promise.all([
+        buildLocationDailyOrderPayload(rows, 'Genk', alleenBestellen),
+        buildLocationDailyOrderPayload(rows, 'Wilrijk', alleenBestellen),
+      ])
+
+      const genkHasData = locationHasExportData(
+        genkPayload.data,
+        genkPayload.options.kKisten || [],
+        genkPayload.options.overdueKisten || []
+      )
+      const wilrijkHasData = locationHasExportData(
+        wilrijkPayload.data,
+        wilrijkPayload.options.kKisten || [],
+        wilrijkPayload.options.overdueKisten || []
+      )
+
+      if (!genkHasData && !wilrijkHasData) {
+        return NextResponse.json({ error: 'Geen Genk- of Wilrijk-kisten gevonden' }, { status: 400 })
+      }
+
+      genkPayload.options.endingDatesByKist = endingDatesByKist
+      wilrijkPayload.options.endingDatesByKist = endingDatesByKist
+
+      const wb = buildCombinedDailyOrderWorkbook(genkPayload, wilrijkPayload, today)
+      const buffer = await wb.xlsx.writeBuffer() as ArrayBuffer
+      const filename = `Daily_order_Genk_Wilrijk_${dateStr}.xlsx`
+
+      return new Response(Buffer.from(buffer) as BodyInit, {
+        headers: {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': `attachment; filename="${filename}"`,
+        },
+      })
+    }
+
+    const location = (locParam === 'Wilrijk' ? 'Wilrijk' : 'Genk') as DailyOrderLocation
+    const payload = await buildLocationDailyOrderPayload(rows, location, alleenBestellen)
+
+    if (
+      !locationHasExportData(
+        payload.data,
+        payload.options.kKisten || [],
+        payload.options.overdueKisten || []
+      )
+    ) {
       return NextResponse.json({ error: `Geen ${location}-kisten gevonden` }, { status: 400 })
     }
 
-    // Stock server-side ophalen (zelfde logica als kanban-besteladvies) i.p.v. client-data
-    const normCase = (x: string) => normalizeKistnummer(String(x || '').trim())
-    const caseTypes = [...new Set(locRows.map((r: any) => normCase(r.case_type || '')))] as string[]
-    const stockByKist = await fetchStockForCKisten(caseTypes)
-    const locRowsWithStock = locRows.map((r: any) => {
-      const kt = normCase(r.case_type || '')
-      const stock = stockByKist.get(kt) || { genk: 0, willebroek: 0, wilrijk: 0 }
-      return {
-        ...r,
-        stock_genk: stock.genk,
-        stock_wilrijk: stock.wilrijk,
-        stock_in_rek: stock.willebroek,
-      }
-    })
+    payload.options.endingDatesByKist = endingDatesByKist
 
-    const productieAndereLoc = await fetchProductieByLocatie(location === 'Genk' ? 'Wilrijk' : 'Genk')
-    const renumbered = locRowsWithStock.map((r: any, i: number) => {
-      const kt = normCase(r.case_type || '')
-      const inProdOther = productieAndereLoc.get(kt) || 0
-      const tekort = Math.max(0, (r.tekort ?? 0) - inProdOther)
-      return { ...r, priority_rank: i + 1, tekort }
-    })
-
-    const today = new Date().toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric' })
-    const dateStr = new Date().toISOString().split('T')[0]
-
-    const kKisten = await fetchKKistenForExcel(location, productieAndereLoc)
-    const overdueKisten = await fetchOverdueKisten(location)
-    const endingDatesByKist = await getEndingDatesByKist()
-
-    const wb = buildDailyOrderWorkbook(location, renumbered, today, { kKisten, overdueKisten, endingDatesByKist })
+    const wb = buildDailyOrderWorkbook(location, payload.data, today, payload.options)
     const buffer = await wb.xlsx.writeBuffer() as ArrayBuffer
     const filename = `Daily_order_${location}_${dateStr}.xlsx`
 

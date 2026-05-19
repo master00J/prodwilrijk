@@ -306,24 +306,24 @@ function addOverdueSheet(
   })
 }
 
-export function buildDailyOrderWorkbook(
+export type DailyOrderLocationOptions = {
+  kKisten?: any[]
+  overdueKisten?: any[]
+  /**
+   * Map van kistnummer (UPPERCASE) → array van `{ date, qty }` van lopende
+   * productie-orders in Business Central, gesorteerd oplopend op datum.
+   */
+  endingDatesByKist?: Map<string, EndingDateEntry[]>
+}
+
+/** Voeg C-, K- en Te-laat-tabbladen toe voor één locatie aan een bestaand workbook. */
+export function appendDailyOrderLocationSheets(
+  wb: ExcelJS.Workbook,
   locatieLabel: string,
   data: any[],
   today: string,
-  options?: {
-    kKisten?: any[]
-    overdueKisten?: any[]
-    /**
-     * Map van kistnummer (UPPERCASE) → array van `{ date, qty }` van lopende
-     * productie-orders in Business Central, gesorteerd oplopend op datum.
-     * Wordt getoond in een aparte kolom "Einddatum productie" als één regel
-     * per datum in het formaat `DD/MM/YYYY (qty)`.
-     * Rood als minstens één datum al voorbij is.
-     */
-    endingDatesByKist?: Map<string, EndingDateEntry[]>
-  }
+  options?: DailyOrderLocationOptions
 ) {
-  const wb = new ExcelJS.Workbook()
   addDailyOrderSheet(
     wb,
     `C kisten daily order ${locatieLabel}`,
@@ -353,5 +353,27 @@ export function buildDailyOrderWorkbook(
       today
     )
   }
+}
+
+export function buildDailyOrderWorkbook(
+  locatieLabel: string,
+  data: any[],
+  today: string,
+  options?: DailyOrderLocationOptions
+) {
+  const wb = new ExcelJS.Workbook()
+  appendDailyOrderLocationSheets(wb, locatieLabel, data, today, options)
+  return wb
+}
+
+/** Eén Excel met Genk + Wilrijk (alle tabbladen). */
+export function buildCombinedDailyOrderWorkbook(
+  genk: { data: any[]; options?: DailyOrderLocationOptions },
+  wilrijk: { data: any[]; options?: DailyOrderLocationOptions },
+  today: string
+) {
+  const wb = new ExcelJS.Workbook()
+  appendDailyOrderLocationSheets(wb, 'Genk', genk.data, today, genk.options)
+  appendDailyOrderLocationSheets(wb, 'Wilrijk', wilrijk.data, today, wilrijk.options)
   return wb
 }

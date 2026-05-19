@@ -280,7 +280,7 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
     }
   }
 
-  const handleDownloadDailyOrder = async (location: 'Genk' | 'Wilrijk') => {
+  const handleDownloadDailyOrder = async (location: 'Genk' | 'Wilrijk' | 'both') => {
     setIsSendingEmail(true)
     setEmailStatus(null)
     try {
@@ -298,12 +298,21 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
       const a = document.createElement('a')
       a.href = url
       const dateStr = new Date().toISOString().split('T')[0]
-      a.download = `Daily_order_${location}_${dateStr}.xlsx`
+      a.download =
+        location === 'both'
+          ? `Daily_order_Genk_Wilrijk_${dateStr}.xlsx`
+          : `Daily_order_${location}_${dateStr}.xlsx`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-      setEmailStatus({ ok: true, msg: `Daily order ${location} gedownload` })
+      setEmailStatus({
+        ok: true,
+        msg:
+          location === 'both'
+            ? 'Daily order Genk + Wilrijk gedownload (1 Excel)'
+            : `Daily order ${location} gedownload`,
+      })
     } catch (e: any) {
       setEmailStatus({ ok: false, msg: `Download mislukt: ${e.message}` })
     } finally {
@@ -521,6 +530,15 @@ export default function KanbanTab({ stockUploadTrigger = 0 }: KanbanTabProps) {
             >
               <Download className="w-4 h-4" />
               {isSendingEmail ? 'Genereren...' : 'Download Wilrijk order'}
+            </button>
+            <button
+              onClick={() => handleDownloadDailyOrder('both')}
+              disabled={isSendingEmail || bestelData.length === 0}
+              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+              title="Eén Excel met alle tabbladen voor Genk én Wilrijk"
+            >
+              <Download className="w-4 h-4" />
+              {isSendingEmail ? 'Genereren...' : 'Download Genk + Wilrijk (1 Excel)'}
             </button>
           </div>
 
