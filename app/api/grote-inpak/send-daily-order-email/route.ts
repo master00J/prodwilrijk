@@ -302,10 +302,9 @@ async function fetchKKistenForExcel(
       })
     })
 
-    // Sortering: belangrijkste bovenaan
-    // 1. Bovenaan: tekort > 0 (moet nog geproduceerd) — gesorteerd op tekort aflopend, dan overdue, dan oudste PILS
-    // 2. Onderaan: "In productie Wilrijk/Genk" (andere locatie heeft het al)
-    // 3. Heel onderaan: "Ok" (op stock, geen actie)
+    // Sortering K-kisten:
+    // 1. Eerst actie nodig (tekort > 0), dan overige, dan "in productie andere loc", dan Ok
+    // 2. Binnen elke groep: oudste PILS-unit eerst (oudste arrival_date bovenaan)
     const tier = (r: any) => {
       if (r.tekort > 0) return 0
       if (r.status === 'In productie Wilrijk' || r.status === 'In productie Genk') return 2
@@ -316,13 +315,16 @@ async function fetchKKistenForExcel(
       const ta = tier(a)
       const tb = tier(b)
       if (ta !== tb) return ta - tb
+
+      const da = a._oldest_arrival || '9999-99-99'
+      const db = b._oldest_arrival || '9999-99-99'
+      if (da !== db) return da.localeCompare(db)
+
       if (ta === 0) {
-        if (a.tekort !== b.tekort) return b.tekort - a.tekort
         if (a._has_overdue !== b._has_overdue) return a._has_overdue ? -1 : 1
-        const da = a._oldest_arrival || '9999-99-99'
-        const db = b._oldest_arrival || '9999-99-99'
-        return da.localeCompare(db)
+        if (a.tekort !== b.tekort) return b.tekort - a.tekort
       }
+
       return String(a.case_type || '').localeCompare(String(b.case_type || ''))
     })
     return kRows.map((r, i) => {
