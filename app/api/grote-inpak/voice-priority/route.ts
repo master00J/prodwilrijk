@@ -7,8 +7,14 @@ export const runtime = 'nodejs'
 export const maxDuration = 60
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
-const TRANSCRIBE_MODEL = process.env.GROTE_INPAK_VOICE_TRANSCRIBE_MODEL || 'whisper-1'
+const TRANSCRIBE_MODEL = process.env.GROTE_INPAK_VOICE_TRANSCRIBE_MODEL || 'gpt-4o-transcribe'
 const MAX_AUDIO_BYTES = 12 * 1024 * 1024
+const TRANSCRIBE_PROMPT = [
+  'Dit is Nederlandse/Vlaamse spraak op de Grote Inpak pagina van prodwilrijk.',
+  'Belangrijke woorden: kisten, cases, case label, caselabel, priority, prio, prioriteit, notitie, achterstand, lopen achter, Wilrijk, Genk, Willebroek, WLB, forecast, stock, transfer, productie.',
+  'Voorbeelden: "hoeveel kisten lopen we achter uit Wilrijk", "welke cases hebben we momenteel prio", "K B 91 F prio klant wacht op levering".',
+  'Transcribeer letterlijk en verbeter geen vraag naar een andere betekenis.',
+].join(' ')
 
 type CaseRow = {
   case_label: string
@@ -83,6 +89,7 @@ async function transcribeAudio(file: File): Promise<string> {
   const body = new FormData()
   body.append('model', TRANSCRIBE_MODEL)
   body.append('language', 'nl')
+  body.append('prompt', TRANSCRIBE_PROMPT)
   body.append('file', file, file.name || 'grote-inpak-voice.webm')
 
   const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
