@@ -395,9 +395,9 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
     setVerbergInTransfer(false)
   }, [])
 
-  const askAssistant = useCallback(async (question: string) => {
+  const askAssistant = useCallback(async (question: string): Promise<string | null> => {
     const trimmedQuestion = question.trim()
-    if (!trimmedQuestion) return
+    if (!trimmedQuestion) return null
 
     setAssistantLoading(true)
     setAssistantError(null)
@@ -459,9 +459,12 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
       })
       const result: { answer?: string; error?: string } = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.error || 'Assistent-aanvraag mislukt')
-      setAssistantAnswer(result.answer || 'Geen antwoord ontvangen.')
+      const answer = result.answer || 'Geen antwoord ontvangen.'
+      setAssistantAnswer(answer)
+      return answer
     } catch (error) {
       setAssistantError(error instanceof Error ? error.message : 'Assistent-aanvraag mislukt')
+      return null
     } finally {
       setAssistantLoading(false)
     }
@@ -538,7 +541,18 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
         confirmation?: string
         case?: { case_label: string; priority: boolean; comment: string | null }
       } = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(result.error || 'Voice actie opslaan mislukt')
+      if (!response.ok) {
+        if (response.status === 422 && result.transcript) {
+          setVoiceTranscript(result.transcript)
+          setVoiceMessage({ type: 'info', text: 'Geen case-actie herkend. Ik behandel dit als vraag aan de assistent.' })
+          const answer = await askAssistant(result.transcript)
+          if (answer) {
+            speakVoiceConfirmation(answer.slice(0, 500))
+          }
+          return
+        }
+        throw new Error(result.error || 'Voice actie opslaan mislukt')
+      }
 
       if (result.transcript) setVoiceTranscript(result.transcript)
       if (!result.case?.case_label) throw new Error('Voice actie gaf geen case terug')
@@ -564,7 +578,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
     } finally {
       setVoiceBusy(false)
     }
-  }, [editedData, speakVoiceConfirmation])
+  }, [askAssistant, editedData, speakVoiceConfirmation])
 
   const stopVoicePriority = useCallback(() => {
     mediaRecorderRef.current?.stop()
@@ -639,13 +653,13 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
         </p>
       </header>
 
-      <section className="rounded-lg border border-indigo-200 bg-indigo-50/70 p-4 shadow-sm" aria-label="Voice acties">
+      <section className="rounded-lg border border-indigo-200 bg-indigo-50/70 p-4 shadow-sm" aria-label="Voice acties en vragen">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-indigo-950">Voice actie: case op priority zetten</h3>
+            <h3 className="text-sm font-semibold text-indigo-950">Voice actie of vraag</h3>
             <p className="mt-1 text-sm text-indigo-900/80">
-              Zeg een caselabel en je notitie, bijvoorbeeld: “K12345 prio klant wacht op levering”.
-              De case krijgt priority en de notitie wordt aangevuld met “Prio: ...”.
+              Zeg een caselabel met actie, bijvoorbeeld: “K12345 prio klant wacht op levering”.
+              Zonder caselabel behandelt de assistent het als vraag, bijvoorbeeld: “Welke cases hebben we momenteel prio?”.
             </p>
           </div>
           <button
