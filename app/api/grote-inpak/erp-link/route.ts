@@ -21,6 +21,73 @@ function formatDbError(error: { message?: string; code?: string; details?: strin
   return msg || 'Databasefout'
 }
 
+/** Zoek bestaande rij ook bij V/K-varianten (V154 vs K154) zodat upsert geen duplicaat maakt. */
+function kistLookupCandidates(kistRaw: string): string[] {
+  const trimmed = String(kistRaw || '').trim().replace(/\s+/g, '').toUpperCase()
+  if (!trimmed) return []
+  const candidates = new Set<string>([trimmed])
+  const normalized = normalizeKistnummer(trimmed)
+  if (normalized) candidates.add(normalized)
+  const m = trimmed.match(/^([KV])(\d+)$/)
+  if (m) {
+    const num = parseInt(m[2], 10)
+    if (num >= 1 && num <= 99) {
+      candidates.add(`V${m[2]}`)
+      candidates.add(`K${m[2]}`)
+    } else if (num >= 100) {
+      candidates.add(`K${m[2]}`)
+      candidates.add(`V${m[2]}`)
+    }
+  }
+  return [...candidates]
+}
+
+async function findExistingErpLinkRow(kistRaw: string, id?: number | null) {
+  if (id && Number.isFinite(id) && id > 0) {
+    const { data } = await supabaseAdmin
+      .from('grote_inpak_erp_link')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle()
+    if (data) return data
+  }
+  const candidates = kistLookupCandidates(kistRaw)
+  if (candidates.length === 0) return null
+  const { data } = await supabaseAdmin
+    .from('grote_inpak_erp_link')
+    .select('*')
+    .in('kistnummer', candidates)
+    .limit(1)
+  return data?.[0] ?? null
+}
+
+function buildErpLinkRow(body: {
+  kistnummer: string
+  erp_code?: unknown
+  productielocatie?: unknown
+  description?: unknown
+  stapel?: unknown
+  bouwpakket_code?: unknown
+}) {
+  const { kistnummer, erp_code, productielocatie, description, stapel, bouwpakket_code } = body
+
+  let normalizedProductielocatie = ''
+  if (productielocatie) {
+    const normalized = String(productielocatie).toLowerCase().trim()
+    if (normalized.includes('wilrijk')) normalizedProductielocatie = 'Wilrijk'
+    else if (normalized.includes('genk')) normalizedProductielocatie = 'Genk'
+  }
+
+  return {
+    kistnummer: normalizeKistnummer(kistnummer) || String(kistnummer).trim().toUpperCase(),
+    erp_code: erp_code ? normalizeErpCode(String(erp_code)) || String(erp_code).trim() : null,
+    productielocatie: normalizedProductielocatie || null,
+    description: description ? String(description).trim() : null,
+    stapel: stapel !== undefined && stapel !== null ? Math.max(1, Number(stapel) || 1) : 1,
+    bouwpakket_code: normalizeBouwpakketCode(bouwpakket_code),
+  }
+}
+
 export const dynamic = 'force-dynamic'
 
 // GET - Fetch all ERP LINK entries (query param ?sync_kanban=1 om ontbrekende kisten naar Kanban te syncen)
@@ -76,11 +143,11 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Create new ERP LINK entry
+// POST - Nieuw of bijwerken (zoekt bestaande rij op id én kist-varianten V/K)
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { kistnummer, erp_code, productielocatie, description, stapel, bouwpakket_code } = body
+    const { kistnummer, id: bodyId } = body
 
     if (!kistnummer) {
       return NextResponse.json(
@@ -89,43 +156,38 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Normalize productielocatie
-    let normalizedProductielocatie = ''
-    if (productielocatie) {
-      const normalized = String(productielocatie).toLowerCase().trim()
-      if (normalized.includes('wilrijk')) {
-        normalizedProductielocatie = 'Wilrijk'
-      } else if (normalized.includes('genk')) {
-        normalizedProductielocatie = 'Genk'
-      }
-    }
+    const row = buildErpLinkRow(body)
+    const numericId = bodyId != null ? Number(bodyId) : null
+    const existing = await findExistingErpLinkRow(kistnummer, numericId)
 
-    const row = {
-      kistnummer: normalizeKistnummer(kistnummer) || String(kistnummer).trim().toUpperCase(),
-      erp_code: erp_code ? normalizeErpCode(String(erp_code)) || String(erp_code).trim() : null,
-      productielocatie: normalizedProductielocatie || null,
-      description: description ? String(description).trim() : null,
-      stapel: stapel !== undefined && stapel !== null ? Math.max(1, Number(stapel) || 1) : 1,
-      bouwpakket_code: normalizeBouwpakketCode(bouwpakket_code),
-    }
+    let data
+    let error
 
-    const { data, error } = await supabaseAdmin
-      .from('grote_inpak_erp_link')
-      .upsert(row, { onConflict: 'kistnummer' })
-      .select()
-      .single()
+    if (existing?.id) {
+      ;({ data, error } = await supabaseAdmin
+        .from('grote_inpak_erp_link')
+        .update(row)
+        .eq('id', existing.id)
+        .select()
+        .single())
+    } else {
+      ;({ data, error } = await supabaseAdmin
+        .from('grote_inpak_erp_link')
+        .insert(row)
+        .select()
+        .single())
+    }
 
     if (error) {
       if (error.code === '23505') {
         return NextResponse.json(
-          { error: 'Kistnummer already exists' },
+          { error: 'Kistnummer bestaat al' },
           { status: 400 }
         )
       }
       return NextResponse.json({ error: formatDbError(error) }, { status: 500 })
     }
 
-    // Sync naar Kanban config: nieuwe kist moet ook in rekindeling staan voor stock/Excel
     const kistNorm = row.kistnummer
     if (kistNorm) {
       await supabaseAdmin
@@ -135,7 +197,7 @@ export async function POST(request: NextRequest) {
           rek_sectie: 'Links',
           rek_niveau: 4,
           rek_kolom: 99,
-          productielocatie: normalizedProductielocatie || 'Wilrijk',
+          productielocatie: row.productielocatie || 'Wilrijk',
           stapel: 1,
           posities: 1,
           stapels_per_pos: 2,
@@ -148,6 +210,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data,
+      updated: Boolean(existing?.id),
     })
   } catch (error: any) {
     console.error('Error creating ERP LINK entry:', error)
@@ -158,99 +221,9 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT - Update existing ERP LINK entry
+// PUT - Zelfde logica als POST (backwards compatible)
 export async function PUT(request: NextRequest) {
-  try {
-    const body = await request.json()
-    const { id, kistnummer, erp_code, productielocatie, description, stapel, bouwpakket_code } = body
-
-    const numericId = Number(id)
-    if (!Number.isFinite(numericId) || numericId <= 0) {
-      return NextResponse.json(
-        { error: 'Geldig id is verplicht (bewerk de rij via het potlood-icoon)' },
-        { status: 400 }
-      )
-    }
-
-    // Normalize productielocatie
-    let normalizedProductielocatie = ''
-    if (productielocatie) {
-      const normalized = String(productielocatie).toLowerCase().trim()
-      if (normalized.includes('wilrijk')) {
-        normalizedProductielocatie = 'Wilrijk'
-      } else if (normalized.includes('genk')) {
-        normalizedProductielocatie = 'Genk'
-      }
-    }
-
-    const updateData: Record<string, unknown> = {}
-    if (kistnummer !== undefined) {
-      updateData.kistnummer = normalizeKistnummer(kistnummer) || String(kistnummer).trim().toUpperCase()
-    }
-    if (erp_code !== undefined) {
-      updateData.erp_code = erp_code
-        ? normalizeErpCode(String(erp_code)) || String(erp_code).trim()
-        : null
-    }
-    if (productielocatie !== undefined) updateData.productielocatie = normalizedProductielocatie || null
-    if (description !== undefined) updateData.description = description ? String(description).trim() : null
-    if (stapel !== undefined) updateData.stapel = Math.max(1, Number(stapel) || 1)
-    // Altijd meesturen vanuit het formulier (ook leeg = wissen)
-    if ('bouwpakket_code' in body) {
-      updateData.bouwpakket_code = normalizeBouwpakketCode(bouwpakket_code)
-    }
-
-    if (Object.keys(updateData).length === 0) {
-      return NextResponse.json(
-        { error: 'Geen velden om bij te werken' },
-        { status: 400 }
-      )
-    }
-
-    const { data, error } = await supabaseAdmin
-      .from('grote_inpak_erp_link')
-      .update(updateData)
-      .eq('id', numericId)
-      .select()
-      .single()
-
-    if (error) {
-      if (error.code === '23505') {
-        return NextResponse.json(
-          { error: 'Kistnummer already exists' },
-          { status: 400 }
-        )
-      }
-      return NextResponse.json({ error: formatDbError(error) }, { status: 500 })
-    }
-
-    if (!data) {
-      return NextResponse.json(
-        { error: 'Rij niet gevonden — sla opnieuw op na verversen van de pagina' },
-        { status: 404 }
-      )
-    }
-
-    // Sync productielocatie naar kanban_config als die velden gewijzigd zijn
-    const kistKey = (updateData.kistnummer || data.kistnummer || '').toUpperCase().trim()
-    if (kistKey && updateData.productielocatie !== undefined) {
-      await supabaseAdmin
-        .from('grote_inpak_kanban_config')
-        .update({ productielocatie: updateData.productielocatie })
-        .eq('case_type', kistKey)
-    }
-
-    return NextResponse.json({
-      success: true,
-      data,
-    })
-  } catch (error: any) {
-    console.error('Error updating ERP LINK entry:', error)
-    return NextResponse.json(
-      { error: formatDbError(error) || error.message || 'Error updating ERP LINK entry' },
-      { status: 500 }
-    )
-  }
+  return POST(request)
 }
 
 // DELETE - Delete ERP LINK entry

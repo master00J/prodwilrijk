@@ -40,7 +40,6 @@ export default function ErpLinkTab() {
 
   const loadEntries = useCallback(async (syncKanban = false) => {
     setLoading(true)
-    setError(null)
     try {
       const response = await fetch(`/api/grote-inpak/erp-link${syncKanban ? '?sync_kanban=1' : ''}`)
       if (!response.ok) {
@@ -80,7 +79,12 @@ export default function ErpLinkTab() {
   }, [loadEntries])
 
   const handleEdit = (entry: ErpLinkEntry) => {
-    setEditingId(entry.id || null)
+    const rowId = entry.id != null ? Number(entry.id) : null
+    if (!rowId || !Number.isFinite(rowId)) {
+      setError('Deze rij heeft geen geldig id — ververs de pagina en probeer opnieuw.')
+      return
+    }
+    setEditingId(rowId)
     setFormData({
       kistnummer: entry.kistnummer || '',
       erp_code: entry.erp_code || '',
@@ -137,22 +141,15 @@ export default function ErpLinkTab() {
       }
 
       const payload = buildSavePayload()
-      const wantedBouwpakket = payload.bouwpakket_code
 
-      let response
-      if (editingId) {
-        response = await fetch('/api/grote-inpak/erp-link', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: editingId, ...payload }),
-        })
-      } else {
-        response = await fetch('/api/grote-inpak/erp-link', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
-      }
+      const response = await fetch('/api/grote-inpak/erp-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...(editingId ? { id: editingId } : {}),
+          ...payload,
+        }),
+      })
 
       const result = await response.json().catch(() => ({}))
 
@@ -160,21 +157,16 @@ export default function ErpLinkTab() {
         throw new Error(result.error || 'Opslaan mislukt')
       }
 
-      const savedBp = result.data?.bouwpakket_code
-        ? String(result.data.bouwpakket_code).trim()
-        : ''
-      if (wantedBouwpakket && !savedBp) {
-        throw new Error(
-          'Bouwpakket werd niet opgeslagen. Voer in Supabase migratie 20260520_erp_link_bouwpakket.sql uit en herlaad de pagina.'
-        )
-      }
+      const saved = result.data as ErpLinkEntry | undefined
+      const savedBp = saved?.bouwpakket_code ? String(saved.bouwpakket_code).trim() : ''
 
       await loadEntries()
       handleCancel()
+      const kistLabel = saved?.kistnummer || payload.kistnummer
       setSuccess(
-        wantedBouwpakket
-          ? `Opgeslagen (bouwpakket: ${savedBp || wantedBouwpakket})`
-          : 'ERP LINK entry opgeslagen'
+        savedBp
+          ? `Opgeslagen voor ${kistLabel} (bouwpakket: ${savedBp})`
+          : `Opgeslagen voor ${kistLabel}`
       )
       setTimeout(() => setSuccess(null), 4000)
     } catch (err: any) {
