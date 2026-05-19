@@ -22,6 +22,13 @@ interface ImportedAttachment {
   rows: number
 }
 
+interface SkippedAttachment {
+  messageId: string
+  subject: string | null
+  filename: string
+  reason: string
+}
+
 class SimpleImapClient {
   private socket: TLSSocket
   private buffer = ''
@@ -332,6 +339,7 @@ async function runImport(request: NextRequest) {
   let client: SimpleImapClient | null = null
   const imported: ImportedAttachment[] = []
   const errors: Array<{ messageId: string; error: string }> = []
+  const skipped: SkippedAttachment[] = []
 
   try {
     client = await SimpleImapClient.connect(host, port)
@@ -353,15 +361,26 @@ async function runImport(request: NextRequest) {
 
         const { headers } = splitHeaderAndBody(rawMessage)
         const messageId = headers['message-id'] || `imap-${id}`
+        const subject = headers.subject || null
         const attachments = collectAttachments(rawMessage)
           .map(attachment => ({
             attachment,
-            sourceType: getPackedSourceType(attachment.filename),
+            sourceType: getPackedSourceType(attachment.filename) || getPackedSourceType(subject || ''),
           }))
-          .filter((entry): entry is { attachment: MailAttachment; sourceType: PackedSourceType } => Boolean(entry.sourceType))
+
+        attachments
+          .filter(entry => !entry.sourceType)
+          .forEach(entry => {
+            skipped.push({
+              messageId,
+              subject,
+              filename: entry.attachment.filename,
+              reason: 'Geen PACKED type gevonden in bijlagenaam of subject',
+            })
+          })
 
         let importedConcept = false
-        for (const entry of attachments) {
+        for (const entry of attachments.filter((entry): entry is { attachment: MailAttachment; sourceType: PackedSourceType } => Boolean(entry.sourceType))) {
           const result = await importAttachment(entry.attachment, entry.sourceType, {
             id,
             messageId,
@@ -387,6 +406,7 @@ async function runImport(request: NextRequest) {
       date,
       checkedMessages: ids.length,
       imported,
+      skipped,
       errors,
     })
   } catch (error) {
