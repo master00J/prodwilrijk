@@ -118,39 +118,65 @@ export default function ErpLinkTab() {
     })
   }
 
+  const buildSavePayload = () => ({
+    kistnummer: formData.kistnummer.trim(),
+    erp_code: formData.erp_code?.trim() || '',
+    bouwpakket_code: formData.bouwpakket_code?.trim() ?? '',
+    productielocatie: formData.productielocatie || '',
+    description: formData.description?.trim() || '',
+    stapel: formData.stapel ?? 1,
+  })
+
   const handleSave = async () => {
     setError(null)
+    setSuccess(null)
     try {
       if (!formData.kistnummer.trim()) {
         setError('Kistnummer is verplicht')
         return
       }
 
+      const payload = buildSavePayload()
+      const wantedBouwpakket = payload.bouwpakket_code
+
       let response
       if (editingId) {
         response = await fetch('/api/grote-inpak/erp-link', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: editingId,
-            ...formData,
-          }),
+          body: JSON.stringify({ id: editingId, ...payload }),
         })
       } else {
         response = await fetch('/api/grote-inpak/erp-link', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData),
+          body: JSON.stringify(payload),
         })
       }
 
+      const result = await response.json().catch(() => ({}))
+
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to save ERP LINK entry')
+        throw new Error(result.error || 'Opslaan mislukt')
+      }
+
+      const savedBp = result.data?.bouwpakket_code
+        ? String(result.data.bouwpakket_code).trim()
+        : ''
+      if (wantedBouwpakket && !savedBp) {
+        throw new Error(
+          'Bouwpakket werd niet opgeslagen. Voer in Supabase migratie 20260520_erp_link_bouwpakket.sql uit en herlaad de pagina.'
+        )
       }
 
       await loadEntries()
       handleCancel()
+      setSuccess(
+        wantedBouwpakket
+          ? `Opgeslagen (bouwpakket: ${savedBp || wantedBouwpakket})`
+          : 'ERP LINK entry opgeslagen'
+      )
+      setTimeout(() => setSuccess(null), 4000)
     } catch (err: any) {
       setError(err.message || 'Error saving ERP LINK entry')
       console.error('Error saving ERP LINK:', err)
@@ -661,13 +687,19 @@ export default function ErpLinkTab() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono font-medium">
                     {newCode || '-'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
+                  <td
+                    className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono"
+                    title={bpRaw ? `Opgeslagen in DB: ${bpRaw}` : undefined}
+                  >
                     {bpOld || '-'}
                     {bpSameCode && bpRaw && (
                       <span className="ml-1 text-[10px] text-amber-600" title="Geen mapping gevonden — mogelijk al een nieuwe code ingevoerd">⚠</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono font-medium">
+                  <td
+                    className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono font-medium"
+                    title={bpRaw ? `Opgeslagen in DB: ${bpRaw}` : undefined}
+                  >
                     {bpNew || '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

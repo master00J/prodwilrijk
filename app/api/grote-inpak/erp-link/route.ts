@@ -9,6 +9,18 @@ function normalizeBouwpakketCode(value: unknown): string | null {
   return normalizeErpCode(trimmed) || trimmed.toUpperCase()
 }
 
+function formatDbError(error: { message?: string; code?: string; details?: string } | null): string {
+  const msg = [error?.message, error?.details].filter(Boolean).join(' — ')
+  if (
+    msg.includes('bouwpakket_code') ||
+    error?.code === 'PGRST204' ||
+    msg.includes('schema cache')
+  ) {
+    return 'Kolom bouwpakket_code ontbreekt in de database. Voer migratie 20260520_erp_link_bouwpakket.sql uit in Supabase (SQL Editor).'
+  }
+  return msg || 'Databasefout'
+}
+
 export const dynamic = 'force-dynamic'
 
 // GET - Fetch all ERP LINK entries (query param ?sync_kanban=1 om ontbrekende kisten naar Kanban te syncen)
@@ -88,32 +100,33 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const row = {
+      kistnummer: normalizeKistnummer(kistnummer) || String(kistnummer).trim().toUpperCase(),
+      erp_code: erp_code ? normalizeErpCode(String(erp_code)) || String(erp_code).trim() : null,
+      productielocatie: normalizedProductielocatie || null,
+      description: description ? String(description).trim() : null,
+      stapel: stapel !== undefined && stapel !== null ? Math.max(1, Number(stapel) || 1) : 1,
+      bouwpakket_code: normalizeBouwpakketCode(bouwpakket_code),
+    }
+
     const { data, error } = await supabaseAdmin
       .from('grote_inpak_erp_link')
-      .insert({
-        kistnummer: String(kistnummer).trim().toUpperCase(),
-        erp_code: erp_code ? String(erp_code).trim() : null,
-        productielocatie: normalizedProductielocatie || null,
-        description: description ? String(description).trim() : null,
-        stapel: stapel !== undefined && stapel !== null ? Math.max(1, Number(stapel) || 1) : 1,
-        bouwpakket_code: normalizeBouwpakketCode(bouwpakket_code),
-      })
+      .upsert(row, { onConflict: 'kistnummer' })
       .select()
       .single()
 
     if (error) {
-      // Check if it's a unique constraint violation
       if (error.code === '23505') {
         return NextResponse.json(
           { error: 'Kistnummer already exists' },
           { status: 400 }
         )
       }
-      throw error
+      return NextResponse.json({ error: formatDbError(error) }, { status: 500 })
     }
 
     // Sync naar Kanban config: nieuwe kist moet ook in rekindeling staan voor stock/Excel
-    const kistNorm = normalizeKistnummer(kistnummer)
+    const kistNorm = row.kistnummer
     if (kistNorm) {
       await supabaseAdmin
         .from('grote_inpak_kanban_config')
@@ -139,7 +152,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Error creating ERP LINK entry:', error)
     return NextResponse.json(
-      { error: error.message || 'Error creating ERP LINK entry' },
+      { error: formatDbError(error) || error.message || 'Error creating ERP LINK entry' },
       { status: 500 }
     )
   }
@@ -151,9 +164,10 @@ export async function PUT(request: NextRequest) {
     const body = await request.json()
     const { id, kistnummer, erp_code, productielocatie, description, stapel, bouwpakket_code } = body
 
-    if (!id) {
+    const numericId = Number(id)
+    if (!Number.isFinite(numericId) || numericId <= 0) {
       return NextResponse.json(
-        { error: 'id is required' },
+        { error: 'Geldig id is verplicht (bewerk de rij via het potlood-icoon)' },
         { status: 400 }
       )
     }
@@ -169,30 +183,52 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    const updateData: any = {}
-    if (kistnummer !== undefined) updateData.kistnummer = normalizeKistnummer(kistnummer)
-    if (erp_code !== undefined) updateData.erp_code = erp_code ? String(erp_code).trim() : null
+    const updateData: Record<string, unknown> = {}
+    if (kistnummer !== undefined) {
+      updateData.kistnummer = normalizeKistnummer(kistnummer) || String(kistnummer).trim().toUpperCase()
+    }
+    if (erp_code !== undefined) {
+      updateData.erp_code = erp_code
+        ? normalizeErpCode(String(erp_code)) || String(erp_code).trim()
+        : null
+    }
     if (productielocatie !== undefined) updateData.productielocatie = normalizedProductielocatie || null
     if (description !== undefined) updateData.description = description ? String(description).trim() : null
     if (stapel !== undefined) updateData.stapel = Math.max(1, Number(stapel) || 1)
-    if (bouwpakket_code !== undefined) updateData.bouwpakket_code = normalizeBouwpakketCode(bouwpakket_code)
+    // Altijd meesturen vanuit het formulier (ook leeg = wissen)
+    if ('bouwpakket_code' in body) {
+      updateData.bouwpakket_code = normalizeBouwpakketCode(bouwpakket_code)
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json(
+        { error: 'Geen velden om bij te werken' },
+        { status: 400 }
+      )
+    }
 
     const { data, error } = await supabaseAdmin
       .from('grote_inpak_erp_link')
       .update(updateData)
-      .eq('id', id)
+      .eq('id', numericId)
       .select()
       .single()
 
     if (error) {
-      // Check if it's a unique constraint violation
       if (error.code === '23505') {
         return NextResponse.json(
           { error: 'Kistnummer already exists' },
           { status: 400 }
         )
       }
-      throw error
+      return NextResponse.json({ error: formatDbError(error) }, { status: 500 })
+    }
+
+    if (!data) {
+      return NextResponse.json(
+        { error: 'Rij niet gevonden — sla opnieuw op na verversen van de pagina' },
+        { status: 404 }
+      )
     }
 
     // Sync productielocatie naar kanban_config als die velden gewijzigd zijn
@@ -211,7 +247,7 @@ export async function PUT(request: NextRequest) {
   } catch (error: any) {
     console.error('Error updating ERP LINK entry:', error)
     return NextResponse.json(
-      { error: error.message || 'Error updating ERP LINK entry' },
+      { error: formatDbError(error) || error.message || 'Error updating ERP LINK entry' },
       { status: 500 }
     )
   }
