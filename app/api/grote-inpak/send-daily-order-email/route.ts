@@ -7,6 +7,11 @@ import {
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { normalizeErpCode, normalizeKistnummer } from '@/lib/utils/erp-code-normalizer'
 import { getEndingDatesByKist } from '@/lib/grote-inpak/production-orders'
+import {
+  enrichRowWithBouwpakketStock,
+  fetchBouwpakketStockContext,
+  type BouwpakketStockContext,
+} from '@/lib/grote-inpak/bouwpakket-stock'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -443,7 +448,8 @@ function locationHasExportData(cRows: any[], kKisten: any[], overdueKisten: any[
 async function buildLocationDailyOrderPayload(
   rows: any[],
   location: DailyOrderLocation,
-  alleenBestellen: boolean
+  alleenBestellen: boolean,
+  bouwpakketCtx: BouwpakketStockContext
 ): Promise<{ data: any[]; options: DailyOrderLocationOptions }> {
   const keyword = location.toLowerCase()
   const toExport = alleenBestellen ? rows.filter((r: any) => r.bestel_aantal > 0) : rows
@@ -457,12 +463,15 @@ async function buildLocationDailyOrderPayload(
   const locRowsWithStock = locRows.map((r: any) => {
     const kt = normCase(r.case_type || '')
     const stock = stockByKist.get(kt) || { genk: 0, willebroek: 0, wilrijk: 0 }
-    return {
-      ...r,
-      stock_genk: stock.genk,
-      stock_wilrijk: stock.wilrijk,
-      stock_in_rek: stock.willebroek,
-    }
+    return enrichRowWithBouwpakketStock(
+      {
+        ...r,
+        stock_genk: stock.genk,
+        stock_wilrijk: stock.wilrijk,
+        stock_in_rek: stock.willebroek,
+      },
+      bouwpakketCtx
+    )
   })
 
   const productieAndereLoc = await fetchProductieByLocatie(location === 'Genk' ? 'Wilrijk' : 'Genk')
@@ -473,7 +482,8 @@ async function buildLocationDailyOrderPayload(
     return { ...r, priority_rank: i + 1, tekort }
   })
 
-  const kKisten = await fetchKKistenForExcel(location, productieAndereLoc)
+  const kKistenRaw = await fetchKKistenForExcel(location, productieAndereLoc)
+  const kKisten = kKistenRaw.map((r) => enrichRowWithBouwpakketStock(r, bouwpakketCtx))
   const overdueKisten = await fetchOverdueKisten(location)
 
   return {
@@ -494,12 +504,15 @@ export async function POST(request: NextRequest) {
 
     const today = new Date().toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric' })
     const dateStr = new Date().toISOString().split('T')[0]
-    const endingDatesByKist = await getEndingDatesByKist()
+    const [endingDatesByKist, bouwpakketCtx] = await Promise.all([
+      getEndingDatesByKist(),
+      fetchBouwpakketStockContext(),
+    ])
 
     if (isCombined) {
       const [genkPayload, wilrijkPayload] = await Promise.all([
-        buildLocationDailyOrderPayload(rows, 'Genk', alleenBestellen),
-        buildLocationDailyOrderPayload(rows, 'Wilrijk', alleenBestellen),
+        buildLocationDailyOrderPayload(rows, 'Genk', alleenBestellen, bouwpakketCtx),
+        buildLocationDailyOrderPayload(rows, 'Wilrijk', alleenBestellen, bouwpakketCtx),
       ])
 
       const genkHasData = locationHasExportData(
@@ -533,7 +546,7 @@ export async function POST(request: NextRequest) {
     }
 
     const location = (locParam === 'Wilrijk' ? 'Wilrijk' : 'Genk') as DailyOrderLocation
-    const payload = await buildLocationDailyOrderPayload(rows, location, alleenBestellen)
+    const payload = await buildLocationDailyOrderPayload(rows, location, alleenBestellen, bouwpakketCtx)
 
     if (
       !locationHasExportData(

@@ -22,8 +22,18 @@ function mapStatusForDisplay(status: string, inProductie: number): string {
   return status || ''
 }
 
-const headersC = ['Prioriteit', 'Kisttype', 'Prod.locatie', 'Max voorraad', 'Stock in rek', 'Stock Genk', 'Stock Wilrijk', 'Prod. Genk', 'Prod. Wilrijk', 'Prod. Willebroek', 'In transfer', 'Op PILS', 'Productie nog aanmaken', 'Effectief te produceren', 'Einddatum productie', 'Status']
-const headersK = ['Prioriteit', 'Kisttype', 'BC FP', 'Prod.locatie', 'Stock Genk', 'Stock Wilrijk', 'Stock Willebroek', 'Prod. Genk', 'Prod. Wilrijk', 'Prod. Willebroek', 'In transfer', 'Op PILS', 'Productie nog aanmaken', 'Effectief te produceren', 'Einddatum productie', 'Status', 'Info']
+const headersC = [
+  'Prioriteit', 'Kisttype', 'Prod.locatie', 'Max voorraad', 'Stock in rek', 'Stock Genk', 'Stock Wilrijk',
+  'Bouwpakket', 'BP stock Genk', 'BP stock Wilrijk', 'BP stock WLB', 'BP stock totaal',
+  'Prod. Genk', 'Prod. Wilrijk', 'Prod. Willebroek', 'In transfer', 'Op PILS',
+  'Productie nog aanmaken', 'Effectief te produceren', 'Einddatum productie', 'Status',
+]
+const headersK = [
+  'Prioriteit', 'Kisttype', 'BC FP', 'Prod.locatie', 'Stock Genk', 'Stock Wilrijk', 'Stock Willebroek',
+  'Bouwpakket', 'BP stock Genk', 'BP stock Wilrijk', 'BP stock WLB', 'BP stock totaal',
+  'Prod. Genk', 'Prod. Wilrijk', 'Prod. Willebroek', 'In transfer', 'Op PILS',
+  'Productie nog aanmaken', 'Effectief te produceren', 'Einddatum productie', 'Status', 'Info',
+]
 
 // Bereken hoeveel stuks er nog een nieuwe productie-order voor aangemaakt moet worden
 // = effectieve behoefte − wat al op een productie-order staat (in productie totaal)
@@ -50,10 +60,12 @@ function addDailyOrderSheet(
   ws.columns = variant === 'k'
     ? [
         { width: 10 }, { width: 12 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 13 }, { width: 14 },
+        { width: 14 }, { width: 11 }, { width: 12 }, { width: 11 }, { width: 12 },
         { width: 11 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 10 }, { width: 22 }, { width: 22 }, { width: 24 }, { width: 16 }, { width: 28 },
       ]
     : [
         { width: 10 }, { width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 13 },
+        { width: 14 }, { width: 11 }, { width: 12 }, { width: 11 }, { width: 12 },
         { width: 11 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 12 }, { width: 22 }, { width: 22 }, { width: 24 }, { width: 16 },
       ]
 
@@ -101,6 +113,9 @@ function addDailyOrderSheet(
     return [
       row.priority_rank ?? i + 1, row.case_type, row.productielocatie || '—',
       row.max_voorraad, row.stock_in_rek, row.stock_genk ?? 0, row.stock_wilrijk ?? 0,
+      row.bouwpakket_code || '—',
+      row.bouwpakket_stock_genk ?? 0, row.bouwpakket_stock_wilrijk ?? 0, row.bouwpakket_stock_willebroek ?? 0,
+      row.bouwpakket_stock_totaal ?? 0,
       row.in_productie_genk ?? 0, row.in_productie_wilrijk ?? 0, row.in_productie_willebroek ?? 0,
       row.in_transfer ?? 0, row.op_pils ?? 0, nogAanmaken, effectief, einddatum, status,
     ]
@@ -116,6 +131,9 @@ function addDailyOrderSheet(
       row.bc_fp || '—',
       row.productielocatie || '—',
       row.stock_genk ?? 0, row.stock_wilrijk ?? 0, row.stock_willebroek ?? row.stock_in_rek ?? 0,
+      row.bouwpakket_code || '—',
+      row.bouwpakket_stock_genk ?? 0, row.bouwpakket_stock_wilrijk ?? 0, row.bouwpakket_stock_willebroek ?? 0,
+      row.bouwpakket_stock_totaal ?? 0,
       row.in_productie_genk ?? 0, row.in_productie_wilrijk ?? 0, row.in_productie_willebroek ?? 0,
       row.in_transfer ?? 0, row.op_pils ?? 0, nogAanmaken, effectief, einddatum, status,
       row.info || '',
@@ -129,14 +147,22 @@ function addDailyOrderSheet(
     const colStockGenk = variant === 'k' ? 5 : 6
     const colStockWilrijk = variant === 'k' ? 6 : 7
     const colStockWillebroek = variant === 'k' ? 7 : 0
-    const colNogAanmaken = variant === 'k' ? 13 : 13
-    const colEffectief = variant === 'k' ? 14 : 14
-    const colEinddatum = variant === 'k' ? 15 : 15
-    const colStatus = variant === 'k' ? 16 : 16
+    const colBpCode = 8
+    const colBpGenk = 9
+    const colBpWilrijk = 10
+    const colBpWlb = 11
+    const colBpTotaal = 12
+    const colNogAanmaken = 18
+    const colEffectief = 19
+    const colEinddatum = 20
+    const colStatus = 21
 
-    const colInfo = variant === 'k' ? 17 : 0
+    const colInfo = variant === 'k' ? 22 : 0
     dRow.eachCell((cell, col) => {
-      const isTextCol = variant === 'k' ? col === 2 || col === 3 || col === 4 || col === colInfo : col === 2 || col === 3 || col === colInfo
+      const isTextCol =
+        variant === 'k'
+          ? col === 2 || col === 3 || col === 4 || col === colBpCode || col === colInfo
+          : col === 2 || col === 3 || col === colBpCode
       cell.style = {
         fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: fgColor } },
         border,
@@ -152,6 +178,25 @@ function addDailyOrderSheet(
       }
       if (variant === 'k' && col === colStockWillebroek && ((row.stock_willebroek ?? row.stock_in_rek ?? 0) > 0)) {
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD6E4F0' } }
+        cell.font = { bold: true, color: { argb: 'FF1F497D' } }
+      }
+      if (col === colBpGenk && (row.bouwpakket_stock_genk ?? 0) > 0) {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2EFDA' } }
+        cell.font = { bold: true, color: { argb: 'FF375623' } }
+      }
+      if (col === colBpWilrijk && (row.bouwpakket_stock_wilrijk ?? 0) > 0) {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2EFDA' } }
+        cell.font = { bold: true, color: { argb: 'FF375623' } }
+      }
+      if (col === colBpWlb && (row.bouwpakket_stock_willebroek ?? 0) > 0) {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2EFDA' } }
+        cell.font = { bold: true, color: { argb: 'FF375623' } }
+      }
+      if (col === colBpTotaal && (row.bouwpakket_stock_totaal ?? 0) > 0) {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF92D050' } }
+        cell.font = { bold: true, color: { argb: 'FF000000' } }
+      }
+      if (col === colBpCode && row.bouwpakket_code) {
         cell.font = { bold: true, color: { argb: 'FF1F497D' } }
       }
       if (col === colStatus) {
