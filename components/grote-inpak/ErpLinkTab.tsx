@@ -8,6 +8,7 @@ interface ErpLinkEntry {
   id?: number
   kistnummer: string
   erp_code?: string | null
+  bouwpakket_code?: string | null
   productielocatie?: string | null
   description?: string | null
   stapel?: number | null
@@ -31,6 +32,7 @@ export default function ErpLinkTab() {
   const [formData, setFormData] = useState<ErpLinkEntry>({
     kistnummer: '',
     erp_code: '',
+    bouwpakket_code: '',
     productielocatie: '',
     description: '',
     stapel: 1,
@@ -82,6 +84,7 @@ export default function ErpLinkTab() {
     setFormData({
       kistnummer: entry.kistnummer || '',
       erp_code: entry.erp_code || '',
+      bouwpakket_code: entry.bouwpakket_code || '',
       productielocatie: entry.productielocatie || '',
       description: entry.description || '',
       stapel: entry.stapel || 1,
@@ -95,6 +98,7 @@ export default function ErpLinkTab() {
     setFormData({
       kistnummer: '',
       erp_code: '',
+      bouwpakket_code: '',
       productielocatie: '',
       description: '',
       stapel: 1,
@@ -107,6 +111,7 @@ export default function ErpLinkTab() {
     setFormData({
       kistnummer: '',
       erp_code: '',
+      bouwpakket_code: '',
       productielocatie: '',
       description: '',
       stapel: 1,
@@ -221,6 +226,7 @@ export default function ErpLinkTab() {
                 productielocatie: item.productielocatie || null,
                 description: item.description || null,
                 stapel: item.stapel || 1,
+                bouwpakket_code: item.bouwpakket_code || null,
               }),
             })
 
@@ -284,12 +290,24 @@ export default function ErpLinkTab() {
     kistnummer: 'Kistnummer',
     erp_code: 'Oude BC Code',
     new_bc_code: 'Nieuwe BC Code',
+    bouwpakket_code: 'Bouwpakket oude BC',
+    bouwpakket_new_bc_code: 'Bouwpakket nieuwe BC',
     productielocatie: 'Productielocatie',
     description: 'Beschrijving',
     stapel: 'Stapel',
   }
 
-  const copyColumn = async (field: 'kistnummer' | 'erp_code' | 'new_bc_code' | 'productielocatie' | 'description' | 'stapel') => {
+  type CopyField =
+    | 'kistnummer'
+    | 'erp_code'
+    | 'new_bc_code'
+    | 'bouwpakket_code'
+    | 'bouwpakket_new_bc_code'
+    | 'productielocatie'
+    | 'description'
+    | 'stapel'
+
+  const copyColumn = async (field: CopyField) => {
     const values = filteredEntries.map((entry) => {
       if (field === 'stapel') return String(entry.stapel ?? 1)
       if (field === 'erp_code' || field === 'new_bc_code') {
@@ -297,6 +315,12 @@ export default function ErpLinkTab() {
         if (!raw) return ''
         const { oldCode, newCode } = resolveBcPair(raw, bcToNew, bcToOld)
         return field === 'new_bc_code' ? newCode : oldCode
+      }
+      if (field === 'bouwpakket_code' || field === 'bouwpakket_new_bc_code') {
+        const raw = entry.bouwpakket_code ? String(entry.bouwpakket_code).trim() : ''
+        if (!raw) return ''
+        const { oldCode, newCode } = resolveBcPair(raw, bcToNew, bcToOld)
+        return field === 'bouwpakket_new_bc_code' ? newCode : oldCode
       }
       const v = entry[field]
       return v != null && String(v).trim() !== '' ? String(v).trim() : ''
@@ -415,6 +439,9 @@ export default function ErpLinkTab() {
           {filteredEntries.length} van {entries.length} rijen
         </span>
       </div>
+      <p className="text-xs text-gray-500 -mt-2">
+        Excel-upload: kolom A = kistnummer, B = BC-code kist, C = productielocatie, D = stapel, E = bouwpakket (BC-code gezaagd hout).
+      </p>
 
       {(isAdding || editingId !== null) && (
         <div className="bg-white rounded-lg shadow p-6">
@@ -447,6 +474,21 @@ export default function ErpLinkTab() {
               />
               <p className="text-xs text-gray-500 mt-1">
                 Nieuwe items: voer het <strong>nieuwe</strong> BC36-nummer in. De oude code wordt automatisch getoond via de mapping.
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Bouwpakket (BC code)
+              </label>
+              <input
+                type="text"
+                value={formData.bouwpakket_code || ''}
+                onChange={(e) => setFormData({ ...formData, bouwpakket_code: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Bijv. FP… (gezaagd hout voor deze kist)"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                ERP-referentie naar het bouwpakket (gezaagd hout) voor deze kist.
               </p>
             </div>
             <div>
@@ -545,6 +587,26 @@ export default function ErpLinkTab() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <button
                     type="button"
+                    onClick={() => copyColumn('bouwpakket_code')}
+                    className="inline-flex items-center gap-1.5 hover:text-blue-600 hover:bg-blue-50 rounded px-1 -ml-1 transition-colors"
+                    title="Klik om hele kolom te kopiëren"
+                  >
+                    Bouwpakket oude BC <Copy className="w-3.5 h-3.5 opacity-60" />
+                  </button>
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <button
+                    type="button"
+                    onClick={() => copyColumn('bouwpakket_new_bc_code')}
+                    className="inline-flex items-center gap-1.5 hover:text-blue-600 hover:bg-blue-50 rounded px-1 -ml-1 transition-colors"
+                    title="Klik om hele kolom te kopiëren"
+                  >
+                    Bouwpakket nieuwe BC <Copy className="w-3.5 h-3.5 opacity-60" />
+                  </button>
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <button
+                    type="button"
                     onClick={() => copyColumn('productielocatie')}
                     className="inline-flex items-center gap-1.5 hover:text-blue-600 hover:bg-blue-50 rounded px-1 -ml-1 transition-colors"
                     title="Klik om hele kolom te kopiëren"
@@ -582,6 +644,9 @@ export default function ErpLinkTab() {
                 const raw = entry.erp_code ? String(entry.erp_code).trim() : ''
                 const { oldCode, newCode } = resolveBcPair(raw, bcToNew, bcToOld)
                 const sameCode = raw && oldCode === newCode
+                const bpRaw = entry.bouwpakket_code ? String(entry.bouwpakket_code).trim() : ''
+                const { oldCode: bpOld, newCode: bpNew } = resolveBcPair(bpRaw, bcToNew, bcToOld)
+                const bpSameCode = bpRaw && bpOld === bpNew
                 return (
                 <tr key={entry.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -595,6 +660,15 @@ export default function ErpLinkTab() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono font-medium">
                     {newCode || '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
+                    {bpOld || '-'}
+                    {bpSameCode && bpRaw && (
+                      <span className="ml-1 text-[10px] text-amber-600" title="Geen mapping gevonden — mogelijk al een nieuwe code ingevoerd">⚠</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono font-medium">
+                    {bpNew || '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {entry.productielocatie || '-'}

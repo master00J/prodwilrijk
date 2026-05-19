@@ -389,7 +389,24 @@ async function parseERPExcel(workbook: XLSX.WorkBook): Promise<any[]> {
 
     const stapel = Math.max(1, parseInt(String(stapelRaw || ''), 10) || 1)
 
-    
+    let bouwpakketRaw = findValue(row, [
+      'bouwpakket', 'Bouwpakket', 'BOUWPAKKET', 'Bouwpakket Code', 'bouwpakket_code',
+      'Bouwpakket code', 'Bouw pakket', 'Bouw Pakket', 'BouwPakket', 'Bouw Pakket Code',
+    ])
+
+    if (!bouwpakketRaw && rawData && rawData[index + 1]) {
+      const rowData = rawData[index + 1]
+      if (rowData && rowData.length > 4) {
+        bouwpakketRaw = String(rowData[4] || '').trim()
+      }
+    }
+
+    if (!bouwpakketRaw && row['E']) {
+      bouwpakketRaw = String(row['E'] || '').trim()
+    }
+
+    const bouwpakket_code = bouwpakketRaw ? normalizeErpCode(bouwpakketRaw) || bouwpakketRaw.toUpperCase() : ''
+
     return {
       kistnummer: kistnummer,
       erp_code: erp_code, // Kolom B = ERP code (this matches with stock file kolom A)
@@ -397,6 +414,7 @@ async function parseERPExcel(workbook: XLSX.WorkBook): Promise<any[]> {
       description: findValue(row, ['Description', 'description', 'Omschrijving', 'DESCRIPTION', 'Desc']),
       productielocatie: productielocatie,
       stapel: stapel,
+      bouwpakket_code: bouwpakket_code || null,
       // Store all original data for flexibility
       ...row,
     }

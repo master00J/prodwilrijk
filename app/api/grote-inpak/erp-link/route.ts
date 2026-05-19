@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
-import { normalizeKistnummer } from '@/lib/utils/erp-code-normalizer'
+import { normalizeErpCode, normalizeKistnummer } from '@/lib/utils/erp-code-normalizer'
+
+function normalizeBouwpakketCode(value: unknown): string | null {
+  if (value === undefined || value === null) return null
+  const trimmed = String(value).trim()
+  if (!trimmed) return null
+  return normalizeErpCode(trimmed) || trimmed.toUpperCase()
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -61,7 +68,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { kistnummer, erp_code, productielocatie, description, stapel } = body
+    const { kistnummer, erp_code, productielocatie, description, stapel, bouwpakket_code } = body
 
     if (!kistnummer) {
       return NextResponse.json(
@@ -89,6 +96,7 @@ export async function POST(request: NextRequest) {
         productielocatie: normalizedProductielocatie || null,
         description: description ? String(description).trim() : null,
         stapel: stapel !== undefined && stapel !== null ? Math.max(1, Number(stapel) || 1) : 1,
+        bouwpakket_code: normalizeBouwpakketCode(bouwpakket_code),
       })
       .select()
       .single()
@@ -167,6 +175,7 @@ export async function PUT(request: NextRequest) {
     if (productielocatie !== undefined) updateData.productielocatie = normalizedProductielocatie || null
     if (description !== undefined) updateData.description = description ? String(description).trim() : null
     if (stapel !== undefined) updateData.stapel = Math.max(1, Number(stapel) || 1)
+    if (bouwpakket_code !== undefined) updateData.bouwpakket_code = normalizeBouwpakketCode(bouwpakket_code)
 
     const { data, error } = await supabaseAdmin
       .from('grote_inpak_erp_link')
