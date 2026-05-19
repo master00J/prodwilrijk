@@ -18,6 +18,8 @@ import {
   XCircle,
   Mic,
   MicOff,
+  Bot,
+  Send,
 } from 'lucide-react'
 import type { GroteInpakCase, ProductionTimeActive } from '@/types/database'
 import { BcItemCode } from '@/lib/bc-mapping/client'
@@ -83,6 +85,10 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
   const [voiceBusy, setVoiceBusy] = useState(false)
   const [voiceTranscript, setVoiceTranscript] = useState('')
   const [voiceMessage, setVoiceMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null)
+  const [assistantQuestion, setAssistantQuestion] = useState('')
+  const [assistantAnswer, setAssistantAnswer] = useState('')
+  const [assistantLoading, setAssistantLoading] = useState(false)
+  const [assistantError, setAssistantError] = useState<string | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const voiceChunksRef = useRef<Blob[]>([])
   const voiceStreamRef = useRef<MediaStream | null>(null)
@@ -389,6 +395,96 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
     setVerbergInTransfer(false)
   }, [])
 
+  const askAssistant = useCallback(async (question: string) => {
+    const trimmedQuestion = question.trim()
+    if (!trimmedQuestion) return
+
+    setAssistantLoading(true)
+    setAssistantError(null)
+    setAssistantQuestion(trimmedQuestion)
+
+    const cases = filteredData.slice(0, 180).map(item => ({
+      case_label: item.case_label,
+      case_type: item.case_type || null,
+      arrival_date: item.arrival_date || null,
+      forecast_date: item.forecast_date || null,
+      item_number: item.item_number || null,
+      productielocatie: item.productielocatie || null,
+      status: item.status || null,
+      priority: item.priority === true,
+      comment: item.comment || null,
+      stock_willebroek: item.stock_willebroek ?? 0,
+      stock_genk: item.stock_genk ?? 0,
+      stock_wilrijk: item.stock_wilrijk ?? 0,
+      in_transfer_qty: item.in_transfer_qty ?? 0,
+      in_productie_qty: item.in_productie_qty ?? 0,
+      dagen_te_laat: item.dagen_te_laat ?? 0,
+      status_reason: item.status_reason || null,
+      bc_fp_item_no: item.bc_fp_item_no || item.item_number || null,
+      bc_shop_order_no: item.bc_shop_order_no || null,
+      bc_customer_order_no: item.bc_customer_order_no || null,
+    }))
+
+    try {
+      const response = await fetch('/api/grote-inpak/assistant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: trimmedQuestion,
+          context: {
+            filters: {
+              productielocatie: locationFilter,
+              status: statusFilter,
+              willebroek: willebroekFilter,
+              priority: priorityFilter,
+              kistType: kistTypeFilter,
+              search: searchQuery,
+              verbergInProductie: String(verbergInProductie),
+              verbergOpStock: String(verbergOpStock),
+              verbergInTransfer: String(verbergInTransfer),
+            },
+            summary: {
+              filtered: filteredData.length,
+              total: overview.length,
+              priority: priorityCount,
+              comments: commentCount,
+              inWillebroek: summary.inWb,
+              onderweg: summary.metTransfer,
+              stockErgens: summary.metStockPlek,
+              forecastKritiek: summary.forecastKritiek,
+            },
+            cases,
+          },
+        }),
+      })
+      const result: { answer?: string; error?: string } = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.error || 'Assistent-aanvraag mislukt')
+      setAssistantAnswer(result.answer || 'Geen antwoord ontvangen.')
+    } catch (error) {
+      setAssistantError(error instanceof Error ? error.message : 'Assistent-aanvraag mislukt')
+    } finally {
+      setAssistantLoading(false)
+    }
+  }, [
+    commentCount,
+    filteredData,
+    kistTypeFilter,
+    locationFilter,
+    overview.length,
+    priorityCount,
+    priorityFilter,
+    searchQuery,
+    statusFilter,
+    summary.forecastKritiek,
+    summary.inWb,
+    summary.metStockPlek,
+    summary.metTransfer,
+    verbergInProductie,
+    verbergInTransfer,
+    verbergOpStock,
+    willebroekFilter,
+  ])
+
   const handleBulkPriority = async (setPriority: boolean) => {
     if (selectedCases.size === 0) {
       alert('Selecteer eerst cases door op de checkbox te klikken')
@@ -584,6 +680,77 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
           >
             {voiceMessage.text}
           </p>
+        )}
+      </section>
+
+      <section className="rounded-lg border border-slate-300/80 bg-white p-4 shadow-sm" aria-label="Grote Inpak AI assistent">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="max-w-3xl">
+            <div className="flex items-center gap-2">
+              <Bot className="h-5 w-5 text-slate-700" />
+              <h3 className="text-base font-semibold text-slate-900">Grote Inpak AI assistent</h3>
+            </div>
+            <p className="mt-1 text-sm text-slate-600">
+              Stelt vragen over de huidige gefilterde tabel en geeft praktische analyse, risico’s en voorgestelde acties.
+              De assistent voert hier nog geen bulk-acties automatisch uit.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[
+              'Wat moet vandaag eerst opgevolgd worden?',
+              'Welke priority cases zijn risicovol?',
+              'Welke cases hebben forecast-problemen?',
+              'Vat de huidige selectie samen voor de ploeg.',
+            ].map(prompt => (
+              <button
+                key={prompt}
+                type="button"
+                onClick={() => askAssistant(prompt)}
+                disabled={assistantLoading}
+                className="rounded-full border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <form
+          className="mt-4 flex flex-col gap-2 sm:flex-row"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void askAssistant(assistantQuestion)
+          }}
+        >
+          <input
+            value={assistantQuestion}
+            onChange={event => setAssistantQuestion(event.target.value)}
+            placeholder="Vraag bv. welke cases eerst moeten, waarom iets rood is, of wat de ploeg moet doen..."
+            className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#1a4b8c] focus:ring-1 focus:ring-[#1a4b8c]"
+          />
+          <button
+            type="submit"
+            disabled={assistantLoading || !assistantQuestion.trim()}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:bg-slate-300"
+          >
+            <Send className="h-4 w-4" />
+            {assistantLoading ? 'Denken...' : 'Vraag'}
+          </button>
+        </form>
+
+        {assistantError && (
+          <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
+            {assistantError}
+          </div>
+        )}
+
+        {assistantAnswer && (
+          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Antwoord op: {assistantQuestion}
+            </div>
+            <div className="whitespace-pre-wrap text-sm leading-6 text-slate-800">{assistantAnswer}</div>
+          </div>
         )}
       </section>
 
