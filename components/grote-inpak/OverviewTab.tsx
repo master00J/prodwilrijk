@@ -26,6 +26,7 @@ import type { GroteInpakCase, ProductionTimeActive } from '@/types/database'
 import { BcItemCode } from '@/lib/bc-mapping/client'
 import { GROTE_INPAK_AUTO_STATUSES, type GroteInpakAutoStatus } from '@/lib/grote-inpak/auto-status'
 import CaseMailViewerModal from '@/components/grote-inpak/CaseMailViewerModal'
+import RealtimeAssistant from '@/components/grote-inpak/RealtimeAssistant'
 
 interface OverviewTabProps {
   overview: GroteInpakCase[]
@@ -402,6 +403,47 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
     }
     return { inWb, metTransfer, metStockPlek, forecastKritiek }
   }, [filteredData])
+
+  const realtimeCases = useMemo(() => {
+    return filteredData.map((item) => ({
+      ...item,
+      ...(editedData.get(item.case_label) || {}),
+    }))
+  }, [editedData, filteredData])
+
+  const realtimeFilters = useMemo(() => ({
+    productielocatie: locationFilter,
+    status: statusFilter,
+    willebroek: willebroekFilter,
+    priority: priorityFilter,
+    kistType: kistTypeFilter,
+    search: searchQuery,
+    verbergInProductie: String(verbergInProductie),
+    verbergOpStock: String(verbergOpStock),
+    verbergInTransfer: String(verbergInTransfer),
+  }), [
+    kistTypeFilter,
+    locationFilter,
+    priorityFilter,
+    searchQuery,
+    statusFilter,
+    verbergInProductie,
+    verbergInTransfer,
+    verbergOpStock,
+    willebroekFilter,
+  ])
+
+  const handleRealtimeCaseUpdated = useCallback((caseLabel: string, updates: Partial<GroteInpakCase>) => {
+    setFilteredData((prev) =>
+      prev.map((row) => (row.case_label === caseLabel ? { ...row, ...updates } : row))
+    )
+    setEditedData((prev) => {
+      const next = new Map(prev)
+      const existing = next.get(caseLabel) || {}
+      next.set(caseLabel, { ...existing, ...updates })
+      return next
+    })
+  }, [])
 
   const hasActiveFilters =
     locationFilter !== 'Alle' ||
@@ -805,6 +847,21 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
           {mailDropMessage.text}
         </div>
       )}
+
+      <RealtimeAssistant
+        cases={realtimeCases}
+        totalCases={overview.length}
+        filters={realtimeFilters}
+        summary={{
+          priority: priorityCount,
+          comments: commentCount,
+          inWillebroek: summary.inWb,
+          onderweg: summary.metTransfer,
+          stockErgens: summary.metStockPlek,
+          forecastKritiek: summary.forecastKritiek,
+        }}
+        onCaseUpdated={handleRealtimeCaseUpdated}
+      />
 
       <section className="rounded-lg border border-indigo-200 bg-indigo-50/70 p-4 shadow-sm" aria-label="Voice acties en vragen">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
