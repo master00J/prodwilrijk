@@ -69,7 +69,7 @@ export async function GET(
 
     if (download) {
       const bytes = decodeFileBytes(data.file_bytes)
-      return new NextResponse(bytes, {
+      return new NextResponse(new Uint8Array(bytes), {
         headers: {
           'Content-Type': data.content_type || 'application/octet-stream',
           'Content-Disposition': `attachment; filename="${encodeURIComponent(data.original_filename || 'mail.msg')}"`,
