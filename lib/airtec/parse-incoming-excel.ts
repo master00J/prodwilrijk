@@ -83,7 +83,7 @@ export function mapAirtecIncomingRow(row: Record<string, unknown>): AirtecIncomi
     beschrijving,
     item_number: itemNumber,
     lot_number: isCooler ? null : asTrimmedString(lotOrCoolerQty),
-    datum_opgestuurd: parseDate(firstValue(row, ['Datum Opgestuurd', 'Datum opsturen?', 'Date Sent', 'Datum'])),
+    datum_opgestuurd: parseDate(firstValue(row, ['Datum Opgestuurd', 'Datum opsturen', 'Datum opsturen?', 'Date Sent', 'Datum'])),
     kistnummer: normalizeKistnummer(firstValue(row, ['Kistnummer', 'Box Number', 'Kist', 'Box'])),
     divisie: isCooler ? null : asTrimmedString(firstValue(row, ['Divisie', 'Division', 'Afdeling'])),
     quantity: parseQuantity(quantitySource),
