@@ -28,6 +28,8 @@ type Props = {
 
 function isMeaningfulBody(value: string | null | undefined): boolean {
   if (!value) return false
+  if (value.trim().startsWith('{"type":"Buffer"')) return false
+  if (/^Received:\s/from/im.test(value.trim())) return false
   const stripped = value
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/gi, ' ')

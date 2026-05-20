@@ -10,6 +10,64 @@ export type ParsedDroppedMail = {
 }
 
 const EMAIL_RE = /[\w.+-]+@[\w.-]+\.\w+/i
+const TRANSPORT_HEADER_RE =
+  /^(Received|Return-Path|Delivered-To|Authentication-Results|X-MS-|MIME-Version|Content-Type|Message-ID|Thread-)/im
+
+/** Zet Buffer / serialized Buffer / bytes om naar leesbare tekst. */
+export function coerceMailText(value: unknown): string | null {
+  if (value == null) return null
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return null
+    if (trimmed.startsWith('{"type":"Buffer"') || trimmed.startsWith('{\"type\":\"Buffer\"')) {
+      try {
+        const parsed = JSON.parse(trimmed) as { type?: string; data?: number[] }
+        if (parsed.type === 'Buffer' && Array.isArray(parsed.data)) {
+          return coerceMailText(Buffer.from(parsed.data))
+        }
+      } catch {
+        return null
+      }
+    }
+    return trimmed
+  }
+
+  if (Buffer.isBuffer(value)) {
+    const utf8 = value.toString('utf8').replace(/\0/g, '').trim()
+    if (utf8) return utf8
+    return value.toString('latin1').replace(/\0/g, '').trim() || null
+  }
+
+  if (value instanceof Uint8Array) {
+    return coerceMailText(Buffer.from(value))
+  }
+
+  if (Array.isArray(value)) {
+    return coerceMailText(Buffer.from(value))
+  }
+
+  if (typeof value === 'object' && 'type' in value && (value as { type: string }).type === 'Buffer') {
+    const data = (value as { data?: unknown }).data
+    if (Array.isArray(data)) return coerceMailText(Buffer.from(data))
+  }
+
+  return null
+}
+
+function isTransportHeadersOnly(text: string): boolean {
+  const trimmed = text.trim()
+  if (!trimmed || !TRANSPORT_HEADER_RE.test(trimmed)) return false
+
+  const bodyAfterHeaders = trimmed.split(/\r?\n\r?\n/).slice(1).join('\n\n').trim()
+  if (!bodyAfterHeaders) return true
+
+  if (/^Content-Type:\s*(multipart|text\/)/im.test(bodyAfterHeaders)) {
+    return !parseMimeParts(trimmed).bodyHtml && !parseMimeParts(trimmed).bodyText
+  }
+
+  return /^[A-Za-z-]+:\s*.+(\r?\n[A-Za-z-]+:\s*.+)*$/m.test(trimmed)
+}
 
 function extractEmail(value: string | null | undefined): string | null {
   if (!value) return null
@@ -83,14 +141,25 @@ function parseMimeParts(raw: string): { bodyText: string | null; bodyHtml: strin
 }
 
 function parseEmlBody(raw: string): { bodyText: string | null; bodyHtml: string | null } {
-  const split = raw.match(/\r?\n\r?\n/)
-  if (!split) return { bodyText: raw.trim() || null, bodyHtml: null }
-  const idx = raw.indexOf(split[0])
-  const bodyRaw = raw.slice(idx + split[0].length).trim()
+  const text = coerceMailText(raw)
+  if (!text) return { bodyText: null, bodyHtml: null }
+
+  const split = text.match(/\r?\n\r?\n/)
+  if (!split) {
+    if (isTransportHeadersOnly(text)) return { bodyText: null, bodyHtml: null }
+    return { bodyText: text.trim() || null, bodyHtml: null }
+  }
+  const idx = text.indexOf(split[0])
+  const bodyRaw = text.slice(idx + split[0].length).trim()
   if (!bodyRaw) return { bodyText: null, bodyHtml: null }
 
   const fromMime = parseMimeParts(bodyRaw)
   if (fromMime.bodyHtml || fromMime.bodyText) return fromMime
+
+  const headerPart = text.slice(0, idx).trim()
+  if (isTransportHeadersOnly(headerPart + '\n\n' + bodyRaw)) {
+    return { bodyText: null, bodyHtml: null }
+  }
 
   const bodyText = decodeQuotedPrintable(bodyRaw).trim()
   return { bodyText: bodyText || null, bodyHtml: null }
@@ -128,17 +197,21 @@ function parseEmlFull(raw: string, filename: string): ParsedDroppedMail {
   }
 }
 
-function pickNonEmpty(...values: Array<string | null | undefined>): string | null {
+function pickNonEmpty(...values: Array<unknown>): string | null {
   for (const v of values) {
-    const t = (v || '').trim()
-    if (t.length > 0) return t
+    const t = coerceMailText(v)
+    if (t && t.length > 0) return t
   }
   return null
 }
 
 function isMeaningfulBodyText(value: string | null | undefined): boolean {
   if (!value) return false
-  const stripped = value
+  const text = coerceMailText(value)
+  if (!text) return false
+  if (text.startsWith('{"type":"Buffer"')) return false
+  if (isTransportHeadersOnly(text)) return false
+  const stripped = text
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<[^>]+>/g, ' ')
@@ -234,7 +307,7 @@ function scrapeMsgBodyFromBinary(buffer: Buffer): { bodyText: string | null; bod
   const filtered = runs
     .filter((run) => {
       if (/^[\x00-\x1f\s]+$/.test(run)) return false
-      if (/^(Microsoft|Exchange|Outlook|MAPI|SMTP|Content-Type|Message-ID)/i.test(run)) return false
+      if (/^(Microsoft|Exchange|Outlook|MAPI|SMTP|Content-Type|Message-ID|Received|Return-Path|X-MS-)/i.test(run)) return false
       if (/^[A-Za-z0-9_\-./\\:]+\.(msg|dll|exe|png|jpg)$/i.test(run)) return false
       const words = run.split(/\s+/).filter(Boolean)
       return words.length >= 4
@@ -275,12 +348,12 @@ type MsgFields = {
   senderEmail?: string
   clientSubmitTime?: string
   messageDeliveryTime?: string
-  body?: string
-  bodyHtml?: string
-  bodyHTML?: string
-  html?: string
-  contactHtml?: string
-  headers?: string
+  body?: unknown
+  bodyHtml?: unknown
+  bodyHTML?: unknown
+  html?: unknown
+  contactHtml?: unknown
+  headers?: unknown
   compressedRtf?: unknown
   innerMsgContentFields?: MsgFields
 }
@@ -289,8 +362,9 @@ async function bodiesFromMsgFields(data: MsgFields): Promise<{ bodyText: string 
   let bodyHtml = pickNonEmpty(data.bodyHtml, data.bodyHTML, data.html, data.contactHtml)
   let bodyText = pickNonEmpty(data.body)
 
-  if (data.headers) {
-    const fromHeaders = parseEmlBody(String(data.headers))
+  const headerText = coerceMailText(data.headers)
+  if (headerText && !isTransportHeadersOnly(headerText)) {
+    const fromHeaders = parseEmlBody(headerText)
     bodyHtml = bodyHtml || fromHeaders.bodyHtml
     bodyText = bodyText || fromHeaders.bodyText
   }
@@ -364,12 +438,19 @@ async function parseMsgFile(buffer: Buffer, filename: string): Promise<ParsedDro
   return scraped
 }
 
-/** Herparseer opgeslagen bestand; file heeft altijd voorrang op lege DB-body. */
+/** Herparseer opgeslagen bestand; negeer kapotte DB-body (Buffer-JSON, SMTP-headers). */
 export async function resolveMailBodiesFromFile(
   buffer: Buffer,
   filename: string,
   stored: { body_text: string | null; body_html: string | null }
 ): Promise<{ body_text: string | null; body_html: string | null }> {
+  const storedText = coerceMailText(stored.body_text)
+  const storedHtml = coerceMailText(stored.body_html)
+  const validStoredText =
+    storedText && isMeaningfulBodyText(storedText) ? storedText : null
+  const validStoredHtml =
+    storedHtml && isMeaningfulBodyText(storedHtml) ? storedHtml : null
+
   let parsed: ParsedDroppedMail | null = null
   try {
     parsed = await parseDroppedMailFile(buffer, filename)
@@ -377,8 +458,8 @@ export async function resolveMailBodiesFromFile(
     parsed = null
   }
 
-  const body_text = pickNonEmpty(parsed?.bodyText, stored.body_text)
-  const body_html = pickNonEmpty(parsed?.bodyHtml, stored.body_html)
+  const body_text = pickNonEmpty(parsed?.bodyText, validStoredText)
+  const body_html = pickNonEmpty(parsed?.bodyHtml, validStoredHtml)
 
   return {
     body_text: isMeaningfulBodyText(body_text) ? body_text : null,

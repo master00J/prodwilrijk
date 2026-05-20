@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { resolveMailBodiesFromFile } from '@/lib/grote-inpak/parse-dropped-mail'
+import { coerceMailText, resolveMailBodiesFromFile } from '@/lib/grote-inpak/parse-dropped-mail'
 import { supabaseAdmin } from '@/lib/supabase/server'
 
 export const runtime = 'nodejs'
@@ -86,8 +86,8 @@ export async function GET(
     }
 
     if (view) {
-      let bodyHtml = data.body_html ? String(data.body_html).slice(0, MAX_VIEW_HTML) : null
-      let bodyText = data.body_text ? String(data.body_text) : null
+      let bodyHtml = coerceMailText(data.body_html)
+      let bodyText = coerceMailText(data.body_text)
 
       const fileBuffer = decodeFileBytes(data.file_bytes)
       if (fileBuffer.length > 0 && data.original_filename) {
@@ -96,13 +96,11 @@ export async function GET(
           body_html: bodyHtml,
         })
         bodyText = resolved.body_text
-        bodyHtml = resolved.body_html
-          ? resolved.body_html.slice(0, MAX_VIEW_HTML)
-          : null
+        bodyHtml = resolved.body_html ? resolved.body_html.slice(0, MAX_VIEW_HTML) : null
 
         const shouldPersist =
-          (resolved.body_text && resolved.body_text !== data.body_text) ||
-          (resolved.body_html && resolved.body_html !== data.body_html)
+          resolved.body_text !== coerceMailText(data.body_text) ||
+          resolved.body_html !== coerceMailText(data.body_html)
         if (shouldPersist) {
           await supabaseAdmin
             .from('grote_inpak_case_linked_mails')
