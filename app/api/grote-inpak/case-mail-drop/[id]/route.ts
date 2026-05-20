@@ -11,12 +11,19 @@ function decodeFileBytes(fileBytes: unknown): Buffer {
   if (!fileBytes) return Buffer.alloc(0)
   if (Buffer.isBuffer(fileBytes)) return fileBytes
   if (fileBytes instanceof Uint8Array) return Buffer.from(fileBytes)
+  if (Array.isArray(fileBytes)) return Buffer.from(fileBytes)
+  if (typeof fileBytes === 'object' && fileBytes !== null && 'data' in fileBytes) {
+    const data = (fileBytes as { data?: unknown }).data
+    if (Array.isArray(data)) return Buffer.from(data)
+  }
   if (typeof fileBytes === 'string') {
-    const s = fileBytes
+    const s = fileBytes.trim()
     if (s.startsWith('\\x')) return Buffer.from(s.slice(2), 'hex')
+    if (/^[0-9a-f]+$/i.test(s) && s.length % 2 === 0) return Buffer.from(s, 'hex')
     return Buffer.from(s, 'base64')
   }
-  return Buffer.from(fileBytes as ArrayBuffer)
+  if (fileBytes instanceof ArrayBuffer) return Buffer.from(fileBytes)
+  return Buffer.alloc(0)
 }
 
 function rowToListItem(row: {

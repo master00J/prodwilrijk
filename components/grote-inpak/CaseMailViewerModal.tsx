@@ -36,11 +36,6 @@ function isMeaningfulBody(value: string | null | undefined): boolean {
   return stripped.length > 0
 }
 
-function wrapHtmlForViewer(html: string): string {
-  if (/<html[\s>]/i.test(html)) return html
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><base target="_blank"></head><body style="margin:12px;font-family:Segoe UI,Arial,sans-serif;font-size:14px;line-height:1.5;color:#1e293b;">${html}</body></html>`
-}
-
 function formatWhen(iso: string | null) {
   if (!iso) return '—'
   const d = new Date(iso)
@@ -106,14 +101,10 @@ export default function CaseMailViewerModal({ caseLabel, onClose, initialMailId 
     ? `/api/grote-inpak/case-mail-drop/${selectedId}?download=1`
     : null
 
+  const displayText =
+    detail && isMeaningfulBody(detail.body_text) ? detail.body_text : null
   const displayHtml =
     detail && isMeaningfulBody(detail.body_html) ? detail.body_html : null
-  const displayText =
-    detail && isMeaningfulBody(detail.body_text)
-      ? detail.body_text
-      : detail && !displayHtml && detail.body_html
-        ? detail.body_html
-        : null
 
   return (
     <div
@@ -202,21 +193,18 @@ export default function CaseMailViewerModal({ caseLabel, onClose, initialMailId 
 
             <div className="min-h-0 flex-1 overflow-auto bg-slate-50 p-4">
               {loadingDetail && <p className="text-sm text-slate-500">Mailinhoud laden...</p>}
-              {!loadingDetail && displayHtml && (
-                <iframe
-                  title="Mailinhoud"
-                  sandbox="allow-same-origin"
-                  srcDoc={wrapHtmlForViewer(displayHtml)}
-                  className="min-h-[400px] w-full rounded-lg border border-slate-200 bg-white shadow-sm"
-                  style={{ height: 'min(70vh, 640px)' }}
-                />
-              )}
-              {!loadingDetail && !displayHtml && displayText && (
-                <pre className="whitespace-pre-wrap rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-800">
+              {!loadingDetail && displayText && (
+                <pre className="whitespace-pre-wrap rounded-lg border border-slate-200 bg-white p-4 text-sm leading-relaxed text-slate-800">
                   {displayText}
                 </pre>
               )}
-              {!loadingDetail && detail && !displayHtml && !displayText && (
+              {!loadingDetail && !displayText && displayHtml && (
+                <div
+                  className="mail-body-html rounded-lg border border-slate-200 bg-white p-4 text-sm leading-relaxed text-slate-800 [&_a]:text-sky-700 [&_img]:max-w-full [&_table]:max-w-full"
+                  dangerouslySetInnerHTML={{ __html: displayHtml }}
+                />
+              )}
+              {!loadingDetail && detail && !displayText && !displayHtml && (
                 <p className="text-sm text-slate-600">
                   Geen leesbare inhoud geëxtraheerd. Gebruik &quot;Download origineel&quot; om de mail in Outlook te openen.
                 </p>

@@ -47,6 +47,41 @@ function decodeQuotedPrintable(input: string): string {
     .replace(/=([0-9A-F]{2})/gi, (_m, hex) => String.fromCharCode(parseInt(hex, 16)))
 }
 
+function decodeBase64Body(input: string): string {
+  try {
+    return Buffer.from(input.replace(/\s+/g, ''), 'base64').toString('utf8')
+  } catch {
+    return input
+  }
+}
+
+function parseMimeParts(raw: string): { bodyText: string | null; bodyHtml: string | null } {
+  const htmlPart = raw.match(
+    /Content-Type:\s*text\/html[^\r\n]*(?:[\s\S]*?\r?\n(?![\t ]))([\s\S]*?)\r?\n\r?\n([\s\S]*?)(?=\r?\n--[^\r\n]+|\r?\nContent-Type:|$)/i
+  )
+  const textPart = raw.match(
+    /Content-Type:\s*text\/plain[^\r\n]*(?:[\s\S]*?\r?\n(?![\t ]))([\s\S]*?)\r?\n\r?\n([\s\S]*?)(?=\r?\n--[^\r\n]+|\r?\nContent-Type:|$)/i
+  )
+
+  const decodePart = (match: RegExpMatchArray | null) => {
+    if (!match) return null
+    const headers = match[1] || ''
+    let body = (match[2] || '').trim()
+    if (!body) return null
+    if (/Content-Transfer-Encoding:\s*base64/i.test(headers)) {
+      body = decodeBase64Body(body)
+    } else if (/Content-Transfer-Encoding:\s*quoted-printable/i.test(headers)) {
+      body = decodeQuotedPrintable(body)
+    }
+    return body.trim() || null
+  }
+
+  const bodyHtml = decodePart(htmlPart)
+  const bodyText = decodePart(textPart)
+
+  return { bodyText, bodyHtml }
+}
+
 function parseEmlBody(raw: string): { bodyText: string | null; bodyHtml: string | null } {
   const split = raw.match(/\r?\n\r?\n/)
   if (!split) return { bodyText: raw.trim() || null, bodyHtml: null }
@@ -54,24 +89,11 @@ function parseEmlBody(raw: string): { bodyText: string | null; bodyHtml: string 
   const bodyRaw = raw.slice(idx + split[0].length).trim()
   if (!bodyRaw) return { bodyText: null, bodyHtml: null }
 
-  const htmlPart = bodyRaw.match(
-    /Content-Type:\s*text\/html[^\r\n]*[\s\S]*?\r?\n\r?\n([\s\S]*?)(?=\r?\n--|\r?\nContent-Type:|$)/i
-  )?.[1]
-  const textPart = bodyRaw.match(
-    /Content-Type:\s*text\/plain[^\r\n]*[\s\S]*?\r?\n\r?\n([\s\S]*?)(?=\r?\n--|\r?\nContent-Type:|$)/i
-  )?.[1]
+  const fromMime = parseMimeParts(bodyRaw)
+  if (fromMime.bodyHtml || fromMime.bodyText) return fromMime
 
-  const bodyHtml = htmlPart ? decodeQuotedPrintable(htmlPart).trim() : null
-  const bodyText = textPart
-    ? decodeQuotedPrintable(textPart).trim()
-    : bodyHtml
-      ? null
-      : decodeQuotedPrintable(bodyRaw).trim()
-
-  return {
-    bodyText: bodyText || null,
-    bodyHtml: bodyHtml || null,
-  }
+  const bodyText = decodeQuotedPrintable(bodyRaw).trim()
+  return { bodyText: bodyText || null, bodyHtml: null }
 }
 
 function parseEmlFull(raw: string, filename: string): ParsedDroppedMail {
@@ -117,6 +139,8 @@ function pickNonEmpty(...values: Array<string | null | undefined>): string | nul
 function isMeaningfulBodyText(value: string | null | undefined): boolean {
   if (!value) return false
   const stripped = value
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/gi, ' ')
     .replace(/\s+/g, ' ')
@@ -140,11 +164,32 @@ function rtfToPlainText(rtf: string): string {
   return text
 }
 
+function toUint8Array(value: unknown): Uint8Array | null {
+  if (!value) return null
+  if (value instanceof Uint8Array) return value
+  if (Buffer.isBuffer(value)) return new Uint8Array(value)
+  if (Array.isArray(value)) return Uint8Array.from(value)
+  if (typeof value === 'string') {
+    const s = value.trim()
+    if (s.startsWith('\\x')) return Uint8Array.from(Buffer.from(s.slice(2), 'hex'))
+    if (/^[0-9a-f]+$/i.test(s) && s.length % 2 === 0) {
+      return Uint8Array.from(Buffer.from(s, 'hex'))
+    }
+    try {
+      return Uint8Array.from(Buffer.from(s, 'base64'))
+    } catch {
+      return null
+    }
+  }
+  return null
+}
+
 async function bodyFromCompressedRtf(compressed: unknown): Promise<string | null> {
-  if (!(compressed instanceof Uint8Array) || compressed.length === 0) return null
+  const bytes = toUint8Array(compressed)
+  if (!bytes || bytes.length === 0) return null
   try {
     const { decompressRTF } = await import('@kenjiuno/decompressrtf')
-    const decompressed = decompressRTF(compressed)
+    const decompressed = decompressRTF(bytes)
     const rtf = Buffer.from(decompressed).toString('latin1')
     const plain = rtfToPlainText(rtf)
     return plain.trim() || null
@@ -153,16 +198,63 @@ async function bodyFromCompressedRtf(compressed: unknown): Promise<string | null
   }
 }
 
+function toMsgArrayBuffer(buffer: Buffer): ArrayBuffer {
+  return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer
+}
+
+function scrapeMsgBodyFromBinary(buffer: Buffer): { bodyText: string | null; bodyHtml: string | null } {
+  const runs: string[] = []
+  let current = ''
+
+  const pushCurrent = () => {
+    const trimmed = current.replace(/\0/g, '').trim()
+    if (trimmed.length >= 40) runs.push(trimmed)
+    current = ''
+  }
+
+  for (let i = 0; i + 1 < buffer.length; i += 2) {
+    const code = buffer.readUInt16LE(i)
+    const isPrintable =
+      code === 0x0009 ||
+      code === 0x000a ||
+      code === 0x000d ||
+      (code >= 0x0020 && code <= 0xd7ff) ||
+      (code >= 0xe000 && code <= 0xfffd)
+
+    if (isPrintable) {
+      if (code === 0x0009) current += '\t'
+      else if (code === 0x000a || code === 0x000d) current += '\n'
+      else current += String.fromCharCode(code)
+    } else {
+      pushCurrent()
+    }
+  }
+  pushCurrent()
+
+  const filtered = runs
+    .filter((run) => {
+      if (/^[\x00-\x1f\s]+$/.test(run)) return false
+      if (/^(Microsoft|Exchange|Outlook|MAPI|SMTP|Content-Type|Message-ID)/i.test(run)) return false
+      if (/^[A-Za-z0-9_\-./\\:]+\.(msg|dll|exe|png|jpg)$/i.test(run)) return false
+      const words = run.split(/\s+/).filter(Boolean)
+      return words.length >= 4
+    })
+    .sort((a, b) => b.length - a.length)
+
+  const best = filtered[0] || null
+  return { bodyText: best, bodyHtml: null }
+}
+
 function scrapeMsgBinary(buffer: Buffer, filename: string): ParsedDroppedMail {
   const ascii = buffer.toString('latin1')
-  const utf16 = buffer.toString('utf16le')
-  const haystack = `${ascii}\n${utf16}`
-  const emails = [...haystack.matchAll(/[\w.+-]+@[\w.-]+\.\w+/gi)].map((m) => m[0].toLowerCase())
+  const emails = [...ascii.matchAll(/[\w.+-]+@[\w.-]+\.\w+/gi)].map((m) => m[0].toLowerCase())
   const fromEmail = emails.find((e) => !e.includes('microsoft') && !e.endsWith('.png')) || emails[0] || null
 
   let subject = ''
   const subjMatch = ascii.match(/Subject[\x00-\x20]*([^\x00\r\n]{3,200})/i)
   if (subjMatch) subject = subjMatch[1].replace(/\x00/g, '').trim()
+
+  const scraped = scrapeMsgBodyFromBinary(buffer)
 
   return {
     fromEmail,
@@ -170,13 +262,14 @@ function scrapeMsgBinary(buffer: Buffer, filename: string): ParsedDroppedMail {
     subject: subject || '(geen onderwerp)',
     receivedAt: null,
     sourceFilename: filename,
-    bodyText: null,
-    bodyHtml: null,
+    bodyText: scraped.bodyText,
+    bodyHtml: scraped.bodyHtml,
     contentType: 'application/vnd.ms-outlook',
   }
 }
 
-type MsgFileData = {
+type MsgFields = {
+  error?: string
   subject?: string
   senderName?: string
   senderEmail?: string
@@ -188,16 +281,47 @@ type MsgFileData = {
   html?: string
   contactHtml?: string
   headers?: string
-  compressedRtf?: Uint8Array
+  compressedRtf?: unknown
+  innerMsgContentFields?: MsgFields
+}
+
+async function bodiesFromMsgFields(data: MsgFields): Promise<{ bodyText: string | null; bodyHtml: string | null }> {
+  let bodyHtml = pickNonEmpty(data.bodyHtml, data.bodyHTML, data.html, data.contactHtml)
+  let bodyText = pickNonEmpty(data.body)
+
+  if (data.headers) {
+    const fromHeaders = parseEmlBody(String(data.headers))
+    bodyHtml = bodyHtml || fromHeaders.bodyHtml
+    bodyText = bodyText || fromHeaders.bodyText
+  }
+
+  if (data.innerMsgContentFields) {
+    const inner = await bodiesFromMsgFields(data.innerMsgContentFields)
+    bodyHtml = bodyHtml || inner.bodyHtml
+    bodyText = bodyText || inner.bodyText
+  }
+
+  if (!isMeaningfulBodyText(bodyHtml) && !isMeaningfulBodyText(bodyText)) {
+    const fromRtf = await bodyFromCompressedRtf(data.compressedRtf)
+    if (fromRtf) bodyText = fromRtf
+  }
+
+  if (bodyHtml && !isMeaningfulBodyText(bodyHtml)) bodyHtml = null
+  if (bodyText && !isMeaningfulBodyText(bodyText)) bodyText = null
+
+  return { bodyText, bodyHtml }
 }
 
 async function parseMsgWithReader(buffer: Buffer, filename: string): Promise<ParsedDroppedMail | null> {
   try {
     const mod = await import('@kenjiuno/msgreader')
-    const MsgReader = mod.default as new (ab: ArrayBuffer) => { getFileData(): MsgFileData }
-    const arrayBuffer = new Uint8Array(buffer).buffer
-    const reader = new MsgReader(arrayBuffer)
+    const MsgReader = mod.default as new (input: ArrayBuffer | Buffer) => {
+      getFileData(): MsgFields
+    }
+    const reader = new MsgReader(toMsgArrayBuffer(buffer))
     const data = reader.getFileData()
+    if (!data || data.error) return null
+
     const fromEmail = extractEmail(data.senderEmail) || extractEmail(data.senderName)
     let receivedAt: string | null = null
     const dateRaw = data.clientSubmitTime || data.messageDeliveryTime
@@ -206,22 +330,7 @@ async function parseMsgWithReader(buffer: Buffer, filename: string): Promise<Par
       if (!Number.isNaN(d.getTime())) receivedAt = d.toISOString()
     }
 
-    let bodyHtml = pickNonEmpty(data.bodyHtml, data.bodyHTML, data.html, data.contactHtml)
-    let bodyText = pickNonEmpty(data.body)
-
-    if (data.headers) {
-      const fromHeaders = parseEmlBody(String(data.headers))
-      bodyHtml = bodyHtml || fromHeaders.bodyHtml
-      bodyText = bodyText || fromHeaders.bodyText
-    }
-
-    if (!isMeaningfulBodyText(bodyHtml) && !isMeaningfulBodyText(bodyText)) {
-      const fromRtf = await bodyFromCompressedRtf(data.compressedRtf)
-      if (fromRtf) bodyText = fromRtf
-    }
-
-    if (bodyHtml && !isMeaningfulBodyText(bodyHtml)) bodyHtml = null
-    if (bodyText && !isMeaningfulBodyText(bodyText)) bodyText = null
+    const { bodyText, bodyHtml } = await bodiesFromMsgFields(data)
 
     return {
       fromEmail,
@@ -238,24 +347,42 @@ async function parseMsgWithReader(buffer: Buffer, filename: string): Promise<Par
   }
 }
 
-/** Herparseer opgeslagen bestand als body in DB leeg of onbruikbaar is. */
+async function parseMsgFile(buffer: Buffer, filename: string): Promise<ParsedDroppedMail> {
+  const parsed = await parseMsgWithReader(buffer, filename)
+  if (parsed && (isMeaningfulBodyText(parsed.bodyHtml) || isMeaningfulBodyText(parsed.bodyText))) {
+    return parsed
+  }
+
+  const scraped = scrapeMsgBinary(buffer, filename)
+  if (parsed) {
+    return {
+      ...parsed,
+      bodyText: parsed.bodyText || scraped.bodyText,
+      bodyHtml: parsed.bodyHtml || scraped.bodyHtml,
+    }
+  }
+  return scraped
+}
+
+/** Herparseer opgeslagen bestand; file heeft altijd voorrang op lege DB-body. */
 export async function resolveMailBodiesFromFile(
   buffer: Buffer,
   filename: string,
   stored: { body_text: string | null; body_html: string | null }
 ): Promise<{ body_text: string | null; body_html: string | null }> {
-  const hasStored =
-    isMeaningfulBodyText(stored.body_html) || isMeaningfulBodyText(stored.body_text)
-  if (hasStored) {
-    return {
-      body_text: isMeaningfulBodyText(stored.body_text) ? stored.body_text : null,
-      body_html: isMeaningfulBodyText(stored.body_html) ? stored.body_html : null,
-    }
+  let parsed: ParsedDroppedMail | null = null
+  try {
+    parsed = await parseDroppedMailFile(buffer, filename)
+  } catch {
+    parsed = null
   }
-  const parsed = await parseDroppedMailFile(buffer, filename)
+
+  const body_text = pickNonEmpty(parsed?.bodyText, stored.body_text)
+  const body_html = pickNonEmpty(parsed?.bodyHtml, stored.body_html)
+
   return {
-    body_text: parsed.bodyText,
-    body_html: parsed.bodyHtml,
+    body_text: isMeaningfulBodyText(body_text) ? body_text : null,
+    body_html: isMeaningfulBodyText(body_html) ? body_html : null,
   }
 }
 
@@ -269,9 +396,9 @@ export async function parseDroppedMailFile(
     return parseEmlFull(buffer.toString('utf8'), filename)
   }
   if (lower.endsWith('.msg')) {
-    return (await parseMsgWithReader(buffer, filename)) || scrapeMsgBinary(buffer, filename)
+    return parseMsgFile(buffer, filename)
   }
-  throw new Error('Alleen .eml of .msg bestanden vanuit Outlook worden ondersteund.')
+  throw new Error('Alleen .eml of .msg bestanden van Outlook worden ondersteund.')
 }
 
 export function buildMailLinkComment(

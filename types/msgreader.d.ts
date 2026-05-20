@@ -1,7 +1,8 @@
 declare module '@kenjiuno/msgreader' {
   export default class MSGReader {
-    constructor(arrayBuffer: ArrayBuffer)
+    constructor(arrayBuffer: ArrayBuffer | Buffer)
     getFileData(): {
+      error?: string
       subject?: string
       senderName?: string
       senderEmail?: string
@@ -11,7 +12,14 @@ declare module '@kenjiuno/msgreader' {
       bodyHtml?: string
       html?: string
       headers?: string
-      compressedRtf?: Uint8Array
+      compressedRtf?: Uint8Array | Buffer | number[]
+      innerMsgContentFields?: {
+        body?: string
+        bodyHtml?: string
+        html?: string
+        headers?: string
+        compressedRtf?: Uint8Array | Buffer | number[]
+      }
     }
   }
 }
