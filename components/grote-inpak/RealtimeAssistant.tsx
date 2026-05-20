@@ -138,6 +138,58 @@ const REALTIME_TOOLS = [
       additionalProperties: false,
     },
   },
+  {
+    type: 'function',
+    name: 'get_kisttype_production_status',
+    description: 'Gebruik deze tool altijd bij vragen met woorden zoals productieorder, productie order, gelinkt, gekoppeld, gepland, klaar, einddatum, due date, zagerij of vloerstatus. Haalt per kisttype zoals K114/K352 de gekoppelde productieorder(s), geplande einddatum, resterend aantal, vloerstatus en AI-geheugen op uit het tabblad Productieorders.',
+    parameters: {
+      type: 'object',
+      properties: {
+        kistnummer: { type: 'string', description: 'Kisttype/kistnummer, bijvoorbeeld K352.' },
+        only_open: { type: 'boolean', description: 'Gebruik false als de gebruiker vraagt welk productieorder gelinkt is of tegen wanneer het gepland was. Gebruik true alleen als expliciet naar open productie wordt gevraagd.' },
+      },
+      required: ['kistnummer'],
+      additionalProperties: false,
+    },
+  },
+  {
+    type: 'function',
+    name: 'remember_kisttype_note',
+    description: 'Slaat een feit of notitie op in het AI-geheugen voor een kisttype, bijvoorbeeld dat K352 bij de zagerij staat.',
+    parameters: {
+      type: 'object',
+      properties: {
+        kistnummer: { type: 'string' },
+        memory_type: {
+          type: 'string',
+          description: 'Type geheugen, bijvoorbeeld production_status, location, planning_note of note.',
+        },
+        value: { type: 'string', description: 'Korte waarde die onthouden moet worden.' },
+        note: { type: 'string', description: 'Extra detail of context.' },
+      },
+      required: ['kistnummer', 'value'],
+      additionalProperties: false,
+    },
+  },
+  {
+    type: 'function',
+    name: 'set_kisttype_floor_status',
+    description: 'Zet de vloerstatus voor alle open productieorderlijnen van een kisttype en bewaart dit ook in AI-geheugen. Statussen: not_started, sawmill, assembly, ready_transport, completed. Nederlandse woorden zoals zagerij en assemblage mogen ook.',
+    parameters: {
+      type: 'object',
+      properties: {
+        kistnummer: { type: 'string' },
+        floor_status: {
+          type: 'string',
+          description: 'Bijvoorbeeld sawmill of zagerij.',
+        },
+        note: { type: 'string' },
+        only_open: { type: 'boolean' },
+      },
+      required: ['kistnummer', 'floor_status'],
+      additionalProperties: false,
+    },
+  },
 ]
 
 function normalizeCaseLabel(value: string): string {
@@ -153,10 +205,22 @@ function truncate(value: string | null | undefined, max = 220): string | null {
   return value.length > max ? `${value.slice(0, max)}...` : value
 }
 
+function formatSpokenCode(value: string | null | undefined): string | null {
+  if (!value) return null
+  return value
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .split('')
+    .join(' ')
+}
+
 function sanitizeCase(row: GroteInpakCase) {
   return {
     case_label: row.case_label,
+    spoken_case_label: formatSpokenCode(row.case_label),
     case_type: row.case_type || null,
+    spoken_case_type: formatSpokenCode(row.case_type),
     arrival_date: row.arrival_date || null,
     forecast_date: row.forecast_date || null,
     productielocatie: row.productielocatie || null,
@@ -210,6 +274,14 @@ function getStringArrayArg(args: Record<string, unknown>, key: string): string[]
   const value = args[key]
   if (!Array.isArray(value)) return []
   return value.filter((item): item is string => typeof item === 'string').map(item => item.trim()).filter(Boolean)
+}
+
+async function parseJsonResponse(response: Response): Promise<Record<string, unknown>> {
+  const result = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(typeof result.error === 'string' ? result.error : 'Aanvraag mislukt.')
+  }
+  return result
 }
 
 export default function RealtimeAssistant({
@@ -366,6 +438,72 @@ export default function RealtimeAssistant({
       return { ok: true, updated: matches.length, case_labels: matches.map(row => row.case_label) }
     }
 
+    if (name === 'get_kisttype_production_status') {
+      const kistnummer = getStringArg(args, 'kistnummer')
+      if (!kistnummer) return { ok: false, message: 'Geen kisttype ontvangen.' }
+
+      const onlyOpen = getBooleanArg(args, 'only_open', false)
+      const params = new URLSearchParams({
+        kistnummer,
+        only_open: onlyOpen ? '1' : '0',
+      })
+      const response = await fetch(`/api/grote-inpak/production-orders/kist-status?${params.toString()}`, {
+        cache: 'no-store',
+      })
+      return parseJsonResponse(response)
+    }
+
+    if (name === 'remember_kisttype_note') {
+      const kistnummer = getStringArg(args, 'kistnummer')
+      const value = getStringArg(args, 'value')
+      const memoryType = getStringArg(args, 'memory_type') || 'note'
+      const note = getStringArg(args, 'note') || null
+
+      if (!kistnummer || !value) return { ok: false, message: 'Kisttype en waarde zijn verplicht.' }
+
+      const confirmed = window.confirm(`Onthouden voor ${kistnummer}?\n\n${value}${note ? `\n${note}` : ''}`)
+      if (!confirmed) return { ok: false, cancelled: true, message: 'Onthouden geannuleerd door gebruiker.' }
+
+      const response = await fetch('/api/grote-inpak/ai-memory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subject_type: 'case_type',
+          subject_key: kistnummer,
+          memory_type: memoryType,
+          value,
+          note,
+          source: 'realtime_voice',
+        }),
+      })
+      return parseJsonResponse(response)
+    }
+
+    if (name === 'set_kisttype_floor_status') {
+      const kistnummer = getStringArg(args, 'kistnummer')
+      const floorStatus = getStringArg(args, 'floor_status')
+      const note = getStringArg(args, 'note') || null
+      const onlyOpen = getBooleanArg(args, 'only_open', true)
+
+      if (!kistnummer || !floorStatus) return { ok: false, message: 'Kisttype en vloerstatus zijn verplicht.' }
+
+      const confirmed = window.confirm(`${kistnummer} op vloerstatus "${floorStatus}" zetten${note ? ` met notitie "${note}"` : ''}?`)
+      if (!confirmed) return { ok: false, cancelled: true, message: 'Vloerstatus geannuleerd door gebruiker.' }
+
+      const response = await fetch('/api/grote-inpak/production-orders/kist-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kistnummer,
+          floor_status: floorStatus,
+          note,
+          only_open: onlyOpen,
+          remember: true,
+        }),
+      })
+      return parseJsonResponse(response)
+    }
+
     return { ok: false, message: `Onbekende tool: ${name}` }
   }, [applySingleCaseUpdate, context, findCase, onCaseUpdated])
 
@@ -450,6 +588,11 @@ export default function RealtimeAssistant({
           'Je bent de live Grote Inpak voice-assistent voor prodwilrijk.be.',
           'Praat natuurlijk in Nederlands/Vlaams, zonder Markdown.',
           'Gebruik tools voor actuele aantallen, cases, stock, achterstand en acties.',
+          'Bij vragen zoals "welk productieorder is gelinkt aan kisttype K114", "wanneer moest K114 klaar zijn", "tegen welke datum stond K114 gepland", productieorders, einddatum, zagerij, assemblage of vloerstatus gebruik je altijd get_kisttype_production_status.',
+          'Voor zo een vraag antwoord je met prod_order_no en ending_date uit de tool-output. Als er meerdere productieorders zijn, noem de eerst geplande open order en vermeld kort dat er meerdere regels zijn.',
+          'Als de gebruiker zegt dat een kisttype ergens staat of een status heeft, gebruik set_kisttype_floor_status wanneer het om zagerij/assemblage/transport/klaar gaat. Gebruik anders remember_kisttype_note.',
+          'Spreek caselabels en kisttypes teken per teken uit. K352 is K 3 5 2, nooit K driehonderd tweeënvijftig of K driehonderd vijfentwintig.',
+          'Verwar case_label niet met case_type. In de tabel is KB91F bijvoorbeeld een caselabel en K352 een kisttype.',
           'Voor muterende acties vraagt de browser bevestiging. Meld daarna kort wat gelukt of geannuleerd is.',
           'Als je iets niet zeker weet, zoek eerst met get_current_overview of find_case.',
         ].join(' '),
@@ -601,7 +744,7 @@ export default function RealtimeAssistant({
           </div>
           <p className="mt-1 text-sm leading-6 text-slate-600">
             Live spraak met context van de huidige tabel. De assistent kan cases tellen, zoeken, priority zetten,
-            notities toevoegen en meerdere priority-cases tegelijk aanpassen na bevestiging.
+            notities toevoegen, productieorder-datums opzoeken en kisttype-statussen onthouden na bevestiging.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

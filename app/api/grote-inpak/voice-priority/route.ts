@@ -11,8 +11,9 @@ const TRANSCRIBE_MODEL = process.env.GROTE_INPAK_VOICE_TRANSCRIBE_MODEL || 'gpt-
 const MAX_AUDIO_BYTES = 12 * 1024 * 1024
 const TRANSCRIBE_PROMPT = [
   'Dit is Nederlandse/Vlaamse spraak op de Grote Inpak pagina van prodwilrijk.',
-  'Belangrijke woorden: kisten, cases, case label, caselabel, priority, prio, prioriteit, notitie, achterstand, lopen achter, Wilrijk, Genk, Willebroek, WLB, forecast, stock, transfer, productie.',
-  'Voorbeelden: "hoeveel kisten lopen we achter uit Wilrijk", "welke cases hebben we momenteel prio", "K B 91 F prio klant wacht op levering".',
+  'Belangrijke woorden: kisten, cases, case label, caselabel, kisttype, priority, prio, prioriteit, notitie, achterstand, lopen achter, Wilrijk, Genk, Willebroek, WLB, forecast, stock, transfer, productie.',
+  'Codes worden vaak teken per teken uitgesproken: KB91F, K352, C24, H1HXI. K352 betekent K 3 5 2, niet K325.',
+  'Voorbeelden: "hoeveel kisten lopen we achter uit Wilrijk", "welke cases hebben we momenteel prio", "K B 91 F prio klant wacht op levering", "kisttype K352".',
   'Transcribeer letterlijk en verbeter geen vraag naar een andere betekenis.',
 ].join(' ')
 
