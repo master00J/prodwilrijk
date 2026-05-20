@@ -106,6 +106,53 @@ function parseEmlFull(raw: string, filename: string): ParsedDroppedMail {
   }
 }
 
+function pickNonEmpty(...values: Array<string | null | undefined>): string | null {
+  for (const v of values) {
+    const t = (v || '').trim()
+    if (t.length > 0) return t
+  }
+  return null
+}
+
+function isMeaningfulBodyText(value: string | null | undefined): boolean {
+  if (!value) return false
+  const stripped = value
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return stripped.length > 0
+}
+
+function rtfToPlainText(rtf: string): string {
+  let text = rtf
+    .replace(/\\par[d]?\b/gi, '\n')
+    .replace(/\\line\b/gi, '\n')
+    .replace(/\\tab\b/gi, '\t')
+    .replace(/\\'[0-9a-f]{2}/gi, (m) => String.fromCharCode(parseInt(m.slice(2), 16)))
+    .replace(/\\u(-?\d+)\??/g, (_, n) => {
+      const code = Number(n)
+      return code >= 0 ? String.fromCharCode(code) : ''
+    })
+    .replace(/\\[a-z]+-?\d* ?/gi, '')
+    .replace(/[{}]/g, '')
+  text = text.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
+  return text
+}
+
+async function bodyFromCompressedRtf(compressed: unknown): Promise<string | null> {
+  if (!(compressed instanceof Uint8Array) || compressed.length === 0) return null
+  try {
+    const { decompressRTF } = await import('@kenjiuno/decompressrtf')
+    const decompressed = decompressRTF(compressed)
+    const rtf = Buffer.from(decompressed).toString('latin1')
+    const plain = rtfToPlainText(rtf)
+    return plain.trim() || null
+  } catch {
+    return null
+  }
+}
+
 function scrapeMsgBinary(buffer: Buffer, filename: string): ParsedDroppedMail {
   const ascii = buffer.toString('latin1')
   const utf16 = buffer.toString('utf16le')
@@ -129,20 +176,25 @@ function scrapeMsgBinary(buffer: Buffer, filename: string): ParsedDroppedMail {
   }
 }
 
+type MsgFileData = {
+  subject?: string
+  senderName?: string
+  senderEmail?: string
+  clientSubmitTime?: string
+  messageDeliveryTime?: string
+  body?: string
+  bodyHtml?: string
+  bodyHTML?: string
+  html?: string
+  contactHtml?: string
+  headers?: string
+  compressedRtf?: Uint8Array
+}
+
 async function parseMsgWithReader(buffer: Buffer, filename: string): Promise<ParsedDroppedMail | null> {
   try {
     const mod = await import('@kenjiuno/msgreader')
-    const MsgReader = mod.default as new (ab: ArrayBuffer) => {
-      getFileData(): {
-        subject?: string
-        senderName?: string
-        senderEmail?: string
-        clientSubmitTime?: string
-        messageDeliveryTime?: string
-        body?: string
-        bodyHTML?: string
-      }
-    }
+    const MsgReader = mod.default as new (ab: ArrayBuffer) => { getFileData(): MsgFileData }
     const arrayBuffer = new Uint8Array(buffer).buffer
     const reader = new MsgReader(arrayBuffer)
     const data = reader.getFileData()
@@ -153,8 +205,23 @@ async function parseMsgWithReader(buffer: Buffer, filename: string): Promise<Par
       const d = new Date(dateRaw)
       if (!Number.isNaN(d.getTime())) receivedAt = d.toISOString()
     }
-    const bodyHtml = (data.bodyHTML || '').trim() || null
-    const bodyText = (data.body || '').trim() || null
+
+    let bodyHtml = pickNonEmpty(data.bodyHtml, data.bodyHTML, data.html, data.contactHtml)
+    let bodyText = pickNonEmpty(data.body)
+
+    if (data.headers) {
+      const fromHeaders = parseEmlBody(String(data.headers))
+      bodyHtml = bodyHtml || fromHeaders.bodyHtml
+      bodyText = bodyText || fromHeaders.bodyText
+    }
+
+    if (!isMeaningfulBodyText(bodyHtml) && !isMeaningfulBodyText(bodyText)) {
+      const fromRtf = await bodyFromCompressedRtf(data.compressedRtf)
+      if (fromRtf) bodyText = fromRtf
+    }
+
+    if (bodyHtml && !isMeaningfulBodyText(bodyHtml)) bodyHtml = null
+    if (bodyText && !isMeaningfulBodyText(bodyText)) bodyText = null
 
     return {
       fromEmail,
@@ -168,6 +235,27 @@ async function parseMsgWithReader(buffer: Buffer, filename: string): Promise<Par
     }
   } catch {
     return null
+  }
+}
+
+/** Herparseer opgeslagen bestand als body in DB leeg of onbruikbaar is. */
+export async function resolveMailBodiesFromFile(
+  buffer: Buffer,
+  filename: string,
+  stored: { body_text: string | null; body_html: string | null }
+): Promise<{ body_text: string | null; body_html: string | null }> {
+  const hasStored =
+    isMeaningfulBodyText(stored.body_html) || isMeaningfulBodyText(stored.body_text)
+  if (hasStored) {
+    return {
+      body_text: isMeaningfulBodyText(stored.body_text) ? stored.body_text : null,
+      body_html: isMeaningfulBodyText(stored.body_html) ? stored.body_html : null,
+    }
+  }
+  const parsed = await parseDroppedMailFile(buffer, filename)
+  return {
+    body_text: parsed.bodyText,
+    body_html: parsed.bodyHtml,
   }
 }
 
