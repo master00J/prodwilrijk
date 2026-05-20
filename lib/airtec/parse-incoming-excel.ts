@@ -29,19 +29,28 @@ function asTrimmedString(value: unknown): string | null {
 function parseDate(value: unknown): string | null {
   if (!value) return null
 
+  const formatDateAtNoonUtc = (date: Date): string | null => {
+    if (Number.isNaN(date.getTime())) return null
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    // Store at noon UTC so a date-only Excel value cannot shift to the previous day in timezone conversions.
+    return `${year}-${month}-${day}T12:00:00.000Z`
+  }
+
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value.toISOString()
+    return formatDateAtNoonUtc(value)
   }
 
   if (typeof value === 'number') {
     const excelEpoch = new Date(1900, 0, 1)
     const date = new Date(excelEpoch.getTime() + (value - 2) * 24 * 60 * 60 * 1000)
-    return Number.isNaN(date.getTime()) ? null : date.toISOString()
+    return formatDateAtNoonUtc(date)
   }
 
   if (typeof value === 'string') {
     const parsed = new Date(value)
-    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
+    return formatDateAtNoonUtc(parsed)
   }
 
   return null
