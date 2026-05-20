@@ -25,6 +25,7 @@ import {
 import type { GroteInpakCase, ProductionTimeActive } from '@/types/database'
 import { BcItemCode } from '@/lib/bc-mapping/client'
 import { GROTE_INPAK_AUTO_STATUSES, type GroteInpakAutoStatus } from '@/lib/grote-inpak/auto-status'
+import CaseMailViewerModal from '@/components/grote-inpak/CaseMailViewerModal'
 
 interface OverviewTabProps {
   overview: GroteInpakCase[]
@@ -62,6 +63,10 @@ function inProductieQtyBadgeClass(productielocatie: string | null | undefined): 
   return 'bg-orange-100 text-orange-800'
 }
 
+function commentHasLinkedMail(comment: string | null | undefined): boolean {
+  return /\[Mail #\d+/.test(comment || '')
+}
+
 export default function OverviewTab({ overview }: OverviewTabProps) {
   const [filteredData, setFilteredData] = useState<GroteInpakCase[]>(overview)
   const [editedData, setEditedData] = useState<Map<string, Partial<GroteInpakCase>>>(new Map())
@@ -96,6 +101,8 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
     type: 'success' | 'error' | 'info'
     text: string
   } | null>(null)
+  const [mailViewerCaseLabel, setMailViewerCaseLabel] = useState<string | null>(null)
+  const [mailViewerInitialId, setMailViewerInitialId] = useState<number | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const voiceChunksRef = useRef<Blob[]>([])
   const voiceStreamRef = useRef<MediaStream | null>(null)
@@ -680,6 +687,11 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
     setMailDropTarget(null)
   }, [])
 
+  const openMailViewer = useCallback((caseLabel: string, mailId?: number | null) => {
+    setMailViewerCaseLabel(caseLabel)
+    setMailViewerInitialId(mailId ?? null)
+  }, [])
+
   const handleMailDrop = useCallback(async (e: React.DragEvent, caseLabel: string) => {
     e.preventDefault()
     e.stopPropagation()
@@ -734,11 +746,17 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
         })
       }
 
+      const mailId =
+        (result.mail as { id?: number } | undefined)?.id ??
+        (result.parsed as { mailId?: number } | undefined)?.mailId ??
+        null
+
       setMailDropMessage({
         type: 'success',
-        text: result.summary || `Mail gekoppeld aan ${caseLabel}`,
+        text: `${result.summary || `Mail gekoppeld aan ${caseLabel}`} — open via het envelop-icoon naast de caselabel.`,
       })
-      setTimeout(() => setMailDropMessage(null), 5000)
+      if (mailId) openMailViewer(caseLabel, mailId)
+      setTimeout(() => setMailDropMessage(null), 8000)
     } catch (err: unknown) {
       setMailDropMessage({
         type: 'error',
@@ -747,7 +765,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
     } finally {
       setMailDropBusy(null)
     }
-  }, [])
+  }, [openMailViewer])
 
   return (
     <div className="space-y-6">
@@ -759,9 +777,20 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
           <strong className="font-medium text-slate-800">PO-tijd</strong> zie je onder <strong className="font-medium text-slate-800">Status</strong> de live stap en het
           productieordernummer. Gebruik de filters hieronder; klik kolomtitels om te sorteren.
           Sleep vanuit <strong className="font-medium text-slate-800">Outlook</strong> een mail (.msg) op de betreffende caselabel-rij om{' '}
-          <strong className="font-medium text-slate-800">Atlas mail</strong> en een mailnotitie te koppelen.
+          <strong className="font-medium text-slate-800">Atlas mail</strong> en een mailnotitie te koppelen. Klik het envelop-icoon naast een caselabel om gekoppelde mails te bekijken of te downloaden.
         </p>
       </header>
+
+      {mailViewerCaseLabel && (
+        <CaseMailViewerModal
+          caseLabel={mailViewerCaseLabel}
+          initialMailId={mailViewerInitialId}
+          onClose={() => {
+            setMailViewerCaseLabel(null)
+            setMailViewerInitialId(null)
+          }}
+        />
+      )}
 
       {mailDropMessage && (
         <div
@@ -1319,6 +1348,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
               
               const isMailDropTarget = mailDropTarget === item.case_label
               const isMailDropLoading = mailDropBusy === item.case_label
+              const hasLinkedMail = commentHasLinkedMail(displayItem.comment)
 
               return (
                 <tr
@@ -1361,7 +1391,24 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                       {isMailDropLoading ? (
                         <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-sky-600 border-t-transparent" />
                       ) : (
-                        <Mail className="h-3.5 w-3.5 shrink-0 text-slate-400 opacity-30 group-hover:opacity-100" aria-hidden />
+                        <button
+                          type="button"
+                          onClick={(ev) => {
+                            ev.stopPropagation()
+                            openMailViewer(item.case_label)
+                          }}
+                          className={`shrink-0 rounded p-0.5 hover:bg-sky-100 ${
+                            hasLinkedMail ? 'text-sky-600' : 'text-slate-400 opacity-40 group-hover:opacity-100'
+                          }`}
+                          title={
+                            hasLinkedMail
+                              ? 'Gekoppelde mails bekijken'
+                              : 'Mails bekijken (sleep eerst een Outlook-mail op deze rij)'
+                          }
+                          aria-label={`Mails voor ${displayItem.case_label}`}
+                        >
+                          <Mail className="h-3.5 w-3.5" />
+                        </button>
                       )}
                       {displayItem.case_label}
                     </span>

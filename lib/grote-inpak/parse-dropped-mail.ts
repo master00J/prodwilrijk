@@ -4,6 +4,9 @@ export type ParsedDroppedMail = {
   subject: string
   receivedAt: string | null
   sourceFilename: string
+  bodyText: string | null
+  bodyHtml: string | null
+  contentType: string
 }
 
 const EMAIL_RE = /[\w.+-]+@[\w.-]+\.\w+/i
@@ -38,7 +41,40 @@ function decodeMimeHeader(value: string): string {
     .trim()
 }
 
-function parseEmlHeaders(raw: string): ParsedDroppedMail {
+function decodeQuotedPrintable(input: string): string {
+  return input
+    .replace(/=\r?\n/g, '')
+    .replace(/=([0-9A-F]{2})/gi, (_m, hex) => String.fromCharCode(parseInt(hex, 16)))
+}
+
+function parseEmlBody(raw: string): { bodyText: string | null; bodyHtml: string | null } {
+  const split = raw.match(/\r?\n\r?\n/)
+  if (!split) return { bodyText: raw.trim() || null, bodyHtml: null }
+  const idx = raw.indexOf(split[0])
+  const bodyRaw = raw.slice(idx + split[0].length).trim()
+  if (!bodyRaw) return { bodyText: null, bodyHtml: null }
+
+  const htmlPart = bodyRaw.match(
+    /Content-Type:\s*text\/html[^\r\n]*[\s\S]*?\r?\n\r?\n([\s\S]*?)(?=\r?\n--|\r?\nContent-Type:|$)/i
+  )?.[1]
+  const textPart = bodyRaw.match(
+    /Content-Type:\s*text\/plain[^\r\n]*[\s\S]*?\r?\n\r?\n([\s\S]*?)(?=\r?\n--|\r?\nContent-Type:|$)/i
+  )?.[1]
+
+  const bodyHtml = htmlPart ? decodeQuotedPrintable(htmlPart).trim() : null
+  const bodyText = textPart
+    ? decodeQuotedPrintable(textPart).trim()
+    : bodyHtml
+      ? null
+      : decodeQuotedPrintable(bodyRaw).trim()
+
+  return {
+    bodyText: bodyText || null,
+    bodyHtml: bodyHtml || null,
+  }
+}
+
+function parseEmlFull(raw: string, filename: string): ParsedDroppedMail {
   const headerBlock = raw.split(/\r?\n\r?\n/)[0] || raw
   const unfold = headerBlock.replace(/\r?\n[ \t]+/g, ' ')
   const fromLine =
@@ -56,16 +92,21 @@ function parseEmlHeaders(raw: string): ParsedDroppedMail {
     if (!Number.isNaN(d.getTime())) receivedAt = d.toISOString()
   }
 
+  const { bodyText, bodyHtml } = parseEmlBody(raw)
+
   return {
     fromEmail,
     fromName,
     subject: subject || '(geen onderwerp)',
     receivedAt,
-    sourceFilename: '',
+    sourceFilename: filename,
+    bodyText,
+    bodyHtml,
+    contentType: 'message/rfc822',
   }
 }
 
-function scrapeMsgBinary(buffer: Buffer): ParsedDroppedMail {
+function scrapeMsgBinary(buffer: Buffer, filename: string): ParsedDroppedMail {
   const ascii = buffer.toString('latin1')
   const utf16 = buffer.toString('utf16le')
   const haystack = `${ascii}\n${utf16}`
@@ -81,11 +122,14 @@ function scrapeMsgBinary(buffer: Buffer): ParsedDroppedMail {
     fromName: null,
     subject: subject || '(geen onderwerp)',
     receivedAt: null,
-    sourceFilename: '',
+    sourceFilename: filename,
+    bodyText: null,
+    bodyHtml: null,
+    contentType: 'application/vnd.ms-outlook',
   }
 }
 
-async function parseMsgWithReader(buffer: Buffer): Promise<ParsedDroppedMail | null> {
+async function parseMsgWithReader(buffer: Buffer, filename: string): Promise<ParsedDroppedMail | null> {
   try {
     const mod = await import('@kenjiuno/msgreader')
     const MsgReader = mod.default as new (ab: ArrayBuffer) => {
@@ -95,6 +139,8 @@ async function parseMsgWithReader(buffer: Buffer): Promise<ParsedDroppedMail | n
         senderEmail?: string
         clientSubmitTime?: string
         messageDeliveryTime?: string
+        body?: string
+        bodyHTML?: string
       }
     }
     const arrayBuffer = new Uint8Array(buffer).buffer
@@ -107,12 +153,18 @@ async function parseMsgWithReader(buffer: Buffer): Promise<ParsedDroppedMail | n
       const d = new Date(dateRaw)
       if (!Number.isNaN(d.getTime())) receivedAt = d.toISOString()
     }
+    const bodyHtml = (data.bodyHTML || '').trim() || null
+    const bodyText = (data.body || '').trim() || null
+
     return {
       fromEmail,
       fromName: data.senderName?.trim() || null,
       subject: (data.subject || '').trim() || '(geen onderwerp)',
       receivedAt,
-      sourceFilename: '',
+      sourceFilename: filename,
+      bodyText,
+      bodyHtml,
+      contentType: 'application/vnd.ms-outlook',
     }
   } catch {
     return null
@@ -124,29 +176,27 @@ export async function parseDroppedMailFile(
   filename: string
 ): Promise<ParsedDroppedMail> {
   const lower = filename.toLowerCase()
-  let parsed: ParsedDroppedMail
 
   if (lower.endsWith('.eml')) {
-    parsed = parseEmlHeaders(buffer.toString('utf8'))
-  } else if (lower.endsWith('.msg')) {
-    parsed = (await parseMsgWithReader(buffer)) || scrapeMsgBinary(buffer)
-  } else {
-    throw new Error('Alleen .eml of .msg bestanden vanuit Outlook worden ondersteund.')
+    return parseEmlFull(buffer.toString('utf8'), filename)
   }
-
-  parsed.sourceFilename = filename
-  return parsed
+  if (lower.endsWith('.msg')) {
+    return (await parseMsgWithReader(buffer, filename)) || scrapeMsgBinary(buffer, filename)
+  }
+  throw new Error('Alleen .eml of .msg bestanden vanuit Outlook worden ondersteund.')
 }
 
 export function buildMailLinkComment(
   parsed: ParsedDroppedMail,
-  existingComment: string | null | undefined
+  existingComment: string | null | undefined,
+  mailId?: number
 ): string {
   const when = parsed.receivedAt
     ? new Date(parsed.receivedAt).toLocaleString('nl-BE', { dateStyle: 'short', timeStyle: 'short' })
     : 'onbekend tijdstip'
   const from = parsed.fromEmail || parsed.fromName || 'onbekende afzender'
-  const line = `[Mail ${when}] ${parsed.subject} — ${from} (${parsed.sourceFilename})`
+  const idPart = mailId ? `#${mailId} ` : ''
+  const line = `[Mail ${idPart}${when}] ${parsed.subject} — ${from} (${parsed.sourceFilename})`
   const base = (existingComment || '').trim()
   if (!base) return line
   if (base.includes(parsed.sourceFilename) || base.includes(parsed.subject)) return base
