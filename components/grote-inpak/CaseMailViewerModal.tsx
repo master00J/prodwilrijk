@@ -115,7 +115,7 @@ export default function CaseMailViewerModal({ caseLabel, onClose, initialMailId 
       aria-modal="true"
       aria-labelledby="case-mail-viewer-title"
     >
-      <div className="flex h-[min(90vh,820px)] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+      <div className="flex h-[min(92vh,900px)] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
           <div className="flex items-center gap-2">
             <Mail className="h-5 w-5 text-slate-600" />
@@ -139,8 +139,8 @@ export default function CaseMailViewerModal({ caseLabel, onClose, initialMailId 
           </div>
         )}
 
-        <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-          <aside className="w-full shrink-0 border-b border-slate-200 md:w-72 md:border-b-0 md:border-r">
+        <div className="flex min-h-0 flex-1 overflow-hidden flex-col md:flex-row">
+          <aside className="w-full shrink-0 border-b border-slate-200 md:flex md:w-72 md:min-h-0 md:flex-col md:border-b-0 md:border-r">
             {loadingList ? (
               <p className="p-4 text-sm text-slate-500">Laden...</p>
             ) : mails.length === 0 ? (
@@ -148,7 +148,7 @@ export default function CaseMailViewerModal({ caseLabel, onClose, initialMailId 
                 Geen opgeslagen mails voor deze caselabel. Sleep een Outlook-mail op de rij om te koppelen.
               </p>
             ) : (
-              <ul className="max-h-48 overflow-y-auto md:max-h-none md:h-full">
+              <ul className="max-h-40 overflow-y-auto md:min-h-0 md:flex-1">
                 {mails.map((m) => (
                   <li key={m.id}>
                     <button
@@ -169,9 +169,9 @@ export default function CaseMailViewerModal({ caseLabel, onClose, initialMailId 
             )}
           </aside>
 
-          <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             {selectedId && detail && (
-              <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-4 py-2 text-sm text-slate-600">
+              <div className="shrink-0 flex flex-wrap items-center gap-2 border-b border-slate-100 px-4 py-2 text-sm text-slate-600">
                 <span>
                   <strong>Van:</strong> {detail.from_email || detail.from_name || '—'}
                 </span>
@@ -193,16 +193,16 @@ export default function CaseMailViewerModal({ caseLabel, onClose, initialMailId 
               </div>
             )}
 
-            <div className="min-h-0 flex-1 overflow-auto bg-slate-50 p-4">
+            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-slate-50 p-4">
               {loadingDetail && <p className="text-sm text-slate-500">Mailinhoud laden...</p>}
               {!loadingDetail && displayText && (
-                <pre className="whitespace-pre-wrap rounded-lg border border-slate-200 bg-white p-4 text-sm leading-relaxed text-slate-800">
+                <pre className="max-w-full whitespace-pre-wrap break-words rounded-lg border border-slate-200 bg-white p-4 text-sm leading-relaxed text-slate-800 [overflow-wrap:anywhere]">
                   {displayText}
                 </pre>
               )}
               {!loadingDetail && !displayText && displayHtml && (
                 <div
-                  className="mail-body-html rounded-lg border border-slate-200 bg-white p-4 text-sm leading-relaxed text-slate-800 [&_a]:text-sky-700 [&_img]:max-w-full [&_table]:max-w-full"
+                  className="mail-body-html max-w-full overflow-hidden rounded-lg border border-slate-200 bg-white p-4 text-sm leading-relaxed text-slate-800 [overflow-wrap:anywhere] [&_*]:max-w-full [&_a]:break-all [&_a]:text-sky-700 [&_div]:break-words [&_img]:h-auto [&_img]:max-w-full [&_p]:break-words [&_pre]:whitespace-pre-wrap [&_pre]:break-words [&_span]:break-words [&_table]:max-w-full [&_table]:table-fixed [&_td]:break-words"
                   dangerouslySetInnerHTML={{ __html: displayHtml }}
                 />
               )}
