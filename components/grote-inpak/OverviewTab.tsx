@@ -20,6 +20,7 @@ import {
   MicOff,
   Bot,
   Send,
+  Mail,
 } from 'lucide-react'
 import type { GroteInpakCase, ProductionTimeActive } from '@/types/database'
 import { BcItemCode } from '@/lib/bc-mapping/client'
@@ -89,6 +90,12 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
   const [assistantAnswer, setAssistantAnswer] = useState('')
   const [assistantLoading, setAssistantLoading] = useState(false)
   const [assistantError, setAssistantError] = useState<string | null>(null)
+  const [mailDropTarget, setMailDropTarget] = useState<string | null>(null)
+  const [mailDropBusy, setMailDropBusy] = useState<string | null>(null)
+  const [mailDropMessage, setMailDropMessage] = useState<{
+    type: 'success' | 'error' | 'info'
+    text: string
+  } | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const voiceChunksRef = useRef<Blob[]>([])
   const voiceStreamRef = useRef<MediaStream | null>(null)
@@ -658,6 +665,90 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
     }
   }
 
+  const handleMailDragOver = useCallback((e: React.DragEvent, caseLabel: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (mailDropBusy) return
+    e.dataTransfer.dropEffect = 'copy'
+    setMailDropTarget(caseLabel)
+  }, [mailDropBusy])
+
+  const handleMailDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    const related = e.relatedTarget as Node | null
+    if (related && e.currentTarget.contains(related)) return
+    setMailDropTarget(null)
+  }, [])
+
+  const handleMailDrop = useCallback(async (e: React.DragEvent, caseLabel: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setMailDropTarget(null)
+
+    const files = Array.from(e.dataTransfer.files || [])
+    const mailFile =
+      files.find((f) => /\.(eml|msg)$/i.test(f.name)) ||
+      (files.length === 1 ? files[0] : null)
+
+    if (!mailFile) {
+      setMailDropMessage({
+        type: 'error',
+        text: 'Sleep een mail vanuit Outlook (.eml of .msg) op de caselabel-rij.',
+      })
+      return
+    }
+
+    setMailDropBusy(caseLabel)
+    setMailDropMessage({ type: 'info', text: `Mail koppelen aan ${caseLabel}...` })
+
+    try {
+      const formData = new FormData()
+      formData.append('case_label', caseLabel)
+      formData.append('file', mailFile)
+
+      const response = await fetch('/api/grote-inpak/case-mail-drop', {
+        method: 'POST',
+        body: formData,
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(result.error || 'Mail koppelen mislukt')
+      }
+
+      const updated = result.data as Partial<GroteInpakCase> | undefined
+      if (updated) {
+        setFilteredData((prev) =>
+          prev.map((row) =>
+            row.case_label === caseLabel ? { ...row, ...updated } : row
+          )
+        )
+        setEditedData((prev) => {
+          const next = new Map(prev)
+          const existing = next.get(caseLabel) || {}
+          next.set(caseLabel, {
+            ...existing,
+            atlas_planner_email: updated.atlas_planner_email ?? existing.atlas_planner_email,
+            comment: updated.comment ?? existing.comment,
+          })
+          return next
+        })
+      }
+
+      setMailDropMessage({
+        type: 'success',
+        text: result.summary || `Mail gekoppeld aan ${caseLabel}`,
+      })
+      setTimeout(() => setMailDropMessage(null), 5000)
+    } catch (err: unknown) {
+      setMailDropMessage({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'Mail koppelen mislukt',
+      })
+    } finally {
+      setMailDropBusy(null)
+    }
+  }, [])
+
   return (
     <div className="space-y-6">
       <header className="rounded-lg border border-slate-300/80 bg-white p-4 shadow-sm sm:p-5">
@@ -667,8 +758,24 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
           <strong className="font-medium text-slate-800">BC FP</strong> en lopende{' '}
           <strong className="font-medium text-slate-800">PO-tijd</strong> zie je onder <strong className="font-medium text-slate-800">Status</strong> de live stap en het
           productieordernummer. Gebruik de filters hieronder; klik kolomtitels om te sorteren.
+          Sleep vanuit <strong className="font-medium text-slate-800">Outlook</strong> een mail (.msg) op de betreffende caselabel-rij om{' '}
+          <strong className="font-medium text-slate-800">Atlas mail</strong> en een mailnotitie te koppelen.
         </p>
       </header>
+
+      {mailDropMessage && (
+        <div
+          className={`rounded-lg border px-4 py-3 text-sm ${
+            mailDropMessage.type === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+              : mailDropMessage.type === 'error'
+                ? 'border-red-200 bg-red-50 text-red-900'
+                : 'border-sky-200 bg-sky-50 text-sky-900'
+          }`}
+        >
+          {mailDropMessage.text}
+        </div>
+      )}
 
       <section className="rounded-lg border border-indigo-200 bg-indigo-50/70 p-4 shadow-sm" aria-label="Voice acties en vragen">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -1210,16 +1317,27 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
               const isSelected = selectedCases.has(item.case_label)
               const zebra = idx % 2 === 0 ? 'bg-[#f0f6fc]' : 'bg-white'
               
+              const isMailDropTarget = mailDropTarget === item.case_label
+              const isMailDropLoading = mailDropBusy === item.case_label
+
               return (
                 <tr
                   key={item.case_label}
-                  className={`border-b border-slate-200/90 transition-colors ${
-                    isPriority
-                      ? 'bg-amber-50/90 hover:bg-amber-100/80'
-                      : isSelected
-                        ? 'bg-sky-100/70 hover:bg-sky-100'
-                        : `${zebra} hover:bg-sky-50/50`
+                  onDragOver={(e) => handleMailDragOver(e, item.case_label)}
+                  onDragLeave={handleMailDragLeave}
+                  onDrop={(e) => handleMailDrop(e, item.case_label)}
+                  className={`group border-b border-slate-200/90 transition-colors ${
+                    isMailDropLoading
+                      ? 'bg-sky-100 ring-2 ring-inset ring-sky-400'
+                      : isMailDropTarget
+                        ? 'bg-sky-50 ring-2 ring-inset ring-sky-500'
+                        : isPriority
+                          ? 'bg-amber-50/90 hover:bg-amber-100/80'
+                          : isSelected
+                            ? 'bg-sky-100/70 hover:bg-sky-100'
+                            : `${zebra} hover:bg-sky-50/50`
                   } ${isSelected ? 'outline outline-2 -outline-offset-2 outline-[#1a4b8c]/40' : ''}`}
+                  title="Sleep een Outlook-mail (.msg) hierheen om te koppelen aan deze caselabel"
                 >
                   <td className="px-2 py-2 align-middle">
                     <input
@@ -1238,7 +1356,16 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
                       {displayItem.priority ? <Star className="w-5 h-5 fill-current" /> : <StarOff className="w-5 h-5" />}
                     </button>
                   </td>
-                  <td className="px-2 py-2 text-slate-900 font-medium tabular-nums whitespace-nowrap">{displayItem.case_label}</td>
+                  <td className="px-2 py-2 text-slate-900 font-medium tabular-nums whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1.5">
+                      {isMailDropLoading ? (
+                        <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-sky-600 border-t-transparent" />
+                      ) : (
+                        <Mail className="h-3.5 w-3.5 shrink-0 text-slate-400 opacity-30 group-hover:opacity-100" aria-hidden />
+                      )}
+                      {displayItem.case_label}
+                    </span>
+                  </td>
                   <td className="px-2 py-2 text-slate-700 whitespace-nowrap">{displayItem.case_type || '—'}</td>
                   <td className="px-2 py-2 text-slate-700 whitespace-nowrap">
                     {displayItem.arrival_date ? new Date(displayItem.arrival_date).toLocaleDateString('nl-NL') : '—'}

@@ -3,7 +3,7 @@ const webpack = require('webpack')
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  serverExternalPackages: ['pdf-parse', '@napi-rs/canvas'],
+  serverExternalPackages: ['pdf-parse', '@napi-rs/canvas', '@kenjiuno/msgreader'],
   experimental: {
     // Grote Excel-bestanden (bv. Stock Willebroek 10000+ rijen) toelaten
     proxyClientMaxBodySize: '50mb',
