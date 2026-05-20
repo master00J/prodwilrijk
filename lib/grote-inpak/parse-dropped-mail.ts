@@ -97,7 +97,7 @@ async function parseMsgWithReader(buffer: Buffer): Promise<ParsedDroppedMail | n
         messageDeliveryTime?: string
       }
     }
-    const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+    const arrayBuffer = new Uint8Array(buffer).buffer
     const reader = new MsgReader(arrayBuffer)
     const data = reader.getFileData()
     const fromEmail = extractEmail(data.senderEmail) || extractEmail(data.senderName)
