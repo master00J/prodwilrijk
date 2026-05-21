@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
     type SalesOrderInsert = {
       item_number: string
       price: number
+      unit_cost: number | null
       description: string | null
     }
 
@@ -26,6 +27,10 @@ export async function POST(request: NextRequest) {
       .map((item: any) => {
         const itemNumber = item.item_number?.toString().trim()
         const price = item.price ? parseFloat(item.price) : null
+        const unitCost =
+          item.unit_cost !== null && item.unit_cost !== undefined && item.unit_cost !== ''
+            ? parseFloat(item.unit_cost)
+            : null
 
         if (!itemNumber || price === null || isNaN(price) || price < 0) {
           return null
@@ -34,6 +39,7 @@ export async function POST(request: NextRequest) {
         return {
           item_number: itemNumber,
           price: price,
+          unit_cost: unitCost !== null && !isNaN(unitCost) && unitCost >= 0 ? unitCost : null,
           description: item.description || null,
         }
       })

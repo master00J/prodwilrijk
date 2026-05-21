@@ -298,13 +298,14 @@ export async function fetchPrepackStats({
   const uniqueItemNumbers = Array.from(new Set([...rawItemNumbers, ...normalizedItemNumbers]))
 
   let pricesMap: Record<string, number> = {}
+  let salesUnitCostMap: Record<string, number> = {}
   if (uniqueItemNumbers.length > 0) {
     const salesOrders = await fetchAllWithBatchedIn<any>(
       uniqueItemNumbers,
       async (batch, from, to) => {
         return await supabaseAdmin
           .from('sales_orders')
-          .select('item_number, price, uploaded_at')
+          .select('item_number, price, unit_cost, uploaded_at')
           .in('item_number', batch)
           .order('uploaded_at', { ascending: false })
           .range(from, to)
@@ -320,6 +321,10 @@ export async function fetchPrepackStats({
         if (!key) return
         if (!(key in pricesMap)) {
           pricesMap[key] = parseFloat(order.price) || 0
+          const unitCost = Number(order.unit_cost)
+          if (Number.isFinite(unitCost) && unitCost >= 0) {
+            salesUnitCostMap[key] = unitCost
+          }
         }
       })
     }
@@ -713,7 +718,8 @@ export async function fetchPrepackStats({
   }, 0)
 
   const totalMaterialCost = items.reduce((sum, item: any) => {
-    const unitCost = materialCostMap[normalizeItemNumber(item.item_number)] || 0
+    const key = normalizeItemNumber(item.item_number)
+    const unitCost = materialCostMap[key] || salesUnitCostMap[key] || 0
     const amount = item.amount || 0
     return sum + unitCost * amount
   }, 0)
@@ -782,7 +788,8 @@ export async function fetchPrepackStats({
     const price = pricesMap[normalizeItemNumber(item.item_number)] || 0
     const share = 1 / names.length
 
-    const materialUnitCost = materialCostMap[normalizeItemNumber(item.item_number)] || 0
+    const itemKey = normalizeItemNumber(item.item_number)
+    const materialUnitCost = materialCostMap[itemKey] || salesUnitCostMap[itemKey] || 0
     names.forEach((personName: string) => {
       if (!personStatsMap[personName]) {
         personStatsMap[personName] = { name: personName, manHours: 0, itemsPacked: 0, revenue: 0, materialCost: 0 }
@@ -818,7 +825,7 @@ export async function fetchPrepackStats({
           const price = pricesMap[normalizedKey] ?? 0
           const amount = item.amount || 0
           const revenue = price * amount
-          const materialUnitCost = materialCostMap[normalizedKey] || 0
+          const materialUnitCost = materialCostMap[normalizedKey] || salesUnitCostMap[normalizedKey] || 0
           const materialCostTotal = materialUnitCost * amount
 
           return {

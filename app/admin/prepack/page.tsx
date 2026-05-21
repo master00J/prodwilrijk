@@ -118,12 +118,14 @@ function KpiCard({ label, value, icon, accent, sub, trendPct, positiveIsGood = t
 type SalesLinePriceImport = {
   item_number: string
   price: number
+  unit_cost: number | null
   description: string
   pieces: number | null
 }
 
 const SALES_LINES_DESCRIPTION_COL = 6 // G: Description
 const SALES_LINES_PIECES_COL = 16 // Q: Pieces / totaal aantal
+const SALES_LINES_UNIT_COST_COL = 21 // V: Unit Cost (LCY)
 const SALES_LINES_UNIT_PRICE_COL = 23 // X: Unit Price per PU
 
 function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
@@ -161,6 +163,7 @@ async function parseSalesLinesPriceFile(file: File): Promise<SalesLinePriceImpor
     if (!row || row.length === 0) return
     const description = row[SALES_LINES_DESCRIPTION_COL] ? String(row[SALES_LINES_DESCRIPTION_COL]).trim() : ''
     const itemNumber = extractItemNumberFromSalesDescription(description)
+    const unitCost = parseFlexibleNumber(row[SALES_LINES_UNIT_COST_COL])
     const price = parseFlexibleNumber(row[SALES_LINES_UNIT_PRICE_COL])
     const pieces = parseFlexibleNumber(row[SALES_LINES_PIECES_COL])
 
@@ -169,6 +172,7 @@ async function parseSalesLinesPriceFile(file: File): Promise<SalesLinePriceImpor
     byItemNumber.set(itemNumber.toUpperCase(), {
       item_number: itemNumber,
       price,
+      unit_cost: unitCost !== null && unitCost >= 0 ? unitCost : null,
       description,
       pieces,
     })
@@ -389,7 +393,7 @@ export default function PrepackMonitorPage() {
       try {
         const items = await parseSalesLinesPriceFile(file)
         if (items.length === 0) {
-          throw new Error('Geen geldige lijnen gevonden. Controleer kolom G (omschrijving met itemnummer tussen haakjes) en kolom X (prijs per stuk).')
+          throw new Error('Geen geldige lijnen gevonden. Controleer kolom G (omschrijving met itemnummer tussen haakjes), kolom V (unit cost) en kolom X (prijs per stuk).')
         }
 
         const response = await fetch('/api/sales-orders/upload', {
@@ -478,7 +482,7 @@ export default function PrepackMonitorPage() {
           <div>
             <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Sales Lines prijsimport</h2>
             <p className="text-xs text-gray-500 mt-0.5 max-w-3xl">
-              Upload de BC Sales Lines Excel. Kolom G wordt gelezen als omschrijving, het itemnummer tussen haakjes wordt gekoppeld aan Prepack, en kolom X wordt opgeslagen als prijs per stuk. Kolom Q wordt mee gevalideerd als totaal aantal.
+              Upload de BC Sales Lines Excel. Kolom G wordt gelezen als omschrijving, het itemnummer tussen haakjes wordt gekoppeld aan Prepack, kolom V wordt opgeslagen als unit cost en kolom X als prijs per stuk. Kolom Q wordt mee gevalideerd als totaal aantal.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
