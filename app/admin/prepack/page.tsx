@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import * as XLSX from 'xlsx'
 import {
   ComposedChart,
   Line,
@@ -114,11 +115,74 @@ function KpiCard({ label, value, icon, accent, sub, trendPct, positiveIsGood = t
   )
 }
 
+type SalesLinePriceImport = {
+  item_number: string
+  price: number
+  description: string
+  pieces: number | null
+}
+
+const SALES_LINES_DESCRIPTION_COL = 6 // G: Description
+const SALES_LINES_PIECES_COL = 16 // Q: Pieces / totaal aantal
+const SALES_LINES_UNIT_PRICE_COL = 23 // X: Unit Price per PU
+
+function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (event) => resolve(event.target?.result as ArrayBuffer)
+    reader.onerror = reject
+    reader.readAsArrayBuffer(file)
+  })
+}
+
+function parseFlexibleNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null
+  const normalized = String(value).replace(/\s/g, '').replace(',', '.')
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function extractItemNumberFromSalesDescription(description: string): string | null {
+  const match = description.match(/\(([^)]+)\)\s*$/)
+  return match?.[1]?.trim() || null
+}
+
+async function parseSalesLinesPriceFile(file: File): Promise<SalesLinePriceImport[]> {
+  const data = await readFileAsArrayBuffer(file)
+  const workbook = XLSX.read(data, { type: 'array' })
+  const sheetName = workbook.SheetNames[0]
+  if (!sheetName) return []
+
+  const worksheet = workbook.Sheets[sheetName]
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, defval: null })
+  const byItemNumber = new Map<string, SalesLinePriceImport>()
+
+  rows.slice(1).forEach((row) => {
+    if (!row || row.length === 0) return
+    const description = row[SALES_LINES_DESCRIPTION_COL] ? String(row[SALES_LINES_DESCRIPTION_COL]).trim() : ''
+    const itemNumber = extractItemNumberFromSalesDescription(description)
+    const price = parseFlexibleNumber(row[SALES_LINES_UNIT_PRICE_COL])
+    const pieces = parseFlexibleNumber(row[SALES_LINES_PIECES_COL])
+
+    if (!itemNumber || price === null || price < 0) return
+
+    byItemNumber.set(itemNumber.toUpperCase(), {
+      item_number: itemNumber,
+      price,
+      description,
+      pieces,
+    })
+  })
+
+  return Array.from(byItemNumber.values())
+}
+
 export default function PrepackMonitorPage() {
   const dateFromInputRef = useRef<HTMLInputElement>(null)
   const dateToInputRef = useRef<HTMLInputElement>(null)
   const compareFromInputRef = useRef<HTMLInputElement>(null)
   const compareToInputRef = useRef<HTMLInputElement>(null)
+  const salesLinesInputRef = useRef<HTMLInputElement>(null)
 
   const api = usePrepackStats(
     dateFromInputRef,
@@ -195,6 +259,8 @@ export default function PrepackMonitorPage() {
 
   const [hourlyRate, setHourlyRate] = useState<number>(47)
   const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null)
+  const [salesLinesUploading, setSalesLinesUploading] = useState(false)
+  const [salesLinesMessage, setSalesLinesMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // Persist hourlyRate tussen sessies
   useEffect(() => {
@@ -312,6 +378,48 @@ export default function PrepackMonitorPage() {
     [setCompareMode, setCompareFrom, setCompareTo, compareFromInputRef, compareToInputRef, handleRefresh]
   )
 
+  const handleSalesLinesUpload = useCallback(
+    async (files: FileList | null) => {
+      const file = files?.[0]
+      if (!file) return
+
+      setSalesLinesUploading(true)
+      setSalesLinesMessage(null)
+
+      try {
+        const items = await parseSalesLinesPriceFile(file)
+        if (items.length === 0) {
+          throw new Error('Geen geldige lijnen gevonden. Controleer kolom G (omschrijving met itemnummer tussen haakjes) en kolom X (prijs per stuk).')
+        }
+
+        const response = await fetch('/api/sales-orders/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items }),
+        })
+        const result = await response.json().catch(() => ({}))
+        if (!response.ok) {
+          throw new Error(result.error || 'Upload van Sales Lines is mislukt.')
+        }
+
+        setSalesLinesMessage({
+          type: 'success',
+          text: `${result.insertedRows || items.length} prijsregels geïmporteerd. Prepack-prijzen worden aangevuld via het nummer tussen haakjes in kolom G.`,
+        })
+        if (salesLinesInputRef.current) salesLinesInputRef.current.value = ''
+        void handleRefresh()
+      } catch (error: any) {
+        setSalesLinesMessage({
+          type: 'error',
+          text: error?.message || 'Upload van Sales Lines is mislukt.',
+        })
+      } finally {
+        setSalesLinesUploading(false)
+      }
+    },
+    [handleRefresh]
+  )
+
   const comparePrimaryDisplay =
     compareMode === 'selectedDays' ? comparePrimaryTotals : totals
 
@@ -364,6 +472,46 @@ export default function PrepackMonitorPage() {
         onChangeCompareRange={handleChangeCompareRange}
         formatCurrency={formatCurrency}
       />
+
+      <div className="mb-6 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Sales Lines prijsimport</h2>
+            <p className="text-xs text-gray-500 mt-0.5 max-w-3xl">
+              Upload de BC Sales Lines Excel. Kolom G wordt gelezen als omschrijving, het itemnummer tussen haakjes wordt gekoppeld aan Prepack, en kolom X wordt opgeslagen als prijs per stuk. Kolom Q wordt mee gevalideerd als totaal aantal.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              ref={salesLinesInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={(event) => void handleSalesLinesUpload(event.target.files)}
+            />
+            <button
+              type="button"
+              onClick={() => salesLinesInputRef.current?.click()}
+              disabled={salesLinesUploading}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium text-sm"
+            >
+              <Euro className="w-4 h-4" />
+              {salesLinesUploading ? 'Importeren...' : 'Sales Lines uploaden'}
+            </button>
+          </div>
+        </div>
+        {salesLinesMessage && (
+          <div
+            className={`mt-3 rounded-lg border px-3 py-2 text-sm ${
+              salesLinesMessage.type === 'success'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                : 'border-red-200 bg-red-50 text-red-700'
+            }`}
+          >
+            {salesLinesMessage.text}
+          </div>
+        )}
+      </div>
 
       {/* Live Wachtrij Status */}
       <div className="mb-6">
