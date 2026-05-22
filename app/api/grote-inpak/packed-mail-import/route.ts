@@ -311,6 +311,71 @@ async function importAttachment(
   }
 }
 
+async function importAttachmentGroup(
+  entries: Array<{ attachment: MailAttachment; sourceType: PackedSourceType }>,
+  message: { id: string; messageId: string; date: string | null }
+): Promise<ImportedAttachment> {
+  const parsed = entries.flatMap((entry, entryIndex) =>
+    parsePackedReviewRows(entry.attachment.content, entry.sourceType).map(row => ({
+      ...row,
+      row_index: entryIndex * 100000 + (row.row_index || 0),
+    }))
+  )
+  const sourceFile = entries.map(entry => entry.attachment.filename).join(' + ')
+  const batchSourceType = entries.some(entry => entry.sourceType === 'packed_n') ? 'packed_n' : entries[0].sourceType
+
+  const { data: batch, error: batchError } = await supabaseAdmin
+    .from('grote_inpak_packed_import_batches')
+    .insert({
+      source_file: sourceFile,
+      source_type: batchSourceType,
+      mail_message_id: message.messageId,
+      mail_date: message.date,
+      status: parsed.length > 0 ? 'draft' : 'error',
+      error_message: parsed.length > 0 ? null : 'Geen PACKED regels gevonden',
+    })
+    .select('id')
+    .single()
+
+  if (batchError) throw batchError
+
+  for (const entry of entries) {
+    await supabaseAdmin
+      .from('grote_inpak_file_uploads')
+      .insert({
+        file_type: 'packed',
+        file_name: entry.attachment.filename,
+        file_size: entry.attachment.content.byteLength,
+        status: parsed.length > 0 ? 'completed' : 'error',
+        processed_at: new Date().toISOString(),
+        error_message: parsed.length > 0 ? null : 'Geen PACKED regels gevonden',
+      })
+  }
+
+  if (parsed.length > 0) {
+    const { error: rowsError } = await supabaseAdmin
+      .from('grote_inpak_packed_import_rows')
+      .insert(parsed.map(row => ({
+        batch_id: batch.id,
+        row_index: row.row_index,
+        source_type: row.source_type,
+        case_label: row.case_label,
+        series: row.series,
+        case_type: row.case_type,
+        packed_date: row.packed_date,
+      })))
+
+    if (rowsError) throw rowsError
+  }
+
+  return {
+    filename: sourceFile,
+    sourceType: batchSourceType,
+    batchId: batch.id,
+    rows: parsed.length,
+  }
+}
+
 export async function GET(request: NextRequest) {
   return runImport(request)
 }
@@ -379,9 +444,23 @@ async function runImport(request: NextRequest) {
             })
           })
 
+        const validAttachments = attachments.filter((entry): entry is { attachment: MailAttachment; sourceType: PackedSourceType } => Boolean(entry.sourceType))
+        const packedAttachments = validAttachments.filter(entry => entry.sourceType === 'packed')
+        const packedNyAttachments = validAttachments.filter(entry => entry.sourceType === 'packed_n' || entry.sourceType === 'packed_y')
+
         let importedConcept = false
-        for (const entry of attachments.filter((entry): entry is { attachment: MailAttachment; sourceType: PackedSourceType } => Boolean(entry.sourceType))) {
+        for (const entry of packedAttachments) {
           const result = await importAttachment(entry.attachment, entry.sourceType, {
+            id,
+            messageId,
+            date: headers.date || null,
+          })
+          imported.push(result)
+          if (result.rows > 0) importedConcept = true
+        }
+
+        if (packedNyAttachments.length > 0) {
+          const result = await importAttachmentGroup(packedNyAttachments, {
             id,
             messageId,
             date: headers.date || null,
