@@ -6,7 +6,7 @@ import {
 
 export const dynamic = 'force-dynamic'
 
-const DEFAULT_RECIPIENTS = ['Jasonploegaerts@gmail.com', 'jason@foresco.eu']
+const DEFAULT_RECIPIENTS = ['prodwilrijk@foresco.eu']
 const DEFAULT_FROM = 'Jason <Jason@prodwilrijk.be>'
 
 function getRecipients(): string[] {
