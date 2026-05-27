@@ -25,6 +25,7 @@ import {
   TrendingUp,
   Info,
   Download,
+  Upload,
   Sparkles,
   GraduationCap,
   History,
@@ -126,6 +127,28 @@ export default function CompetentieMatrixPage() {
   const [saving, setSaving]               = useState<string | null>(null)
   const [fetchError, setFetchError]       = useState<string | null>(null)
   const [copyingYesterday, setCopyingYesterday] = useState(false)
+
+  // Protime PDF import
+  const protimeInputRef = useRef<HTMLInputElement>(null)
+  const [protimeImporting, setProtimeImporting] = useState(false)
+  const [protimeApplying, setProtimeApplying] = useState(false)
+  const [protimePreview, setProtimePreview] = useState<{
+    generatedAt: string | null
+    days: Array<{ dayLabel: string; dateIso: string }>
+    preview: Array<{
+      employee_id: number | null
+      employee_name: string
+      protime_name: string
+      date: string
+      status: string
+      raw: string
+      matched: boolean
+    }>
+    unmatched: string[]
+    stats: { total: number; matched: number; unmatched: number }
+    warnings: string[]
+  } | null>(null)
+  const [protimeFile, setProtimeFile] = useState<File | null>(null)
 
   // Machine form
   const [machineForm, setMachineForm]     = useState<Partial<Machine> | null>(null)
@@ -453,6 +476,68 @@ export default function CompetentieMatrixPage() {
     const d = new Date(selectedDate)
     d.setDate(d.getDate() + days)
     setSelectedDate(toDateInput(d))
+  }
+
+  const handleProtimeFile = async (file: File) => {
+    setProtimeFile(file)
+    setProtimeImporting(true)
+    setFetchError(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const form = new FormData()
+      form.append('file', file)
+      form.append('apply', 'false')
+      form.append('weekdays_only', 'true')
+
+      const headers: Record<string, string> = {}
+      if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
+
+      const res = await fetch('/api/dagplanning/import-protime', { method: 'POST', headers, body: form })
+      const data = await res.json()
+      if (!res.ok) {
+        setFetchError(data.error ?? 'Protime-import mislukt')
+        setProtimePreview(null)
+        return
+      }
+      setProtimePreview(data)
+    } catch {
+      setFetchError('Netwerkfout bij Protime-import.')
+      setProtimePreview(null)
+    } finally {
+      setProtimeImporting(false)
+    }
+  }
+
+  const handleApplyProtimeImport = async () => {
+    if (!protimeFile) return
+    setProtimeApplying(true)
+    setFetchError(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const form = new FormData()
+      form.append('file', protimeFile)
+      form.append('apply', 'true')
+      form.append('overwrite', 'true')
+      form.append('weekdays_only', 'true')
+
+      const headers: Record<string, string> = {}
+      if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
+
+      const res = await fetch('/api/dagplanning/import-protime', { method: 'POST', headers, body: form })
+      const data = await res.json()
+      if (!res.ok) {
+        setFetchError(data.error ?? 'Import toepassen mislukt')
+        return
+      }
+      setProtimePreview(null)
+      setProtimeFile(null)
+      if (protimeInputRef.current) protimeInputRef.current.value = ''
+      void fetchPlanning(selectedDate)
+    } catch {
+      setFetchError('Netwerkfout bij toepassen van import.')
+    } finally {
+      setProtimeApplying(false)
+    }
   }
 
   // ── Machine CRUD ───────────────────────────────────────────────────────────
@@ -1151,6 +1236,27 @@ export default function CompetentieMatrixPage() {
               )
             })}
             <div className="ml-auto flex items-center gap-2">
+              <input
+                ref={protimeInputRef}
+                type="file"
+                accept="application/pdf,.pdf"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  if (f) void handleProtimeFile(f)
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => protimeInputRef.current?.click()}
+                disabled={protimeImporting}
+                className="inline-flex items-center gap-2 px-4 py-2 border border-indigo-200 bg-indigo-50 rounded-lg text-sm text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
+              >
+                {protimeImporting
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <Upload className="w-4 h-4" />}
+                {protimeImporting ? 'PDF lezen...' : 'Importeer Protime PDF'}
+              </button>
               <button type="button" onClick={() => void handleAutoSuggest()}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700 hover:bg-blue-100">
                 <Sparkles className="w-4 h-4" />
@@ -1166,6 +1272,78 @@ export default function CompetentieMatrixPage() {
             </div>
             {loadingPlanning && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
           </div>
+
+          {protimePreview && (
+            <div className="mb-5 rounded-xl border border-indigo-200 bg-indigo-50/60 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+                <div>
+                  <h3 className="font-semibold text-indigo-900">Protime-import preview</h3>
+                  <p className="text-sm text-indigo-700 mt-1">
+                    {protimePreview.stats.matched} gekoppeld · {protimePreview.stats.unmatched} niet gekoppeld · {protimePreview.stats.total} statusregels (werkdagen)
+                  </p>
+                  {protimePreview.generatedAt && (
+                    <p className="text-xs text-indigo-600 mt-0.5">Gegenereerd: {protimePreview.generatedAt}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProtimePreview(null)
+                      setProtimeFile(null)
+                      if (protimeInputRef.current) protimeInputRef.current.value = ''
+                    }}
+                    className="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white hover:bg-gray-50"
+                  >
+                    Annuleren
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleApplyProtimeImport()}
+                    disabled={protimeApplying || protimePreview.stats.matched === 0}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    {protimeApplying ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                    {protimeApplying ? 'Bezig...' : 'Toepassen op dagplanning'}
+                  </button>
+                </div>
+              </div>
+              {protimePreview.warnings.length > 0 && (
+                <p className="text-xs text-amber-700 mb-2">{protimePreview.warnings.join(' ')}</p>
+              )}
+              {protimePreview.unmatched.length > 0 && (
+                <div className="mb-3 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">
+                  <span className="font-medium">Niet gekoppeld in database:</span>{' '}
+                  {protimePreview.unmatched.join(', ')}
+                </div>
+              )}
+              <div className="max-h-48 overflow-auto rounded-lg border border-indigo-100 bg-white">
+                <table className="w-full text-xs">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th className="text-left p-2">Medewerker</th>
+                      <th className="text-left p-2">Datum</th>
+                      <th className="text-left p-2">Status</th>
+                      <th className="text-left p-2">Protime</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {protimePreview.preview.slice(0, 80).map((row, i) => (
+                      <tr key={i} className={row.matched ? '' : 'bg-amber-50'}>
+                        <td className="p-2">{row.employee_name || row.protime_name}</td>
+                        <td className="p-2">{row.date}</td>
+                        <td className="p-2 capitalize">{row.status}</td>
+                        <td className="p-2 text-gray-500 truncate max-w-[200px]">{row.raw}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {protimePreview.preview.length > 80 && (
+                  <p className="text-xs text-gray-500 p-2">… en nog {protimePreview.preview.length - 80} regels</p>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Summary */}
           <div className="mb-5 flex flex-wrap gap-3">
