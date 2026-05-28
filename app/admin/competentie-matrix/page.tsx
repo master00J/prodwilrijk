@@ -1,9 +1,16 @@
-'use client'
+﻿'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
 import * as XLSX from 'xlsx'
+import DagplanningTab from '@/components/competentie-matrix/dagplanning-tab'
+import { Avatar, LevelCell, StatusBadge } from '@/components/competentie-matrix/primitives'
+import {
+  CATEGORIES,
+  LEVELS,
+  toDateInput,
+} from '@/lib/competentie-matrix/constants'
 import {
   Plus,
   Pencil,
@@ -16,16 +23,12 @@ import {
   Loader2,
   AlertTriangle,
   Search,
-  Copy,
-  ChevronLeft,
-  ChevronRight,
   Users,
   Cpu,
   ShieldAlert,
   TrendingUp,
   Info,
   Download,
-  Upload,
   Sparkles,
   GraduationCap,
   History,
@@ -41,76 +44,6 @@ interface Competency { id: number; employee_id: number; machine_id: number; leve
 interface DailyStatus { id: number; employee_id: number; date: string; status: string; shift: string; assigned_machine_id: number | null; notes: string | null }
 interface CompetencyHistory { id: number; employee_id: number; machine_id: number; old_level: number; new_level: number; changed_at: string }
 interface TrainingPlan { id: number; employee_id: number; machine_id: number; target_date: string | null; trainer_id: number | null; notes: string | null; completed: boolean; created_at: string }
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const LEVELS = [
-  { value: 0, label: '—',  desc: 'Geen kennis',   bg: 'bg-gray-100',    text: 'text-gray-400',  ring: '',                  dot: 'bg-gray-200',   cell: 'bg-gray-50 hover:bg-gray-100' },
-  { value: 1, label: '1',  desc: 'In opleiding',  bg: 'bg-yellow-100',  text: 'text-yellow-700', ring: 'ring-yellow-300',   dot: 'bg-yellow-400', cell: 'bg-yellow-50 hover:bg-yellow-100' },
-  { value: 2, label: '2',  desc: 'Basiskennis',   bg: 'bg-blue-100',    text: 'text-blue-700',  ring: 'ring-blue-300',     dot: 'bg-blue-400',   cell: 'bg-blue-50 hover:bg-blue-100' },
-  { value: 3, label: '3',  desc: 'Gevorderd',     bg: 'bg-indigo-100',  text: 'text-indigo-700', ring: 'ring-indigo-300',  dot: 'bg-indigo-500', cell: 'bg-indigo-50 hover:bg-indigo-100' },
-  { value: 4, label: '4',  desc: 'Expert',        bg: 'bg-emerald-100', text: 'text-emerald-700', ring: 'ring-emerald-300', dot: 'bg-emerald-500', cell: 'bg-emerald-50 hover:bg-emerald-100' },
-]
-
-const STATUSES = [
-  { value: 'aanwezig',  label: 'Aanwezig',  short: 'A',  color: 'bg-emerald-100 text-emerald-800 border-emerald-200', dot: 'bg-emerald-400' },
-  { value: 'afwezig',   label: 'Afwezig',   short: 'AF', color: 'bg-red-100 text-red-800 border-red-200',             dot: 'bg-red-400' },
-  { value: 'verlof',    label: 'Verlof',    short: 'V',  color: 'bg-blue-100 text-blue-800 border-blue-200',          dot: 'bg-blue-400' },
-  { value: 'ziek',      label: 'Ziek',      short: 'Z',  color: 'bg-orange-100 text-orange-800 border-orange-200',    dot: 'bg-orange-400' },
-  { value: 'thuiswerk', label: 'Thuiswerk', short: 'TW', color: 'bg-purple-100 text-purple-800 border-purple-200',    dot: 'bg-purple-400' },
-]
-
-const CATEGORIES = ['machine', 'werkplek', 'overig']
-
-const SHIFTS = [
-  { value: 'dag',   label: 'Dagdienst',  color: 'bg-blue-50   text-blue-700   border-blue-200'   },
-  { value: 'vroeg', label: 'Vroegdienst',color: 'bg-amber-50  text-amber-700  border-amber-200'  },
-  { value: 'laat',  label: 'Laatedienst',color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-  { value: 'nacht', label: 'Nachtdienst',color: 'bg-slate-100 text-slate-700  border-slate-200'  },
-]
-
-const AVATAR_COLORS = [
-  'bg-blue-500','bg-indigo-500','bg-violet-500','bg-purple-500',
-  'bg-pink-500','bg-rose-500','bg-orange-500','bg-amber-500',
-  'bg-teal-500','bg-cyan-500','bg-sky-500','bg-emerald-500',
-]
-
-const toDateInput = (d: Date) => d.toISOString().split('T')[0]
-const avatarColor = (id: number) => AVATAR_COLORS[id % AVATAR_COLORS.length]
-
-// ─── Small helpers ────────────────────────────────────────────────────────────
-
-function Avatar({ employee, size = 'md' }: { employee: Employee; size?: 'sm' | 'md' | 'lg' }) {
-  const sz = size === 'sm' ? 'w-6 h-6 text-xs' : size === 'lg' ? 'w-10 h-10 text-base' : 'w-8 h-8 text-sm'
-  return (
-    <span className={`${sz} rounded-full ${avatarColor(employee.id)} text-white font-bold flex items-center justify-center shrink-0 select-none`}>
-      {employee.name.charAt(0).toUpperCase()}
-    </span>
-  )
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const s = STATUSES.find((x) => x.value === status) ?? STATUSES[0]
-  return <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${s.color}`}>{s.label}</span>
-}
-
-function LevelCell({ level, onClick, saving }: { level: number; onClick: () => void; saving?: boolean }) {
-  const l = LEVELS[level] ?? LEVELS[0]
-  if (saving) return <div className="w-full h-full flex items-center justify-center"><Loader2 className="w-3.5 h-3.5 animate-spin text-gray-300" /></div>
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={l.desc}
-      className={`w-full h-full flex items-center justify-center rounded transition-colors cursor-pointer ${l.cell}`}
-    >
-      {level === 0
-        ? <span className="text-gray-300 text-sm select-none">·</span>
-        : <span className={`text-xs font-bold select-none ${l.text}`}>{l.label}</span>
-      }
-    </button>
-  )
-}
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
@@ -341,16 +274,6 @@ export default function CompetentieMatrixPage() {
   const avgCompetenciesPerEmployee = activeEmployees.length > 0
     ? (totalCompetencies / activeEmployees.length).toFixed(1)
     : '0'
-
-  // Dagplanning derived
-  const presentEmployees = visibleEmployees.filter((e) => {
-    const s = getDailyStatus(e.id)
-    return !s || s.status === 'aanwezig' || s.status === 'thuiswerk'
-  })
-  const absentEmployees = visibleEmployees.filter((e) => {
-    const s = getDailyStatus(e.id)
-    return s && (s.status === 'afwezig' || s.status === 'verlof' || s.status === 'ziek')
-  })
 
   // ── Competency actions ─────────────────────────────────────────────────────
 
@@ -706,7 +629,7 @@ export default function CompetentieMatrixPage() {
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-[1500px]">
+    <div className={`container mx-auto px-4 py-8 max-w-[1500px] ${tab === 'dagplanning' ? 'bg-slate-50/40' : ''}`}>
 
       {/* Globale foutmelding */}
       {fetchError && (
@@ -731,19 +654,26 @@ export default function CompetentieMatrixPage() {
       </div>
 
       {/* Tabs */}
-      <div className="mb-6 border-b border-gray-200">
-        <nav className="flex gap-0 -mb-px">
+      <div className="mb-6">
+        <nav className="inline-flex flex-wrap gap-1 p-1 rounded-xl bg-gray-100/90 border border-gray-200">
           {([
-            { id: 'matrix'      as const, label: 'Competentie Matrix',    icon: <LayoutGrid    className="w-4 h-4" /> },
-            { id: 'machines'    as const, label: 'Machines & Werkplekken',icon: <Settings      className="w-4 h-4" /> },
-            { id: 'dagplanning' as const, label: 'Dagplanning',           icon: <CalendarDays  className="w-4 h-4" /> },
-            { id: 'opleiding'   as const, label: 'Opleiding',             icon: <GraduationCap className="w-4 h-4" /> },
+            { id: 'matrix'      as const, label: 'Matrix',      icon: <LayoutGrid    className="w-4 h-4" /> },
+            { id: 'machines'    as const, label: 'Machines',    icon: <Settings      className="w-4 h-4" /> },
+            { id: 'dagplanning' as const, label: 'Dagplanning', icon: <CalendarDays  className="w-4 h-4" /> },
+            { id: 'opleiding'   as const, label: 'Opleiding',   icon: <GraduationCap className="w-4 h-4" /> },
           ]).map((t) => (
-            <button key={t.id} type="button" onClick={() => setTab(t.id)}
-              className={`inline-flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
-                tab === t.id ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}>
-              {t.icon}{t.label}
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className={`inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-all ${
+                tab === t.id
+                  ? 'bg-white text-blue-700 shadow-sm ring-1 ring-gray-200/80'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-white/60'
+              }`}
+            >
+              {t.icon}
+              <span className="hidden sm:inline">{t.label}</span>
             </button>
           ))}
         </nav>
@@ -1211,329 +1141,39 @@ export default function CompetentieMatrixPage() {
 
       {/* ════════════════════ TAB: DAGPLANNING ════════════════════ */}
       {tab === 'dagplanning' && (
-        <div>
-          {/* Date navigation */}
-          <div className="mb-5 flex flex-wrap items-center gap-3">
-            <button type="button" onClick={() => shiftDate(-1)} className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500">
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <div>
-              <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 font-medium" />
-            </div>
-            <button type="button" onClick={() => shiftDate(1)} className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500">
-              <ChevronRight className="w-4 h-4" />
-            </button>
-            {([-1,0,1] as const).map((offset) => {
-              const d = new Date(); d.setDate(d.getDate() + offset)
-              const val = toDateInput(d)
-              const labels = ['Gisteren','Vandaag','Morgen']
-              return (
-                <button key={offset} type="button" onClick={() => setSelectedDate(val)}
-                  className={`px-3 py-2 text-sm rounded-lg border transition-colors ${selectedDate === val ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                  {labels[offset + 1]}
-                </button>
-              )
-            })}
-            <div className="ml-auto flex items-center gap-2">
-              <input
-                ref={protimeInputRef}
-                type="file"
-                accept="application/pdf,.pdf"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0]
-                  if (f) void handleProtimeFile(f)
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => protimeInputRef.current?.click()}
-                disabled={protimeImporting}
-                className="inline-flex items-center gap-2 px-4 py-2 border border-indigo-200 bg-indigo-50 rounded-lg text-sm text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
-              >
-                {protimeImporting
-                  ? <Loader2 className="w-4 h-4 animate-spin" />
-                  : <Upload className="w-4 h-4" />}
-                {protimeImporting ? 'PDF lezen...' : 'Importeer Protime PDF'}
-              </button>
-              <button type="button" onClick={() => void handleAutoSuggest()}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700 hover:bg-blue-100">
-                <Sparkles className="w-4 h-4" />
-                Stel bezetting voor
-              </button>
-              <button type="button" onClick={() => void handleCopyYesterday()} disabled={copyingYesterday}
-                className="inline-flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
-                {copyingYesterday
-                  ? <Loader2 className="w-4 h-4 animate-spin" />
-                  : <Copy className="w-4 h-4" />}
-                {copyingYesterday ? 'Bezig...' : 'Kopieer van gisteren'}
-              </button>
-            </div>
-            {loadingPlanning && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
-          </div>
-
-          {protimePreview && (
-            <div className="mb-5 rounded-xl border border-indigo-200 bg-indigo-50/60 p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
-                <div>
-                  <h3 className="font-semibold text-indigo-900">Protime-import preview</h3>
-                  <p className="text-sm text-indigo-700 mt-1">
-                    {protimePreview.stats.matched} gekoppeld · {protimePreview.stats.unmatched} niet gekoppeld · {protimePreview.stats.total} statusregels (werkdagen)
-                  </p>
-                  {protimePreview.generatedAt && (
-                    <p className="text-xs text-indigo-600 mt-0.5">Gegenereerd: {protimePreview.generatedAt}</p>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setProtimePreview(null)
-                      setProtimeFile(null)
-                      if (protimeInputRef.current) protimeInputRef.current.value = ''
-                    }}
-                    className="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white hover:bg-gray-50"
-                  >
-                    Annuleren
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleApplyProtimeImport()}
-                    disabled={protimeApplying || protimePreview.stats.matched === 0}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 disabled:opacity-50"
-                  >
-                    {protimeApplying ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                    {protimeApplying ? 'Bezig...' : 'Toepassen op dagplanning'}
-                  </button>
-                </div>
-              </div>
-              {protimePreview.warnings.length > 0 && (
-                <p className="text-xs text-amber-700 mb-2">{protimePreview.warnings.join(' ')}</p>
-              )}
-              {protimePreview.unmatched.length > 0 && (
-                <div className="mb-3 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">
-                  <span className="font-medium">Niet gekoppeld in database:</span>{' '}
-                  {protimePreview.unmatched.join(', ')}
-                </div>
-              )}
-              <div className="max-h-48 overflow-auto rounded-lg border border-indigo-100 bg-white">
-                <table className="w-full text-xs">
-                  <thead className="bg-gray-50 sticky top-0">
-                    <tr>
-                      <th className="text-left p-2">Medewerker</th>
-                      <th className="text-left p-2">Datum</th>
-                      <th className="text-left p-2">Status</th>
-                      <th className="text-left p-2">Protime</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {protimePreview.preview.slice(0, 80).map((row, i) => (
-                      <tr key={i} className={row.matched ? '' : 'bg-amber-50'}>
-                        <td className="p-2">{row.employee_name || row.protime_name}</td>
-                        <td className="p-2">{row.date}</td>
-                        <td className="p-2 capitalize">{row.status}</td>
-                        <td className="p-2 text-gray-500 truncate max-w-[200px]">{row.raw}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {protimePreview.preview.length > 80 && (
-                  <p className="text-xs text-gray-500 p-2">… en nog {protimePreview.preview.length - 80} regels</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Summary */}
-          <div className="mb-5 flex flex-wrap gap-3">
-            {STATUSES.map((s) => {
-              const count = visibleEmployees.filter((e) => { const ds = getDailyStatus(e.id); return ds?.status === s.value }).length
-              if (count === 0) return null
-              return (
-                <div key={s.value} className={`inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium ${s.color}`}>
-                  <span className={`w-2 h-2 rounded-full ${s.dot}`} />
-                  {count}× {s.label}
-                </div>
-              )
-            })}
-            {(() => {
-              const notFilledCount = visibleEmployees.filter((e) => !getDailyStatus(e.id)).length
-              return notFilledCount > 0 ? (
-                <div className="inline-flex items-center gap-2 rounded-full bg-gray-50 border border-gray-100 px-4 py-1.5 text-sm text-gray-500">
-                  {notFilledCount} niet ingevuld
-                </div>
-              ) : null
-            })()}
-          </div>
-
-          {/* Split layout: employees left, machine overview right */}
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-
-            {/* Employee cards */}
-            <div className="xl:col-span-2">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {visibleEmployees.map((emp) => {
-                  const ds = getDailyStatus(emp.id)
-                  const status = ds?.status ?? ''
-                  const shift  = ds?.shift ?? 'dag'
-                  const assignedMachineId = ds?.assigned_machine_id ?? null
-                  const isSaving = saving === `status-${emp.id}`
-                  const isPresent = !status || status === 'aanwezig' || status === 'thuiswerk'
-                  const borderColor = !ds || status === 'aanwezig' ? 'border-emerald-300' : status === 'thuiswerk' ? 'border-purple-300' : status === 'verlof' ? 'border-blue-300' : status === 'ziek' ? 'border-orange-300' : 'border-red-300'
-                  const shiftObj = SHIFTS.find(s => s.value === shift) ?? SHIFTS[0]
-
-                  return (
-                    <div
-                      key={emp.id}
-                      draggable
-                      onDragStart={() => handleDragStart(emp.id)}
-                      className={`bg-white rounded-xl border-2 shadow-sm p-4 transition-all cursor-grab active:cursor-grabbing ${borderColor}`}>
-                      {/* Header */}
-                      <div className="flex items-center gap-3 mb-3">
-                        <Avatar employee={emp} />
-                        <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-gray-900 truncate">{emp.name}</div>
-                          {ds ? <StatusBadge status={status} /> : <span className="text-xs text-gray-400">Niet ingevuld</span>}
-                        </div>
-                        {/* Shift badge */}
-                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${shiftObj.color}`}>
-                          {shiftObj.label}
-                        </span>
-                        {isSaving && <Loader2 className="w-4 h-4 animate-spin text-gray-300" />}
-                      </div>
-
-                      {/* Status buttons */}
-                      <div className="grid grid-cols-3 gap-1 mb-2">
-                        {STATUSES.map((s) => (
-                          <button key={s.value} type="button" disabled={isSaving}
-                            onClick={() => void handleStatusChange(emp.id, s.value)}
-                            className={`py-1.5 rounded-lg text-xs font-medium border transition-all ${status === s.value && ds ? `${s.color} shadow-sm` : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}>
-                            {s.label}
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Shift selector */}
-                      <div className="grid grid-cols-4 gap-1 mb-3">
-                        {SHIFTS.map((s) => (
-                          <button key={s.value} type="button" disabled={isSaving}
-                            onClick={() => handleShiftChange(emp.id, s.value)}
-                            className={`py-1 rounded text-[10px] font-medium border transition-all ${shift === s.value && ds ? `${s.color} shadow-sm` : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-gray-100'}`}>
-                            {s.label.replace('dienst', '')}
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Machine assignment */}
-                      {isPresent && (
-                        <div>
-                          <label className="block text-[11px] font-medium text-gray-400 mb-1 uppercase tracking-wide">Toewijzen aan</label>
-                          <select value={assignedMachineId ?? ''} disabled={isSaving}
-                            onChange={(e) => handleMachineAssign(emp.id, e.target.value ? Number(e.target.value) : null)}
-                            className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
-                            <option value="">— Niet toegewezen —</option>
-                            {machines.filter(m => m.active).map(m => (
-                              <option key={m.id} value={m.id}>
-                                {m.name} {getLevel(emp.id, m.id) >= 2 ? '✓' : ''}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-
-                      {/* Competency tags */}
-                      {isPresent && (
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {machines.filter(m => m.active && getLevel(emp.id, m.id) >= 2).map(m => {
-                            const lvl = LEVELS[getLevel(emp.id, m.id)]
-                            return (
-                              <span key={m.id} title={`${m.name}: ${lvl.desc}`}
-                                className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${lvl.bg} ${lvl.text}`}>
-                                {m.name}
-                              </span>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Machine overview sidebar */}
-            <div className="xl:col-span-1">
-              <div className="sticky top-6">
-                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">
-                Machineoverzicht
-                <span className="ml-2 font-normal text-gray-300 normal-case">sleep medewerker hier naartoe</span>
-              </h2>
-                <div className="space-y-2">
-                  {machines.filter(m => m.active).map(m => {
-                    const cap = m.capacity ?? 1
-                    const assigned = visibleEmployees.filter(e => {
-                      const ds = getDailyStatus(e.id)
-                      return ds?.assigned_machine_id === m.id && (ds.status === 'aanwezig' || ds.status === 'thuiswerk')
-                    })
-                    const qualified = machineQualified[m.id] ?? []
-                    const available = visibleEmployees.filter(e => getLevel(e.id, m.id) >= 2 && (getDailyStatus(e.id)?.status === 'aanwezig' || !getDailyStatus(e.id)))
-                    const isFull = assigned.length >= cap
-                    const isOver = assigned.length > cap
-                    const borderClass = isOver
-                      ? 'border-amber-300 bg-amber-50'
-                      : isFull
-                        ? 'border-emerald-300 bg-emerald-50'
-                        : assigned.length > 0
-                          ? 'border-emerald-200 bg-emerald-50'
-                          : qualified.length < 2
-                            ? 'border-red-100 bg-red-50/50'
-                            : 'border-dashed border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/30'
-                    return (
-                      <div key={m.id}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={() => handleDropOnMachine(m.id)}
-                        className={`rounded-xl border-2 p-3 transition-all ${borderClass}`}>
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="text-xs font-semibold text-gray-700 truncate">{m.name}</div>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                              isOver ? 'bg-amber-100 text-amber-700' : isFull ? 'bg-emerald-100 text-emerald-700' : assigned.length > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
-                            }`}>
-                              {assigned.length}/{cap}
-                            </span>
-                            {qualified.length < 2 && <AlertTriangle className="w-3 h-3 text-red-400 shrink-0" />}
-                          </div>
-                        </div>
-                        {assigned.length === 0 ? (
-                          <div className="text-xs text-gray-300 italic">Sleep een medewerker hier…</div>
-                        ) : (
-                          <div className="space-y-0.5">
-                            {assigned.map(e => (
-                              <div key={e.id} className="flex items-center gap-1.5">
-                                <Avatar employee={e} size="sm" />
-                                <span className="text-xs font-medium text-emerald-800">{e.name}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {isOver && (
-                          <div className="mt-1 text-[10px] font-medium text-amber-600 flex items-center gap-1">
-                            <AlertTriangle className="w-3 h-3" /> Overbezet
-                          </div>
-                        )}
-                        <div className="mt-1.5 text-[10px] text-gray-400">
-                          {available.length} aanwezig gekwalificeerd · {qualified.length} totaal
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </div>
+        <DagplanningTab
+          selectedDate={selectedDate}
+          onDateChange={setSelectedDate}
+          onShiftDate={shiftDate}
+          loadingPlanning={loadingPlanning}
+          visibleEmployees={visibleEmployees}
+          machines={machines}
+          getDailyStatus={getDailyStatus}
+          getLevel={getLevel}
+          machineQualified={machineQualified}
+          saving={saving}
+          onStatusChange={(employeeId, status) => void handleStatusChange(employeeId, status)}
+          onShiftChange={(employeeId, shift) => handleShiftChange(employeeId, shift)}
+          onMachineAssign={(employeeId, machineId) => handleMachineAssign(employeeId, machineId)}
+          onDragStart={handleDragStart}
+          onDropOnMachine={handleDropOnMachine}
+          onAutoSuggest={() => void handleAutoSuggest()}
+          onCopyYesterday={() => void handleCopyYesterday()}
+          copyingYesterday={copyingYesterday}
+          employeeSearch={employeeSearch}
+          onEmployeeSearchChange={setEmployeeSearch}
+          protimeInputRef={protimeInputRef}
+          protimeImporting={protimeImporting}
+          protimeApplying={protimeApplying}
+          protimePreview={protimePreview}
+          onProtimeFile={(file) => void handleProtimeFile(file)}
+          onApplyProtime={() => void handleApplyProtimeImport()}
+          onCancelProtime={() => {
+            setProtimePreview(null)
+            setProtimeFile(null)
+            if (protimeInputRef.current) protimeInputRef.current.value = ''
+          }}
+        />
       )}
 
       {/* ════════════════════ TAB: OPLEIDING ════════════════════ */}

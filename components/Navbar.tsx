@@ -859,6 +859,24 @@ export default function Navbar() {
                       Competentie Matrix
                     </Link>
                     <Link
+                      href="/admin/pricing-calculator"
+                      onClick={() => setIsAdminOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/admin/pricing-calculator') ? 'bg-purple-50 text-purple-600 font-medium border-l-4 border-purple-500' : 'text-gray-700'
+                      }`}
+                    >
+                      Prijscalculator
+                    </Link>
+                    <Link
+                      href="/admin/pricing-simulations"
+                      onClick={() => setIsAdminOpen(false)}
+                      className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
+                        isActive('/admin/pricing-simulations') ? 'bg-purple-50 text-purple-600 font-medium border-l-4 border-purple-500' : 'text-gray-700'
+                      }`}
+                    >
+                      Prijs simulaties
+                    </Link>
+                    <Link
                       href="/admin/wms-projecten-import"
                       onClick={() => setIsAdminOpen(false)}
                       className={`block px-4 py-2 hover:bg-gray-100 transition-colors ${
@@ -1059,6 +1077,8 @@ export default function Navbar() {
                       <Link href="/admin/monitor-controles" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Monitor controles</Link>
                       <Link href="/admin/airtec-scan-log" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Scan log — Airtec</Link>
                       <Link href="/admin/competentie-matrix" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Competentie Matrix</Link>
+                      <Link href="/admin/pricing-calculator" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Prijscalculator</Link>
+                      <Link href="/admin/pricing-simulations" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Prijs simulaties</Link>
                       <Link href="/admin/wms-projecten-import" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">WMS Project import</Link>
                       <Link href="/admin/production-order-upload" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">Productieorder upload</Link>
                       <Link href="/admin/bc-forecast-converter" onClick={closeMobileMenu} className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded">BC Forecast Converter</Link>

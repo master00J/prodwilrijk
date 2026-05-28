@@ -58,6 +58,20 @@ export default function AdminPage() {
       color: 'purple',
     },
     {
+      title: 'Prijscalculator',
+      description: 'Sales prijssimulaties voor pallet, kisten en meer — server-side regels, geen AI-prijzen',
+      href: '/admin/pricing-calculator',
+      icon: '🧮',
+      color: 'blue',
+    },
+    {
+      title: 'Prijs simulaties',
+      description: 'Historiek van opgeslagen prijscalculaties en simulaties',
+      href: '/admin/pricing-simulations',
+      icon: '📋',
+      color: 'purple',
+    },
+    {
       title: 'Opmetingen Overzicht',
       description: 'Bekijk alle ingevulde opmetingen voor items die nog niet bekend waren in het systeem',
       href: '/admin/measurements',
