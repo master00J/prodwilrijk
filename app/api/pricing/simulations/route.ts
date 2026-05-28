@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { requirePricingAuth, pricingError } from '@/lib/pricing/api-helpers'
-import { calculatePrice } from '@/lib/pricing-engine'
+import { calculatePricingRequest } from '@/lib/pricing/calculate-request'
 import { generateSimulationNumber } from '@/lib/pricing/simulation-number'
 
 export const dynamic = 'force-dynamic'
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     if (!product_type_code) return pricingError('product_type_code is verplicht')
     if (!input) return pricingError('input is verplicht')
 
-    const result = calculatePrice(product_type_code, input)
+    const result = await calculatePricingRequest(product_type_code, input, plant_id)
     const simulationNumber = await generateSimulationNumber()
 
     const { data, error } = await supabaseAdmin

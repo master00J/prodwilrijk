@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { requirePricingAuth, pricingError } from '@/lib/pricing/api-helpers'
-import { calculatePrice } from '@/lib/pricing-engine'
+import { calculatePricingRequest } from '@/lib/pricing/calculate-request'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,7 +62,11 @@ export async function PUT(
 
     if (body.input && body.product_type_code) {
       updates.input_data = body.input
-      updates.result_data = calculatePrice(body.product_type_code, body.input)
+      updates.result_data = await calculatePricingRequest(
+        body.product_type_code,
+        body.input,
+        body.plant_id,
+      )
     }
 
     const { data, error } = await supabaseAdmin

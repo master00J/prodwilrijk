@@ -3,58 +3,55 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import AdminGuard from '@/components/AdminGuard'
+import PalletDimensionsForm from '@/components/pricing/PalletDimensionsForm'
 import PricingResultCard from '@/components/pricing/PricingResultCard'
+import { defaultPalletDimensions, type PalletDimensionsInput } from '@/lib/pricing-engine/pallet-dimensions'
 import type { PricingResult } from '@/lib/pricing-engine/types'
 import {
   calculatePriceApi,
+  fetchMaterials,
   fetchPlants,
   fetchProductTypes,
   formatEuro,
   saveSimulation,
+  type PricingMaterialOption,
   type PricingMasterOption,
 } from '@/lib/pricing/client'
-import { Calculator, History, Loader2 } from 'lucide-react'
+import { Calculator, History, Loader2, Plus, Trash2 } from 'lucide-react'
+
+interface ExtraLineForm {
+  key: string
+  material_id: string
+  quantity_per_unit: string
+}
 
 const defaultForm = {
   customer_name: '',
   quantity: '100',
-  length_mm: '1200',
-  width_mm: '800',
-  height_mm: '150',
-  wood_volume_m3: '0.05',
-  wood_cost_per_m3: '350',
+  wood_material_id: '',
   labor_minutes_per_unit: '12',
   labor_cost_per_hour: '45',
-  extra_material_cost_per_unit: '2.5',
   transport_cost: '150',
   overhead_percentage: '8',
   margin_percentage: '15',
 }
 
-function toInput(form: typeof defaultForm) {
-  return {
-    quantity: Number(form.quantity),
-    length_mm: Number(form.length_mm),
-    width_mm: Number(form.width_mm),
-    height_mm: Number(form.height_mm),
-    wood_volume_m3: Number(form.wood_volume_m3),
-    wood_cost_per_m3: Number(form.wood_cost_per_m3),
-    labor_minutes_per_unit: Number(form.labor_minutes_per_unit),
-    labor_cost_per_hour: Number(form.labor_cost_per_hour),
-    extra_material_cost_per_unit: Number(form.extra_material_cost_per_unit),
-    transport_cost: Number(form.transport_cost),
-    overhead_percentage: Number(form.overhead_percentage),
-    margin_percentage: Number(form.margin_percentage),
-  }
+function newExtraLine(): ExtraLineForm {
+  return { key: `e-${Date.now()}-${Math.random()}`, material_id: '', quantity_per_unit: '1' }
 }
 
 export default function PricingCalculatorPage() {
   const [plants, setPlants] = useState<PricingMasterOption[]>([])
   const [productTypes, setProductTypes] = useState<PricingMasterOption[]>([])
+  const [woodTypes, setWoodTypes] = useState<PricingMaterialOption[]>([])
+  const [extraCatalog, setExtraCatalog] = useState<PricingMaterialOption[]>([])
   const [plantId, setPlantId] = useState('')
   const [productTypeId, setProductTypeId] = useState('')
   const [form, setForm] = useState(defaultForm)
+  const [dimensions, setDimensions] = useState<PalletDimensionsInput>(defaultPalletDimensions)
+  const [extraLines, setExtraLines] = useState<ExtraLineForm[]>([newExtraLine()])
   const [loadingMaster, setLoadingMaster] = useState(true)
+  const [loadingMaterials, setLoadingMaterials] = useState(false)
   const [calculating, setCalculating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -67,6 +64,11 @@ export default function PricingCalculatorPage() {
   )
 
   const isPallet = selectedProduct?.code === 'PALLET'
+
+  const selectedWood = useMemo(
+    () => woodTypes.find((w) => w.id === form.wood_material_id),
+    [woodTypes, form.wood_material_id],
+  )
 
   useEffect(() => {
     Promise.all([fetchPlants(), fetchProductTypes()])
@@ -82,25 +84,68 @@ export default function PricingCalculatorPage() {
       .finally(() => setLoadingMaster(false))
   }, [])
 
+  useEffect(() => {
+    if (!plantId) {
+      setWoodTypes([])
+      setExtraCatalog([])
+      return
+    }
+    setLoadingMaterials(true)
+    Promise.all([fetchMaterials(plantId, 'houtsoort'), fetchMaterials(plantId, 'extra')])
+      .then(([wood, extras]) => {
+        setWoodTypes(wood)
+        setExtraCatalog(extras)
+        setForm((f) => ({
+          ...f,
+          wood_material_id: f.wood_material_id && wood.some((w) => w.id === f.wood_material_id)
+            ? f.wood_material_id
+            : wood[0]?.id ?? '',
+        }))
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoadingMaterials(false))
+  }, [plantId])
+
   const setField = (key: keyof typeof defaultForm, value: string) => {
     setForm((f) => ({ ...f, [key]: value }))
     setSavedNumber(null)
   }
+
+  const buildInput = useCallback(() => {
+    const extra_materials = extraLines
+      .filter((l) => l.material_id && Number(l.quantity_per_unit) > 0)
+      .map((l) => ({
+        material_id: l.material_id,
+        quantity_per_unit: Number(l.quantity_per_unit),
+      }))
+
+    return {
+      quantity: Number(form.quantity),
+      dimensions,
+      wood_material_id: form.wood_material_id || undefined,
+      extra_materials: extra_materials.length > 0 ? extra_materials : undefined,
+      labor_minutes_per_unit: Number(form.labor_minutes_per_unit),
+      labor_cost_per_hour: Number(form.labor_cost_per_hour),
+      transport_cost: Number(form.transport_cost),
+      overhead_percentage: Number(form.overhead_percentage),
+      margin_percentage: Number(form.margin_percentage),
+    }
+  }, [form, dimensions, extraLines])
 
   const handleCalculate = useCallback(async () => {
     if (!selectedProduct) {
       setError('Kies een producttype')
       return
     }
+    if (!form.wood_material_id) {
+      setError('Kies een houtsoort')
+      return
+    }
     setCalculating(true)
     setError(null)
     setSavedNumber(null)
     try {
-      const input = {
-        ...toInput(form),
-        customer_name: form.customer_name,
-      }
-      const res = await calculatePriceApi(selectedProduct.code, input)
+      const res = await calculatePriceApi(selectedProduct.code, buildInput(), plantId)
       setResult(res)
     } catch (e: unknown) {
       setResult(null)
@@ -108,7 +153,7 @@ export default function PricingCalculatorPage() {
     } finally {
       setCalculating(false)
     }
-  }, [form, selectedProduct])
+  }, [buildInput, plantId, selectedProduct, form.wood_material_id])
 
   const handleSave = async () => {
     if (!selectedProduct || !result) {
@@ -118,13 +163,12 @@ export default function PricingCalculatorPage() {
     setSaving(true)
     setError(null)
     try {
-      const input = toInput(form)
       const saved = await saveSimulation({
         customer_name: form.customer_name,
         plant_id: plantId || null,
         product_type_id: productTypeId,
         product_type_code: selectedProduct.code,
-        input,
+        input: buildInput(),
         status: 'draft',
       })
       setSavedNumber(saved.simulation_number)
@@ -137,7 +181,7 @@ export default function PricingCalculatorPage() {
 
   return (
     <AdminGuard>
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
+      <div className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div>
             <Link href="/admin" className="text-sm text-blue-600 hover:text-blue-800 mb-2 inline-block">← Admin</Link>
@@ -146,7 +190,7 @@ export default function PricingCalculatorPage() {
               Prijscalculator
             </h1>
             <p className="text-gray-500 text-sm mt-1">
-              Server-side berekening op vaste regels — geen AI-prijzen. MVP: pallet.
+              Houtsoort en extra materialen uit masterdata — kostprijs en marge enkel server-side.
             </p>
           </div>
           <Link
@@ -215,21 +259,110 @@ export default function PricingCalculatorPage() {
 
               {!isPallet && selectedProduct && (
                 <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                  Calculator voor {selectedProduct.name} is nog niet beschikbaar. Kies PALLET voor de MVP.
+                  Calculator voor {selectedProduct.name} is nog niet beschikbaar. Kies PALLET.
                 </p>
               )}
+
+              <label className="block">
+                <span className="text-xs font-medium text-gray-500">Standaard houtsoort *</span>
+                <select
+                  value={form.wood_material_id}
+                  onChange={(e) => setField('wood_material_id', e.target.value)}
+                  disabled={!isPallet || woodTypes.length === 0 || loadingMaterials}
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white"
+                >
+                  <option value="">— Kies houtsoort —</option>
+                  {woodTypes.map((w) => (
+                    <option key={w.id} value={w.id}>{w.name} ({w.material_code})</option>
+                  ))}
+                </select>
+                {selectedWood && (
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    Geldt voor alle onderdelen tenzij je per onderdeel een andere houtsoort kiest.
+                  </p>
+                )}
+              </label>
+
+              <PalletDimensionsForm
+                dimensions={dimensions}
+                onChange={(d) => { setDimensions(d); setSavedNumber(null) }}
+                woodTypes={woodTypes}
+                defaultWoodMaterialId={form.wood_material_id}
+                disabled={!isPallet}
+              />
+
+              {/* Extra materialen */}
+              <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-blue-900">Extra materialen</h3>
+                  <button
+                    type="button"
+                    onClick={() => setExtraLines((prev) => [...prev, newExtraLine()])}
+                    disabled={!isPallet}
+                    className="inline-flex items-center gap-1 text-xs text-blue-700 hover:text-blue-900 disabled:opacity-50"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Regel toevoegen
+                  </button>
+                </div>
+                {extraLines.map((line, idx) => (
+                  <div key={line.key} className="flex flex-wrap gap-2 items-end">
+                    <label className="flex-1 min-w-[140px]">
+                      <span className="text-xs text-gray-500">Materiaal</span>
+                      <select
+                        value={line.material_id}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          setExtraLines((prev) => prev.map((l) => (l.key === line.key ? { ...l, material_id: v } : l)))
+                          setSavedNumber(null)
+                        }}
+                        disabled={!isPallet}
+                        className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm bg-white"
+                      >
+                        <option value="">— Geen —</option>
+                        {extraCatalog.map((m) => (
+                          <option key={m.id} value={m.id}>{m.name} ({m.unit})</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="w-24">
+                      <span className="text-xs text-gray-500">Hoev./stuk</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={line.quantity_per_unit}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          setExtraLines((prev) => prev.map((l) => (l.key === line.key ? { ...l, quantity_per_unit: v } : l)))
+                          setSavedNumber(null)
+                        }}
+                        disabled={!isPallet}
+                        className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+                      />
+                    </label>
+                    {extraLines.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setExtraLines((prev) => prev.filter((l) => l.key !== line.key))}
+                        className="p-2 text-gray-400 hover:text-red-600"
+                        title="Verwijder regel"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <p className="text-[10px] text-gray-500">
+                  Kosten per regel: aantal stuks × hoeveelheid per stuk × kostprijs (uit database, niet zichtbaar hier).
+                </p>
+              </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {([
                   ['quantity', 'Aantal', '1'],
-                  ['length_mm', 'Lengte (mm)', '1'],
-                  ['width_mm', 'Breedte (mm)', '1'],
-                  ['height_mm', 'Hoogte (mm)', '1'],
-                  ['wood_volume_m3', 'Houtvolume (m³)', '0.001'],
-                  ['wood_cost_per_m3', 'Houtkost / m³ (€)', '0.01'],
                   ['labor_minutes_per_unit', 'Arbeid min/stuk', '0.1'],
                   ['labor_cost_per_hour', 'Arbeidskost / uur (€)', '0.01'],
-                  ['extra_material_cost_per_unit', 'Extra mat./stuk (€)', '0.01'],
                   ['transport_cost', 'Transport (€)', '0.01'],
                   ['overhead_percentage', 'Overhead %', '0.1'],
                   ['margin_percentage', 'Marge %', '0.1'],
@@ -252,7 +385,7 @@ export default function PricingCalculatorPage() {
                 <button
                   type="button"
                   onClick={() => void handleCalculate()}
-                  disabled={calculating || !isPallet}
+                  disabled={calculating || !isPallet || !form.wood_material_id}
                   className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
                 >
                   {calculating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calculator className="w-4 h-4" />}
@@ -275,12 +408,15 @@ export default function PricingCalculatorPage() {
                 <PricingResultCard result={result} />
               ) : (
                 <div className="rounded-xl border border-dashed border-gray-200 p-12 text-center text-gray-400 text-sm">
-                  Vul de gegevens in en klik op &quot;Bereken prijs&quot;. De berekening gebeurt op de server.
+                  Kies houtsoort en materialen, dan &quot;Bereken prijs&quot; op de server.
                 </div>
               )}
               {result && (
                 <p className="mt-3 text-xs text-gray-400 text-center">
-                  Preview: {formatEuro(result.pricePerUnit)} / stuk — definitieve prijs na opslaan via API
+                  {result.meta?.wood_volume_m3_per_pallet != null && (
+                    <>Volume: {result.meta.wood_volume_m3_per_pallet} m³/pallet · </>
+                  )}
+                  {formatEuro(result.pricePerUnit)} / stuk
                 </p>
               )}
             </div>

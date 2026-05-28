@@ -43,10 +43,30 @@ export async function fetchPlants() {
   return res.json() as Promise<PricingMasterOption[]>
 }
 
-export async function calculatePriceApi(productTypeCode: string, input: Record<string, unknown>) {
+export interface PricingMaterialOption {
+  id: string
+  material_code: string
+  name: string
+  unit: string
+  category: 'houtsoort' | 'extra' | 'overig'
+}
+
+export async function fetchMaterials(plantId: string, category?: 'houtsoort' | 'extra') {
+  const params = new URLSearchParams({ plant_id: plantId })
+  if (category) params.set('category', category)
+  const res = await pricingFetch(`/api/pricing/materials?${params}`)
+  if (!res.ok) throw new Error((await res.json()).error ?? 'Laden mislukt')
+  return res.json() as Promise<PricingMaterialOption[]>
+}
+
+export async function calculatePriceApi(
+  productTypeCode: string,
+  input: Record<string, unknown>,
+  plantId?: string,
+) {
   const res = await pricingFetch('/api/pricing/calculate', {
     method: 'POST',
-    body: JSON.stringify({ product_type_code: productTypeCode, input }),
+    body: JSON.stringify({ product_type_code: productTypeCode, input, plant_id: plantId }),
   })
   const data = await res.json()
   if (!res.ok) throw new Error(data.error ?? 'Berekening mislukt')

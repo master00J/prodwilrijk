@@ -51,6 +51,40 @@ export default function PricingSimulationDetailPage() {
 
             <PricingResultCard result={row.result_data} />
 
+            {row.result_data.meta?.components && row.result_data.meta.components.length > 0 && (
+              <div className="rounded-xl border border-amber-100 bg-amber-50/50 p-4">
+                <h2 className="font-semibold text-gray-800 mb-2 text-sm">Maatvoering onderdelen</h2>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-gray-500 border-b">
+                      <th className="py-1">Onderdeel</th>
+                      <th className="py-1">Stuks</th>
+                      <th className="py-1">m³/pallet</th>
+                      <th className="py-1">Houtsoort</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {row.result_data.meta.components.map((c) => (
+                      <tr key={c.key} className="border-b border-amber-100/80">
+                        <td className="py-1.5">{c.label}</td>
+                        <td className="py-1.5">{c.count}</td>
+                        <td className="py-1.5 tabular-nums">{c.volume_m3_per_pallet?.toFixed(4)}</td>
+                        <td className="py-1.5">{c.wood_type ?? '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {row.result_data.meta.wood_volume_m3_per_pallet != null && (
+                  <p className="text-xs text-gray-600 mt-2">
+                    Totaal hout: {row.result_data.meta.wood_volume_m3_per_pallet} m³/pallet
+                    {row.result_data.meta.wood_volume_m3_total != null && (
+                      <> · {row.result_data.meta.wood_volume_m3_total} m³ order</>
+                    )}
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
               <h2 className="font-semibold text-gray-800 mb-3">Invoerdata</h2>
               <pre className="text-xs bg-gray-50 rounded-lg p-4 overflow-auto max-h-64">
