@@ -1,5 +1,5 @@
 import { calculatePrice } from '@/lib/pricing-engine'
-import type { PricingResult } from '@/lib/pricing-engine/types'
+import type { PricingCalculatorInput, PricingResult } from '@/lib/pricing-engine/types'
 import { resolvePalletMaterials } from '@/lib/pricing/resolve-materials'
 
 /**
@@ -20,8 +20,8 @@ export async function calculatePricingRequest(
       extra_materials: input.extra_materials as Array<{ material_id: string; quantity_per_unit: number }> | undefined,
     })
 
-    return calculatePrice(code, input, resolved)
+    return calculatePrice(code, input as PricingCalculatorInput, resolved)
   }
 
-  return calculatePrice(productTypeCode, input)
+  return calculatePrice(productTypeCode, input as PricingCalculatorInput)
 }

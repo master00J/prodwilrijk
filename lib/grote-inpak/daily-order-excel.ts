@@ -4,35 +4,20 @@ import { normalizeKistnummer } from '@/lib/utils/erp-code-normalizer'
 
 const thin = { style: 'thin' as const }
 const border = { top: thin, left: thin, bottom: thin, right: thin }
-const STATUS_COLORS: Record<string, string> = {
-  'Productie aanmaken en inleggen': 'FFFF0000',
-  'In productie leggen':             'FFFF6600',
-  'In productie Wilrijk':            'FFB4D6E8',
-  'In productie Genk':               'FFB4D6E8',
-  'Gedekt':                          'FFD6E4F0',
-  'Laag':                             'FFFFFF00',
-  'Ok':                               'FF92D050',
-}
-const STATUS_FONT_WHITE = new Set(['Productie aanmaken en inleggen'])
 
-function mapStatusForDisplay(status: string, inProductie: number): string {
-  if (status === 'Vol') return 'Ok'
-  if (status === 'Leeg' || status === 'Productie aanmaken')
-    return inProductie > 0 ? 'In productie leggen' : 'Productie aanmaken en inleggen'
-  return status || ''
-}
+const DAILY_ORDER_UNITS_NOTE = 'Alles is in stuks en niet in kanbans'
 
 const headersC = [
   'Prioriteit', 'Kisttype', 'Prod.locatie', 'Max voorraad', 'Stock in rek', 'Stock Genk', 'Stock Wilrijk',
   'Bouwpakket', 'BP stock Genk', 'BP stock Wilrijk', 'BP stock WLB', 'BP stock totaal',
   'Prod. Genk', 'Prod. Wilrijk', 'Prod. Willebroek', 'In transfer', 'Op PILS',
-  'Productie nog aanmaken', 'Effectief te produceren', 'Einddatum productie', 'Status',
+  'Productieorder nog aanmaken', 'Effectief te produceren', 'Einddatum productie',
 ]
 const headersK = [
   'Prioriteit', 'Kisttype', 'BC FP', 'Prod.locatie', 'Stock Genk', 'Stock Wilrijk', 'Stock Willebroek',
   'Bouwpakket', 'BP stock Genk', 'BP stock Wilrijk', 'BP stock WLB', 'BP stock totaal',
   'Prod. Genk', 'Prod. Wilrijk', 'Prod. Willebroek', 'In transfer', 'Op PILS',
-  'Productie nog aanmaken', 'Effectief te produceren', 'Einddatum productie', 'Status', 'Info',
+  'Productieorder nog aanmaken', 'Effectief te produceren', 'Einddatum productie', 'Info',
 ]
 
 // Bereken hoeveel stuks er nog een nieuwe productie-order voor aangemaakt moet worden
@@ -61,16 +46,23 @@ function addDailyOrderSheet(
     ? [
         { width: 10 }, { width: 12 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 13 }, { width: 14 },
         { width: 14 }, { width: 11 }, { width: 12 }, { width: 11 }, { width: 12 },
-        { width: 11 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 10 }, { width: 22 }, { width: 22 }, { width: 24 }, { width: 16 }, { width: 28 },
+        { width: 11 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 10 }, { width: 24 }, { width: 22 }, { width: 24 }, { width: 28 },
       ]
     : [
         { width: 10 }, { width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 13 },
         { width: 14 }, { width: 11 }, { width: 12 }, { width: 11 }, { width: 12 },
-        { width: 11 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 12 }, { width: 22 }, { width: 22 }, { width: 24 }, { width: 16 },
+        { width: 11 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 12 }, { width: 24 }, { width: 22 }, { width: 24 },
       ]
 
-  const titleRow = ws.addRow([`${titleLabel} — ${today}`])
+  const unitsNoteRow = ws.addRow([DAILY_ORDER_UNITS_NOTE])
   ws.mergeCells(1, 1, 1, numCols)
+  unitsNoteRow.getCell(1).font = { bold: true, size: 11, color: { argb: 'FF1F3864' } }
+  unitsNoteRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF2CC' } }
+  unitsNoteRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' }
+  unitsNoteRow.height = 22
+
+  const titleRow = ws.addRow([`${titleLabel} — ${today}`])
+  ws.mergeCells(2, 1, 2, numCols)
   titleRow.getCell(1).font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } }
   titleRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } }
   titleRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' }
@@ -106,7 +98,6 @@ function addDailyOrderSheet(
   }
 
   const rowValuesC = (row: any, i: number) => {
-    const status = mapStatusForDisplay(row.status || '', row.in_productie ?? 0)
     const effectief = row.bestel_aantal ?? row.tekort ?? 0
     const nogAanmaken = computeNogAanmaken(row, effectief)
     const einddatum = lookupEinddatum(row.case_type)
@@ -117,11 +108,10 @@ function addDailyOrderSheet(
       row.bouwpakket_stock_genk ?? 0, row.bouwpakket_stock_wilrijk ?? 0, row.bouwpakket_stock_willebroek ?? 0,
       row.bouwpakket_stock_totaal ?? 0,
       row.in_productie_genk ?? 0, row.in_productie_wilrijk ?? 0, row.in_productie_willebroek ?? 0,
-      row.in_transfer ?? 0, row.op_pils ?? 0, nogAanmaken, effectief, einddatum, status,
+      row.in_transfer ?? 0, row.op_pils ?? 0, nogAanmaken, effectief, einddatum,
     ]
   }
   const rowValuesK = (row: any, i: number) => {
-    const status = mapStatusForDisplay(row.status || '', row.in_productie ?? 0)
     const effectief = row.tekort ?? 0
     const nogAanmaken = computeNogAanmaken(row, effectief)
     const einddatum = lookupEinddatum(row.case_type)
@@ -135,7 +125,7 @@ function addDailyOrderSheet(
       row.bouwpakket_stock_genk ?? 0, row.bouwpakket_stock_wilrijk ?? 0, row.bouwpakket_stock_willebroek ?? 0,
       row.bouwpakket_stock_totaal ?? 0,
       row.in_productie_genk ?? 0, row.in_productie_wilrijk ?? 0, row.in_productie_willebroek ?? 0,
-      row.in_transfer ?? 0, row.op_pils ?? 0, nogAanmaken, effectief, einddatum, status,
+      row.in_transfer ?? 0, row.op_pils ?? 0, nogAanmaken, effectief, einddatum,
       row.info || '',
     ]
   }
@@ -155,9 +145,7 @@ function addDailyOrderSheet(
     const colNogAanmaken = 18
     const colEffectief = 19
     const colEinddatum = 20
-    const colStatus = 21
-
-    const colInfo = variant === 'k' ? 22 : 0
+    const colInfo = variant === 'k' ? 21 : 0
     dRow.eachCell((cell, col) => {
       const isTextCol =
         variant === 'k'
@@ -198,14 +186,6 @@ function addDailyOrderSheet(
       }
       if (col === colBpCode && row.bouwpakket_code) {
         cell.font = { bold: true, color: { argb: 'FF1F497D' } }
-      }
-      if (col === colStatus) {
-        const displayStatus = mapStatusForDisplay(row.status || '', row.in_productie ?? 0)
-        const statusColor = STATUS_COLORS[displayStatus]
-        if (statusColor) {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: statusColor } }
-          cell.font = { bold: true, color: { argb: STATUS_FONT_WHITE.has(displayStatus) ? 'FFFFFFFF' : 'FF000000' } }
-        }
       }
       if (col === colEffectief) {
         const effectief = variant === 'c' ? (row.bestel_aantal ?? row.tekort ?? 0) : (row.tekort ?? 0)
@@ -260,9 +240,9 @@ function addDailyOrderSheet(
     {
       state: 'frozen',
       xSplit: 4,
-      ySplit: 3,
-      topLeftCell: 'E4',
-      activeCell: 'E4',
+      ySplit: 4,
+      topLeftCell: 'E5',
+      activeCell: 'E5',
     },
   ]
 }
