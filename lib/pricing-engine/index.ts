@@ -1,28 +1,27 @@
 import { calculatorNotImplemented } from '@/lib/pricing-engine/stub-calculator'
-import { calculatePalletPrice } from '@/lib/pricing-engine/pallet-calculator'
-import type { PalletPricingInput, PricingCalculatorInput, PricingResult } from '@/lib/pricing-engine/types'
-import type { ResolvedPalletMaterials } from '@/lib/pricing/resolve-materials'
+import { hasProductTemplate } from '@/lib/pricing-engine/product-templates'
+import type { PricingCalculatorInput, PricingResult } from '@/lib/pricing-engine/types'
 
-export type { PalletPricingInput, PricingResult, PricingCalculatorInput }
+export type { PalletPricingInput, PricingResult, PricingCalculatorInput } from '@/lib/pricing-engine/types'
+export { calculateProductPrice, componentQuantity } from '@/lib/pricing-engine/component-engine'
+export type { ComponentInput, GenericPricingInput, ResolvedProductMaterials } from '@/lib/pricing-engine/component-engine'
+export { getTemplate, hasProductTemplate, PRODUCT_TEMPLATES, emptyComponentsForTemplate } from '@/lib/pricing-engine/product-templates'
 
 /**
- * Centrale pricing-engine: kiest calculator op product_type_code.
- * Voor PALLET: optioneel resolved masterdata (houtsoort + extra materialen).
+ * Directe calculator-aanroep zonder masterdata-resolve.
+ * Template-producten (PALLET, CRATE, CARTON) moeten via calculatePricingRequest.
  */
 export function calculatePrice(
   productTypeCode: string,
   input: PricingCalculatorInput,
-  resolvedMaterials?: ResolvedPalletMaterials,
 ): PricingResult {
   const code = productTypeCode.toUpperCase().trim()
 
+  if (hasProductTemplate(code)) {
+    throw new Error(`${code}: gebruik calculatePricingRequest (masterdata vereist)`)
+  }
+
   switch (code) {
-    case 'PALLET':
-      return calculatePalletPrice(input as PalletPricingInput, resolvedMaterials)
-    case 'CRATE':
-      return calculatorNotImplemented('CRATE')
-    case 'CARTON':
-      return calculatorNotImplemented('CARTON')
     case 'COMBI':
       return calculatorNotImplemented('COMBI')
     case 'CUSTOM':

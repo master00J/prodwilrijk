@@ -48,7 +48,7 @@ export interface PricingMaterialOption {
   material_code: string
   name: string
   unit: string
-  category: 'houtsoort' | 'extra' | 'overig'
+  category: 'houtsoort' | 'extra' | 'overig' | 'plaat'
 }
 
 export async function fetchMaterials(plantId: string, category?: 'houtsoort' | 'extra') {
