@@ -1,6 +1,83 @@
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { sanitizePostgrestOrValue } from '@/lib/api/postgrest-filter'
 import { calculateWorkedSeconds } from '@/lib/utils/time'
 import { calculateProportionFactor, groupLogsByEmployee } from '@/lib/utils/overlap-time'
+
+const PRODUCTION_LINE_SELECT = `
+  id,
+  item_number,
+  description,
+  production_order_id,
+  production_orders (uploaded_at),
+  production_order_components (
+    component_item_no,
+    component_unit,
+    component_length,
+    component_width,
+    component_thickness
+  )
+`
+
+const OR_FILTER_CHUNK = 10
+
+function escapeIlikePattern(value: string): string {
+  return String(value).replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
+}
+
+async function fetchProductionLinesByDescriptionPatterns(
+  itemNumbers: string[],
+  buildOrPart: (safeItem: string) => string | null
+): Promise<any[]> {
+  const unique = [...new Set(itemNumbers.map((s) => String(s || '').trim()).filter(Boolean))]
+  if (unique.length === 0) return []
+
+  const byId = new Map<number, any>()
+  for (let i = 0; i < unique.length; i += OR_FILTER_CHUNK) {
+    const chunk = unique.slice(i, i + OR_FILTER_CHUNK)
+    const orParts = chunk
+      .map((item) => {
+        const safe = sanitizePostgrestOrValue(item, 80)
+        if (!safe || safe.length < 2) return null
+        return buildOrPart(escapeIlikePattern(safe))
+      })
+      .filter((part): part is string => Boolean(part))
+
+    if (orParts.length === 0) continue
+
+    const { data, error } = await supabaseAdmin
+      .from('production_order_lines')
+      .select(PRODUCTION_LINE_SELECT)
+      .or(orParts.join(','))
+
+    if (error) {
+      console.error('fetchProductionLinesByDescriptionPatterns:', error.message)
+      continue
+    }
+    ;(data || []).forEach((row: any) => {
+      if (row?.id != null) byId.set(Number(row.id), row)
+    })
+  }
+
+  return [...byId.values()]
+}
+
+async function fetchSalesOrdersForItems(itemNumbers: string[]): Promise<any[]> {
+  if (itemNumbers.length === 0) return []
+
+  const probe = await supabaseAdmin.from('sales_orders').select('unit_cost').limit(1)
+  const selectCols = probe.error
+    ? 'item_number, price, uploaded_at'
+    : 'item_number, price, unit_cost, uploaded_at'
+
+  return fetchAllWithBatchedIn<any>(itemNumbers, async (batch, from, to) => {
+    return await supabaseAdmin
+      .from('sales_orders')
+      .select(selectCols)
+      .in('item_number', batch)
+      .order('uploaded_at', { ascending: false })
+      .range(from, to)
+  })
+}
 
 export interface DailyStat {
   date: string
@@ -300,17 +377,7 @@ export async function fetchPrepackStats({
   let pricesMap: Record<string, number> = {}
   let salesUnitCostMap: Record<string, number> = {}
   if (uniqueItemNumbers.length > 0) {
-    const salesOrders = await fetchAllWithBatchedIn<any>(
-      uniqueItemNumbers,
-      async (batch, from, to) => {
-        return await supabaseAdmin
-          .from('sales_orders')
-          .select('item_number, price, unit_cost, uploaded_at')
-          .in('item_number', batch)
-          .order('uploaded_at', { ascending: false })
-          .range(from, to)
-      }
-    )
+    const salesOrders = await fetchSalesOrdersForItems(uniqueItemNumbers)
 
     if (salesOrders.length > 0) {
       // salesOrders is gesorteerd DESC op uploaded_at → eerste hit = meest recente prijs
@@ -338,22 +405,7 @@ export async function fetchPrepackStats({
       async (batch, from, to) => {
         return await supabaseAdmin
           .from('production_order_lines')
-          .select(
-            `
-              id,
-              item_number,
-              description,
-              production_order_id,
-              production_orders (uploaded_at),
-              production_order_components (
-                component_item_no,
-                component_unit,
-                component_length,
-                component_width,
-                component_thickness
-              )
-            `
-          )
+          .select(PRODUCTION_LINE_SELECT)
           .in('item_number', batch)
           .range(from, to)
       }
@@ -376,29 +428,10 @@ export async function fetchPrepackStats({
     )
     let fallbackLines: any[] = []
     if (unmatchedItemNumbers.length > 0) {
-      const bracketConditions = unmatchedItemNumbers
-        .map((item) => `description.ilike.%(${item})%`)
-        .join(',')
-      const { data: bracketData } = await supabaseAdmin
-        .from('production_order_lines')
-        .select(
-          `
-            id,
-            item_number,
-            description,
-            production_order_id,
-            production_orders (uploaded_at),
-            production_order_components (
-              component_item_no,
-              component_unit,
-              component_length,
-              component_width,
-              component_thickness
-            )
-          `
-        )
-        .or(bracketConditions)
-      fallbackLines = bracketData || []
+      fallbackLines = await fetchProductionLinesByDescriptionPatterns(
+        unmatchedItemNumbers,
+        (safeItem) => `description.ilike.%(${safeItem})%`
+      )
       const stillUnmatched = unmatchedItemNumbers.filter((u) => {
         const norm = normalizeItemNumber(u)
         if (!norm || norm.length < 2) return false
@@ -409,36 +442,15 @@ export async function fetchPrepackStats({
         return !inBracket
       })
       if (stillUnmatched.length > 0) {
-        const containsConditions = stillUnmatched
-          .filter((item) => String(item).length >= 2)
-          .map((item) => `description.ilike.%${String(item)}%`)
-          .join(',')
-        if (containsConditions) {
-          const { data: containsData } = await supabaseAdmin
-            .from('production_order_lines')
-            .select(
-              `
-                id,
-                item_number,
-                description,
-                production_order_id,
-                production_orders (uploaded_at),
-                production_order_components (
-                  component_item_no,
-                  component_unit,
-                  component_length,
-                  component_width,
-                  component_thickness
-                )
-              `
-            )
-            .or(containsConditions)
-          const byId = new Map((fallbackLines as any[]).map((l: any) => [l.id, l]))
-          ;(containsData || []).forEach((l: any) => {
-            if (!byId.has(l.id)) byId.set(l.id, l)
-          })
-          fallbackLines = Array.from(byId.values())
-        }
+        const containsLines = await fetchProductionLinesByDescriptionPatterns(
+          stillUnmatched,
+          (safeItem) => `description.ilike.%${safeItem}%`
+        )
+        const byId = new Map(fallbackLines.map((l: any) => [l.id, l]))
+        containsLines.forEach((l: any) => {
+          if (!byId.has(l.id)) byId.set(l.id, l)
+        })
+        fallbackLines = Array.from(byId.values())
       }
     }
     const allLines = [...(lines || []), ...fallbackLines]

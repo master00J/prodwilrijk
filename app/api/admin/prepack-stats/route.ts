@@ -17,9 +17,11 @@ export const GET = withAdmin(async (request, _user) => {
     })
 
     return NextResponse.json(data)
-  } catch {
+  } catch (error) {
+    console.error('prepack-stats error:', error)
+    const message = error instanceof Error ? error.message : 'Server error'
     return NextResponse.json(
-      { error: 'Server error' },
+      { error: 'Server error', message },
       { status: 500 }
     )
   }
