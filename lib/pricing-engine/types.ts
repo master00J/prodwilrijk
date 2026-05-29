@@ -16,6 +16,8 @@ export type {
 
 export interface PalletPricingInput {
   quantity: number
+  /** Generieke componenten (alternatief voor dimensions) */
+  components?: import('@/lib/pricing-engine/component-engine').ComponentInput[]
   /** Maatvoering per onderdeel (aanbevolen) */
   dimensions?: import('@/lib/pricing-engine/pallet-dimensions').PalletDimensionsInput
   /** Fallback: manueel totaal volume per pallet (m³) als geen dimensions */
