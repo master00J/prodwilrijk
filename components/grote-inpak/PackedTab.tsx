@@ -47,6 +47,7 @@ export default function PackedTab() {
     s5: 'MF-4536602',
     s9: 'MF-4536602',
     indus: 'MF-4581681',
+    indusSuffix: 'KC',
   })
   const [converting, setConverting] = useState(false)
   const [settingsSaving, setSettingsSaving] = useState(false)
@@ -131,6 +132,7 @@ export default function PackedTab() {
             s5: result.data.po_s5 || 'MF-4536602',
             s9: result.data.po_s9 || 'MF-4536602',
             indus: result.data.po_indus || 'MF-4581681',
+            indusSuffix: result.data.indus_suffix || 'KC',
           })
         }
       } catch (error) {
@@ -398,6 +400,15 @@ export default function PackedTab() {
     }
   }
 
+  const isIndusBatch = (batch: PackedReviewBatch) =>
+    batch.source_type === 'packed_n' ||
+    batch.source_type === 'packed_y' ||
+    batch.rows.some((row) => row.source_type === 'packed_n' || row.source_type === 'packed_y')
+
+  const toggleReviewRowIndusY = (batchId: number, rowId: number, isY: boolean) => {
+    updateReviewRow(batchId, rowId, 'source_type', isY ? 'packed_y' : 'packed_n')
+  }
+
   const updateReviewRow = (batchId: number, rowId: number, field: keyof PackedReviewRow, value: any) => {
     setReviewBatches((batches) =>
       batches.map((batch) => {
@@ -412,7 +423,7 @@ export default function PackedTab() {
     )
   }
 
-  const saveReviewBatch = async (batch: PackedReviewBatch) => {
+  const saveReviewBatch = async (batch: PackedReviewBatch, options?: { skipReload?: boolean }) => {
     setSavingReview(batch.id)
     try {
       const response = await fetch('/api/grote-inpak/packed-review', {
@@ -420,14 +431,17 @@ export default function PackedTab() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           batchId: batch.id,
-          rows: batch.rows,
+          rows: batch.rows.map(row => ({
+            ...row,
+            excluded: row.excluded === true,
+          })),
         }),
       })
       if (!response.ok) {
         const error = await response.json()
         throw new Error(error.error || 'Concept opslaan mislukt')
       }
-      await loadReviewBatches()
+      if (!options?.skipReload) await loadReviewBatches()
       return true
     } catch (error: any) {
       console.error('Error saving packed review batch:', error)
@@ -441,13 +455,25 @@ export default function PackedTab() {
   const exportReviewBatch = async (batch: PackedReviewBatch) => {
     setExportingReview(batch.id)
     try {
-      const saved = await saveReviewBatch(batch)
+      const activeRows = batch.rows.filter(row => row.excluded !== true)
+      if (activeRows.length === 0) {
+        alert('Geen actieve regels: vink minstens één regel aan bij Gebruik.')
+        return
+      }
+
+      const saved = await saveReviewBatch(batch, { skipReload: true })
       if (!saved) return
 
       const response = await fetch(`/api/grote-inpak/packed-review/${batch.id}/export`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({
+          rows: batch.rows.map(row => ({
+            ...row,
+            batch_id: batch.id,
+            excluded: row.excluded === true,
+          })),
+        }),
       })
       if (!response.ok) {
         const error = await response.json()
@@ -509,7 +535,9 @@ export default function PackedTab() {
             <div>
               <h3 className="text-lg font-semibold text-slate-800">Concept imports uit mailbox</h3>
               <p className="text-sm text-slate-500">
-                Controleer en pas PACKED-regels aan voordat je XML-bestanden maakt.
+                Uitgevinkt bij <strong>Gebruik</strong> komt niet in de XML. PACKED_N en PACKED_Y gaan samen in
+                één <strong>indus.xml</strong>; vink <strong>INDUS Y</strong> aan waar het suffix{' '}
+                {poNumbers.indusSuffix || 'KC'} op het itemnummer hoort.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -555,7 +583,15 @@ export default function PackedTab() {
                     <div>
                       <div className="font-semibold text-slate-800">{batch.source_file}</div>
                       <div className="text-xs text-slate-500">
-                        Type: {batch.source_type.toUpperCase()} · {batch.rows.length} regel(s) · geïmporteerd{' '}
+                        Type: {batch.source_type.toUpperCase()} · {batch.rows.length} regel(s)
+                        {isIndusBatch(batch) && (
+                          <>
+                            {' '}
+                            ·{' '}
+                            {batch.rows.filter((r) => r.source_type === 'packed_y' && !r.excluded).length}× Y
+                          </>
+                        )}{' '}
+                        · geïmporteerd{' '}
                         {batch.imported_at ? new Date(batch.imported_at).toLocaleString('nl-BE') : '-'}
                       </div>
                     </div>
@@ -581,7 +617,20 @@ export default function PackedTab() {
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-white">
                         <tr>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase">Gebruik</th>
+                          <th
+                            className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase"
+                            title="Uitgevinkt = regel komt niet in XML"
+                          >
+                            Gebruik
+                          </th>
+                          {isIndusBatch(batch) && (
+                            <th
+                              className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase"
+                              title={`INDUS Y: itemnummer krijgt suffix ${poNumbers.indusSuffix || 'KC'}`}
+                            >
+                              INDUS Y
+                            </th>
+                          )}
                           <th className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase">Case Label</th>
                           <th className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase">Serie</th>
                           <th className="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase">Case Type</th>
@@ -599,6 +648,23 @@ export default function PackedTab() {
                                 onChange={(e) => updateReviewRow(batch.id, row.id, 'excluded', !e.target.checked)}
                               />
                             </td>
+                            {isIndusBatch(batch) && (
+                              <td className="px-3 py-2 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={row.source_type === 'packed_y'}
+                                  disabled={row.excluded}
+                                  onChange={(e) =>
+                                    toggleReviewRowIndusY(batch.id, row.id, e.target.checked)
+                                  }
+                                  title={
+                                    row.source_type === 'packed_y'
+                                      ? `Y — suffix ${poNumbers.indusSuffix || 'KC'} op itemnummer`
+                                      : 'N — geen suffix'
+                                  }
+                                />
+                              </td>
+                            )}
                             <td className="px-3 py-2">
                               <input
                                 value={row.case_label || ''}

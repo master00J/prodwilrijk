@@ -21,6 +21,19 @@ export interface XmlFile {
   xml: string
 }
 
+/** Regel meenemen in XML-export (Gebruik uitgevinkt → excluded). */
+export function isRowIncludedInExport(row: PackedReviewRow): boolean {
+  return row.excluded !== true
+}
+
+export function batchHasIndusRows(rows: PackedReviewRow[]): boolean {
+  return rows.some(row => row.source_type === 'packed_n' || row.source_type === 'packed_y')
+}
+
+export function batchHasOilfreeRows(rows: PackedReviewRow[]): boolean {
+  return rows.some(row => row.source_type === 'packed')
+}
+
 const GROUP_VENDOR: Record<string, string> = {
   APF: '77774',
   S4: '77773',
@@ -35,6 +48,21 @@ export function getPackedSourceType(filename: string): PackedSourceType | null {
   if (/packed[\s_-]?y/.test(name)) return 'packed_y'
   if (/packed/.test(name)) return 'packed'
   return null
+}
+
+/** Bepaal type bij import: gecombineerde mailbox-bestanden zonder _N/_Y → INDUS (packed_n). */
+export function resolvePackedSourceTypeForImport(
+  filename: string,
+  buffer: Buffer | ArrayBuffer
+): PackedSourceType | null {
+  const fromName = getPackedSourceType(filename)
+  if (!fromName) return null
+  if (fromName === 'packed_n' || fromName === 'packed_y') return fromName
+
+  const oilfreeCount = parsePackedReviewRows(buffer, 'packed').length
+  const nyCount = parsePackedReviewRows(buffer, 'packed_n').length
+  if (nyCount > 0 && nyCount >= oilfreeCount) return 'packed_n'
+  return fromName
 }
 
 export function parsePackedReviewRows(buffer: Buffer | ArrayBuffer, sourceType: PackedSourceType): PackedReviewRow[] {
@@ -179,7 +207,7 @@ export function buildOilfreeXmlFiles(
   poNumbers: { apf: string; s4: string; s5: string; s9: string }
 ): XmlFile[] {
   const included = rows
-    .filter(row => !row.excluded)
+    .filter(isRowIncludedInExport)
     .filter(row => row.source_type === 'packed')
     .filter(row => !shouldExcludeOilfreeCaseType(row.case_type))
 
@@ -247,8 +275,9 @@ export function buildIndusXmlFile(
   purchaseOrder: string,
   itemSuffix = ''
 ): XmlFile | null {
+  // N en Y in één indus.xml (zelfde klant/PO); Y-regels krijgen optioneel suffix op itemnummer.
   const included = rows
-    .filter(row => !row.excluded)
+    .filter(isRowIncludedInExport)
     .filter(row => row.source_type === 'packed_n' || row.source_type === 'packed_y')
     .filter(row => {
       const caseType = row.case_type.trim().toUpperCase()
@@ -267,8 +296,9 @@ export function buildIndusXmlFile(
 
   included.forEach((row) => {
     let itemNumber = row.case_type
-    if (itemSuffix && !itemNumber.toUpperCase().endsWith(itemSuffix.toUpperCase())) {
-      itemNumber = `${itemNumber}${itemSuffix}`
+    const suffixForRow = row.source_type === 'packed_y' ? itemSuffix : ''
+    if (suffixForRow && !itemNumber.toUpperCase().endsWith(suffixForRow.toUpperCase())) {
+      itemNumber = `${itemNumber}${suffixForRow}`
     }
     const dateStrXml = formatDateXml(toDate(row.packed_date))
     parts.push(

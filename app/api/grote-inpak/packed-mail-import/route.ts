@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 import {
   getPackedSourceType,
   parsePackedReviewRows,
+  resolvePackedSourceTypeForImport,
   type PackedSourceType,
 } from '@/lib/grote-inpak/packed-review'
 
@@ -428,10 +429,16 @@ async function runImport(request: NextRequest) {
         const messageId = headers['message-id'] || `imap-${id}`
         const subject = headers.subject || null
         const attachments = collectAttachments(rawMessage)
-          .map(attachment => ({
-            attachment,
-            sourceType: getPackedSourceType(attachment.filename) || getPackedSourceType(subject || ''),
-          }))
+          .map(attachment => {
+            const fromName =
+              getPackedSourceType(attachment.filename) || getPackedSourceType(subject || '')
+            const sourceType =
+              fromName && fromName !== 'packed'
+                ? fromName
+                : resolvePackedSourceTypeForImport(attachment.filename, attachment.content) ||
+                  fromName
+            return { attachment, sourceType }
+          })
 
         attachments
           .filter(entry => !entry.sourceType)

@@ -68,6 +68,10 @@ export async function PUT(request: NextRequest) {
       const id = Number(row.id)
       if (!id) continue
 
+      const sourceType = ['packed', 'packed_n', 'packed_y'].includes(row.source_type)
+        ? row.source_type
+        : 'packed_n'
+
       const { error } = await supabaseAdmin
         .from('grote_inpak_packed_import_rows')
         .update({
@@ -75,6 +79,7 @@ export async function PUT(request: NextRequest) {
           series: String(row.series || '').trim(),
           case_type: String(row.case_type || '').trim(),
           packed_date: String(row.packed_date || '').trim(),
+          source_type: sourceType,
           excluded: row.excluded === true,
           notes: row.notes ? String(row.notes) : null,
         })
