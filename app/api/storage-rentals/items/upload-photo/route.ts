@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { withAdmin } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 
 /** POST: Upload photo for storage rental item. Body: formData with itemId, category ('bare'|'verpakt'), photo(s) */
-export async function POST(request: NextRequest) {
+export const POST = withAdmin(async (request: NextRequest) => {
   try {
     const formData = await request.formData()
     const itemId = formData.get('itemId')
@@ -96,4 +97,4 @@ export async function POST(request: NextRequest) {
     console.error('Upload error:', error)
     return NextResponse.json({ error: 'Interne fout' }, { status: 500 })
   }
-}
+})

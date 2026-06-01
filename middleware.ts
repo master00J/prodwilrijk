@@ -48,6 +48,17 @@ function isTvPublicReadRoute(pathname: string, method: string): boolean {
   )
 }
 
+/** TV-token vereist wanneer TV_DISPLAY_SECRET gezet is (read + heartbeat). */
+function needsTvDisplayToken(pathname: string, method: string): boolean {
+  if (!process.env.TV_DISPLAY_SECRET) return false
+  if (isTvPublicReadRoute(pathname, method)) return true
+  return (
+    method === 'POST' &&
+    pathname.startsWith('/api/tv-screens') &&
+    pathname.includes('/heartbeat')
+  )
+}
+
 function isPublicRoute(pathname: string, method: string): boolean {
   if (pathname === '/api/auth/login' && method === 'POST') return true
   if (pathname === '/api/auth/signup' && method === 'POST') return true
@@ -175,7 +186,7 @@ export async function middleware(req: NextRequest) {
 
     // Public routes: allow without auth, still apply rate limiting
     if (isPublic) {
-      if (isTvPublicReadRoute(pathname, req.method) && !isTvDisplayAuthorized(req)) {
+      if (needsTvDisplayToken(pathname, req.method) && !isTvDisplayAuthorized(req)) {
         const tvDenied = NextResponse.json(
           { error: 'TV-display token vereist' },
           { status: 401 }

@@ -2,7 +2,7 @@ import 'pdf-parse/worker'
 import { NextRequest, NextResponse } from 'next/server'
 import { PDFParse } from 'pdf-parse'
 import { supabaseAdmin } from '@/lib/supabase/server'
-import { requireAuth } from '@/lib/supabase/require-auth'
+import { withAdmin } from '@/lib/api/with-auth'
 import {
   matchEmployeeByName,
   parseProtimeTeamCalendarText,
@@ -23,10 +23,7 @@ async function extractPdfText(buffer: Buffer): Promise<string> {
   }
 }
 
-export async function POST(request: NextRequest) {
-  const auth = await requireAuth(request)
-  if (auth instanceof NextResponse) return auth
-
+export const POST = withAdmin(async (request: NextRequest) => {
   try {
     const formData = await request.formData()
     const file = formData.get('file') as File | null
@@ -215,4 +212,4 @@ export async function POST(request: NextRequest) {
     const msg = err instanceof Error ? err.message : 'Import mislukt'
     return NextResponse.json({ error: msg }, { status: 500 })
   }
-}
+})

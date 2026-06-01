@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { withAdmin } from '@/lib/api/with-auth'
 import {
   formatKistnummerForErpLink,
   normalizeErpCode,
@@ -148,7 +149,7 @@ export async function GET(request: NextRequest) {
 }
 
 // POST - Nieuw of bijwerken (zoekt bestaande rij op id én kist-varianten V/K)
-export async function POST(request: NextRequest) {
+async function upsertErpLink(request: NextRequest) {
   try {
     const body = await request.json()
     const { kistnummer, id: bodyId } = body
@@ -256,13 +257,11 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT - Zelfde logica als POST (backwards compatible)
-export async function PUT(request: NextRequest) {
-  return POST(request)
-}
+export const POST = withAdmin(upsertErpLink)
+export const PUT = withAdmin(upsertErpLink)
 
 // DELETE - Delete ERP LINK entry
-export async function DELETE(request: NextRequest) {
+async function deleteErpLink(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
@@ -295,4 +294,5 @@ export async function DELETE(request: NextRequest) {
   }
 }
 
+export const DELETE = withAdmin(deleteErpLink)
 

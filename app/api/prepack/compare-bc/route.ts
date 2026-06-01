@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { withAdmin } from '@/lib/api/with-auth'
+import { validateExcelUpload } from '@/lib/api/upload-limits'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -51,7 +53,7 @@ const countOccurrences = (values: string[]) => {
   return counts
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withAdmin(async (request: NextRequest) => {
   try {
     const formData = await request.formData()
     const bcNoCol = String(formData.get('bcNoCol') || 'B')
@@ -76,6 +78,10 @@ export async function POST(request: NextRequest) {
 
     const bcNumbers: string[] = []
     for (const file of files) {
+      const uploadError = validateExcelUpload(file)
+      if (uploadError) {
+        return NextResponse.json({ success: false, error: uploadError }, { status: 400 })
+      }
       const buffer = await file.arrayBuffer()
       const workbook = XLSX.read(buffer, { type: 'array' })
       const sheetName = bcSheet && workbook.Sheets[bcSheet] ? bcSheet : workbook.SheetNames[0]
@@ -189,4 +195,4 @@ export async function POST(request: NextRequest) {
     console.error('compare-bc error:', error)
     return NextResponse.json({ success: false, error: 'Serverfout bij vergelijken' }, { status: 500 })
   }
-}
+})

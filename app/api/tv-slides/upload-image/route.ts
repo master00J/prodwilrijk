@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { withAdmin } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,7 +13,7 @@ const ALLOWED_IMAGE_TYPES: Record<string, string> = {
   'image/gif': 'gif',
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withAdmin(async (request: NextRequest) => {
   try {
     const formData = await request.formData()
     const image = formData.get('image') as File | null
@@ -58,4 +59,4 @@ export async function POST(request: NextRequest) {
     console.error('Upload error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-}
+})

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { withAdmin } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withAdmin(async (request: NextRequest) => {
   try {
     const body = await request.json()
     const { kistnummer, erp_code, price, assembly_cost, material_cost, transport_cost } = body
@@ -90,5 +91,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
-
+})

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { withAdmin } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -43,7 +44,7 @@ interface IncomingRow {
 const VALID_LOCATIES = new Set<Locatie>(['Genk', 'Wilrijk', 'Willebroek'])
 const VALID_SOURCES = new Set<BcSource>(['legacy', 'bc36'])
 
-export async function POST(request: NextRequest) {
+export const POST = withAdmin(async (request: NextRequest) => {
   try {
     const contentType = request.headers.get('content-type') || ''
     if (!contentType.includes('application/json')) {
@@ -134,4 +135,4 @@ export async function POST(request: NextRequest) {
     console.error('Prod order upload error:', error)
     return NextResponse.json({ error: error.message || 'Upload mislukt' }, { status: 500 })
   }
-}
+})

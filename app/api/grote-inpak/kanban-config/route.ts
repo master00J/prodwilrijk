@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { normalizeKistnummer } from '@/lib/utils/erp-code-normalizer'
+import { withAdmin } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +26,7 @@ export async function GET() {
   }
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withAdmin(async (request: NextRequest) => {
   try {
     const body = await request.json()
     const { case_type, rek_sectie, rek_niveau, rek_kolom, productielocatie, stapel, posities, stapels_per_pos, verbruik_per_dag, prioriteit, notitie } = body
@@ -56,9 +57,9 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-}
+})
 
-export async function PATCH(request: NextRequest) {
+export const PATCH = withAdmin(async (request: NextRequest) => {
   try {
     const body = await request.json()
     const { id, ...updates } = body
@@ -76,9 +77,9 @@ export async function PATCH(request: NextRequest) {
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-}
+})
 
-export async function DELETE(request: NextRequest) {
+export const DELETE = withAdmin(async (request: NextRequest) => {
   try {
     const { searchParams } = request.nextUrl
     const id = searchParams.get('id')
@@ -94,4 +95,4 @@ export async function DELETE(request: NextRequest) {
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-}
+})

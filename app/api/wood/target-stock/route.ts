@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { withAdmin } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -32,8 +33,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Create new target stock entry
-export async function POST(request: NextRequest) {
+export const POST = withAdmin(async (request: NextRequest) => {
   try {
     const body = await request.json()
     const { houtsoort, dikte, breedte, target_packs, desired_length } = body
@@ -79,10 +79,9 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
-// PUT - Update target stock entry
-export async function PUT(request: NextRequest) {
+export const PUT = withAdmin(async (request: NextRequest) => {
   try {
     const body = await request.json()
     const { id, ...updates } = body
@@ -127,10 +126,9 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
-// DELETE - Delete target stock entry
-export async function DELETE(request: NextRequest) {
+export const DELETE = withAdmin(async (request: NextRequest) => {
   try {
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
@@ -163,7 +161,5 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     )
   }
-}
-
-
+})
 

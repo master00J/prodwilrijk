@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { withAdmin } from '@/lib/api/with-auth'
+import { validateExcelUpload } from '@/lib/api/upload-limits'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -229,13 +231,13 @@ const parseLinesFromSheet = (rows: any[][], sourceSheet: string) => {
   return lines
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withAdmin(async (request: NextRequest) => {
   try {
     const formData = await request.formData()
     const file = formData.get('file') as File | null
-
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 })
+    const uploadError = validateExcelUpload(file)
+    if (uploadError || !file) {
+      return NextResponse.json({ error: uploadError || 'No file provided' }, { status: 400 })
     }
 
     const arrayBuffer = await file.arrayBuffer()
@@ -315,4 +317,4 @@ export async function POST(request: NextRequest) {
     console.error('Unexpected error importing WMS project:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

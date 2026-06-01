@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
-import { requireAuth } from '@/lib/supabase/require-auth'
+import { withAdmin } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,10 +9,7 @@ export const dynamic = 'force-dynamic'
  * that don't have a status for the given date yet.
  * Returns all statuses for the date afterwards.
  */
-export async function POST(request: NextRequest) {
-  const auth = await requireAuth(request)
-  if (auth instanceof NextResponse) return auth
-
+export const POST = withAdmin(async (request: NextRequest) => {
   const body = await request.json()
   const { date } = body
 
@@ -63,4 +60,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json(data)
-}
+})

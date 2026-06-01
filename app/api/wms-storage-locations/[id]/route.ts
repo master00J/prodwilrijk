@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { withAdmin } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const PATCH = withAdmin(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   try {
     const locationId = Number((await params).id)
     if (!Number.isFinite(locationId)) {
@@ -38,9 +39,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     console.error('Unexpected error updating storage location:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
-export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const DELETE = withAdmin(async (_: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   try {
     const locationId = Number((await params).id)
     if (!Number.isFinite(locationId)) {
@@ -62,6 +63,4 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id:
     console.error('Unexpected error deleting storage location:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
-
-export {}
+})

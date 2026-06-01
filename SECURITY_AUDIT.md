@@ -10,6 +10,8 @@ Datum: 2026-04-17 (opvolging security-hardening: 2026-05-27)
 - `employees` GET achter `withAuth`; `wms-packages` POST achter `withAdmin`.
 - xlsx via SheetJS CDN 0.20.3 in `package.json` (na `npm install` lockfile bijwerken).
 - `.env.example` + GitHub Actions CI (lint, type-check).
+- `withAdmin` op masterdata-mutaties (storage-rentals, material-prices, erp-link, WMS, airtec-prijzen, kanban-config, training/machines/competencies, enz.).
+- TV-heartbeat valt onder optionele `TV_DISPLAY_SECRET`.
 
 Scope:
 - Next.js 14 App Router applicatie.

@@ -220,7 +220,10 @@ export function TvDisplay({ screenSlug }: { screenSlug?: string }) {
   const sendHeartbeat = useCallback(async () => {
     if (!screenSlug) return
     try {
-      const res = await fetch(`/api/tv-screens/${screenSlug}/heartbeat`, { method: 'POST' })
+      const res = await fetch(
+        withTvDisplayToken(`/api/tv-screens/${screenSlug}/heartbeat`),
+        { method: 'POST' }
+      )
       const json = await res.json()
       if (json.screen) {
         setScreenInfo(json.screen)

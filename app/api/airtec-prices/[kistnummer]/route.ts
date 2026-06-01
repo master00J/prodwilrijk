@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { withAdmin } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 
-export async function PUT(
+export const PUT = withAdmin(async (
   request: NextRequest,
   { params }: { params: Promise<{ kistnummer: string }> }
-) {
+) => {
   try {
     const { kistnummer: kistnummerParam } = await params
     const kistnummer = decodeURIComponent(kistnummerParam)
@@ -72,12 +73,12 @@ export async function PUT(
       { status: 500 }
     )
   }
-}
+})
 
-export async function DELETE(
+export const DELETE = withAdmin(async (
   request: NextRequest,
   { params }: { params: Promise<{ kistnummer: string }> }
-) {
+) => {
   try {
     const { kistnummer: kistnummerParam } = await params
     const kistnummer = decodeURIComponent(kistnummerParam)
@@ -106,5 +107,4 @@ export async function DELETE(
       { status: 500 }
     )
   }
-}
-
+})

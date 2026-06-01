@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { sanitizePostgrestOrValue } from '@/lib/api/postgrest-filter'
+import { withAdmin, withAuth } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -72,7 +73,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request: NextRequest) => {
   try {
     const body = await request.json()
     const { ids } = body
@@ -169,9 +170,9 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
-export async function DELETE(request: NextRequest) {
+export const DELETE = withAdmin(async (request: NextRequest) => {
   try {
     const body = await request.json()
     const { ids } = body
@@ -208,5 +209,4 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     )
   }
-}
-
+})

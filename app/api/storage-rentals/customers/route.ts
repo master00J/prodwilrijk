@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { withAdmin } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withAdmin(async (request: NextRequest) => {
   try {
     const body = await request.json()
     const { name, notes, active } = body || {}
@@ -96,9 +97,9 @@ export async function PUT(request: NextRequest) {
     console.error('Unexpected error updating storage rental customer:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
-export async function DELETE(request: NextRequest) {
+export const DELETE = withAdmin(async (request: NextRequest) => {
   try {
     const body = await request.json()
     const { id } = body || {}
@@ -122,4 +123,4 @@ export async function DELETE(request: NextRequest) {
     console.error('Unexpected error deleting storage rental customer:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
