@@ -113,6 +113,9 @@ function getRateLimitConfig(pathname: string): RateLimitConfig {
   if (pathname.startsWith('/api/ai/chat')) {
     return RATE_LIMITS.ai_chat
   }
+  if (pathname.startsWith('/api/personal-assistant/')) {
+    return RATE_LIMITS.ai_chat
+  }
   if (pathname.includes('/scan-label') || pathname.includes('/parse-pdf')) {
     return RATE_LIMITS.ai_scan
   }
