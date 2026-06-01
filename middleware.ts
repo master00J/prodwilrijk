@@ -53,6 +53,20 @@ const PUBLIC_PAGES = ['/login', '/signup', '/pending-verification']
 
 // User status cache is in lib/api/user-status-cache.ts (shared with admin routes for invalidation)
 
+const USER_INJECTED_HEADERS = [
+  'x-user-id',
+  'x-user-email',
+  'x-user-role',
+  'x-user-sites',
+] as const
+
+/** Verwijder client-gespoofde x-user-* headers vóór middleware ze zet. */
+function stripClientUserHeaders(headers: Headers): void {
+  for (const name of USER_INJECTED_HEADERS) {
+    headers.delete(name)
+  }
+}
+
 function getClientIp(req: NextRequest): string {
   return (
     req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
@@ -139,10 +153,7 @@ export async function middleware(req: NextRequest) {
     // Public routes: allow without auth, still apply rate limiting
     if (isPublic) {
       const requestHeaders = new Headers(req.headers)
-      requestHeaders.delete('x-user-id')
-      requestHeaders.delete('x-user-email')
-      requestHeaders.delete('x-user-role')
-      requestHeaders.delete('x-user-sites')
+      stripClientUserHeaders(requestHeaders)
       const pubResponse = NextResponse.next({ request: { headers: requestHeaders } })
       pubResponse.headers.set('X-RateLimit-Remaining', String(rateResult.remaining))
       return addCorsHeaders(pubResponse, origin)
@@ -212,6 +223,7 @@ export async function middleware(req: NextRequest) {
 
     // Inject user info into request headers for route handlers
     const requestHeaders = new Headers(req.headers)
+    stripClientUserHeaders(requestHeaders)
     requestHeaders.set('x-user-id', data.user.id)
     requestHeaders.set('x-user-email', data.user.email || '')
     requestHeaders.set('x-user-role', userStatus.role)
