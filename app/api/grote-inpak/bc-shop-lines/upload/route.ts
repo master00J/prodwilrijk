@@ -20,11 +20,11 @@ export const POST = withAuth(async (request: NextRequest) => {
     const formData = await request.formData()
     const file = formData.get('file') as File | null
     const uploadError = validateExcelUpload(file)
-    if (uploadError) {
-      return NextResponse.json({ error: uploadError }, { status: 400 })
+    if (uploadError || !file) {
+      return NextResponse.json({ error: uploadError || 'Geen bestand ontvangen' }, { status: 400 })
     }
 
-    const buffer = Buffer.from(await file!.arrayBuffer())
+    const buffer = Buffer.from(await file.arrayBuffer())
     const workbook = XLSX.read(buffer, { type: 'buffer' })
     const parsed = parseBcShopLinesExcel(workbook)
 
