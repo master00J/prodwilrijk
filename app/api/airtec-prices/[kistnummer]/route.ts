@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic'
 
 export const PUT = withAdmin(async (
   request: NextRequest,
+  _user,
   { params }: { params: Promise<{ kistnummer: string }> }
 ) => {
   try {
@@ -77,6 +78,7 @@ export const PUT = withAdmin(async (
 
 export const DELETE = withAdmin(async (
   request: NextRequest,
+  _user,
   { params }: { params: Promise<{ kistnummer: string }> }
 ) => {
   try {

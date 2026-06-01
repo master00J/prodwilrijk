@@ -8,6 +8,7 @@ export const revalidate = 0
 // PUT /api/cnh/templates/[id] - Update template
 export const PUT = withAdmin(async (
   request: NextRequest,
+  _user,
   { params }: { params: Promise<{ id: string }> }
 ) => {
   try {
@@ -73,6 +74,7 @@ export const PUT = withAdmin(async (
 // DELETE /api/cnh/templates/[id] - Delete template
 export const DELETE = withAdmin(async (
   request: NextRequest,
+  _user,
   { params }: { params: Promise<{ id: string }> }
 ) => {
   try {

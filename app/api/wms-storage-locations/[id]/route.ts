@@ -5,7 +5,7 @@ import { withAdmin } from '@/lib/api/with-auth'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export const PATCH = withAdmin(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+export const PATCH = withAdmin(async (request: NextRequest, _user, { params }: { params: Promise<{ id: string }> }) => {
   try {
     const locationId = Number((await params).id)
     if (!Number.isFinite(locationId)) {
@@ -41,7 +41,7 @@ export const PATCH = withAdmin(async (request: NextRequest, { params }: { params
   }
 })
 
-export const DELETE = withAdmin(async (_: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+export const DELETE = withAdmin(async (_: NextRequest, _user, { params }: { params: Promise<{ id: string }> }) => {
   try {
     const locationId = Number((await params).id)
     if (!Number.isFinite(locationId)) {

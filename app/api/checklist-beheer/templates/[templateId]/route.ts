@@ -45,6 +45,7 @@ export async function GET(
 
 export const PUT = withAdmin(async (
   request: NextRequest,
+  _user,
   { params }: { params: Promise<{ templateId: string }> }
 ) => {
   try {
@@ -119,6 +120,7 @@ export const PUT = withAdmin(async (
 
 export const DELETE = withAdmin(async (
   _request: NextRequest,
+  _user,
   { params }: { params: Promise<{ templateId: string }> }
 ) => {
   try {
