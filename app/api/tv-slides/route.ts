@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { withAdmin } from '@/lib/api/with-auth'
+import { logAudit } from '@/lib/api/audit'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +19,7 @@ export async function GET() {
   }
 }
 
-export const POST = withAdmin(async (request: NextRequest) => {
+export const POST = withAdmin(async (request: NextRequest, user) => {
   try {
     const body = await request.json()
     const { type, title, content, sort_order, active } = body
@@ -40,13 +41,23 @@ export const POST = withAdmin(async (request: NextRequest) => {
       .single()
 
     if (error) throw error
+
+    logAudit({
+      user_id: user.id,
+      user_email: user.email,
+      action: 'slide_created',
+      resource_type: 'tv_slides',
+      resource_id: String(data.id),
+      details: { type, title: title || null },
+    })
+
     return NextResponse.json({ data })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 })
 
-export const PUT = withAdmin(async (request: NextRequest) => {
+export const PUT = withAdmin(async (request: NextRequest, user) => {
   try {
     const body = await request.json()
     const { id, ...updates } = body
@@ -63,13 +74,23 @@ export const PUT = withAdmin(async (request: NextRequest) => {
       .single()
 
     if (error) throw error
+
+    logAudit({
+      user_id: user.id,
+      user_email: user.email,
+      action: 'slide_updated',
+      resource_type: 'tv_slides',
+      resource_id: String(id),
+      details: { updated_fields: Object.keys(updates).filter(k => k !== 'updated_at') },
+    })
+
     return NextResponse.json({ data })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 })
 
-export const DELETE = withAdmin(async (request: NextRequest) => {
+export const DELETE = withAdmin(async (request: NextRequest, user) => {
   try {
     const { id } = await request.json()
     if (!id) return NextResponse.json({ error: 'ID ontbreekt' }, { status: 400 })
@@ -80,6 +101,15 @@ export const DELETE = withAdmin(async (request: NextRequest) => {
       .eq('id', id)
 
     if (error) throw error
+
+    logAudit({
+      user_id: user.id,
+      user_email: user.email,
+      action: 'slide_deleted',
+      resource_type: 'tv_slides',
+      resource_id: String(id),
+    })
+
     return NextResponse.json({ success: true })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { sanitizePostgrestOrValue } from '@/lib/api/postgrest-filter'
 import { withAdmin } from '@/lib/api/with-auth'
+import { auditUserFromHeaders, logAudit } from '@/lib/api/audit'
 import { consumeStageKistenForPackedPowertoolsItems } from '@/lib/prepack/stage-kisten-stock'
 
 export const dynamic = 'force-dynamic'
@@ -233,7 +234,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export const DELETE = withAdmin(async (request: NextRequest) => {
+export const DELETE = withAdmin(async (request: NextRequest, user) => {
   try {
     const body = await request.json()
     const { ids } = body
@@ -258,6 +259,14 @@ export const DELETE = withAdmin(async (request: NextRequest) => {
         { status: 500 }
       )
     }
+
+    logAudit({
+      user_id: user.id,
+      user_email: user.email,
+      action: 'items_deleted',
+      resource_type: 'items_to_pack',
+      details: { count: ids.length, ids },
+    })
 
     return NextResponse.json({
       success: true,

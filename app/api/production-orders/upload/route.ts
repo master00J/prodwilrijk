@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { withAdmin } from '@/lib/api/with-auth'
+import { logAudit } from '@/lib/api/audit'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,7 +13,7 @@ const chunkArray = <T,>(items: T[], size: number): T[][] => {
   return chunks
 }
 
-export const POST = withAdmin(async (request: NextRequest) => {
+export const POST = withAdmin(async (request: NextRequest, user) => {
   try {
     const body = await request.json()
     const { order, lines } = body
@@ -127,6 +128,19 @@ export const POST = withAdmin(async (request: NextRequest) => {
         }
       }
     }
+
+    logAudit({
+      user_id: user.id,
+      user_email: user.email,
+      action: 'order_uploaded',
+      resource_type: 'production_orders',
+      resource_id: createdOrder.order_number,
+      details: {
+        replaced: Boolean(existingOrder?.id),
+        line_count: insertedLines.length,
+        source_file_name: order.source_file_name || null,
+      },
+    })
 
     return NextResponse.json({
       success: true,

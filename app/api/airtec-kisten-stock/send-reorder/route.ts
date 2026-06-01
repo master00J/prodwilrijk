@@ -73,9 +73,12 @@ export const POST = withAuth(async (request, user) => {
       </div>
     `
 
+    const reorderTo =
+      process.env.KISTEN_REORDER_EMAIL_TO || 'prodwilrijk@foresco.eu'
+
     await transporter.sendMail({
       from,
-      to: 'prodwilrijk@foresco.eu',
+      to: reorderTo,
       subject: `Bestelling Stagekisten — ${today} (${totalItems} stuks)`,
       html,
     })
