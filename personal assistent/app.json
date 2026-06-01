@@ -22,7 +22,9 @@
         "INTERNET",
         "RECORD_AUDIO",
         "MODIFY_AUDIO_SETTINGS",
-        "BLUETOOTH_CONNECT"
+        "BLUETOOTH_CONNECT",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "plugins": [
@@ -35,8 +37,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "REPLACE_WITH_EAS_PROJECT_ID"
+        "projectId": "b9289d69-4585-4a88-b33c-8adb72e839ce"
       }
-    }
+    },
+    "owner": "versility"
   }
 }
