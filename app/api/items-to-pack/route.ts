@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { sanitizePostgrestOrValue } from '@/lib/api/postgrest-filter'
-import { withAdmin } from '@/lib/api/with-auth'
-import { auditUserFromHeaders, logAudit } from '@/lib/api/audit'
+import { withAdmin, withAuth } from '@/lib/api/with-auth'
+import { logAudit } from '@/lib/api/audit'
+import {
+  deleteItemsSchema,
+  isErrorResponse,
+  packItemsSchema,
+  validateBody,
+} from '@/lib/api/validation'
 import { consumeStageKistenForPackedPowertoolsItems } from '@/lib/prepack/stage-kisten-stock'
 
 export const dynamic = 'force-dynamic'
@@ -148,17 +154,11 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request: NextRequest, user) => {
   try {
-    const body = await request.json()
+    const body = await validateBody(request, packItemsSchema)
+    if (isErrorResponse(body)) return body
     const { ids, employeeId, employeeName } = body
-
-    if (!Array.isArray(ids) || ids.length === 0) {
-      return NextResponse.json(
-        { error: 'Invalid input. Expected array of IDs.' },
-        { status: 400 }
-      )
-    }
 
     // Get items to pack
     const { data: items, error: fetchError } = await supabaseAdmin
@@ -221,6 +221,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    logAudit({
+      user_id: user.id,
+      user_email: user.email,
+      action: 'items_confirmed',
+      resource_type: 'items_to_pack',
+      details: {
+        count: ids.length,
+        ids,
+        employee_id: employeeId ?? null,
+        employee_name: employeeName ?? null,
+      },
+    })
+
     return NextResponse.json({
       success: true,
       message: 'Items successfully packed',
@@ -232,19 +245,13 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 export const DELETE = withAdmin(async (request: NextRequest, user) => {
   try {
-    const body = await request.json()
+    const body = await validateBody(request, deleteItemsSchema)
+    if (isErrorResponse(body)) return body
     const { ids } = body
-
-    if (!Array.isArray(ids) || ids.length === 0) {
-      return NextResponse.json(
-        { error: 'Invalid input. Expected array of IDs.' },
-        { status: 400 }
-      )
-    }
 
     // Delete from items_to_pack (without moving to packed_items)
     const { error: deleteError } = await supabaseAdmin

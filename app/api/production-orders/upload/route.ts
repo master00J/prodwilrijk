@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { withAdmin } from '@/lib/api/with-auth'
 import { logAudit } from '@/lib/api/audit'
+import {
+  isErrorResponse,
+  productionOrderUploadSchema,
+  validateBody,
+} from '@/lib/api/validation'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,15 +20,9 @@ const chunkArray = <T,>(items: T[], size: number): T[][] => {
 
 export const POST = withAdmin(async (request: NextRequest, user) => {
   try {
-    const body = await request.json()
+    const body = await validateBody(request, productionOrderUploadSchema)
+    if (isErrorResponse(body)) return body
     const { order, lines } = body
-
-    if (!order?.order_number || !Array.isArray(lines) || lines.length === 0) {
-      return NextResponse.json(
-        { error: 'Ongeldige data. Order en lijnen zijn verplicht.' },
-        { status: 400 }
-      )
-    }
 
     // Replace existing order if it exists
     const { data: existingOrder } = await supabaseAdmin

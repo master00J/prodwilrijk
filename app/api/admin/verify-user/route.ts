@@ -3,25 +3,20 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 import { withAdmin } from '@/lib/api/with-auth'
 import { logAudit } from '@/lib/api/audit'
 import { invalidateCachedStatus } from '@/lib/api/user-status-cache'
+import { isErrorResponse, validateBody, verifyUserSchema } from '@/lib/api/validation'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export const POST = withAdmin(async (request, user) => {
   try {
-    const body = await request.json()
-    const { userId, verified = true } = body
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'User ID is required' },
-        { status: 400 }
-      )
-    }
+    const body = await validateBody(request, verifyUserSchema)
+    if (isErrorResponse(body)) return body
+    const { userId, verified } = body
 
     const { data, error } = await supabaseAdmin
       .from('user_roles')
-      .update({ verified: verified === true })
+      .update({ verified })
       .eq('user_id', userId)
       .select()
       .single()

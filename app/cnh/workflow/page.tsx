@@ -257,7 +257,11 @@ export default function CNHWorkflowPage() {
         
         // Client-side OCR for scanned PDFs
         const arrayBuffer = await pdfFile.arrayBuffer()
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+        const pdf = await pdfjsLib.getDocument({
+          data: arrayBuffer,
+          isEvalSupported: false,
+          useSystemFonts: true,
+        }).promise
         const numPages = pdf.numPages
 
         // Initialize Tesseract worker

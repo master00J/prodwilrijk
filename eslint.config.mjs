@@ -15,9 +15,9 @@ export default [
   ...nextTypescript,
   {
     rules: {
-      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-require-imports': 'off',
-      'prefer-const': 'off',
+      'prefer-const': 'warn',
       'react-hooks/capitalized-calls': 'off',
       'react-hooks/static-components': 'off',
       'react-hooks/use-memo': 'off',

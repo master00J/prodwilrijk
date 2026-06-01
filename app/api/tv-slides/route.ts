@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { withAdmin } from '@/lib/api/with-auth'
 import { logAudit } from '@/lib/api/audit'
+import {
+  isErrorResponse,
+  tvSlideCreateSchema,
+  tvSlideDeleteSchema,
+  tvSlideUpdateSchema,
+  validateBody,
+} from '@/lib/api/validation'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,12 +28,9 @@ export async function GET() {
 
 export const POST = withAdmin(async (request: NextRequest, user) => {
   try {
-    const body = await request.json()
+    const body = await validateBody(request, tvSlideCreateSchema)
+    if (isErrorResponse(body)) return body
     const { type, title, content, sort_order, active } = body
-
-    if (!type || !['werkorders', 'tekst', 'afbeelding', 'productieorders', 'inpakstatistiek', 'dagplanning', 'countdown', 'weer', 'priorities', 'transportplanning'].includes(type)) {
-      return NextResponse.json({ error: 'Ongeldig type' }, { status: 400 })
-    }
 
     const { data, error } = await supabaseAdmin
       .from('tv_slides')
@@ -59,12 +63,16 @@ export const POST = withAdmin(async (request: NextRequest, user) => {
 
 export const PUT = withAdmin(async (request: NextRequest, user) => {
   try {
-    const body = await request.json()
-    const { id, ...updates } = body
+    const body = await validateBody(request, tvSlideUpdateSchema)
+    if (isErrorResponse(body)) return body
+    const { id, type, title, content, sort_order, active } = body
 
-    if (!id) return NextResponse.json({ error: 'ID ontbreekt' }, { status: 400 })
-
-    updates.updated_at = new Date().toISOString()
+    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
+    if (type !== undefined) updates.type = type
+    if (title !== undefined) updates.title = title
+    if (content !== undefined) updates.content = content
+    if (sort_order !== undefined) updates.sort_order = sort_order
+    if (active !== undefined) updates.active = active
 
     const { data, error } = await supabaseAdmin
       .from('tv_slides')
@@ -92,8 +100,9 @@ export const PUT = withAdmin(async (request: NextRequest, user) => {
 
 export const DELETE = withAdmin(async (request: NextRequest, user) => {
   try {
-    const { id } = await request.json()
-    if (!id) return NextResponse.json({ error: 'ID ontbreekt' }, { status: 400 })
+    const body = await validateBody(request, tvSlideDeleteSchema)
+    if (isErrorResponse(body)) return body
+    const { id } = body
 
     const { error } = await supabaseAdmin
       .from('tv_slides')

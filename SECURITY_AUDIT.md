@@ -1,6 +1,15 @@
 # Security Audit - Prodwilrijk
 
-Datum: 2026-04-17
+Datum: 2026-04-17 (opvolging security-hardening: 2026-05-27)
+
+## Opvolging 2026-05-27
+
+- Next.js 16.2.6 (gepatcht t.o.v. CVE-2025-29927 / CVE-2025-66478).
+- Middleware: strip client `x-user-*` headers; optionele `TV_DISPLAY_SECRET` voor TV-read-API's.
+- Zod-validatie op o.a. items-to-pack, tv-slides mutaties, production-order upload, admin role/verify/reset.
+- `employees` GET achter `withAuth`; `wms-packages` POST achter `withAdmin`.
+- xlsx via SheetJS CDN 0.20.3 in `package.json` (na `npm install` lockfile bijwerken).
+- `.env.example` + GitHub Actions CI (lint, type-check).
 
 Scope:
 - Next.js 14 App Router applicatie.

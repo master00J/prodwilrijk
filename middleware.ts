@@ -25,6 +25,29 @@ const PUBLIC_API_ROUTES = [
   '/api/bc-mappings',
 ]
 
+/** Optioneel: zet TV_DISPLAY_SECRET om publieke TV-read-API's extra te beschermen. */
+function isTvDisplayAuthorized(req: NextRequest): boolean {
+  const secret = process.env.TV_DISPLAY_SECRET
+  if (!secret) return true
+  const token =
+    req.headers.get('x-tv-display-token') ||
+    req.nextUrl.searchParams.get('tv_token')
+  return token === secret
+}
+
+const TV_PUBLIC_PREFIXES = [
+  '/api/tv-slides/',
+  '/api/tv-screens',
+]
+
+function isTvPublicReadRoute(pathname: string, method: string): boolean {
+  if (method !== 'GET') return false
+  if (pathname === '/api/tv-slides') return true
+  return TV_PUBLIC_PREFIXES.some(
+    prefix => pathname === prefix || pathname.startsWith(prefix)
+  )
+}
+
 function isPublicRoute(pathname: string, method: string): boolean {
   if (pathname === '/api/auth/login' && method === 'POST') return true
   if (pathname === '/api/auth/signup' && method === 'POST') return true
@@ -152,6 +175,14 @@ export async function middleware(req: NextRequest) {
 
     // Public routes: allow without auth, still apply rate limiting
     if (isPublic) {
+      if (isTvPublicReadRoute(pathname, req.method) && !isTvDisplayAuthorized(req)) {
+        const tvDenied = NextResponse.json(
+          { error: 'TV-display token vereist' },
+          { status: 401 }
+        )
+        return addCorsHeaders(tvDenied, origin)
+      }
+
       const requestHeaders = new Headers(req.headers)
       stripClientUserHeaders(requestHeaders)
       const pubResponse = NextResponse.next({ request: { headers: requestHeaders } })

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { normalizeSites } from '@/lib/sites'
-import { withAdmin } from '@/lib/api/with-auth'
+import { withAdmin, withAuth } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request: NextRequest) => {
   try {
     const searchParams = request.nextUrl.searchParams
     const includeInactive = searchParams.get('include_inactive') === 'true'
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 export const POST = withAdmin(async (request: NextRequest) => {
   try {

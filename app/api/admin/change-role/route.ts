@@ -3,28 +3,16 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 import { withAdmin } from '@/lib/api/with-auth'
 import { logAudit } from '@/lib/api/audit'
 import { invalidateCachedStatus } from '@/lib/api/user-status-cache'
+import { changeRoleSchema, isErrorResponse, validateBody } from '@/lib/api/validation'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export const POST = withAdmin(async (request, user) => {
   try {
-    const body = await request.json()
+    const body = await validateBody(request, changeRoleSchema)
+    if (isErrorResponse(body)) return body
     const { userId, role } = body
-
-    if (!userId || !role) {
-      return NextResponse.json(
-        { error: 'User ID and role are required' },
-        { status: 400 }
-      )
-    }
-
-    if (!['user', 'admin'].includes(role)) {
-      return NextResponse.json(
-        { error: 'Invalid role' },
-        { status: 400 }
-      )
-    }
 
     const { data, error } = await supabaseAdmin
       .from('user_roles')

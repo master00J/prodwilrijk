@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { sanitizePostgrestOrValue } from '@/lib/api/postgrest-filter'
+import { isErrorResponse, parseSearchQuery } from '@/lib/api/validation'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -8,7 +9,10 @@ export const revalidate = 0
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const query = sanitizePostgrestOrValue(searchParams.get('q'))
+    const parsed = parseSearchQuery(searchParams)
+    if (isErrorResponse(parsed)) return parsed
+
+    const query = sanitizePostgrestOrValue(parsed.q || null)
 
     if (!query) {
       return NextResponse.json([])

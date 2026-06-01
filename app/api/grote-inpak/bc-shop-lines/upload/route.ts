@@ -4,6 +4,8 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 import { logApiError } from '@/lib/api/log-error'
 import { parseBcShopLinesExcel } from '@/lib/grote-inpak/parse-bc-shop-lines-excel'
 import { shopOrderMatchKey } from '@/lib/grote-inpak/pils-serial'
+import { withAuth } from '@/lib/api/with-auth'
+import { validateExcelUpload } from '@/lib/api/upload-limits'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -13,15 +15,16 @@ export const maxDuration = 60
  * genormaliseerde waarde uit Excel (laatste 6 cijfers, typ. kolom I / substr 11,6).
  * Atlas uit Excel (kolom H), FP per lijn uit Item No., Customer Order No. (typ. kolom K).
  */
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request: NextRequest) => {
   try {
     const formData = await request.formData()
     const file = formData.get('file') as File | null
-    if (!file || file.size === 0) {
-      return NextResponse.json({ error: 'Geen bestand ontvangen' }, { status: 400 })
+    const uploadError = validateExcelUpload(file)
+    if (uploadError) {
+      return NextResponse.json({ error: uploadError }, { status: 400 })
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer())
+    const buffer = Buffer.from(await file!.arrayBuffer())
     const workbook = XLSX.read(buffer, { type: 'buffer' })
     const parsed = parseBcShopLinesExcel(workbook)
 
@@ -120,4 +123,4 @@ export async function POST(request: NextRequest) {
     logApiError(error, { route: '/api/grote-inpak/bc-shop-lines/upload', method: 'POST' })
     return NextResponse.json({ error: error.message || 'Upload mislukt' }, { status: 500 })
   }
-}
+})

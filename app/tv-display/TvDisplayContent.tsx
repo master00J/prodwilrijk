@@ -16,6 +16,15 @@ import {
   YAxis,
 } from 'recharts'
 
+/** Zelfde waarde als TV_DISPLAY_SECRET wanneer TV-read-API's extra beveiligd zijn. */
+const TV_DISPLAY_TOKEN = process.env.NEXT_PUBLIC_TV_DISPLAY_TOKEN
+
+function withTvDisplayToken(path: string): string {
+  if (!TV_DISPLAY_TOKEN) return path
+  const joiner = path.includes('?') ? '&' : '?'
+  return `${path}${joiner}tv_token=${encodeURIComponent(TV_DISPLAY_TOKEN)}`
+}
+
 type SlideType = 'werkorders' | 'tekst' | 'afbeelding' | 'productieorders' | 'inpakstatistiek' | 'dagplanning' | 'countdown' | 'weer' | 'priorities' | 'transportplanning'
 
 interface TvSlide {
@@ -180,7 +189,9 @@ export function TvDisplay({ screenSlug }: { screenSlug?: string }) {
 
   const fetchSlides = useCallback(async () => {
     try {
-      const url = screenSlug ? `/api/tv-screens/${screenSlug}/slides` : '/api/tv-slides'
+      const url = screenSlug
+        ? withTvDisplayToken(`/api/tv-screens/${screenSlug}/slides`)
+        : withTvDisplayToken('/api/tv-slides')
       const res = await fetch(url)
       const json = await res.json()
       if (json.screen) {
@@ -223,7 +234,9 @@ export function TvDisplay({ screenSlug }: { screenSlug?: string }) {
 
   const fetchProductionStatus = useCallback(async () => {
     try {
-      const res = await fetch(`/api/tv-slides/production-status?site=${encodeURIComponent(screenSite)}`)
+      const res = await fetch(
+        withTvDisplayToken(`/api/tv-slides/production-status?site=${encodeURIComponent(screenSite)}`)
+      )
       const json = await res.json()
       setProductionOrders(json.orders || [])
     } catch (e) {
@@ -245,7 +258,9 @@ export function TvDisplay({ screenSlug }: { screenSlug?: string }) {
 
   const fetchDagplanning = useCallback(async () => {
     try {
-      const res = await fetch(`/api/tv-slides/dagplanning?site=${encodeURIComponent(screenSite)}`)
+      const res = await fetch(
+        withTvDisplayToken(`/api/tv-slides/dagplanning?site=${encodeURIComponent(screenSite)}`)
+      )
       if (!res.ok) throw new Error('dagplanning failed')
       const json = await res.json()
       setDagplanning(json.entries || [])
@@ -256,7 +271,7 @@ export function TvDisplay({ screenSlug }: { screenSlug?: string }) {
 
   const fetchWeather = useCallback(async () => {
     try {
-      const res = await fetch('/api/tv-slides/weather')
+      const res = await fetch(withTvDisplayToken('/api/tv-slides/weather'))
       if (!res.ok) throw new Error('weather failed')
       const json = await res.json()
       setWeather(json)
@@ -267,7 +282,7 @@ export function TvDisplay({ screenSlug }: { screenSlug?: string }) {
 
   const fetchPriorities = useCallback(async () => {
     try {
-      const res = await fetch('/api/tv-slides/priorities')
+      const res = await fetch(withTvDisplayToken('/api/tv-slides/priorities'))
       if (!res.ok) throw new Error('priorities failed')
       const json = await res.json()
       setPriorities(json)
@@ -338,7 +353,7 @@ export function TvDisplay({ screenSlug }: { screenSlug?: string }) {
 
   const fetchTransport = useCallback(async () => {
     try {
-      const res = await fetch('/api/tv-slides/transport-planning?weekOffset=0')
+      const res = await fetch(withTvDisplayToken('/api/tv-slides/transport-planning?weekOffset=0'))
       if (!res.ok) throw new Error('transport failed')
       const json = await res.json()
       setTransportEntries(json.data || [])
