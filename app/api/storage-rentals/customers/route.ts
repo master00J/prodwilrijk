@@ -59,9 +59,9 @@ export const POST = withAdmin(async (request: NextRequest) => {
     console.error('Unexpected error creating storage rental customer:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
-export async function PUT(request: NextRequest) {
+export const PUT = withAdmin(async (request: NextRequest) => {
   try {
     const body = await request.json()
     const { id, name, notes, active } = body || {}

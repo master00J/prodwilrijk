@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { withAdmin } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,10 +43,10 @@ export async function GET(
   }
 }
 
-export async function PUT(
+export const PUT = withAdmin(async (
   request: NextRequest,
   { params }: { params: Promise<{ templateId: string }> }
-) {
+) => {
   try {
     const templateId = Number((await params).templateId)
     if (!Number.isFinite(templateId)) {
@@ -114,12 +115,12 @@ export async function PUT(
     console.error('Unexpected error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
-export async function DELETE(
+export const DELETE = withAdmin(async (
   _request: NextRequest,
   { params }: { params: Promise<{ templateId: string }> }
-) {
+) => {
   try {
     const templateId = Number((await params).templateId)
     if (!Number.isFinite(templateId)) {
@@ -151,4 +152,4 @@ export async function DELETE(
     console.error('Unexpected error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

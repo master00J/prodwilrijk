@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
-import { requireAuth } from '@/lib/supabase/require-auth'
+import { withAdmin } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,10 +25,7 @@ export async function GET(request: NextRequest) {
 }
 
 // POST: voeg een historiek-entry toe
-export async function POST(request: NextRequest) {
-  const auth = await requireAuth(request)
-  if (auth instanceof NextResponse) return auth
-
+export const POST = withAdmin(async (request: NextRequest) => {
   const body = await request.json()
   const { employee_id, machine_id, old_level, new_level } = body
 
@@ -44,4 +41,4 @@ export async function POST(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data, { status: 201 })
-}
+})

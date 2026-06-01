@@ -10,7 +10,9 @@ Datum: 2026-04-17 (opvolging security-hardening: 2026-05-27)
 - `employees` GET achter `withAuth`; `wms-packages` POST achter `withAdmin`.
 - xlsx via SheetJS CDN 0.20.3 in `package.json` (na `npm install` lockfile bijwerken).
 - `.env.example` + GitHub Actions CI (lint, type-check).
-- `withAdmin` op masterdata-mutaties (storage-rentals, material-prices, erp-link, WMS, airtec-prijzen, kanban-config, training/machines/competencies, enz.).
+- `withAdmin` op masterdata-mutaties (storage-rentals, material-prices, erp-link, WMS, airtec-prijzen, kanban-config, training/machines/competencies, checklist-beheer, CNH-templates, enz.).
+- `withAuth` op operationele dagplanning-status (cookie-headers i.p.v. alleen Bearer).
+- Excel-uploadvalidatie op o.a. grote-inpak upload(s), wms-projects, prepack compare-bc, bc-shop-lines.
 - TV-heartbeat valt onder optionele `TV_DISPLAY_SECRET`.
 
 Scope:

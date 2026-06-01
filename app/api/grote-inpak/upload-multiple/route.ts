@@ -5,6 +5,7 @@ import { logApiError } from '@/lib/api/log-error'
 import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
 import { getBcMappingLookup } from '@/lib/bc-mapping/server'
 import { expandWorksheetRef } from '@/lib/xlsx/expand-worksheet-ref'
+import { validateExcelUpload } from '@/lib/api/upload-limits'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,6 +31,13 @@ export async function POST(request: NextRequest) {
         { error: 'No files provided' },
         { status: 400 }
       )
+    }
+
+    for (const file of files) {
+      const uploadError = validateExcelUpload(file)
+      if (uploadError) {
+        return NextResponse.json({ error: uploadError }, { status: 400 })
+      }
     }
 
     // Check total size to prevent 413 errors.

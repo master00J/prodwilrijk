@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { withAdmin } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 // PUT /api/cnh/templates/[id] - Update template
-export async function PUT(
+export const PUT = withAdmin(async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   try {
     const id = (await params).id
     const body = await request.json()
@@ -67,13 +68,13 @@ export async function PUT(
       { status: 500 }
     )
   }
-}
+})
 
 // DELETE /api/cnh/templates/[id] - Delete template
-export async function DELETE(
+export const DELETE = withAdmin(async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   try {
     const id = (await params).id
 
@@ -107,5 +108,4 @@ export async function DELETE(
       { status: 500 }
     )
   }
-}
-
+})

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { withAdmin } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
 }
 
 // POST /api/cnh/templates - Create template
-export async function POST(request: NextRequest) {
+export const POST = withAdmin(async (request: NextRequest) => {
   try {
     const body = await request.json()
     const {
@@ -86,5 +87,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
-
+})

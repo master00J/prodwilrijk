@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
-import { requireAuth } from '@/lib/supabase/require-auth'
+import { withAuth } from '@/lib/api/with-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,10 +19,7 @@ export async function GET(request: NextRequest) {
 }
 
 // POST/upsert a daily status for one employee
-export async function POST(request: NextRequest) {
-  const auth = await requireAuth(request)
-  if (auth instanceof NextResponse) return auth
-
+export const POST = withAuth(async (request: NextRequest) => {
   const body = await request.json()
   const { employee_id, date, status, assigned_machine_id, notes, shift } = body
 
@@ -59,13 +56,10 @@ export async function POST(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
-}
+})
 
 // DELETE: remove a daily status entry
-export async function DELETE(request: NextRequest) {
-  const auth = await requireAuth(request)
-  if (auth instanceof NextResponse) return auth
-
+export const DELETE = withAuth(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'ID is verplicht' }, { status: 400 })
@@ -73,4 +67,4 @@ export async function DELETE(request: NextRequest) {
   const { error } = await supabaseAdmin.from('employee_daily_status').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true })
-}
+})

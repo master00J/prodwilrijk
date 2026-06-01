@@ -15,10 +15,7 @@ export async function GET() {
   return NextResponse.json(data)
 }
 
-export async function POST(request: NextRequest) {
-  const auth = await requireAuth(request)
-  if (auth instanceof NextResponse) return auth
-
+export const POST = withAdmin(async (request: NextRequest) => {
   const body = await request.json()
   const { name, description, category, active, sort_order, capacity } = body
 

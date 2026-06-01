@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import * as XLSX from 'xlsx'
 import { expandWorksheetRef } from '@/lib/xlsx/expand-worksheet-ref'
+import { validateExcelUpload } from '@/lib/api/upload-limits'
 
 export const dynamic = 'force-dynamic'
 import { normalizeErpCode } from '@/lib/utils/erp-code-normalizer'
@@ -27,6 +28,13 @@ export async function POST(request: NextRequest) {
         { error: 'No file provided' },
         { status: 400 }
       )
+    }
+
+    if (hasExtension(file.name, EXCEL_EXTENSIONS)) {
+      const uploadError = validateExcelUpload(file)
+      if (uploadError) {
+        return NextResponse.json({ error: uploadError }, { status: 400 })
+      }
     }
 
     if (!ALLOWED_FILE_TYPES.has(fileType)) {
