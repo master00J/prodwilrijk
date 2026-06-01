@@ -28,12 +28,14 @@
       ]
     },
     "plugins": [
+      "expo-dev-client",
       [
         "expo-av",
         {
           "microphonePermission": "De assistent gebruikt je microfoon (ook via oortjes) om vragen te stellen."
         }
-      ]
+      ],
+      "@config-plugins/react-native-webrtc"
     ],
     "extra": {
       "eas": {

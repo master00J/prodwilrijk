@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native'
 import MessageBubble from '@/components/MessageBubble'
+import LiveVoicePanel from '@/components/LiveVoicePanel'
 import { APP_NAME } from '@/config'
 import { sendChat, sendVoice } from '@/lib/api'
 import { signOut } from '@/lib/auth'
@@ -33,7 +34,7 @@ export default function AssistantScreen({ onLoggedOut }: Props) {
       id: createId(),
       role: 'assistant',
       content:
-        'Hoi Jason. Stel een vraag over Prodwilrijk, bijvoorbeeld over Grote Inpak achterstand, een kisttype of een shoporder. Je kan typen of de microfoon gebruiken via je oortjes.',
+        'Hoi Jason. Start live spraak voor direct praten via je oortjes, of typ/stuur een vraag. Live modus gebruikt OpenAI Realtime zoals in Grote Inpak.',
     },
   ])
   const [input, setInput] = useState('')
@@ -173,6 +174,12 @@ export default function AssistantScreen({ onLoggedOut }: Props) {
         <Switch value={autoSpeak} onValueChange={setAutoSpeak} />
       </View>
 
+      <LiveVoicePanel
+        disabled={loading}
+        onUserMessage={text => appendMessage('user', text)}
+        onAssistantMessage={text => appendMessage('assistant', text)}
+      />
+
       <FlatList
         ref={listRef}
         data={messages}
@@ -198,7 +205,7 @@ export default function AssistantScreen({ onLoggedOut }: Props) {
           onPressOut={stopRecording}
           disabled={loading && !recording}
         >
-          <Text style={styles.micButtonText}>{recording ? 'Loslaten' : 'Houd ingedrukt'}</Text>
+          <Text style={styles.micButtonText}>{recording ? 'Loslaten' : 'Houd ingedrukt (klassiek)'}</Text>
         </Pressable>
 
         <TextInput

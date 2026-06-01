@@ -4,14 +4,10 @@ Mobiele assistent-app met AI en live data uit **prodwilrijk.be**. Werkt met teks
 
 ## Wat kan de app?
 
-- Inloggen met je bestaande Prodwilrijk-account (zelfde username/wachtwoord als de website)
-- Vragen stellen over o.a.:
-  - **Grote Inpak** (cases, achterstand, priority, locaties)
-  - **Productieorders / kisttypes** (K352, K114, einddatum, vloerstatus)
-  - **Atlas orderstatus** (shopordernummer)
-  - **Prepack wachtrij** (open items, priority)
-- Antwoord laten **voorlezen** via je telefoon of oortjes
-- Spraak: houd de groene knop ingedrukt, spreek, laat los → transcriptie + antwoord
+- **Live spraak (OpenAI Realtime)** — direct praten via oortjes, zoals Grote Inpak op de website
+- **Klassieke spraak** — knop ingedrukt houden → transcriptie → antwoord
+- **Tekstchat** — typ je vraag
+- Live data uit Prodwilrijk: Grote Inpak, productieorders, Atlas status, Prepack
 
 ## Architectuur
 
@@ -42,6 +38,8 @@ Optioneel in Vercel env:
 ```env
 PERSONAL_ASSISTANT_MODEL=gpt-4o-mini
 PERSONAL_ASSISTANT_TRANSCRIBE_MODEL=gpt-4o-transcribe
+PERSONAL_ASSISTANT_REALTIME_MODEL=gpt-realtime
+PERSONAL_ASSISTANT_REALTIME_VOICE=marin
 ```
 
 ---
