@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
 import { MediaStream, RTCView } from 'react-native-webrtc'
+import { stopSpeaking } from '@/lib/speech'
 import { PersonalRealtimeVoice, type RealtimeVoiceStatus } from '@/lib/realtime-voice'
 
 type Props = {
@@ -29,6 +30,9 @@ export default function LiveVoicePanel({ onUserMessage, onAssistantMessage, disa
       onStatus: (nextStatus, nextMessage) => {
         setStatus(nextStatus)
         setMessage(nextMessage)
+        if (nextStatus === 'connecting' || nextStatus === 'connected') {
+          void stopSpeaking()
+        }
       },
       onUserTranscript: text => {
         setLastHeard(text)
@@ -52,6 +56,7 @@ export default function LiveVoicePanel({ onUserMessage, onAssistantMessage, disa
   }, [])
 
   const handleConnect = async () => {
+    await stopSpeaking()
     try {
       const stream = await voiceRef.current?.connect()
       if (stream) setRemoteStream(stream)

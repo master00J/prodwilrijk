@@ -79,11 +79,9 @@ export default function AssistantScreen({ onLoggedOut }: Props) {
       if (!trimmed || trimmed === '{}' || trimmed === '[]') return
       if (!/[a-zA-ZÀ-ÿ]{2,}/.test(trimmed)) return
       appendMessage('assistant', trimmed)
-      if (autoSpeak) {
-        void speak(trimmed)
-      }
+      // Geen speak(): live modus gebruikt OpenAI Realtime-audio (anders 2 stemmen).
     },
-    [appendMessage, autoSpeak]
+    [appendMessage]
   )
 
   const handleSendTextWithQuestion = async (question: string) => {
@@ -194,7 +192,7 @@ export default function AssistantScreen({ onLoggedOut }: Props) {
       </View>
 
       <View style={styles.speakRow}>
-        <Text style={styles.speakLabel}>Antwoord voorlezen</Text>
+        <Text style={styles.speakLabel}>Antwoord voorlezen (typ/klassiek)</Text>
         <Switch value={autoSpeak} onValueChange={setAutoSpeak} />
       </View>
 
