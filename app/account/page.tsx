@@ -2,20 +2,41 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 
-export default function AccountPage() {
+function AccountForm() {
   const searchParams = useSearchParams()
-  const isForced = searchParams.get('reason') === 'password-reset'
+  const isAdminReset = searchParams.get('reason') === 'password-reset'
 
+  const [isRecovery, setIsRecovery] = useState(false)
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const skipCurrentPassword = isAdminReset || isRecovery
+
+  useEffect(() => {
+    const hash = window.location.hash
+    if (hash.includes('type=recovery')) {
+      setIsRecovery(true)
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    }
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsRecovery(true)
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -34,19 +55,26 @@ export default function AccountPage() {
     setLoading(true)
     try {
       const { data: sessionData } = await supabase.auth.getSession()
-      const email = sessionData.session?.user?.email
-      if (!email) {
-        setError('Geen actieve sessie gevonden.')
+      if (!sessionData.session?.user) {
+        setError('Geen actieve sessie gevonden. Log opnieuw in via de reset-link in je e-mail.')
         return
       }
 
-      const { error: reauthError } = await supabase.auth.signInWithPassword({
-        email,
-        password: currentPassword,
-      })
-      if (reauthError) {
-        setError('Huidig wachtwoord is onjuist.')
-        return
+      if (!skipCurrentPassword) {
+        const email = sessionData.session.user.email
+        if (!email) {
+          setError('Geen e-mailadres gekoppeld aan dit account.')
+          return
+        }
+
+        const { error: reauthError } = await supabase.auth.signInWithPassword({
+          email,
+          password: currentPassword,
+        })
+        if (reauthError) {
+          setError('Huidig wachtwoord is onjuist.')
+          return
+        }
       }
 
       const { error: updateError } = await supabase.auth.updateUser({ password: newPassword })
@@ -55,7 +83,6 @@ export default function AccountPage() {
         return
       }
 
-      // Clear the must_change_password flag
       await fetch('/api/auth/clear-password-flag', { method: 'POST' })
 
       setCurrentPassword('')
@@ -63,14 +90,12 @@ export default function AccountPage() {
       setConfirmPassword('')
       setMessage('Wachtwoord succesvol aangepast!')
 
-      if (isForced) {
-        setTimeout(() => {
-          window.location.href = '/'
-        }, 1500)
-      }
-    } catch (err: any) {
+      setTimeout(() => {
+        window.location.href = '/'
+      }, 1500)
+    } catch (err: unknown) {
       console.error('Password update error:', err)
-      setError(err?.message || 'Wachtwoord wijzigen mislukt.')
+      setError(err instanceof Error ? err.message : 'Wachtwoord wijzigen mislukt.')
     } finally {
       setLoading(false)
     }
@@ -81,10 +106,15 @@ export default function AccountPage() {
       <div className="w-full max-w-md bg-white rounded-lg shadow p-8">
         <h1 className="text-2xl font-semibold mb-2">Account</h1>
 
-        {isForced ? (
+        {isAdminReset ? (
           <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded mb-4">
             <p className="font-medium">Je wachtwoord is gereset door een admin.</p>
-            <p className="text-sm mt-1">Stel een nieuw wachtwoord in om verder te gaan.</p>
+            <p className="text-sm mt-1">Kies een nieuw wachtwoord om verder te gaan.</p>
+          </div>
+        ) : isRecovery ? (
+          <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded mb-4">
+            <p className="font-medium">Wachtwoord reset via e-mail.</p>
+            <p className="text-sm mt-1">Kies hier je nieuwe wachtwoord.</p>
           </div>
         ) : (
           <p className="text-sm text-gray-600 mb-6">Wijzig je wachtwoord.</p>
@@ -102,18 +132,20 @@ export default function AccountPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {isForced ? 'Tijdelijk wachtwoord (van admin)' : 'Huidig wachtwoord'}
-            </label>
-            <input
-              type="password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-            />
-          </div>
+          {!skipCurrentPassword && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Huidig wachtwoord
+              </label>
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Nieuw wachtwoord</label>
             <input
@@ -121,6 +153,7 @@ export default function AccountPage() {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               required
+              minLength={8}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
             />
           </div>
@@ -131,6 +164,7 @@ export default function AccountPage() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
+              minLength={8}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
             />
           </div>
@@ -144,5 +178,13 @@ export default function AccountPage() {
         </form>
       </div>
     </div>
+  )
+}
+
+export default function AccountPage() {
+  return (
+    <Suspense fallback={null}>
+      <AccountForm />
+    </Suspense>
   )
 }

@@ -1,0 +1,59 @@
+# Prodwilrijk V2 — productie stack
+#
+# Volledige on-premise deploy (Supabase + app):
+#   chmod +x scripts/deploy-onprem.sh docker/supabase/*.sh
+#   ./scripts/deploy-onprem.sh
+#
+# Handmatig:
+#   1) cd docker/supabase && cp .env.example .env && ./generate-env.sh --update-env && ./up.sh
+#   2) ./sync-app-env.sh && ./run-migrations.sh
+#   3) cd ../.. && docker compose --env-file .env.production up -d --build
+#
+# Supabase gebruikt de officiële stack in docker/supabase/vendor/ (via bootstrap.sh).
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://prodwilrijk.be}
+    container_name: prodwilrijk-web
+    env_file:
+      - .env.production
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    restart: unless-stopped
+    networks:
+      - prodwilrijk
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  cron:
+    image: alpine:3.21
+    container_name: prodwilrijk-cron
+    env_file:
+      - .env.production
+    environment:
+      APP_BASE_URL: http://web:3000
+      TZ: UTC
+    volumes:
+      - ./docker/cron/entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_healthy
+    networks:
+      - prodwilrijk
+
+networks:
+  prodwilrijk:
+    name: prodwilrijk
+    driver: bridge

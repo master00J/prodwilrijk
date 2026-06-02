@@ -1,7 +1,18 @@
 const webpack = require('webpack')
 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+let supabaseHostname = 'localhost'
+if (supabaseUrl) {
+  try {
+    supabaseHostname = new URL(supabaseUrl).hostname
+  } catch {
+    // ongeldige URL — fallback blijft localhost
+  }
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone',
   reactStrictMode: true,
   serverExternalPackages: ['pdf-parse', '@napi-rs/canvas', '@kenjiuno/msgreader'],
   experimental: {
@@ -14,6 +25,16 @@ const nextConfig = {
         protocol: 'http',
         hostname: 'localhost',
       },
+      {
+        protocol: 'https',
+        hostname: 'localhost',
+      },
+      ...(supabaseHostname !== 'localhost'
+        ? [
+            { protocol: 'https', hostname: supabaseHostname },
+            { protocol: 'http', hostname: supabaseHostname },
+          ]
+        : []),
     ],
   },
   turbopack: {

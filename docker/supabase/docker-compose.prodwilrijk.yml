@@ -1,0 +1,63 @@
+# Override voor Prodwilrijk: koppel Supabase aan het gedeelde Docker-netwerk
+# en bind gevoelige poorten enkel op localhost (reverse proxy op 443).
+
+networks:
+  prodwilrijk:
+    external: true
+    name: prodwilrijk
+
+services:
+  studio:
+    networks: [default, prodwilrijk]
+    ports:
+      - "127.0.0.1:3001:3000"
+
+  kong:
+    networks:
+      default:
+        aliases:
+          - api-gw
+          - kong
+      prodwilrijk:
+        aliases:
+          - api-gw
+          - kong
+    ports:
+      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:8443:8443"
+
+  auth:
+    networks: [default, prodwilrijk]
+
+  rest:
+    networks: [default, prodwilrijk]
+
+  realtime:
+    networks: [default, prodwilrijk]
+
+  storage:
+    networks: [default, prodwilrijk]
+
+  imgproxy:
+    networks: [default, prodwilrijk]
+
+  meta:
+    networks: [default, prodwilrijk]
+
+  functions:
+    networks: [default, prodwilrijk]
+
+  analytics:
+    networks: [default, prodwilrijk]
+
+  db:
+    networks: [default, prodwilrijk]
+
+  vector:
+    networks: [default, prodwilrijk]
+
+  supavisor:
+    networks: [default, prodwilrijk]
+    ports:
+      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:6543:6543"
