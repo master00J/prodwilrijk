@@ -15,6 +15,7 @@ export type AuditAction =
   | 'slide_deleted'
   | 'order_uploaded'
   | 'password_reset'
+  | 'production_order_deleted'
 
 export interface AuditEntry {
   user_id?: string
