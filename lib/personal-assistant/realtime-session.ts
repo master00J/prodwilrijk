@@ -1,5 +1,6 @@
 import {
   PERSONAL_ASSISTANT_REALTIME_INSTRUCTIONS,
+  PERSONAL_ASSISTANT_REALTIME_TOOLS,
   PERSONAL_ASSISTANT_REALTIME_TRANSCRIBE_PROMPT,
 } from '@/lib/personal-assistant/realtime-tools'
 
@@ -97,6 +98,7 @@ export async function createPersonalAssistantRealtimeSecret(userId: string | nul
           },
         },
         instructions: config.instructions,
+        tools: PERSONAL_ASSISTANT_REALTIME_TOOLS,
         tool_choice: 'auto',
         max_output_tokens: 900,
       },

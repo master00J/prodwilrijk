@@ -1,0 +1,11 @@
+# Alleen personal assistent/ uploaden naar EAS
+*
+!personal assistent
+!personal assistent/**
+
+personal assistent/node_modules/
+personal assistent/android/
+personal assistent/ios/
+personal assistent/.expo/
+personal assistent/dist/
+personal assistent/web-build/

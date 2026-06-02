@@ -68,17 +68,17 @@ export default function AssistantScreen({ onLoggedOut }: Props) {
     setMessages(prev => [...prev, { id: createId(), role, content }])
   }
 
-  const handleSendText = async () => {
-    const question = input.trim()
-    if (!question || loading) return
+  const handleSendTextWithQuestion = async (question: string) => {
+    const trimmed = question.trim()
+    if (!trimmed || loading) return
 
     setInput('')
     setError(null)
-    appendMessage('user', question)
+    appendMessage('user', trimmed)
     setLoading(true)
 
     try {
-      const response = await sendChat([...historyForApi, { id: 'tmp', role: 'user', content: question }])
+      const response = await sendChat([...historyForApi, { id: 'tmp', role: 'user', content: trimmed }])
       appendMessage('assistant', response.answer)
       if (autoSpeak) {
         await speak(response.answer)
@@ -88,6 +88,12 @@ export default function AssistantScreen({ onLoggedOut }: Props) {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleSendText = async () => {
+    const question = input.trim()
+    if (!question || loading) return
+    await handleSendTextWithQuestion(question)
   }
 
   const startRecording = async () => {
@@ -172,6 +178,25 @@ export default function AssistantScreen({ onLoggedOut }: Props) {
       <View style={styles.speakRow}>
         <Text style={styles.speakLabel}>Antwoord voorlezen</Text>
         <Switch value={autoSpeak} onValueChange={setAutoSpeak} />
+      </View>
+
+      <View style={styles.quickRow}>
+        {[
+          { label: 'Briefing', question: 'Geef mijn dagelijkse briefing.' },
+          { label: 'Prepack', question: 'Hoe staat de prepack wachtrij?' },
+          { label: "Prio's", question: 'Welke priority cases op grote inpak?' },
+          { label: 'Kanban', question: 'Welke kanban kisten zijn urgent?' },
+          { label: 'Productie', question: 'Wie draait er nu op productie?' },
+        ].map(chip => (
+          <Pressable
+            key={chip.label}
+            style={styles.quickChip}
+            disabled={loading}
+            onPress={() => void handleSendTextWithQuestion(chip.question)}
+          >
+            <Text style={styles.quickChipText}>{chip.label}</Text>
+          </Pressable>
+        ))}
       </View>
 
       <LiveVoicePanel
@@ -279,6 +304,26 @@ const styles = StyleSheet.create({
     color: '#475569',
     fontSize: 14,
     fontWeight: '600',
+  },
+  quickRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  quickChip: {
+    backgroundColor: '#e0ecff',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  quickChipText: {
+    color: '#1a4b8c',
+    fontWeight: '700',
+    fontSize: 13,
   },
   listContent: {
     padding: 16,

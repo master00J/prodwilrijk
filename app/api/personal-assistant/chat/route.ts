@@ -14,7 +14,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => null)
     const messages = body?.messages as PersonalAssistantMessage[] | undefined
 
-    const { answer, toolsUsed } = await answerPersonalAssistantQuestion(messages || [])
+    const { answer, toolsUsed } = await answerPersonalAssistantQuestion(messages || [], {
+      userId: request.headers.get('x-user-id'),
+    })
     return NextResponse.json({ answer, toolsUsed })
   } catch (error: unknown) {
     logApiError(error, {

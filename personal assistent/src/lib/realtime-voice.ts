@@ -39,58 +39,52 @@ type SessionResponse = {
   error?: string
 }
 
-const REALTIME_TOOLS = [
+type RealtimeToolDef = {
+  type: 'function'
+  name: string
+  description: string
+  parameters: Record<string, unknown>
+}
+
+const FALLBACK_REALTIME_TOOLS: RealtimeToolDef[] = [
   {
     type: 'function',
-    name: 'grote_inpak_summary',
-    description: 'Samenvatting Grote Inpak cases.',
+    name: 'daily_briefing',
+    description: 'Volledige ochtendbriefing.',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
-  },
-  {
-    type: 'function',
-    name: 'search_grote_inpak_cases',
-    description: 'Zoek Grote Inpak cases.',
-    parameters: {
-      type: 'object',
-      properties: {
-        search: { type: 'string' },
-        location: { type: 'string' },
-        priority_only: { type: 'boolean' },
-        overdue_only: { type: 'boolean' },
-        limit: { type: 'number' },
-      },
-      additionalProperties: false,
-    },
-  },
-  {
-    type: 'function',
-    name: 'kist_production_status',
-    description: 'Productieorders en einddatum voor een kisttype.',
-    parameters: {
-      type: 'object',
-      properties: { kistnummer: { type: 'string' } },
-      required: ['kistnummer'],
-      additionalProperties: false,
-    },
-  },
-  {
-    type: 'function',
-    name: 'atlas_order_status',
-    description: 'Atlas orderstatus voor shopordernummer.',
-    parameters: {
-      type: 'object',
-      properties: { shop_order: { type: 'string' } },
-      required: ['shop_order'],
-      additionalProperties: false,
-    },
   },
   {
     type: 'function',
     name: 'prepack_queue_summary',
-    description: 'Prepack wachtrij overzicht.',
+    description: 'Prepack wachtrij.',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    type: 'function',
+    name: 'grote_inpak_summary',
+    description: 'Grote Inpak overzicht.',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
   },
 ]
+
+async function fetchRealtimeTools(): Promise<RealtimeToolDef[]> {
+  const token = await getAccessToken()
+  if (!token) return FALLBACK_REALTIME_TOOLS
+
+  try {
+    const response = await fetch(`${API_BASE}/api/personal-assistant/realtime-tools`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!response.ok) return FALLBACK_REALTIME_TOOLS
+    const payload = await response.json()
+    if (Array.isArray(payload.tools) && payload.tools.length > 0) {
+      return payload.tools as RealtimeToolDef[]
+    }
+  } catch {
+    // fallback
+  }
+  return FALLBACK_REALTIME_TOOLS
+}
 
 function safeJsonParse(value: string | undefined): Record<string, unknown> {
   if (!value) return {}
@@ -108,6 +102,7 @@ export class PersonalRealtimeVoice {
   private localStream: MediaStream | null = null
   private remoteStream: MediaStream | null = null
   private processedCalls = new Set<string>()
+  private realtimeTools: RealtimeToolDef[] = FALLBACK_REALTIME_TOOLS
   private events: RealtimeVoiceEvents
 
   constructor(events: RealtimeVoiceEvents = {}) {
@@ -159,7 +154,7 @@ export class PersonalRealtimeVoice {
         },
         instructions:
           'Je bent de live Prodwilrijk assistent. Praat in Nederlands. Gebruik tools voor actuele data. Geen Markdown.',
-        tools: REALTIME_TOOLS,
+        tools: this.realtimeTools,
         tool_choice: 'auto',
         max_output_tokens: 900,
       },
@@ -252,6 +247,8 @@ export class PersonalRealtimeVoice {
     try {
       const token = await getAccessToken()
       if (!token) throw new Error('Niet ingelogd')
+
+      this.realtimeTools = await fetchRealtimeTools()
 
       const sessionResponse = await fetch(`${API_BASE}/api/personal-assistant/realtime-session`, {
         method: 'POST',

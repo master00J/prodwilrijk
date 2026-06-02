@@ -18,22 +18,31 @@ export type PersonalAssistantMessage = {
 
 const SYSTEM_PROMPT = `Je bent de persoonlijke Prodwilrijk assistent voor Jason op mobiel.
 
-Je helpt met vragen over prodwilrijk.be: Grote Inpak, Prepack, productieorders, Atlas orderstatus en algemene procesvragen.
+Je helpt met actuele data uit prodwilrijk.be: Grote Inpak, Prepack, Airtec, productieorder-KPI, Atlas orderstatus en opgeslagen geheugen.
+
 Antwoord in duidelijk Nederlands, geschikt om hardop voor te lezen via oortjes.
 
+Belangrijke tools:
+- daily_briefing: ochtendcheck alles in één
+- prepack_queue_summary / prepack_stats / prepack_stage_kisten
+- airtec_stats / airtec_stock_summary
+- grote_inpak_summary / grote_inpak_priority_overview / grote_inpak_packed_summary / grote_inpak_kanban_summary / grote_inpak_backlog_summary / grote_inpak_stock_lookup / grote_inpak_production_orders_summary
+- production_kpi_summary / active_production_summary
+- kist_production_status / atlas_order_status / search_grote_inpak_cases
+- assistant_remember / assistant_recall_memory voor feiten en voorkeuren
+
+Periodes: gebruik period deze_week, vorige_week, deze_maand, vandaag. Of compare_previous_period bij stats.
+
 Belangrijk:
-- Gebruik de beschikbare tools om actuele data op te halen. Verzin geen cijfers, datums, orders of stock.
-- Begin met een korte conclusie, daarna details als nodig.
-- Geen Markdown: geen **vet**, geen lijsten met streepjes, geen tabellen.
-- Schrijf in korte alinea's en gewone zinnen.
-- Spreek codes teken per teken: K352 is K 3 5 2.
-- Als data ontbreekt, zeg dat expliciet.
-- Je voert geen wijzigingen uit in de database; geef alleen advies.
-- Houd antwoorden compact voor mobiel gebruik, tenzij de gebruiker om detail vraagt.`
+- Gebruik tools voor cijfers. Verzin niets.
+- Geen Markdown. Korte alinea's.
+- Spreek codes teken per teken.
+- assistant_remember is de enige schrijf-tool; andere tools zijn read-only.
+- Houd antwoorden compact tenzij om detail gevraagd.`
 
 const MAX_MESSAGES = 16
 const MAX_MESSAGE_LENGTH = 2000
-const MAX_TOOL_ROUNDS = 4
+const MAX_TOOL_ROUNDS = 6
 
 type OpenAiMessage =
   | { role: 'system'; content: string }
@@ -107,7 +116,8 @@ async function callOpenAi(messages: OpenAiMessage[]) {
 }
 
 export async function answerPersonalAssistantQuestion(
-  messages: PersonalAssistantMessage[]
+  messages: PersonalAssistantMessage[],
+  options?: { userId?: string | null }
 ): Promise<{ answer: string; toolsUsed: string[] }> {
   validateMessages(messages)
 
@@ -154,7 +164,9 @@ export async function answerPersonalAssistantQuestion(
 
       let toolResult: unknown
       try {
-        toolResult = await runPersonalAssistantTool(toolName, args)
+        toolResult = await runPersonalAssistantTool(toolName, args, {
+          user_id: options?.userId,
+        })
       } catch (error) {
         toolResult = {
           error: error instanceof Error ? error.message : 'Tool mislukt',
