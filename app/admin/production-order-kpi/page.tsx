@@ -1,88 +1,54 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import AdminGuard from '@/components/AdminGuard'
-import { Euro, Package, Clock, TrendingUp, User, Wrench, FileDown, Trash2 } from 'lucide-react'
-import * as XLSX from 'xlsx'
-import { BcItemCode } from '@/lib/bc-mapping/client'
 import { useAuth } from '@/components/AuthProvider'
+import { BcItemCode } from '@/lib/bc-mapping/client'
 import { DEFAULT_SITE, SITES, type Site } from '@/lib/sites'
+import { RefreshCw, User, Wrench } from 'lucide-react'
+import { KpiChartsSection } from './KpiChartsSection'
+import { KpiSecondaryStats, KpiSummaryCards } from './KpiSummaryCards'
+import { OrderManagementSection } from './OrderManagementSection'
+import { ProductionDetailTable } from './ProductionDetailTable'
+import { formatElapsed, toIsoDate } from './kpi-formatters'
+import type {
+  ActiveSession,
+  DailyFinancial,
+  DailyHours,
+  DerivedKpis,
+  KpiData,
+  ManagedOrder,
+  RevenueRun,
+  RevenueTotals,
+} from './types'
 
-type ManagedOrder = {
-  id: number
-  order_number: string
-  sales_order_number: string | null
-  uploaded_at: string
-  finished_at: string | null
-  site: string
+type DatePreset = 'today' | 'week' | 'month' | 'all'
+type BottomTab = 'detail' | 'orders'
+
+function startOfWeek(d: Date) {
+  const copy = new Date(d)
+  const day = copy.getDay()
+  const diff = day === 0 ? 6 : day - 1
+  copy.setDate(copy.getDate() - diff)
+  return copy
 }
-
-type StepHours = { step: string; hours: number }
-type EmployeeHours = { employee_name: string; hours: number }
-
-type RevenueRun = {
-  item_number: string
-  order_number: string
-  date: string
-  quantity: number
-  hours: number
-  hours_per_piece: number
-  steps: StepHours[]
-  employees: EmployeeHours[]
-  sales_price: number | null
-  revenue: number | null
-  material_cost_per_item: number
-  material_cost_total: number
-  margin: number | null
-  description: string | null
-}
-
-type ActiveSession = {
-  id: number
-  employee_name: string
-  order_number: string
-  item_number: string
-  step: string
-  elapsed_seconds: number
-}
-
-type RevenueTotals = {
-  total_revenue: number
-  total_material_cost: number
-  total_hours: number
-  total_margin: number
-}
-
-const formatDate = (d: string | null | undefined) => {
-  if (!d) return '–'
-  const datePart = d.slice(0, 10)
-  const [y, m, day] = datePart.split('-')
-  if (!y || !m || !day) return '–'
-  return `${day}/${m}/${y}`
-}
-
-const formatHours = (h: number | null | undefined) => {
-  const value = Number(h) || 0
-  if (value < 1) return `${Math.round(value * 60)} min`
-  return `${value.toFixed(2)} u`
-}
-
-const formatEuro = (n: number | null) => (n != null ? `€ ${n.toFixed(2)}` : '–')
 
 export default function ProductionOrderKpiPage() {
   const { allowedSites } = useAuth()
   const availableSites = useMemo(
-    () => (allowedSites.length > 0 ? SITES.filter((siteOption) => allowedSites.includes(siteOption)) : [...SITES]),
+    () => (allowedSites.length > 0 ? SITES.filter((s) => allowedSites.includes(s)) : [...SITES]),
     [allowedSites]
   )
+
+  const [selectedSite, setSelectedSite] = useState<Site>(DEFAULT_SITE)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [loading, setLoading] = useState(false)
   const [runs, setRuns] = useState<RevenueRun[]>([])
   const [totals, setTotals] = useState<RevenueTotals | null>(null)
-  const [search, setSearch] = useState('')
+  const [kpiData, setKpiData] = useState<KpiData | null>(null)
   const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([])
-  const [expandedRunKey, setExpandedRunKey] = useState<string | null>(null)
+  const [bottomTab, setBottomTab] = useState<BottomTab>('detail')
 
   const [manageSite, setManageSite] = useState<Site>(DEFAULT_SITE)
   const [manageTab, setManageTab] = useState<'actief' | 'afgewerkt'>('actief')
@@ -91,53 +57,69 @@ export default function ProductionOrderKpiPage() {
   const [manageLoading, setManageLoading] = useState(false)
   const [deletingOrderId, setDeletingOrderId] = useState<number | null>(null)
 
-  const loadActive = useCallback(async () => {
-    try {
-      const res = await fetch('/api/production-order-time/active')
-      if (!res.ok) return
-      const data = await res.json()
-      setActiveSessions(Array.isArray(data) ? data : [])
-    } catch {
-      setActiveSessions([])
-    }
-  }, [])
-
-  const loadData = useCallback(async () => {
-    setLoading(true)
-    try {
-      const params = new URLSearchParams()
-      if (dateFrom) params.append('date_from', dateFrom)
-      if (dateTo) params.append('date_to', dateTo)
-      const res = await fetch(`/api/production-order-time/revenue?${params.toString()}`)
-      if (!res.ok) throw new Error('Ophalen mislukt')
-      const data = await res.json()
-      setRuns(data.runs || [])
-      setTotals(data.totals || null)
-    } catch (e) {
-      console.error(e)
-      alert('Data laden mislukt')
-      setRuns([])
-      setTotals(null)
-    } finally {
-      setLoading(false)
-    }
-  }, [dateFrom, dateTo])
-
   useEffect(() => {
-    void loadData()
-  }, [loadData])
-
-  useEffect(() => {
-    void loadActive()
-    const t = setInterval(loadActive, 15000)
-    return () => clearInterval(t)
-  }, [loadActive])
+    if (availableSites.length > 0 && !availableSites.includes(selectedSite)) {
+      setSelectedSite(availableSites[0])
+    }
+  }, [availableSites, selectedSite])
 
   useEffect(() => {
     if (availableSites.length > 0 && !availableSites.includes(manageSite)) {
       setManageSite(availableSites[0])
     }
   }, [availableSites, manageSite])
+
+  const buildParams = useCallback(() => {
+    const params = new URLSearchParams({ site: selectedSite })
+    if (dateFrom) params.set('date_from', dateFrom)
+    if (dateTo) params.set('date_to', dateTo)
+    return params
+  }, [selectedSite, dateFrom, dateTo])
+
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = buildParams()
+      const [revenueRes, kpiRes] = await Promise.all([
+        fetch(`/api/production-order-time/revenue?${params.toString()}`),
+        fetch(`/api/production-order-time/kpi?${params.toString()}`),
+      ])
+      if (!revenueRes.ok) throw new Error('Opbrengsten ophalen mislukt')
+      if (!kpiRes.ok) throw new Error('KPI-data ophalen mislukt')
+      const revenueData = await revenueRes.json()
+      const kpiJson = await kpiRes.json()
+      setRuns(revenueData.runs || [])
+      setTotals(revenueData.totals || null)
+      setKpiData({
+        orders: kpiJson.orders || [],
+        steps: kpiJson.steps || [],
+        employees: kpiJson.employees || [],
+        items: kpiJson.items || [],
+        zaagByDate: kpiJson.zaagByDate || [],
+        dailyStepHours: kpiJson.dailyStepHours || [],
+      })
+    } catch (e) {
+      console.error(e)
+      alert('Data laden mislukt')
+      setRuns([])
+      setTotals(null)
+      setKpiData(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [buildParams])
+
+  const loadActive = useCallback(async () => {
+    try {
+      const params = new URLSearchParams({ site: selectedSite })
+      const res = await fetch(`/api/production-order-time/active?${params.toString()}`)
+      if (!res.ok) return
+      const data = await res.json()
+      setActiveSessions(Array.isArray(data) ? data : [])
+    } catch {
+      setActiveSessions([])
+    }
+  }, [selectedSite])
 
   const loadManagedOrders = useCallback(async () => {
     setManageLoading(true)
@@ -160,19 +142,103 @@ export default function ProductionOrderKpiPage() {
   }, [manageSite, manageTab, manageSearch])
 
   useEffect(() => {
+    void loadData()
+  }, [loadData])
+
+  useEffect(() => {
+    void loadActive()
+    const t = setInterval(loadActive, 15000)
+    return () => clearInterval(t)
+  }, [loadActive])
+
+  useEffect(() => {
     void loadManagedOrders()
   }, [loadManagedOrders])
 
+  const applyPreset = (preset: DatePreset) => {
+    const today = new Date()
+    if (preset === 'all') {
+      setDateFrom('')
+      setDateTo('')
+      return
+    }
+    if (preset === 'today') {
+      const d = toIsoDate(today)
+      setDateFrom(d)
+      setDateTo(d)
+      return
+    }
+    if (preset === 'week') {
+      setDateFrom(toIsoDate(startOfWeek(today)))
+      setDateTo(toIsoDate(today))
+      return
+    }
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
+    setDateFrom(toIsoDate(monthStart))
+    setDateTo(toIsoDate(today))
+  }
+
+  const derived = useMemo<DerivedKpis>(() => {
+    const totalQuantity = runs.reduce((s, r) => s + (r.quantity || 0), 0)
+    const runCount = runs.length
+    const uniqueOrders = new Set(runs.map((r) => r.order_number).filter(Boolean)).size
+    const uniqueItems = new Set(runs.map((r) => r.item_number).filter(Boolean)).size
+    const uniqueEmployees = kpiData?.employees?.length ?? 0
+    const totalHours = totals?.total_hours ?? 0
+    const totalRevenue = totals?.total_revenue ?? 0
+    const totalMaterial = totals?.total_material_cost ?? 0
+    const totalMargin = totals?.total_margin ?? 0
+    const zaagHours = (kpiData?.zaagByDate ?? []).reduce((s, z) => s + z.hours, 0)
+
+    return {
+      totalQuantity,
+      runCount,
+      uniqueOrders,
+      uniqueItems,
+      uniqueEmployees,
+      avgHoursPerPiece: totalQuantity > 0 ? totalHours / totalQuantity : 0,
+      marginPct: totalRevenue > 0 ? (totalMargin / totalRevenue) * 100 : null,
+      materialPct: totalRevenue > 0 ? (totalMaterial / totalRevenue) * 100 : null,
+      revenuePerHour: totalHours > 0 ? totalRevenue / totalHours : null,
+      marginPerHour: totalHours > 0 ? totalMargin / totalHours : null,
+      avgRevenuePerRun: runCount > 0 ? totalRevenue / runCount : null,
+      zaagHours,
+      activeStepCount: kpiData?.steps?.length ?? 0,
+    }
+  }, [runs, totals, kpiData])
+
+  const dailyHours = useMemo<DailyHours[]>(() => {
+    const map = new Map<string, number>()
+    ;(kpiData?.dailyStepHours ?? []).forEach(({ date, hours }) => {
+      map.set(date, (map.get(date) || 0) + hours)
+    })
+    return Array.from(map.entries())
+      .map(([date, hours]) => ({ date, hours }))
+      .sort((a, b) => a.date.localeCompare(b.date))
+  }, [kpiData])
+
+  const dailyFinancial = useMemo<DailyFinancial[]>(() => {
+    const map = new Map<string, DailyFinancial>()
+    runs.forEach((r) => {
+      if (!r.date) return
+      const existing = map.get(r.date) ?? { date: r.date, revenue: 0, margin: 0, hours: 0, material: 0 }
+      existing.revenue += r.revenue ?? 0
+      existing.margin += r.margin ?? 0
+      existing.hours += r.hours ?? 0
+      existing.material += r.material_cost_total ?? 0
+      map.set(r.date, existing)
+    })
+    return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date))
+  }, [runs])
+
   const deleteManagedOrder = async (order: ManagedOrder) => {
-    const label = order.order_number
     if (
       !confirm(
-        `Productieorder "${label}" verwijderen?\n\nDit verwijdert ook alle gekoppelde tijdregistraties voor deze order.`
+        `Productieorder "${order.order_number}" verwijderen?\n\nDit verwijdert ook alle gekoppelde tijdregistraties voor deze order.`
       )
     ) {
       return
     }
-
     setDeletingOrderId(order.id)
     try {
       const res = await fetch(`/api/production-orders/${order.id}`, { method: 'DELETE' })
@@ -186,414 +252,156 @@ export default function ProductionOrderKpiPage() {
     }
   }
 
-  const formatElapsed = (seconds: number) => {
-    const m = Math.floor(seconds / 60)
-    if (m < 60) return `${m} min`
-    const h = Math.floor(m / 60)
-    const min = m % 60
-    return `${h}u ${min}min`
-  }
-
-  const exportToExcel = () => {
-    if (filteredRuns.length === 0) {
-      alert('Geen data om te exporteren.')
-      return
-    }
-    const rows = filteredRuns.map((r) => {
-      const verkoopMinMateriaal =
-        r.revenue != null ? Number((r.revenue - r.material_cost_total).toFixed(2)) : ''
-      return {
-        Datum: formatDate(r.date),
-        Order: r.order_number,
-        Item: r.item_number,
-        Omschrijving: r.description || '',
-        Stuks: r.quantity,
-        'Verkoopprijs €': r.sales_price != null ? r.sales_price : '',
-        'Opbrengst €': r.revenue != null ? r.revenue : '',
-        'Materiaalkost €': r.material_cost_total,
-        'Uren (decimaal)': Math.round(r.hours * 100) / 100,
-        'Verkoopprijs min materiaalkost €': verkoopMinMateriaal,
-      }
-    })
-    const ws = XLSX.utils.json_to_sheet(rows)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Opbrengsten')
-    const filename = `productie-opbrengsten_${dateFrom || 'vanaf'}_${dateTo || 'tot'}.xlsx`
-    XLSX.writeFile(wb, filename)
-  }
-
-  const filteredRuns = search.trim()
-    ? runs.filter((r) => {
-        const q = search.toLowerCase()
-        return (
-          (r.item_number || '').toLowerCase().includes(q) ||
-          (r.order_number || '').toLowerCase().includes(q)
-        )
-      })
-    : runs
-
   return (
     <AdminGuard>
-      <div className="container mx-auto px-4 py-6 max-w-7xl">
-        <h1 className="text-3xl font-bold mb-2">Productie – Opbrengsten &amp; kost</h1>
-        <p className="text-gray-600 mb-6">
-          Overzicht van opbrengsten (verkoop), materiaalkost en gepresteerde uren per productie. Vul datum in en klik op Vernieuwen.
-        </p>
-
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Vanaf</label>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Tot</label>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              />
-            </div>
-            <div>
-              <button
-                onClick={loadData}
-                disabled={loading}
-                className="w-full px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60"
-              >
-                {loading ? 'Laden...' : 'Vernieuwen'}
-              </button>
+      <div className="min-h-[calc(100vh-4rem)] w-full bg-slate-100">
+        {/* Sticky filter bar */}
+        <div className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+          <div className="px-4 lg:px-6 py-4">
+            <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Productie KPI Dashboard</h1>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  Opbrengsten, kosten, uren en productiviteit — {selectedSite}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-end gap-2">
+                <select
+                  value={selectedSite}
+                  onChange={(e) => setSelectedSite(e.target.value as Site)}
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white"
+                >
+                  {availableSites.map((site) => (
+                    <option key={site} value={site}>
+                      {site}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white"
+                  title="Vanaf"
+                />
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white"
+                  title="Tot"
+                />
+                <div className="flex rounded-lg border border-gray-300 overflow-hidden bg-white">
+                  {([
+                    ['today', 'Vandaag'],
+                    ['week', 'Week'],
+                    ['month', 'Maand'],
+                    ['all', 'Alles'],
+                  ] as const).map(([preset, label]) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => applyPreset(preset)}
+                      className="px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 border-r border-gray-200 last:border-r-0"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={loadData}
+                  disabled={loading}
+                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                >
+                  <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                  {loading ? 'Laden...' : 'Vernieuwen'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
-        {activeSessions.length > 0 && (
-          <div className="bg-white rounded-lg shadow p-6 mb-6 border-2 border-blue-200">
-            <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-              <Wrench className="w-5 h-5 text-blue-600" />
-              Momenteel in productie
-            </h2>
-            <p className="text-sm text-gray-500 mb-4">
-              Actieve tijdregistraties (wordt elke 15 sec ververst).
-            </p>
-            <div className="space-y-3">
-              {activeSessions.map((s) => (
-                <div
-                  key={s.id}
-                  className="flex flex-wrap items-center gap-4 py-3 px-4 bg-blue-50 rounded-lg border border-blue-100"
-                >
-                  <span className="font-medium">{s.order_number}</span>
-                  <span className="text-gray-600">Item: {s.item_number ? <BcItemCode value={s.item_number} /> : '–'}</span>
-                  <span className="flex items-center gap-1 text-gray-700">
-                    <User className="w-4 h-4" />
-                    {s.employee_name}
-                  </span>
-                  <span className="flex items-center gap-1 text-blue-700 font-medium">
-                    <Wrench className="w-4 h-4" />
-                    {s.step || '–'}
-                  </span>
-                  <span className="text-sm text-gray-500">
-                    Bezig: {formatElapsed(s.elapsed_seconds)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {totals && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <Euro className="w-4 h-4 text-green-500" />
-                Totale opbrengst
+        <div className="px-4 lg:px-6 py-5 space-y-5">
+          {/* Active sessions */}
+          {activeSessions.length > 0 && (
+            <div className="rounded-xl border-2 border-blue-200 bg-blue-50 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Wrench className="h-5 w-5 text-blue-600" />
+                <h2 className="font-semibold text-blue-900">
+                  Momenteel in productie ({activeSessions.length})
+                </h2>
+                <span className="text-xs text-blue-600 ml-auto">ververst elke 15 sec</span>
               </div>
-              <div className="text-2xl font-semibold text-gray-900 mt-1">
-                {formatEuro(totals.total_revenue)}
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+                {activeSessions.map((s) => (
+                  <div
+                    key={s.id}
+                    className="flex flex-wrap items-center gap-3 rounded-lg border border-blue-100 bg-white px-3 py-2 text-sm"
+                  >
+                    <span className="font-medium">{s.order_number}</span>
+                    <span className="text-gray-600">
+                      {s.item_number ? <BcItemCode value={s.item_number} /> : '–'}
+                    </span>
+                    <span className="flex items-center gap-1 text-gray-700">
+                      <User className="h-3.5 w-3.5" />
+                      {s.employee_name}
+                    </span>
+                    <span className="text-blue-700">{s.step || '–'}</span>
+                    <span className="text-gray-500 ml-auto">{formatElapsed(s.elapsed_seconds)}</span>
+                  </div>
+                ))}
               </div>
-            </div>
-            <div className="bg-white rounded-lg shadow p-4 border-l-4 border-amber-500">
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <Package className="w-4 h-4 text-amber-500" />
-                Materiaalkost
-              </div>
-              <div className="text-2xl font-semibold text-gray-900 mt-1">
-                {formatEuro(totals.total_material_cost)}
-              </div>
-            </div>
-            <div className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <Clock className="w-4 h-4 text-blue-500" />
-                Gepresteerde uren
-              </div>
-              <div className="text-2xl font-semibold text-gray-900 mt-1">
-                {(totals.total_hours ?? 0).toFixed(1)} u
-              </div>
-            </div>
-            <div className="bg-white rounded-lg shadow p-4 border-l-4 border-emerald-600">
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <TrendingUp className="w-4 h-4 text-emerald-600" />
-                Marge (opbrengst − materiaal)
-              </div>
-              <div className="text-2xl font-semibold text-gray-900 mt-1">
-                {formatEuro(totals.total_margin)}
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex flex-col sm:flex-row justify-between gap-4 mb-4 flex-wrap">
-            <h2 className="text-xl font-semibold">Detail per productie</h2>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                type="text"
-                placeholder="Zoek op item of order..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg w-full sm:w-64"
-              />
-              <button
-                type="button"
-                onClick={exportToExcel}
-                disabled={filteredRuns.length === 0}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <FileDown className="w-4 h-4" />
-                Exporteer Excel
-              </button>
-            </div>
-          </div>
-
-          {loading ? (
-            <p className="text-gray-500 py-8 text-center">Laden...</p>
-          ) : filteredRuns.length === 0 ? (
-            <p className="text-gray-500 py-8 text-center">
-              Geen productiedata in de geselecteerde periode. Stel een datumreeks in en klik op Vernieuwen.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="text-left text-gray-500 border-b border-gray-200">
-                    <th className="py-3 pr-4 w-8"></th>
-                    <th className="py-3 pr-4 font-medium">Datum</th>
-                    <th className="py-3 pr-4 font-medium">Order</th>
-                    <th className="py-3 pr-4 font-medium">Item</th>
-                    <th className="py-3 pr-4 font-medium">Omschrijving</th>
-                    <th className="py-3 pr-4 font-medium text-right">Stuks</th>
-                    <th className="py-3 pr-4 font-medium text-right">Verkoopprijs</th>
-                    <th className="py-3 pr-4 font-medium text-right">Opbrengst</th>
-                    <th className="py-3 pr-4 font-medium text-right">Materiaalkost</th>
-                    <th className="py-3 pr-4 font-medium text-right">Uren</th>
-                    <th className="py-3 pr-4 font-medium text-right">Marge</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRuns.map((r, idx) => {
-                    const runKey = `${r.order_number}-${r.item_number}-${r.date}-${idx}`
-                    const isExpanded = expandedRunKey === runKey
-                    const steps = r.steps ?? []
-                    const employees = r.employees ?? []
-                    const hasSteps = steps.length > 0
-                    const hasEmployees = employees.length > 0
-                    const hasDetails = hasSteps || hasEmployees
-                    return (
-                      <React.Fragment key={runKey}>
-                        <tr className="border-b border-gray-100 hover:bg-gray-50">
-                          <td className="py-2 pr-2">
-                            {hasDetails ? (
-                              <button
-                                type="button"
-                                onClick={() => setExpandedRunKey(isExpanded ? null : runKey)}
-                                className="p-1 rounded hover:bg-gray-200 text-gray-500"
-                                title={isExpanded ? 'Details verbergen' : 'Details tonen'}
-                              >
-                                {isExpanded ? '▼' : '▶'}
-                              </button>
-                            ) : (
-                              <span className="text-gray-300 w-6 inline-block">–</span>
-                            )}
-                          </td>
-                          <td className="py-2 pr-4 whitespace-nowrap">{formatDate(r.date)}</td>
-                          <td className="py-2 pr-4 font-medium">{r.order_number}</td>
-                          <td className="py-2 pr-4 font-medium"><BcItemCode value={r.item_number} /></td>
-                          <td className="py-2 pr-4 max-w-[200px] truncate text-gray-600" title={r.description || ''}>
-                            {r.description || '–'}
-                          </td>
-                          <td className="py-2 pr-4 text-right">{r.quantity}</td>
-                          <td className="py-2 pr-4 text-right">{formatEuro(r.sales_price)}</td>
-                          <td className="py-2 pr-4 text-right font-medium">{formatEuro(r.revenue)}</td>
-                          <td className="py-2 pr-4 text-right">€ {(r.material_cost_total ?? 0).toFixed(2)}</td>
-                          <td className="py-2 pr-4 text-right">{formatHours(r.hours)}</td>
-                          <td className="py-2 pr-4 text-right">
-                            <span className={r.margin != null && r.margin < 0 ? 'text-red-600' : 'text-gray-900'}>
-                              {formatEuro(r.margin)}
-                            </span>
-                          </td>
-                        </tr>
-                        {isExpanded && hasDetails && (
-                          <tr key={`${runKey}-steps`} className="bg-gray-50 border-b border-gray-100">
-                            <td className="py-2 pr-2"></td>
-                            <td colSpan={10} className="py-3 px-4">
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {hasSteps && (
-                                  <div>
-                                    <div className="text-sm font-medium text-gray-700 mb-2">Uren per stap</div>
-                                    <div className="flex flex-wrap gap-3">
-                                      {steps.map((s) => (
-                                        <span
-                                          key={s.step}
-                                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-200 rounded-lg"
-                                        >
-                                          <span className="text-gray-700">{s.step}</span>
-                                          <span className="font-medium text-gray-900">{formatHours(s.hours)}</span>
-                                        </span>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                                {hasEmployees && (
-                                  <div>
-                                    <div className="text-sm font-medium text-gray-700 mb-2">Wie heeft gewerkt</div>
-                                    <div className="flex flex-wrap gap-3">
-                                      {employees.map((e) => (
-                                        <span
-                                          key={e.employee_name}
-                                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-200 rounded-lg"
-                                        >
-                                          <User className="w-4 h-4 text-gray-500" />
-                                          <span className="text-gray-700">{e.employee_name}</span>
-                                          <span className="font-medium text-gray-900">{formatHours(e.hours)}</span>
-                                        </span>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    )
-                  })}
-                </tbody>
-              </table>
             </div>
           )}
-        </div>
 
-        <div className="bg-white rounded-lg shadow p-6 mt-8 border border-slate-200">
-          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-4">
-            <div>
-              <h2 className="text-xl font-semibold">Productieorders beheren</h2>
-              <p className="text-sm text-gray-600 mt-1">
-                Verwijder orders uit de tijdregistratie-flow op{' '}
-                <a href="/production-order-time" className="underline text-blue-700">
-                  /production-order-time
-                </a>
-                . Actieve tijdregistraties moeten eerst gestopt worden.
-              </p>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <select
-                value={manageSite}
-                onChange={(e) => setManageSite(e.target.value as Site)}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              >
-                {availableSites.map((siteOption) => (
-                  <option key={siteOption} value={siteOption}>
-                    {siteOption}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="text"
-                placeholder="Zoek order..."
-                value={manageSearch}
-                onChange={(e) => setManageSearch(e.target.value)}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm w-full sm:w-48"
-              />
+          <KpiSummaryCards totals={totals} derived={derived} />
+          <KpiSecondaryStats derived={derived} />
+          <KpiChartsSection kpiData={kpiData} dailyHours={dailyHours} dailyFinancial={dailyFinancial} />
+
+          {/* Bottom tabs */}
+          <div className="flex gap-2 border-b border-gray-200">
+            {([
+              ['detail', 'Productiedetail'],
+              ['orders', 'Orders beheren'],
+            ] as const).map(([tab, label]) => (
               <button
+                key={tab}
                 type="button"
-                onClick={loadManagedOrders}
-                disabled={manageLoading}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-60"
+                onClick={() => setBottomTab(tab)}
+                className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                  bottomTab === tab
+                    ? 'border-blue-600 text-blue-700'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
               >
-                Vernieuwen
+                {label}
               </button>
-            </div>
+            ))}
           </div>
 
-          <div className="flex gap-2 mb-4">
-            <button
-              type="button"
-              onClick={() => setManageTab('actief')}
-              className={`rounded-lg px-4 py-2 text-sm font-medium ${
-                manageTab === 'actief'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Actief
-            </button>
-            <button
-              type="button"
-              onClick={() => setManageTab('afgewerkt')}
-              className={`rounded-lg px-4 py-2 text-sm font-medium ${
-                manageTab === 'afgewerkt'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Afgewerkt
-            </button>
-          </div>
-
-          {manageLoading ? (
-            <p className="text-gray-500 py-6 text-center">Orders laden...</p>
-          ) : managedOrders.length === 0 ? (
-            <p className="text-gray-500 py-6 text-center">Geen orders gevonden.</p>
+          {bottomTab === 'detail' ? (
+            <ProductionDetailTable
+              runs={runs}
+              loading={loading}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+            />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="text-left text-gray-500 border-b border-gray-200">
-                    <th className="py-3 pr-4 font-medium">Order</th>
-                    <th className="py-3 pr-4 font-medium">Verkooporder</th>
-                    <th className="py-3 pr-4 font-medium">Geüpload</th>
-                    <th className="py-3 pr-4 font-medium">Afgewerkt</th>
-                    <th className="py-3 pr-4 font-medium text-right">Actie</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {managedOrders.map((order) => (
-                    <tr key={order.id} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="py-2 pr-4 font-medium">{order.order_number}</td>
-                      <td className="py-2 pr-4">{order.sales_order_number || '–'}</td>
-                      <td className="py-2 pr-4 whitespace-nowrap">{formatDate(order.uploaded_at)}</td>
-                      <td className="py-2 pr-4 whitespace-nowrap">{formatDate(order.finished_at)}</td>
-                      <td className="py-2 pr-4 text-right">
-                        <button
-                          type="button"
-                          onClick={() => deleteManagedOrder(order)}
-                          disabled={deletingOrderId === order.id}
-                          className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-red-700 hover:bg-red-50 disabled:opacity-50"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          {deletingOrderId === order.id ? 'Bezig...' : 'Verwijder'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <OrderManagementSection
+              availableSites={availableSites}
+              manageSite={manageSite}
+              setManageSite={setManageSite}
+              manageTab={manageTab}
+              setManageTab={setManageTab}
+              manageSearch={manageSearch}
+              setManageSearch={setManageSearch}
+              managedOrders={managedOrders}
+              manageLoading={manageLoading}
+              deletingOrderId={deletingOrderId}
+              onRefresh={loadManagedOrders}
+              onDelete={deleteManagedOrder}
+            />
           )}
         </div>
       </div>
