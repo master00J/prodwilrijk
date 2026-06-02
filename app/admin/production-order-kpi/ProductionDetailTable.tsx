@@ -5,7 +5,7 @@ import { FileDown, User } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { BcItemCode } from '@/lib/bc-mapping/client'
 import type { RevenueRun } from './types'
-import { formatDate, formatEuro, formatHours } from './kpi-formatters'
+import { formatDate, formatHours } from './kpi-formatters'
 
 export function ProductionDetailTable({
   runs,
@@ -37,27 +37,18 @@ export function ProductionDetailTable({
       alert('Geen data om te exporteren.')
       return
     }
-    const rows = filteredRuns.map((r) => {
-      const verkoopMinMateriaal =
-        r.revenue != null ? Number((r.revenue - r.material_cost_total).toFixed(2)) : ''
-      return {
-        Datum: formatDate(r.date),
-        Order: r.order_number,
-        Item: r.item_number,
-        Omschrijving: r.description || '',
-        Stuks: r.quantity,
-        'Verkoopprijs €': r.sales_price != null ? r.sales_price : '',
-        'Opbrengst €': r.revenue != null ? r.revenue : '',
-        'Materiaalkost €': r.material_cost_total ?? 0,
-        'Uren (decimaal)': Math.round(r.hours * 100) / 100,
-        'Uren/stuk': r.hours_per_piece,
-        'Marge €': r.margin != null ? r.margin : '',
-        'Verkoopprijs min materiaalkost €': verkoopMinMateriaal,
-      }
-    })
+    const rows = filteredRuns.map((r) => ({
+      Datum: formatDate(r.date),
+      Order: r.order_number,
+      Item: r.item_number,
+      Omschrijving: r.description || '',
+      Stuks: r.quantity,
+      'Uren (decimaal)': Math.round(r.hours * 100) / 100,
+      'Uren/stuk': r.hours_per_piece,
+    }))
     const ws = XLSX.utils.json_to_sheet(rows)
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Opbrengsten')
+    XLSX.utils.book_append_sheet(wb, ws, 'Productie')
     XLSX.writeFile(wb, `productie-kpi_${dateFrom || 'vanaf'}_${dateTo || 'tot'}.xlsx`)
   }
 
@@ -106,11 +97,7 @@ export function ProductionDetailTable({
                 <th className="py-3 pr-4 font-medium">Omschrijving</th>
                 <th className="py-3 pr-4 font-medium text-right">Stuks</th>
                 <th className="py-3 pr-4 font-medium text-right">Uren/stuk</th>
-                <th className="py-3 pr-4 font-medium text-right">Verkoopprijs</th>
-                <th className="py-3 pr-4 font-medium text-right">Opbrengst</th>
-                <th className="py-3 pr-4 font-medium text-right">Materiaal</th>
                 <th className="py-3 pr-4 font-medium text-right">Uren</th>
-                <th className="py-3 pr-4 font-medium text-right">Marge</th>
               </tr>
             </thead>
             <tbody>
@@ -146,20 +133,12 @@ export function ProductionDetailTable({
                       </td>
                       <td className="py-2 pr-4 text-right">{r.quantity}</td>
                       <td className="py-2 pr-4 text-right">{formatHours(r.hours_per_piece)}</td>
-                      <td className="py-2 pr-4 text-right">{formatEuro(r.sales_price)}</td>
-                      <td className="py-2 pr-4 text-right font-medium">{formatEuro(r.revenue)}</td>
-                      <td className="py-2 pr-4 text-right">€ {(r.material_cost_total ?? 0).toFixed(2)}</td>
                       <td className="py-2 pr-4 text-right">{formatHours(r.hours)}</td>
-                      <td className="py-2 pr-4 text-right">
-                        <span className={r.margin != null && r.margin < 0 ? 'text-red-600 font-medium' : ''}>
-                          {formatEuro(r.margin)}
-                        </span>
-                      </td>
                     </tr>
                     {isExpanded && hasDetails && (
                       <tr className="bg-slate-50 border-b border-gray-100">
                         <td />
-                        <td colSpan={11} className="py-3 px-4">
+                        <td colSpan={7} className="py-3 px-4">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {steps.length > 0 && (
                               <div>

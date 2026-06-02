@@ -70,16 +70,12 @@ export type KpiData = {
 
 export type DerivedKpis = {
   totalQuantity: number
+  totalHours: number
   runCount: number
   uniqueOrders: number
   uniqueItems: number
   uniqueEmployees: number
   avgHoursPerPiece: number
-  marginPct: number | null
-  materialPct: number | null
-  revenuePerHour: number | null
-  marginPerHour: number | null
-  avgRevenuePerRun: number | null
   zaagHours: number
   activeStepCount: number
 }

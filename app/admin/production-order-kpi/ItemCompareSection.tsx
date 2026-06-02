@@ -25,7 +25,6 @@ import {
   formatDate,
   formatDelta,
   formatDeltaPct,
-  formatEuro,
   formatHours,
   formatPct,
 } from './kpi-formatters'
@@ -251,7 +250,7 @@ export function ItemCompareSection({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="rounded-xl bg-white border border-gray-100 p-4 shadow-sm">
               <div className="text-xs text-gray-500 uppercase">Uren/stuk gemiddeld</div>
               <div className="text-xl font-bold mt-1">{formatHours(analysis.hoursPerPiece.avg)}</div>
@@ -269,21 +268,6 @@ export function ItemCompareSection({
               <div className="text-xl font-bold mt-1">{formatHours(analysis.totalHours)}</div>
               <div className="text-xs text-gray-500 mt-1">{analysis.totalQuantity.toLocaleString('nl-BE')} stuks</div>
             </div>
-            {analysis.margin ? (
-              <div className="rounded-xl bg-white border border-gray-100 p-4 shadow-sm">
-                <div className="text-xs text-gray-500 uppercase">Marge spreiding</div>
-                <div className="text-xl font-bold mt-1">{formatEuro(analysis.margin.spread)}</div>
-                <div className="text-xs text-gray-500 mt-1">
-                  gem. {formatEuro(analysis.margin.avg)} · min {formatEuro(analysis.margin.min)} · max{' '}
-                  {formatEuro(analysis.margin.max)}
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-xl bg-white border border-gray-100 p-4 shadow-sm">
-                <div className="text-xs text-gray-500 uppercase">Financiële data</div>
-                <div className="text-sm text-gray-400 mt-2">Geen prijs/marge bekend</div>
-              </div>
-            )}
           </div>
 
           {chartData.length > 1 ? (
@@ -329,7 +313,6 @@ export function ItemCompareSection({
                       <th className="py-2.5 pr-4 font-medium text-right">Stuks</th>
                       <th className="py-2.5 pr-4 font-medium text-right">Uren/stuk</th>
                       <th className="py-2.5 pr-4 font-medium">vs gemiddelde</th>
-                      <th className="py-2.5 pr-4 font-medium text-right">Marge</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -364,13 +347,6 @@ export function ItemCompareSection({
                             <DeltaBadge value={c.hoursPerPieceDelta} pct={c.hoursPerPieceDeltaPct} invert />
                           ) : (
                             <span className="text-gray-400 text-xs">enige run</span>
-                          )}
-                        </td>
-                        <td className="py-2.5 pr-4 text-right">
-                          {c.run.margin != null ? (
-                            <span className={c.run.margin < 0 ? 'text-red-600' : ''}>{formatEuro(c.run.margin)}</span>
-                          ) : (
-                            '–'
                           )}
                         </td>
                       </tr>

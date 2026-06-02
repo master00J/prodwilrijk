@@ -17,13 +17,11 @@ import { filterRunsByItem, itemMatchesQuery } from './item-analysis'
 import { toIsoDate } from './kpi-formatters'
 import type {
   ActiveSession,
-  DailyFinancial,
   DailyHours,
   DerivedKpis,
   KpiData,
   ManagedOrder,
   RevenueRun,
-  RevenueTotals,
 } from './types'
 
 type DatePreset = 'today' | 'week' | 'month' | 'all'
@@ -50,7 +48,6 @@ export default function ProductionOrderKpiPage() {
   const [dateTo, setDateTo] = useState('')
   const [loading, setLoading] = useState(false)
   const [runs, setRuns] = useState<RevenueRun[]>([])
-  const [totals, setTotals] = useState<RevenueTotals | null>(null)
   const [kpiData, setKpiData] = useState<KpiData | null>(null)
   const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([])
   const [activeLoading, setActiveLoading] = useState(false)
@@ -91,12 +88,11 @@ export default function ProductionOrderKpiPage() {
         fetch(`/api/production-order-time/revenue?${params.toString()}`),
         fetch(`/api/production-order-time/kpi?${params.toString()}`),
       ])
-      if (!revenueRes.ok) throw new Error('Opbrengsten ophalen mislukt')
+      if (!revenueRes.ok) throw new Error('Productiedata ophalen mislukt')
       if (!kpiRes.ok) throw new Error('KPI-data ophalen mislukt')
       const revenueData = await revenueRes.json()
       const kpiJson = await kpiRes.json()
       setRuns(revenueData.runs || [])
-      setTotals(revenueData.totals || null)
       setKpiData({
         orders: kpiJson.orders || [],
         steps: kpiJson.steps || [],
@@ -109,7 +105,6 @@ export default function ProductionOrderKpiPage() {
       console.error(e)
       alert('Data laden mislukt')
       setRuns([])
-      setTotals(null)
       setKpiData(null)
     } finally {
       setLoading(false)
@@ -207,37 +202,20 @@ export default function ProductionOrderKpiPage() {
     const uniqueItems = new Set(filteredRuns.map((r) => r.item_number).filter(Boolean)).size
     const uniqueEmployees = kpiData?.employees?.length ?? 0
     const totalHours = filteredRuns.reduce((s, r) => s + (r.hours || 0), 0)
-    const totalRevenue = filteredRuns.reduce((s, r) => s + (r.revenue ?? 0), 0)
-    const totalMaterial = filteredRuns.reduce((s, r) => s + (r.material_cost_total ?? 0), 0)
-    const totalMargin = filteredRuns.reduce((s, r) => s + (r.margin ?? 0), 0)
     const zaagHours = (kpiData?.zaagByDate ?? []).reduce((s, z) => s + z.hours, 0)
 
     return {
       totalQuantity,
+      totalHours,
       runCount,
       uniqueOrders,
       uniqueItems,
       uniqueEmployees,
       avgHoursPerPiece: totalQuantity > 0 ? totalHours / totalQuantity : 0,
-      marginPct: totalRevenue > 0 ? (totalMargin / totalRevenue) * 100 : null,
-      materialPct: totalRevenue > 0 ? (totalMaterial / totalRevenue) * 100 : null,
-      revenuePerHour: totalHours > 0 ? totalRevenue / totalHours : null,
-      marginPerHour: totalHours > 0 ? totalMargin / totalHours : null,
-      avgRevenuePerRun: runCount > 0 ? totalRevenue / runCount : null,
       zaagHours,
       activeStepCount: kpiData?.steps?.length ?? 0,
     }
   }, [filteredRuns, kpiData])
-
-  const filteredTotals = useMemo<RevenueTotals | null>(() => {
-    if (filteredRuns.length === 0) return totals && !selectedItem ? totals : null
-    return {
-      total_revenue: filteredRuns.reduce((s, r) => s + (r.revenue ?? 0), 0),
-      total_material_cost: filteredRuns.reduce((s, r) => s + (r.material_cost_total ?? 0), 0),
-      total_hours: filteredRuns.reduce((s, r) => s + (r.hours || 0), 0),
-      total_margin: filteredRuns.reduce((s, r) => s + (r.margin ?? 0), 0),
-    }
-  }, [filteredRuns, totals, selectedItem])
 
   const dailyHours = useMemo<DailyHours[]>(() => {
     const map = new Map<string, number>()
@@ -248,20 +226,6 @@ export default function ProductionOrderKpiPage() {
       .map(([date, hours]) => ({ date, hours }))
       .sort((a, b) => a.date.localeCompare(b.date))
   }, [kpiData])
-
-  const dailyFinancial = useMemo<DailyFinancial[]>(() => {
-    const map = new Map<string, DailyFinancial>()
-    filteredRuns.forEach((r) => {
-      if (!r.date) return
-      const existing = map.get(r.date) ?? { date: r.date, revenue: 0, margin: 0, hours: 0, material: 0 }
-      existing.revenue += r.revenue ?? 0
-      existing.margin += r.margin ?? 0
-      existing.hours += r.hours ?? 0
-      existing.material += r.material_cost_total ?? 0
-      map.set(r.date, existing)
-    })
-    return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date))
-  }, [filteredRuns])
 
   const activeOrderGroups = useMemo(() => groupActiveByOrder(activeSessions), [activeSessions])
   const siteFilteredActiveSessions = useMemo(() => {
@@ -315,7 +279,7 @@ export default function ProductionOrderKpiPage() {
                   ) : null}
                 </h1>
                 <p className="text-sm text-gray-500 mt-0.5">
-                  Opbrengsten, kosten, uren en productiviteit — {selectedSite}
+                  Uren, productiviteit en live productie — {selectedSite}
                   {selectedItem ? (
                     <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-violet-800 text-xs font-medium">
                       Item: <BcItemCode value={selectedItem} />
@@ -413,9 +377,9 @@ export default function ProductionOrderKpiPage() {
             showAllSites={availableSites.length > 1}
           />
 
-          <KpiSummaryCards totals={filteredTotals} derived={derived} />
+          <KpiSummaryCards derived={derived} />
           <KpiSecondaryStats derived={derived} />
-          <KpiChartsSection kpiData={kpiData} dailyHours={dailyHours} dailyFinancial={dailyFinancial} />
+          <KpiChartsSection kpiData={kpiData} dailyHours={dailyHours} />
 
           {/* Bottom tabs */}
           <div className="flex gap-2 border-b border-gray-200">

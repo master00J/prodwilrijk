@@ -5,16 +5,12 @@ import {
   Activity,
   Boxes,
   Clock,
-  Euro,
   Layers,
-  Package,
-  Percent,
-  TrendingUp,
   Users,
   Wrench,
 } from 'lucide-react'
-import type { DerivedKpis, RevenueTotals } from './types'
-import { formatEuro, formatHours, formatPct } from './kpi-formatters'
+import type { DerivedKpis } from './types'
+import { formatHours } from './kpi-formatters'
 
 type CardDef = {
   label: string
@@ -24,62 +20,35 @@ type CardDef = {
   accent: string
 }
 
-export function KpiSummaryCards({
-  totals,
-  derived,
-}: {
-  totals: RevenueTotals | null
-  derived: DerivedKpis
-}) {
+export function KpiSummaryCards({ derived }: { derived: DerivedKpis }) {
   const cards: CardDef[] = [
     {
-      label: 'Totale opbrengst',
-      value: formatEuro(totals?.total_revenue ?? 0),
-      sub: derived.avgRevenuePerRun != null ? `Gem. ${formatEuro(derived.avgRevenuePerRun)} per run` : undefined,
-      icon: <Euro className="h-5 w-5" />,
-      accent: 'border-emerald-500 bg-emerald-50 text-emerald-700',
-    },
-    {
-      label: 'Materiaalkost',
-      value: formatEuro(totals?.total_material_cost ?? 0),
-      sub: derived.materialPct != null ? `${formatPct(derived.materialPct)} van opbrengst` : undefined,
-      icon: <Package className="h-5 w-5" />,
-      accent: 'border-amber-500 bg-amber-50 text-amber-700',
-    },
-    {
-      label: 'Bruto marge',
-      value: formatEuro(totals?.total_margin ?? 0),
-      sub: derived.marginPct != null ? `${formatPct(derived.marginPct)} marge` : undefined,
-      icon: <TrendingUp className="h-5 w-5" />,
-      accent: 'border-teal-600 bg-teal-50 text-teal-700',
-    },
-    {
       label: 'Gepresteerde uren',
-      value: `${(totals?.total_hours ?? 0).toFixed(1)} u`,
-      sub: derived.revenuePerHour != null ? `${formatEuro(derived.revenuePerHour)}/u opbrengst` : undefined,
+      value: `${derived.totalHours.toFixed(1)} u`,
+      sub: `${derived.runCount} productieruns`,
       icon: <Clock className="h-5 w-5" />,
       accent: 'border-blue-500 bg-blue-50 text-blue-700',
     },
     {
       label: 'Geproduceerde stuks',
       value: derived.totalQuantity.toLocaleString('nl-BE'),
-      sub: `${derived.runCount} productieruns`,
+      sub: `${derived.uniqueOrders} orders`,
       icon: <Boxes className="h-5 w-5" />,
       accent: 'border-violet-500 bg-violet-50 text-violet-700',
     },
     {
       label: 'Gem. uren per stuk',
       value: formatHours(derived.avgHoursPerPiece),
-      sub: derived.marginPerHour != null ? `${formatEuro(derived.marginPerHour)}/u marge` : undefined,
+      sub: `${derived.uniqueItems} unieke items`,
       icon: <Activity className="h-5 w-5" />,
       accent: 'border-indigo-500 bg-indigo-50 text-indigo-700',
     },
     {
-      label: 'Orders / items / medewerkers',
-      value: `${derived.uniqueOrders} / ${derived.uniqueItems} / ${derived.uniqueEmployees}`,
-      sub: `${derived.activeStepCount} actieve stappen`,
-      icon: <Layers className="h-5 w-5" />,
-      accent: 'border-slate-500 bg-slate-50 text-slate-700',
+      label: 'Medewerkers actief',
+      value: String(derived.uniqueEmployees),
+      sub: `${derived.activeStepCount} verschillende stappen`,
+      icon: <Users className="h-5 w-5" />,
+      accent: 'border-teal-600 bg-teal-50 text-teal-700',
     },
     {
       label: 'Zaag-uren',
@@ -91,7 +60,7 @@ export function KpiSummaryCards({
   ]
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
+    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
       {cards.map((card) => (
         <div
           key={card.label}
@@ -109,10 +78,10 @@ export function KpiSummaryCards({
 
 export function KpiSecondaryStats({ derived }: { derived: DerivedKpis }) {
   const stats = [
-    { label: 'Marge %', value: formatPct(derived.marginPct), icon: Percent },
-    { label: 'Materiaal %', value: formatPct(derived.materialPct), icon: Percent },
-    { label: 'Opbrengst/u', value: formatEuro(derived.revenuePerHour), icon: Euro },
-    { label: 'Medewerkers actief', value: String(derived.uniqueEmployees), icon: Users },
+    { label: 'Productieruns', value: String(derived.runCount), icon: Layers },
+    { label: 'Orders', value: String(derived.uniqueOrders), icon: Boxes },
+    { label: 'Items', value: String(derived.uniqueItems), icon: Activity },
+    { label: 'Medewerkers', value: String(derived.uniqueEmployees), icon: Users },
   ]
 
   return (
