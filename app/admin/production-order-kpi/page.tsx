@@ -1,10 +1,21 @@
 'use client'
 
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import AdminGuard from '@/components/AdminGuard'
-import { Euro, Package, Clock, TrendingUp, User, Wrench, FileDown } from 'lucide-react'
+import { Euro, Package, Clock, TrendingUp, User, Wrench, FileDown, Trash2 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { BcItemCode } from '@/lib/bc-mapping/client'
+import { useAuth } from '@/components/AuthProvider'
+import { DEFAULT_SITE, SITES, type Site } from '@/lib/sites'
+
+type ManagedOrder = {
+  id: number
+  order_number: string
+  sales_order_number: string | null
+  uploaded_at: string
+  finished_at: string | null
+  site: string
+}
 
 type StepHours = { step: string; hours: number }
 type EmployeeHours = { employee_name: string; hours: number }
@@ -55,6 +66,11 @@ const formatHours = (h: number) => {
 const formatEuro = (n: number | null) => (n != null ? `€ ${n.toFixed(2)}` : '–')
 
 export default function ProductionOrderKpiPage() {
+  const { allowedSites } = useAuth()
+  const availableSites = useMemo(
+    () => (allowedSites.length > 0 ? SITES.filter((siteOption) => allowedSites.includes(siteOption)) : [...SITES]),
+    [allowedSites]
+  )
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [loading, setLoading] = useState(false)
@@ -63,6 +79,13 @@ export default function ProductionOrderKpiPage() {
   const [search, setSearch] = useState('')
   const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([])
   const [expandedRunKey, setExpandedRunKey] = useState<string | null>(null)
+
+  const [manageSite, setManageSite] = useState<Site>(DEFAULT_SITE)
+  const [manageTab, setManageTab] = useState<'actief' | 'afgewerkt'>('actief')
+  const [manageSearch, setManageSearch] = useState('')
+  const [managedOrders, setManagedOrders] = useState<ManagedOrder[]>([])
+  const [manageLoading, setManageLoading] = useState(false)
+  const [deletingOrderId, setDeletingOrderId] = useState<number | null>(null)
 
   const loadActive = useCallback(async () => {
     try {
@@ -105,6 +128,59 @@ export default function ProductionOrderKpiPage() {
     const t = setInterval(loadActive, 15000)
     return () => clearInterval(t)
   }, [loadActive])
+
+  useEffect(() => {
+    if (availableSites.length > 0 && !availableSites.includes(manageSite)) {
+      setManageSite(availableSites[0])
+    }
+  }, [availableSites, manageSite])
+
+  const loadManagedOrders = useCallback(async () => {
+    setManageLoading(true)
+    try {
+      const params = new URLSearchParams({
+        site: manageSite,
+        finished: manageTab === 'afgewerkt' ? 'true' : 'false',
+      })
+      if (manageSearch.trim()) params.set('q', manageSearch.trim())
+      const res = await fetch(`/api/production-orders/list?${params.toString()}`)
+      if (!res.ok) throw new Error('Orders ophalen mislukt')
+      const data = await res.json()
+      setManagedOrders(Array.isArray(data.orders) ? data.orders : [])
+    } catch (e) {
+      console.error(e)
+      setManagedOrders([])
+    } finally {
+      setManageLoading(false)
+    }
+  }, [manageSite, manageTab, manageSearch])
+
+  useEffect(() => {
+    void loadManagedOrders()
+  }, [loadManagedOrders])
+
+  const deleteManagedOrder = async (order: ManagedOrder) => {
+    const label = order.order_number
+    if (
+      !confirm(
+        `Productieorder "${label}" verwijderen?\n\nDit verwijdert ook alle gekoppelde tijdregistraties voor deze order.`
+      )
+    ) {
+      return
+    }
+
+    setDeletingOrderId(order.id)
+    try {
+      const res = await fetch(`/api/production-orders/${order.id}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Verwijderen mislukt')
+      await Promise.all([loadManagedOrders(), loadData(), loadActive()])
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Verwijderen mislukt')
+    } finally {
+      setDeletingOrderId(null)
+    }
+  }
 
   const formatElapsed = (seconds: number) => {
     const m = Math.floor(seconds / 60)
@@ -400,6 +476,117 @@ export default function ProductionOrderKpiPage() {
                       </React.Fragment>
                     )
                   })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6 mt-8 border border-slate-200">
+          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-4">
+            <div>
+              <h2 className="text-xl font-semibold">Productieorders beheren</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Verwijder orders uit de tijdregistratie-flow op{' '}
+                <a href="/production-order-time" className="underline text-blue-700">
+                  /production-order-time
+                </a>
+                . Actieve tijdregistraties moeten eerst gestopt worden.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <select
+                value={manageSite}
+                onChange={(e) => setManageSite(e.target.value as Site)}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              >
+                {availableSites.map((siteOption) => (
+                  <option key={siteOption} value={siteOption}>
+                    {siteOption}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="text"
+                placeholder="Zoek order..."
+                value={manageSearch}
+                onChange={(e) => setManageSearch(e.target.value)}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm w-full sm:w-48"
+              />
+              <button
+                type="button"
+                onClick={loadManagedOrders}
+                disabled={manageLoading}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-60"
+              >
+                Vernieuwen
+              </button>
+            </div>
+          </div>
+
+          <div className="flex gap-2 mb-4">
+            <button
+              type="button"
+              onClick={() => setManageTab('actief')}
+              className={`rounded-lg px-4 py-2 text-sm font-medium ${
+                manageTab === 'actief'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Actief
+            </button>
+            <button
+              type="button"
+              onClick={() => setManageTab('afgewerkt')}
+              className={`rounded-lg px-4 py-2 text-sm font-medium ${
+                manageTab === 'afgewerkt'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Afgewerkt
+            </button>
+          </div>
+
+          {manageLoading ? (
+            <p className="text-gray-500 py-6 text-center">Orders laden...</p>
+          ) : managedOrders.length === 0 ? (
+            <p className="text-gray-500 py-6 text-center">Geen orders gevonden.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500 border-b border-gray-200">
+                    <th className="py-3 pr-4 font-medium">Order</th>
+                    <th className="py-3 pr-4 font-medium">Verkooporder</th>
+                    <th className="py-3 pr-4 font-medium">Geüpload</th>
+                    <th className="py-3 pr-4 font-medium">Afgewerkt</th>
+                    <th className="py-3 pr-4 font-medium text-right">Actie</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {managedOrders.map((order) => (
+                    <tr key={order.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-2 pr-4 font-medium">{order.order_number}</td>
+                      <td className="py-2 pr-4">{order.sales_order_number || '–'}</td>
+                      <td className="py-2 pr-4 whitespace-nowrap">{formatDate(order.uploaded_at.slice(0, 10))}</td>
+                      <td className="py-2 pr-4 whitespace-nowrap">
+                        {order.finished_at ? formatDate(order.finished_at.slice(0, 10)) : '–'}
+                      </td>
+                      <td className="py-2 pr-4 text-right">
+                        <button
+                          type="button"
+                          onClick={() => deleteManagedOrder(order)}
+                          disabled={deletingOrderId === order.id}
+                          className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          {deletingOrderId === order.id ? 'Bezig...' : 'Verwijder'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       orders: orders.map((r) => ({
+        id: r.id,
         order_number: r.order_number,
         sales_order_number: r.sales_order_number || null,
         uploaded_at: r.uploaded_at,
