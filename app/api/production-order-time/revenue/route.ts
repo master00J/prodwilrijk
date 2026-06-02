@@ -117,8 +117,8 @@ export async function GET(request: NextRequest) {
           employees,
           sales_price: null as number | null,
           revenue: null as number | null,
-          material_cost_per_item: null as number | null,
-          material_cost_total: null as number | null,
+          material_cost_per_item: 0,
+          material_cost_total: 0,
           margin: null as number | null,
           description: null as string | null,
         }
@@ -127,7 +127,11 @@ export async function GET(request: NextRequest) {
       const totalMaterial = 0
       const totalHours = runs.reduce((s, r) => s + r.hours, 0)
       return NextResponse.json({
-        runs: runs.sort((a, b) => a.date.localeCompare(b.date) || a.item_number.localeCompare(b.item_number)),
+        runs: runs.sort(
+          (a, b) =>
+            (a.date || '').localeCompare(b.date || '') ||
+            (a.item_number || '').localeCompare(b.item_number || '')
+        ),
         totals: { total_revenue: totalRevenue, total_material_cost: totalMaterial, total_hours: totalHours, total_margin: totalRevenue - totalMaterial },
       })
     }
@@ -244,7 +248,11 @@ export async function GET(request: NextRequest) {
     const totalMargin = totalRevenue - totalMaterial
 
     return NextResponse.json({
-      runs: runs.sort((a, b) => a.date.localeCompare(b.date) || a.item_number.localeCompare(b.item_number)),
+      runs: runs.sort(
+        (a, b) =>
+          (a.date || '').localeCompare(b.date || '') ||
+          (a.item_number || '').localeCompare(b.item_number || '')
+      ),
       totals: {
         total_revenue: Number(totalRevenue.toFixed(2)),
         total_material_cost: Number(totalMaterial.toFixed(2)),

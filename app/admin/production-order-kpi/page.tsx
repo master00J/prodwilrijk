@@ -53,14 +53,18 @@ type RevenueTotals = {
   total_margin: number
 }
 
-const formatDate = (d: string) => {
-  const [y, m, day] = d.split('-')
+const formatDate = (d: string | null | undefined) => {
+  if (!d) return '–'
+  const datePart = d.slice(0, 10)
+  const [y, m, day] = datePart.split('-')
+  if (!y || !m || !day) return '–'
   return `${day}/${m}/${y}`
 }
 
-const formatHours = (h: number) => {
-  if (h < 1) return `${Math.round(h * 60)} min`
-  return `${h.toFixed(2)} u`
+const formatHours = (h: number | null | undefined) => {
+  const value = Number(h) || 0
+  if (value < 1) return `${Math.round(value * 60)} min`
+  return `${value.toFixed(2)} u`
 }
 
 const formatEuro = (n: number | null) => (n != null ? `€ ${n.toFixed(2)}` : '–')
@@ -219,11 +223,13 @@ export default function ProductionOrderKpiPage() {
   }
 
   const filteredRuns = search.trim()
-    ? runs.filter(
-        (r) =>
-          r.item_number.toLowerCase().includes(search.toLowerCase()) ||
-          r.order_number.toLowerCase().includes(search.toLowerCase())
-      )
+    ? runs.filter((r) => {
+        const q = search.toLowerCase()
+        return (
+          (r.item_number || '').toLowerCase().includes(q) ||
+          (r.order_number || '').toLowerCase().includes(q)
+        )
+      })
     : runs
 
   return (
@@ -326,7 +332,7 @@ export default function ProductionOrderKpiPage() {
                 Gepresteerde uren
               </div>
               <div className="text-2xl font-semibold text-gray-900 mt-1">
-                {totals.total_hours.toFixed(1)} u
+                {(totals.total_hours ?? 0).toFixed(1)} u
               </div>
             </div>
             <div className="bg-white rounded-lg shadow p-4 border-l-4 border-emerald-600">
@@ -423,7 +429,7 @@ export default function ProductionOrderKpiPage() {
                           <td className="py-2 pr-4 text-right">{r.quantity}</td>
                           <td className="py-2 pr-4 text-right">{formatEuro(r.sales_price)}</td>
                           <td className="py-2 pr-4 text-right font-medium">{formatEuro(r.revenue)}</td>
-                          <td className="py-2 pr-4 text-right">€ {r.material_cost_total.toFixed(2)}</td>
+                          <td className="py-2 pr-4 text-right">€ {(r.material_cost_total ?? 0).toFixed(2)}</td>
                           <td className="py-2 pr-4 text-right">{formatHours(r.hours)}</td>
                           <td className="py-2 pr-4 text-right">
                             <span className={r.margin != null && r.margin < 0 ? 'text-red-600' : 'text-gray-900'}>
@@ -570,10 +576,8 @@ export default function ProductionOrderKpiPage() {
                     <tr key={order.id} className="border-b border-gray-100 hover:bg-gray-50">
                       <td className="py-2 pr-4 font-medium">{order.order_number}</td>
                       <td className="py-2 pr-4">{order.sales_order_number || '–'}</td>
-                      <td className="py-2 pr-4 whitespace-nowrap">{formatDate(order.uploaded_at.slice(0, 10))}</td>
-                      <td className="py-2 pr-4 whitespace-nowrap">
-                        {order.finished_at ? formatDate(order.finished_at.slice(0, 10)) : '–'}
-                      </td>
+                      <td className="py-2 pr-4 whitespace-nowrap">{formatDate(order.uploaded_at)}</td>
+                      <td className="py-2 pr-4 whitespace-nowrap">{formatDate(order.finished_at)}</td>
                       <td className="py-2 pr-4 text-right">
                         <button
                           type="button"
