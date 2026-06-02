@@ -799,7 +799,7 @@ export const PERSONAL_ASSISTANT_TOOLS = [
     function: {
       name: 'airtec_stats',
       description:
-        'Airtec KPIs (/admin/airtec): packed_by_person met items_packed per medewerker, zoals prepack_stats.',
+        'Airtec KPIs (/admin/airtec): totals.items_packed totaal; people_by_hours per medewerker. Voor stuks per persoon: prepack_stats.',
       parameters: {
         type: 'object',
         properties: {

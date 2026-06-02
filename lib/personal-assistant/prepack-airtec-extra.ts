@@ -4,7 +4,7 @@ import { fetchPrepackStats } from '@/lib/prepack/stats'
 import { fetchAirtecStats } from '@/lib/airtec/stats'
 import { resolveAssistantDateRange, previousPeriodRange } from '@/lib/personal-assistant/date-range'
 
-function mapPersonPackedStats(person: {
+function mapPrepackPersonStats(person: {
   name: string
   manHours: number
   itemsPacked: number
@@ -17,6 +17,13 @@ function mapPersonPackedStats(person: {
     man_hours: Math.round(person.manHours * 10) / 10,
     items_per_hour: Math.round(person.itemsPerHour * 10) / 10,
     revenue: Math.round(person.revenue * 100) / 100,
+  }
+}
+
+function mapAirtecPersonStats(person: { name: string; manHours: number }) {
+  return {
+    name: person.name,
+    man_hours: Math.round(person.manHours * 10) / 10,
   }
 }
 
@@ -66,7 +73,7 @@ export async function getPrepackStatsForAssistant(input?: {
   const packedByPerson = [...raw.personStats]
     .filter(p => p.itemsPacked > 0 || p.manHours > 0)
     .sort((a, b) => b.itemsPacked - a.itemsPacked || b.manHours - a.manHours)
-    .map(mapPersonPackedStats)
+    .map(mapPrepackPersonStats)
 
   const result: Record<string, unknown> = {
     source: 'admin/prepack',
@@ -123,28 +130,26 @@ export async function getAirtecStatsForAssistant(input?: {
   })
 
   const peopleLimit = Math.min(Math.max(input?.limit_people ?? 20, 1), 50)
-  const packedByPerson = [...raw.personStats]
-    .filter(p => p.itemsPacked > 0 || p.manHours > 0)
-    .sort((a, b) => b.itemsPacked - a.itemsPacked || b.manHours - a.manHours)
-    .map(mapPersonPackedStats)
+  const peopleByHours = [...raw.personStats]
+    .filter(p => p.manHours > 0)
+    .sort((a, b) => b.manHours - a.manHours)
+    .map(mapAirtecPersonStats)
 
   const result: Record<string, unknown> = {
     source: 'admin/airtec',
     period: range,
     totals: compactTotals(raw.totals),
     daily_stats: raw.dailyStats.slice(-14),
-    packed_by_person: packedByPerson.slice(0, peopleLimit),
-    top_people_by_hours: [...raw.personStats]
-      .sort((a, b) => b.manHours - a.manHours)
-      .slice(0, 6)
-      .map(p => ({ name: p.name, man_hours: Math.round(p.manHours * 10) / 10 })),
+    people_by_hours: peopleByHours.slice(0, peopleLimit),
+    note: 'Airtec: stuks per persoon alleen als totaal (totals.items_packed). Per persoon: man_hours.',
+    top_people_by_hours: peopleByHours.slice(0, 6),
   }
 
   const personFilter = input?.person_name?.trim()
   if (personFilter) {
     const needle = personFilter.toLowerCase()
     result.person_filter = personFilter
-    result.matched_people = packedByPerson.filter(p => p.name.toLowerCase().includes(needle))
+    result.matched_people = peopleByHours.filter(p => p.name.toLowerCase().includes(needle))
   }
 
   if (input?.compare_previous_period) {
