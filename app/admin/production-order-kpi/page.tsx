@@ -5,14 +5,16 @@ import AdminGuard from '@/components/AdminGuard'
 import { useAuth } from '@/components/AuthProvider'
 import { BcItemCode, useBcMapping } from '@/lib/bc-mapping/client'
 import { DEFAULT_SITE, SITES, type Site } from '@/lib/sites'
-import { RefreshCw, User, Wrench, X } from 'lucide-react'
+import { RefreshCw, X } from 'lucide-react'
+import { ActiveProductionSection } from './ActiveProductionSection'
+import { groupActiveByOrder } from './active-production'
 import { KpiChartsSection } from './KpiChartsSection'
 import { KpiSecondaryStats, KpiSummaryCards } from './KpiSummaryCards'
 import { ItemCompareSection } from './ItemCompareSection'
 import { OrderManagementSection } from './OrderManagementSection'
 import { ProductionDetailTable } from './ProductionDetailTable'
 import { filterRunsByItem, itemMatchesQuery } from './item-analysis'
-import { formatElapsed, toIsoDate } from './kpi-formatters'
+import { toIsoDate } from './kpi-formatters'
 import type {
   ActiveSession,
   DailyFinancial,
@@ -25,7 +27,7 @@ import type {
 } from './types'
 
 type DatePreset = 'today' | 'week' | 'month' | 'all'
-type BottomTab = 'detail' | 'item' | 'orders'
+type BottomTab = 'live' | 'detail' | 'item' | 'orders'
 
 function startOfWeek(d: Date) {
   const copy = new Date(d)
@@ -51,7 +53,8 @@ export default function ProductionOrderKpiPage() {
   const [totals, setTotals] = useState<RevenueTotals | null>(null)
   const [kpiData, setKpiData] = useState<KpiData | null>(null)
   const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([])
-  const [bottomTab, setBottomTab] = useState<BottomTab>('detail')
+  const [activeLoading, setActiveLoading] = useState(false)
+  const [bottomTab, setBottomTab] = useState<BottomTab>('live')
   const [selectedItem, setSelectedItem] = useState('')
 
   const [manageSite, setManageSite] = useState<Site>(DEFAULT_SITE)
@@ -114,16 +117,24 @@ export default function ProductionOrderKpiPage() {
   }, [buildParams])
 
   const loadActive = useCallback(async () => {
+    setActiveLoading(true)
     try {
-      const params = new URLSearchParams({ site: selectedSite })
-      const res = await fetch(`/api/production-order-time/active?${params.toString()}`)
-      if (!res.ok) return
-      const data = await res.json()
-      setActiveSessions(Array.isArray(data) ? data : [])
+      const sitesToLoad = availableSites.length > 0 ? availableSites : [selectedSite]
+      const results = await Promise.all(
+        sitesToLoad.map(async (site) => {
+          const res = await fetch(`/api/production-order-time/active?site=${encodeURIComponent(site)}`)
+          if (!res.ok) return []
+          const data = await res.json()
+          return (Array.isArray(data) ? data : []).map((s: ActiveSession) => ({ ...s, site }))
+        })
+      )
+      setActiveSessions(results.flat())
     } catch {
       setActiveSessions([])
+    } finally {
+      setActiveLoading(false)
     }
-  }, [selectedSite])
+  }, [availableSites, selectedSite])
 
   const loadManagedOrders = useCallback(async () => {
     setManageLoading(true)
@@ -252,6 +263,12 @@ export default function ProductionOrderKpiPage() {
     return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date))
   }, [filteredRuns])
 
+  const activeOrderGroups = useMemo(() => groupActiveByOrder(activeSessions), [activeSessions])
+  const siteFilteredActiveSessions = useMemo(() => {
+    if (availableSites.length <= 1) return activeSessions
+    return activeSessions.filter((s) => !s.site || s.site === selectedSite)
+  }, [activeSessions, selectedSite, availableSites.length])
+
   const deleteManagedOrder = async (order: ManagedOrder) => {
     if (
       !confirm(
@@ -281,7 +298,22 @@ export default function ProductionOrderKpiPage() {
           <div className="px-4 lg:px-6 py-4">
             <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Productie KPI Dashboard</h1>
+                <h1 className="text-2xl font-bold text-gray-900 flex flex-wrap items-center gap-2">
+                  Productie KPI Dashboard
+                  {activeOrderGroups.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setBottomTab('live')}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-800 hover:bg-blue-200"
+                    >
+                      <span className="relative flex h-2 w-2">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-500 opacity-75" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-600" />
+                      </span>
+                      {activeOrderGroups.length} live
+                    </button>
+                  ) : null}
+                </h1>
                 <p className="text-sm text-gray-500 mt-0.5">
                   Opbrengsten, kosten, uren en productiviteit — {selectedSite}
                   {selectedItem ? (
@@ -374,37 +406,12 @@ export default function ProductionOrderKpiPage() {
         </div>
 
         <div className="px-4 lg:px-6 py-5 space-y-5">
-          {/* Active sessions */}
-          {activeSessions.length > 0 && (
-            <div className="rounded-xl border-2 border-blue-200 bg-blue-50 p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Wrench className="h-5 w-5 text-blue-600" />
-                <h2 className="font-semibold text-blue-900">
-                  Momenteel in productie ({activeSessions.length})
-                </h2>
-                <span className="text-xs text-blue-600 ml-auto">ververst elke 15 sec</span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
-                {activeSessions.map((s) => (
-                  <div
-                    key={s.id}
-                    className="flex flex-wrap items-center gap-3 rounded-lg border border-blue-100 bg-white px-3 py-2 text-sm"
-                  >
-                    <span className="font-medium">{s.order_number}</span>
-                    <span className="text-gray-600">
-                      {s.item_number ? <BcItemCode value={s.item_number} /> : '–'}
-                    </span>
-                    <span className="flex items-center gap-1 text-gray-700">
-                      <User className="h-3.5 w-3.5" />
-                      {s.employee_name}
-                    </span>
-                    <span className="text-blue-700">{s.step || '–'}</span>
-                    <span className="text-gray-500 ml-auto">{formatElapsed(s.elapsed_seconds)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <ActiveProductionSection
+            sessions={siteFilteredActiveSessions}
+            loading={activeLoading}
+            compact
+            showAllSites={availableSites.length > 1}
+          />
 
           <KpiSummaryCards totals={filteredTotals} derived={derived} />
           <KpiSecondaryStats derived={derived} />
@@ -413,6 +420,7 @@ export default function ProductionOrderKpiPage() {
           {/* Bottom tabs */}
           <div className="flex gap-2 border-b border-gray-200">
             {([
+              ['live', 'Live productie'],
               ['detail', 'Productiedetail'],
               ['item', 'Item vergelijken'],
               ['orders', 'Orders beheren'],
@@ -421,18 +429,29 @@ export default function ProductionOrderKpiPage() {
                 key={tab}
                 type="button"
                 onClick={() => setBottomTab(tab)}
-                className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2 ${
                   bottomTab === tab
                     ? 'border-blue-600 text-blue-700'
                     : 'border-transparent text-gray-500 hover:text-gray-700'
                 }`}
               >
                 {label}
+                {tab === 'live' && activeOrderGroups.length > 0 ? (
+                  <span className="rounded-full bg-blue-600 text-white text-xs px-1.5 py-0.5 min-w-[1.25rem] text-center">
+                    {activeOrderGroups.length}
+                  </span>
+                ) : null}
               </button>
             ))}
           </div>
 
-          {bottomTab === 'detail' ? (
+          {bottomTab === 'live' ? (
+            <ActiveProductionSection
+              sessions={activeSessions}
+              loading={activeLoading}
+              showAllSites={availableSites.length > 1}
+            />
+          ) : bottomTab === 'detail' ? (
             <ProductionDetailTable
               runs={filteredRuns}
               loading={loading}

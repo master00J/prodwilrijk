@@ -6,6 +6,13 @@ export const formatDate = (d: string | null | undefined) => {
   return `${day}/${m}/${y}`
 }
 
+export const formatDateTime = (d: string | null | undefined) => {
+  if (!d) return '–'
+  const datePart = formatDate(d)
+  const timePart = d.includes('T') ? d.slice(11, 16) : ''
+  return timePart ? `${datePart} ${timePart}` : datePart
+}
+
 export const formatDateShort = (d: string) => {
   const [, m, day] = d.slice(0, 10).split('-')
   if (!m || !day) return d

@@ -34,6 +34,20 @@ export type ActiveSession = {
   item_number: string
   step: string
   elapsed_seconds: number
+  start_time?: string
+  site?: string
+  quantity?: number | null
+}
+
+export type ActiveOrderGroup = {
+  order_number: string
+  site: string
+  sessions: ActiveSession[]
+  workers: string[]
+  items: string[]
+  steps: string[]
+  maxElapsed: number
+  earliestStart: string | null
 }
 
 export type RevenueTotals = {
