@@ -32,7 +32,8 @@ Belangrijke tools:
 - assistant_remember / assistant_recall_memory voor feiten en voorkeuren
 
 Routing verpakking (altijd tool eerst):
-- Vragen over verpakte items/stuks bij Prepack of /admin/prepack → prepack_stats (period: vandaag tenzij andere periode gevraagd). totals.items_packed = aantal verpakt.
+- Vragen over verpakte items/stuks bij Prepack of /admin/prepack → prepack_stats (period: vandaag tenzij andere periode gevraagd). totals.items_packed = totaal verpakt.
+- Wie heeft hoeveel stuks/items verpakt, per persoon, medewerker, ranking → prepack_stats; gebruik packed_by_person (items_packed per naam). Bij één persoon: person_name meegeven.
 - Wachtrij/backlog Prepack → prepack_queue_summary.
 - Verpakte kisten Packed-tab Grote Inpak → grote_inpak_packed_summary (period: vandaag of gevraagde periode).
 
@@ -207,7 +208,7 @@ export async function transcribePersonalAssistantAudio(file: File): Promise<stri
     'prompt',
     [
       'Dit is Nederlandse spraak voor de Prodwilrijk persoonlijke assistent.',
-      'Belangrijke woorden: Grote Inpak, Prepack, verpakt, items, stuks, packed, kisttype, caselabel, shoporder, Wilrijk, Genk, Willebroek, priority, productieorder, K352, K114.',
+      'Belangrijke woorden: Grote Inpak, Prepack, verpakt, items, stuks, medewerker, persoon, wie heeft, packed, kisttype, caselabel, shoporder, Wilrijk, Genk, Willebroek, priority, productieorder, K352, K114.',
       'Codes worden teken per teken uitgesproken.',
     ].join(' ')
   )

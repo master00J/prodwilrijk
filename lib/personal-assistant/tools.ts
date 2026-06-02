@@ -383,6 +383,8 @@ export async function getPrepackStats(input?: {
   date_to?: string
   period?: string
   compare_previous_period?: boolean
+  person_name?: string
+  limit_people?: number
 }) {
   return getPrepackStatsForAssistant(input)
 }
@@ -392,6 +394,8 @@ export async function getAirtecStats(input?: {
   date_to?: string
   period?: string
   compare_previous_period?: boolean
+  person_name?: string
+  limit_people?: number
 }) {
   return getAirtecStatsForAssistant(input)
 }
@@ -580,6 +584,8 @@ export async function runPersonalAssistantTool(
         date_to: typeof args.date_to === 'string' ? args.date_to : undefined,
         period: typeof args.period === 'string' ? args.period : undefined,
         compare_previous_period: args.compare_previous_period === true,
+        person_name: typeof args.person_name === 'string' ? args.person_name : undefined,
+        limit_people: typeof args.limit_people === 'number' ? args.limit_people : undefined,
       })
     case 'prepack_stage_kisten':
       return getPrepackStageKistenSummary()
@@ -589,6 +595,8 @@ export async function runPersonalAssistantTool(
         date_to: typeof args.date_to === 'string' ? args.date_to : undefined,
         period: typeof args.period === 'string' ? args.period : undefined,
         compare_previous_period: args.compare_previous_period === true,
+        person_name: typeof args.person_name === 'string' ? args.person_name : undefined,
+        limit_people: typeof args.limit_people === 'number' ? args.limit_people : undefined,
       })
     case 'airtec_stock_summary':
       return getAirtecStockSummary({
@@ -757,13 +765,21 @@ export const PERSONAL_ASSISTANT_TOOLS = [
     function: {
       name: 'prepack_stats',
       description:
-        'Actuele Prepack KPIs (/admin/prepack): aantal verpakte items (totals.items_packed), uren, omzet, marge, incoming. Gebruik bij vragen over verpakt bij Prepack. period: vandaag, deze_week, vorige_week, deze_maand.',
+        'Actuele Prepack KPIs (/admin/prepack): totals.items_packed, packed_by_person (wie hoeveel stuks verpakt heeft, veld items_packed per naam), uren, omzet. Gebruik bij verpakt bij Prepack of per medewerker. period: vandaag, deze_week, enz. person_name: filter op naam.',
       parameters: {
         type: 'object',
         properties: {
           date_from: { type: 'string', description: 'Startdatum YYYY-MM-DD.' },
           date_to: { type: 'string', description: 'Einddatum YYYY-MM-DD.' },
           period: { type: 'string', description: 'vandaag, deze_week, vorige_week, deze_maand, vorige_maand.' },
+          person_name: {
+            type: 'string',
+            description: 'Optioneel: filter op medewerker (deel van naam), bv. "Jan".',
+          },
+          limit_people: {
+            type: 'number',
+            description: 'Max aantal personen in packed_by_person (standaard 20).',
+          },
           compare_previous_period: { type: 'boolean', description: 'Vergelijk met vorige periode van zelfde lengte.' },
         },
         additionalProperties: false,
@@ -783,13 +799,15 @@ export const PERSONAL_ASSISTANT_TOOLS = [
     function: {
       name: 'airtec_stats',
       description:
-        'Airtec KPIs voor een periode (/admin/airtec). period en compare_previous_period zoals prepack_stats.',
+        'Airtec KPIs (/admin/airtec): packed_by_person met items_packed per medewerker, zoals prepack_stats.',
       parameters: {
         type: 'object',
         properties: {
           date_from: { type: 'string' },
           date_to: { type: 'string' },
           period: { type: 'string' },
+          person_name: { type: 'string', description: 'Filter op medewerkernaam.' },
+          limit_people: { type: 'number', description: 'Max personen in lijst.' },
           compare_previous_period: { type: 'boolean' },
         },
         additionalProperties: false,

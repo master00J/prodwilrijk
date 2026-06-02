@@ -4,6 +4,22 @@ import { fetchPrepackStats } from '@/lib/prepack/stats'
 import { fetchAirtecStats } from '@/lib/airtec/stats'
 import { resolveAssistantDateRange, previousPeriodRange } from '@/lib/personal-assistant/date-range'
 
+function mapPersonPackedStats(person: {
+  name: string
+  manHours: number
+  itemsPacked: number
+  revenue: number
+  itemsPerHour: number
+}) {
+  return {
+    name: person.name,
+    items_packed: Math.round(person.itemsPacked),
+    man_hours: Math.round(person.manHours * 10) / 10,
+    items_per_hour: Math.round(person.itemsPerHour * 10) / 10,
+    revenue: Math.round(person.revenue * 100) / 100,
+  }
+}
+
 function compactTotals(totals: {
   totalItemsPacked: number
   totalManHours: number
@@ -36,6 +52,8 @@ export async function getPrepackStatsForAssistant(input?: {
   date_to?: string
   period?: string
   compare_previous_period?: boolean
+  person_name?: string
+  limit_people?: number
 }) {
   const range = resolveAssistantDateRange({ ...input, defaultDays: 7 })
   const raw = await fetchPrepackStats({
@@ -44,15 +62,30 @@ export async function getPrepackStatsForAssistant(input?: {
     includeDetails: false,
   })
 
+  const peopleLimit = Math.min(Math.max(input?.limit_people ?? 20, 1), 50)
+  const packedByPerson = [...raw.personStats]
+    .filter(p => p.itemsPacked > 0 || p.manHours > 0)
+    .sort((a, b) => b.itemsPacked - a.itemsPacked || b.manHours - a.manHours)
+    .map(mapPersonPackedStats)
+
   const result: Record<string, unknown> = {
     source: 'admin/prepack',
     period: range,
     totals: compactTotals(raw.totals),
     daily_stats: raw.dailyStats.slice(-14),
-    top_people: [...raw.personStats]
+    packed_by_person: packedByPerson.slice(0, peopleLimit),
+    top_people_by_hours: [...raw.personStats]
       .sort((a, b) => b.manHours - a.manHours)
       .slice(0, 6)
       .map(p => ({ name: p.name, man_hours: Math.round(p.manHours * 10) / 10 })),
+  }
+
+  const personFilter = input?.person_name?.trim()
+  if (personFilter) {
+    const needle = personFilter.toLowerCase()
+    const matches = packedByPerson.filter(p => p.name.toLowerCase().includes(needle))
+    result.person_filter = personFilter
+    result.matched_people = matches
   }
 
   if (input?.compare_previous_period) {
@@ -79,6 +112,8 @@ export async function getAirtecStatsForAssistant(input?: {
   date_to?: string
   period?: string
   compare_previous_period?: boolean
+  person_name?: string
+  limit_people?: number
 }) {
   const range = resolveAssistantDateRange({ ...input, defaultDays: 7 })
   const raw = await fetchAirtecStats({
@@ -87,15 +122,29 @@ export async function getAirtecStatsForAssistant(input?: {
     includeDetails: false,
   })
 
+  const peopleLimit = Math.min(Math.max(input?.limit_people ?? 20, 1), 50)
+  const packedByPerson = [...raw.personStats]
+    .filter(p => p.itemsPacked > 0 || p.manHours > 0)
+    .sort((a, b) => b.itemsPacked - a.itemsPacked || b.manHours - a.manHours)
+    .map(mapPersonPackedStats)
+
   const result: Record<string, unknown> = {
     source: 'admin/airtec',
     period: range,
     totals: compactTotals(raw.totals),
     daily_stats: raw.dailyStats.slice(-14),
-    top_people: [...raw.personStats]
+    packed_by_person: packedByPerson.slice(0, peopleLimit),
+    top_people_by_hours: [...raw.personStats]
       .sort((a, b) => b.manHours - a.manHours)
       .slice(0, 6)
       .map(p => ({ name: p.name, man_hours: Math.round(p.manHours * 10) / 10 })),
+  }
+
+  const personFilter = input?.person_name?.trim()
+  if (personFilter) {
+    const needle = personFilter.toLowerCase()
+    result.person_filter = personFilter
+    result.matched_people = packedByPerson.filter(p => p.name.toLowerCase().includes(needle))
   }
 
   if (input?.compare_previous_period) {
