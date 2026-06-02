@@ -1,5 +1,4 @@
-import { supabaseAdmin } from '@/lib/supabase/server'
-import { sanitizePostgrestOrValue } from '@/lib/api/postgrest-filter'
+import { salesOrdersSupportsUnitCost } from '@/lib/prepack/sales-orders-schema'
 import { calculateWorkedSeconds } from '@/lib/utils/time'
 import { calculateProportionFactor, groupLogsByEmployee } from '@/lib/utils/overlap-time'
 
@@ -64,10 +63,10 @@ async function fetchProductionLinesByDescriptionPatterns(
 async function fetchSalesOrdersForItems(itemNumbers: string[]): Promise<any[]> {
   if (itemNumbers.length === 0) return []
 
-  const probe = await supabaseAdmin.from('sales_orders').select('unit_cost').limit(1)
-  const selectCols = probe.error
-    ? 'item_number, price, uploaded_at'
-    : 'item_number, price, unit_cost, uploaded_at'
+  const includeUnitCost = await salesOrdersSupportsUnitCost()
+  const selectCols = includeUnitCost
+    ? 'item_number, price, unit_cost, uploaded_at'
+    : 'item_number, price, uploaded_at'
 
   return fetchAllWithBatchedIn<any>(itemNumbers, async (batch, from, to) => {
     return await supabaseAdmin

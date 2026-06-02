@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { withAdmin } from '@/lib/api/with-auth'
+import { salesOrdersSupportsUnitCost } from '@/lib/prepack/sales-orders-schema'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,12 +17,13 @@ export const POST = withAdmin(async (request: NextRequest) => {
       )
     }
 
-    // Validate and prepare data
+    const includeUnitCost = await salesOrdersSupportsUnitCost()
+
     type SalesOrderInsert = {
       item_number: string
       price: number
-      unit_cost: number | null
       description: string | null
+      unit_cost?: number | null
     }
 
     const validItems = items
@@ -37,12 +39,18 @@ export const POST = withAdmin(async (request: NextRequest) => {
           return null
         }
 
-        return {
+        const row: SalesOrderInsert = {
           item_number: itemNumber,
           price: price,
-          unit_cost: unitCost !== null && !isNaN(unitCost) && unitCost >= 0 ? unitCost : null,
           description: item.description || null,
         }
+
+        if (includeUnitCost) {
+          row.unit_cost =
+            unitCost !== null && !isNaN(unitCost) && unitCost >= 0 ? unitCost : null
+        }
+
+        return row
       })
       .filter((item: SalesOrderInsert | null): item is SalesOrderInsert => item !== null)
 
@@ -53,8 +61,6 @@ export const POST = withAdmin(async (request: NextRequest) => {
       )
     }
 
-    // Insert into sales_orders table
-    // Multiple uploads per day are allowed - the latest price will be used
     const { data, error } = await supabaseAdmin
       .from('sales_orders')
       .insert(validItems)
@@ -72,6 +78,9 @@ export const POST = withAdmin(async (request: NextRequest) => {
       success: true,
       insertedRows: data?.length || validItems.length,
       message: `Successfully inserted ${data?.length || validItems.length} sales orders`,
+      warning: includeUnitCost
+        ? undefined
+        : 'Kolom unit_cost ontbreekt in de database — alleen prijs opgeslagen. Voer migratie 20260521_sales_orders_unit_cost.sql uit in Supabase.',
     })
   } catch (error) {
     console.error('Unexpected error:', error)

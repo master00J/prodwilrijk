@@ -408,7 +408,12 @@ export default function PrepackMonitorPage() {
 
         setSalesLinesMessage({
           type: 'success',
-          text: `${result.insertedRows || items.length} prijsregels geïmporteerd. Prepack-prijzen worden aangevuld via het nummer tussen haakjes in kolom G.`,
+          text: [
+            `${result.insertedRows || items.length} prijsregels geïmporteerd. Prepack-prijzen worden aangevuld via het nummer tussen haakjes in kolom G.`,
+            result.warning,
+          ]
+            .filter(Boolean)
+            .join(' '),
         })
         if (salesLinesInputRef.current) salesLinesInputRef.current.value = ''
         void handleRefresh()
