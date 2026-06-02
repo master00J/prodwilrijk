@@ -1,3 +1,4 @@
+import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av'
 import {
   mediaDevices,
   MediaStream,
@@ -13,22 +14,37 @@ export type RealtimeVoiceEvents = {
   onStatus?: (status: RealtimeVoiceStatus, message: string) => void
   onUserTranscript?: (text: string) => void
   onAssistantTranscript?: (text: string) => void
+  onRemoteStream?: (stream: MediaStream) => void
   onToolUsed?: (name: string) => void
 }
 
-type RealtimeFunctionCall = {
+/** react-native-webrtc typings missen legacy event handlers */
+type RTCPeerConnectionHandlers = RTCPeerConnection & {
+  ontrack: ((event: { streams?: MediaStream[] }) => void) | null
+  onconnectionstatechange: (() => void) | null
+}
+
+type RTCDataChannelHandlers = ReturnType<RTCPeerConnection['createDataChannel']> & {
+  onopen: (() => void) | null
+  onmessage: ((event: { data?: string }) => void) | null
+  onerror: (() => void) | null
+}
+
+type RealtimeOutputItem = {
   type?: string
   name?: string
   call_id?: string
   arguments?: string
+  content?: Array<{ type?: string; text?: string; transcript?: string }>
 }
 
 type RealtimeServerEvent = {
   type?: string
   error?: { message?: string }
   transcript?: string
+  item?: RealtimeOutputItem
   response?: {
-    output?: RealtimeFunctionCall[]
+    output?: RealtimeOutputItem[]
   }
 }
 
@@ -37,53 +53,6 @@ type SessionResponse = {
   model?: string
   voice?: string
   error?: string
-}
-
-type RealtimeToolDef = {
-  type: 'function'
-  name: string
-  description: string
-  parameters: Record<string, unknown>
-}
-
-const FALLBACK_REALTIME_TOOLS: RealtimeToolDef[] = [
-  {
-    type: 'function',
-    name: 'daily_briefing',
-    description: 'Volledige ochtendbriefing.',
-    parameters: { type: 'object', properties: {}, additionalProperties: false },
-  },
-  {
-    type: 'function',
-    name: 'prepack_queue_summary',
-    description: 'Prepack wachtrij.',
-    parameters: { type: 'object', properties: {}, additionalProperties: false },
-  },
-  {
-    type: 'function',
-    name: 'grote_inpak_summary',
-    description: 'Grote Inpak overzicht.',
-    parameters: { type: 'object', properties: {}, additionalProperties: false },
-  },
-]
-
-async function fetchRealtimeTools(): Promise<RealtimeToolDef[]> {
-  const token = await getAccessToken()
-  if (!token) return FALLBACK_REALTIME_TOOLS
-
-  try {
-    const response = await fetch(`${API_BASE}/api/personal-assistant/realtime-tools`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    if (!response.ok) return FALLBACK_REALTIME_TOOLS
-    const payload = await response.json()
-    if (Array.isArray(payload.tools) && payload.tools.length > 0) {
-      return payload.tools as RealtimeToolDef[]
-    }
-  } catch {
-    // fallback
-  }
-  return FALLBACK_REALTIME_TOOLS
 }
 
 function safeJsonParse(value: string | undefined): Record<string, unknown> {
@@ -96,13 +65,48 @@ function safeJsonParse(value: string | undefined): Record<string, unknown> {
   }
 }
 
+function extractAssistantText(item: RealtimeOutputItem): string {
+  const parts = item.content || []
+  return parts
+    .map(part => part.transcript || part.text || '')
+    .filter(Boolean)
+    .join(' ')
+    .trim()
+}
+
+function isMeaningfulAssistantText(text: string): boolean {
+  const trimmed = text.trim()
+  if (!trimmed) return false
+  if (trimmed === '{}' || trimmed === '[]' || trimmed === 'null' || trimmed === 'undefined') {
+    return false
+  }
+  return /[a-zA-ZÀ-ÿ]{2,}/.test(trimmed)
+}
+
+function getFunctionCallId(item: RealtimeOutputItem): string | null {
+  const id = item.call_id || (item as { id?: string }).id
+  return typeof id === 'string' && id.length > 0 ? id : null
+}
+
+function stringifyToolOutput(result: unknown): string {
+  const raw = JSON.stringify(result ?? {})
+  const maxLen = 14_000
+  if (raw.length <= maxLen) return raw
+  return JSON.stringify({
+    ok: true,
+    truncated: true,
+    preview: raw.slice(0, maxLen),
+  })
+}
+
 export class PersonalRealtimeVoice {
   private pc: RTCPeerConnection | null = null
   private dc: ReturnType<RTCPeerConnection['createDataChannel']> | null = null
   private localStream: MediaStream | null = null
   private remoteStream: MediaStream | null = null
   private processedCalls = new Set<string>()
-  private realtimeTools: RealtimeToolDef[] = FALLBACK_REALTIME_TOOLS
+  private assistantTranscriptBuffer = ''
+  private awaitingToolFollowUp = false
   private events: RealtimeVoiceEvents
 
   constructor(events: RealtimeVoiceEvents = {}) {
@@ -130,37 +134,6 @@ export class PersonalRealtimeVoice {
     this.dc.send(JSON.stringify(event))
   }
 
-  private updateSession() {
-    this.sendClientEvent({
-      type: 'session.update',
-      session: {
-        type: 'realtime',
-        output_modalities: ['audio'],
-        audio: {
-          input: {
-            transcription: {
-              model: 'gpt-4o-transcribe',
-              language: 'nl',
-              prompt: 'Prodwilrijk, Grote Inpak, Prepack, kisttype, shoporder, Wilrijk, Genk.',
-            },
-            turn_detection: {
-              type: 'semantic_vad',
-              eagerness: 'auto',
-              create_response: true,
-              interrupt_response: true,
-            },
-          },
-          output: { voice: 'marin' },
-        },
-        instructions:
-          'Je bent de live Prodwilrijk assistent. Praat in Nederlands. Gebruik tools voor actuele data. Geen Markdown.',
-        tools: this.realtimeTools,
-        tool_choice: 'auto',
-        max_output_tokens: 900,
-      },
-    })
-  }
-
   private async executeTool(name: string, args: Record<string, unknown>) {
     const token = await getAccessToken()
     if (!token) throw new Error('Niet ingelogd')
@@ -178,16 +151,34 @@ export class PersonalRealtimeVoice {
     if (!response.ok) {
       throw new Error(typeof payload.error === 'string' ? payload.error : 'Tool mislukt')
     }
+    if (payload && typeof payload === 'object' && 'result' in payload) {
+      return (payload as { result: unknown }).result
+    }
     return payload
+  }
+
+  private emitAssistantTranscript(text: string) {
+    if (!isMeaningfulAssistantText(text)) return
+    this.awaitingToolFollowUp = false
+    this.events.onAssistantTranscript?.(text)
   }
 
   private async handleFunctionCalls(event: RealtimeServerEvent) {
     const output = event.response?.output || []
-    for (const item of output) {
-      if (item.type !== 'function_call' || !item.name || !item.call_id) continue
-      if (this.processedCalls.has(item.call_id)) continue
+    const calls = output.filter(
+      item => item.type === 'function_call' && item.name && getFunctionCallId(item)
+    )
+    if (calls.length === 0) return
 
-      this.processedCalls.add(item.call_id)
+    this.awaitingToolFollowUp = true
+    this.assistantTranscriptBuffer = ''
+
+    for (const item of calls) {
+      const callId = getFunctionCallId(item)
+      if (!callId || !item.name) continue
+      if (this.processedCalls.has(callId)) continue
+
+      this.processedCalls.add(callId)
       this.events.onToolUsed?.(item.name)
 
       let result: unknown
@@ -204,11 +195,20 @@ export class PersonalRealtimeVoice {
         type: 'conversation.item.create',
         item: {
           type: 'function_call_output',
-          call_id: item.call_id,
-          output: JSON.stringify(result),
+          call_id: callId,
+          output: stringifyToolOutput(result),
         },
       })
-      this.sendClientEvent({ type: 'response.create' })
+    }
+
+    this.sendClientEvent({ type: 'response.create' })
+  }
+
+  private flushAssistantTranscript() {
+    const text = this.assistantTranscriptBuffer.trim()
+    this.assistantTranscriptBuffer = ''
+    if (text) {
+      this.emitAssistantTranscript(text)
     }
   }
 
@@ -224,15 +224,52 @@ export class PersonalRealtimeVoice {
     }
 
     if (
-      (event.type === 'response.audio_transcript.done' || event.type === 'response.output_text.done') &&
+      event.type === 'response.audio_transcript.delta' ||
+      event.type === 'response.output_audio_transcript.delta'
+    ) {
+      if (this.awaitingToolFollowUp) return
+      if (event.transcript) {
+        this.assistantTranscriptBuffer += event.transcript
+      }
+      return
+    }
+
+    if (
+      (event.type === 'response.audio_transcript.done' ||
+        event.type === 'response.output_audio_transcript.done') &&
       event.transcript
     ) {
-      this.events.onAssistantTranscript?.(event.transcript)
+      this.emitAssistantTranscript(event.transcript)
+      return
+    }
+
+    if (event.type === 'response.output_item.done' && event.item?.type === 'message') {
+      const text = extractAssistantText(event.item)
+      if (text) {
+        this.emitAssistantTranscript(text)
+      }
       return
     }
 
     if (event.type === 'response.done') {
-      void this.handleFunctionCalls(event)
+      const output = event.response?.output || []
+      const hasFunctionCall = output.some(item => item.type === 'function_call')
+
+      if (hasFunctionCall) {
+        this.assistantTranscriptBuffer = ''
+        void this.handleFunctionCalls(event)
+        return
+      }
+
+      for (const item of output) {
+        if (item.type === 'message') {
+          const text = extractAssistantText(item)
+          if (text) {
+            this.emitAssistantTranscript(text)
+          }
+        }
+      }
+      this.flushAssistantTranscript()
     }
   }
 
@@ -243,12 +280,21 @@ export class PersonalRealtimeVoice {
 
     this.setStatus('connecting', 'Live spraak verbinden…')
     this.processedCalls.clear()
+    this.awaitingToolFollowUp = false
 
     try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: false,
+        playThroughEarpieceAndroid: false,
+        interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+        interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+      })
+
       const token = await getAccessToken()
       if (!token) throw new Error('Niet ingelogd')
-
-      this.realtimeTools = await fetchRealtimeTools()
 
       const sessionResponse = await fetch(`${API_BASE}/api/personal-assistant/realtime-session`, {
         method: 'POST',
@@ -266,7 +312,7 @@ export class PersonalRealtimeVoice {
 
       const pc = new RTCPeerConnection({
         iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-      })
+      }) as RTCPeerConnectionHandlers
 
       stream.getAudioTracks().forEach(track => {
         pc.addTrack(track, stream)
@@ -275,13 +321,24 @@ export class PersonalRealtimeVoice {
       pc.ontrack = (event: { streams?: MediaStream[] }) => {
         const remote = event.streams?.[0]
         if (remote) {
+          remote.getAudioTracks().forEach(track => {
+            track.enabled = true
+          })
           this.remoteStream = remote
+          this.events.onRemoteStream?.(remote)
         }
       }
 
-      const dc = pc.createDataChannel('oai-events')
+      pc.onconnectionstatechange = () => {
+        const state = pc.connectionState
+        if (state === 'failed' || state === 'closed') {
+          this.setStatus('error', `Verbinding verbroken (${state}).`)
+          this.disconnect('connection')
+        }
+      }
+
+      const dc = pc.createDataChannel('oai-events') as RTCDataChannelHandlers
       dc.onopen = () => {
-        this.updateSession()
         this.setStatus(
           'connected',
           `Live verbonden (${sessionData.model || 'OpenAI Realtime'}). Praat gewoon verder.`
@@ -324,7 +381,7 @@ export class PersonalRealtimeVoice {
       await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: answerSdp }))
       return this.remoteStream
     } catch (error) {
-      this.disconnect()
+      this.disconnect('error')
       const message = error instanceof Error ? error.message : 'Live spraak starten mislukt'
       this.setStatus('error', message)
       throw error
@@ -337,7 +394,7 @@ export class PersonalRealtimeVoice {
     })
   }
 
-  disconnect() {
+  disconnect(reason: 'user' | 'error' | 'connection' | 'cleanup' = 'user') {
     this.dc?.close()
     this.pc?.close()
     this.localStream?.getTracks().forEach(track => track.stop())
@@ -346,6 +403,17 @@ export class PersonalRealtimeVoice {
     this.localStream = null
     this.remoteStream = null
     this.processedCalls.clear()
-    this.setStatus('idle', 'Live spraak gestopt.')
+    this.assistantTranscriptBuffer = ''
+    this.awaitingToolFollowUp = false
+
+    if (reason === 'user') {
+      this.setStatus('idle', 'Live spraak gestopt.')
+    } else if (reason === 'cleanup') {
+      // Geen statusmelding bij unmount
+    } else if (reason === 'connection') {
+      // status al gezet
+    } else {
+      this.setStatus('idle', 'Live spraak beëindigd.')
+    }
   }
 }

@@ -31,9 +31,15 @@ Belangrijke tools:
 - kist_production_status / atlas_order_status / search_grote_inpak_cases
 - assistant_remember / assistant_recall_memory voor feiten en voorkeuren
 
-Periodes: gebruik period deze_week, vorige_week, deze_maand, vandaag. Of compare_previous_period bij stats.
+Routing verpakking (altijd tool eerst):
+- Vragen over verpakte items/stuks bij Prepack of /admin/prepack → prepack_stats (period: vandaag tenzij andere periode gevraagd). totals.items_packed = aantal verpakt.
+- Wachtrij/backlog Prepack → prepack_queue_summary.
+- Verpakte kisten Packed-tab Grote Inpak → grote_inpak_packed_summary (period: vandaag of gevraagde periode).
+
+Periodes: gebruik period vandaag, deze_week, vorige_week, deze_maand. Of compare_previous_period bij stats.
 
 Belangrijk:
+- Je hebt actuele live data via tools. Zeg nooit dat je geen toegang hebt of geen actuele cijfers hebt.
 - Gebruik tools voor cijfers. Verzin niets.
 - Geen Markdown. Korte alinea's.
 - Spreek codes teken per teken.
@@ -201,7 +207,7 @@ export async function transcribePersonalAssistantAudio(file: File): Promise<stri
     'prompt',
     [
       'Dit is Nederlandse spraak voor de Prodwilrijk persoonlijke assistent.',
-      'Belangrijke woorden: Grote Inpak, Prepack, kisttype, caselabel, shoporder, Wilrijk, Genk, Willebroek, priority, productieorder, K352, K114.',
+      'Belangrijke woorden: Grote Inpak, Prepack, verpakt, items, stuks, packed, kisttype, caselabel, shoporder, Wilrijk, Genk, Willebroek, priority, productieorder, K352, K114.',
       'Codes worden teken per teken uitgesproken.',
     ].join(' ')
   )

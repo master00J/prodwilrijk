@@ -1,5 +1,5 @@
 import { Audio } from 'expo-av'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   FlatList,
@@ -64,9 +64,27 @@ export default function AssistantScreen({ onLoggedOut }: Props) {
     listRef.current?.scrollToEnd({ animated: true })
   }, [messages, loading])
 
-  const appendMessage = (role: ChatMessage['role'], content: string) => {
+  const appendMessage = useCallback((role: ChatMessage['role'], content: string) => {
     setMessages(prev => [...prev, { id: createId(), role, content }])
-  }
+  }, [])
+
+  const onLiveUserMessage = useCallback(
+    (text: string) => appendMessage('user', text),
+    [appendMessage]
+  )
+
+  const onLiveAssistantMessage = useCallback(
+    (text: string) => {
+      const trimmed = text.trim()
+      if (!trimmed || trimmed === '{}' || trimmed === '[]') return
+      if (!/[a-zA-ZÀ-ÿ]{2,}/.test(trimmed)) return
+      appendMessage('assistant', trimmed)
+      if (autoSpeak) {
+        void speak(trimmed)
+      }
+    },
+    [appendMessage, autoSpeak]
+  )
 
   const handleSendTextWithQuestion = async (question: string) => {
     const trimmed = question.trim()
@@ -201,8 +219,8 @@ export default function AssistantScreen({ onLoggedOut }: Props) {
 
       <LiveVoicePanel
         disabled={loading}
-        onUserMessage={text => appendMessage('user', text)}
-        onAssistantMessage={text => appendMessage('assistant', text)}
+        onUserMessage={onLiveUserMessage}
+        onAssistantMessage={onLiveAssistantMessage}
       />
 
       <FlatList

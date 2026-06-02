@@ -682,12 +682,13 @@ export const PERSONAL_ASSISTANT_TOOLS = [
     function: {
       name: 'grote_inpak_packed_summary',
       description:
-        'Statistieken Packed-tab Grote Inpak: verpakte kisten per periode, per datum/type, recente regels en open draft-imports.',
+        'Actuele Packed-tab Grote Inpak: verpakte kisten per periode (NIET Prepack). Gebruik alleen bij expliciet Grote Inpak/packed kisten.',
       parameters: {
         type: 'object',
         properties: {
           date_from: { type: 'string', description: 'Startdatum YYYY-MM-DD.' },
           date_to: { type: 'string', description: 'Einddatum YYYY-MM-DD.' },
+          period: { type: 'string', description: 'vandaag, deze_week, vorige_week, deze_maand, vorige_maand.' },
           days: { type: 'number', description: 'Alternatief: laatste N dagen (1-90), standaard 30.' },
         },
         additionalProperties: false,
@@ -756,7 +757,7 @@ export const PERSONAL_ASSISTANT_TOOLS = [
     function: {
       name: 'prepack_stats',
       description:
-        'Prepack KPIs voor een periode (/admin/prepack): verpakt, uren, omzet, marge, incoming. period: deze_week, vorige_week, deze_maand, vandaag.',
+        'Actuele Prepack KPIs (/admin/prepack): aantal verpakte items (totals.items_packed), uren, omzet, marge, incoming. Gebruik bij vragen over verpakt bij Prepack. period: vandaag, deze_week, vorige_week, deze_maand.',
       parameters: {
         type: 'object',
         properties: {

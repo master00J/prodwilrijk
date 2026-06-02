@@ -19,6 +19,11 @@ export default function LiveVoicePanel({ onUserMessage, onAssistantMessage, disa
   const [lastAnswer, setLastAnswer] = useState('')
   const [toolLog, setToolLog] = useState<string[]>([])
 
+  const onUserMessageRef = useRef(onUserMessage)
+  const onAssistantMessageRef = useRef(onAssistantMessage)
+  onUserMessageRef.current = onUserMessage
+  onAssistantMessageRef.current = onAssistantMessage
+
   useEffect(() => {
     voiceRef.current = new PersonalRealtimeVoice({
       onStatus: (nextStatus, nextMessage) => {
@@ -27,11 +32,14 @@ export default function LiveVoicePanel({ onUserMessage, onAssistantMessage, disa
       },
       onUserTranscript: text => {
         setLastHeard(text)
-        onUserMessage?.(text)
+        onUserMessageRef.current?.(text)
       },
       onAssistantTranscript: text => {
         setLastAnswer(text)
-        onAssistantMessage?.(text)
+        onAssistantMessageRef.current?.(text)
+      },
+      onRemoteStream: stream => {
+        setRemoteStream(stream)
       },
       onToolUsed: name => {
         setToolLog(prev => [name, ...prev].slice(0, 4))
@@ -39,9 +47,9 @@ export default function LiveVoicePanel({ onUserMessage, onAssistantMessage, disa
     })
 
     return () => {
-      voiceRef.current?.disconnect()
+      voiceRef.current?.disconnect('cleanup')
     }
-  }, [onAssistantMessage, onUserMessage])
+  }, [])
 
   const handleConnect = async () => {
     try {
@@ -53,7 +61,7 @@ export default function LiveVoicePanel({ onUserMessage, onAssistantMessage, disa
   }
 
   const handleDisconnect = () => {
-    voiceRef.current?.disconnect()
+    voiceRef.current?.disconnect('user')
     setRemoteStream(null)
     setMicEnabled(true)
   }
@@ -147,9 +155,13 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   hiddenAudio: {
-    width: 0,
-    height: 0,
-    opacity: 0,
+    width: 2,
+    height: 2,
+    opacity: 0.01,
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    zIndex: -1,
   },
   title: {
     fontSize: 16,

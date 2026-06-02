@@ -40,9 +40,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const userId = request.headers.get('x-user-id')
     const transcript = await transcribePersonalAssistantAudio(audio)
     const messages: PersonalAssistantMessage[] = [...history, { role: 'user', content: transcript }]
-    const { answer, toolsUsed } = await answerPersonalAssistantQuestion(messages)
+    const { answer, toolsUsed } = await answerPersonalAssistantQuestion(messages, { userId })
 
     return NextResponse.json({
       transcript,
