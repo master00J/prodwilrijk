@@ -82,3 +82,42 @@ export type DailyHours = {
   date: string
   hours: number
 }
+
+export type ItemRunComparison = {
+  run: RevenueRun
+  hoursPerPieceDelta: number
+  hoursPerPieceDeltaPct: number
+  marginDelta: number | null
+  marginDeltaPct: number | null
+  employeesLabel: string
+  isFastest: boolean
+  isSlowest: boolean
+}
+
+export type ItemAnalysis = {
+  item_number: string
+  description: string | null
+  runs: RevenueRun[]
+  runCount: number
+  orderCount: number
+  employeeCount: number
+  totalQuantity: number
+  totalHours: number
+  hoursPerPiece: {
+    min: number
+    max: number
+    avg: number
+    spread: number
+    spreadPct: number
+  }
+  margin: {
+    min: number | null
+    max: number | null
+    avg: number | null
+    spread: number | null
+  } | null
+  employees: { name: string; hours: number; runCount: number }[]
+  orders: { order_number: string; runs: number; hours: number; hoursPerPiece: number }[]
+  steps: { step: string; hours: number }[]
+  runComparisons: ItemRunComparison[]
+}

@@ -24,6 +24,18 @@ export const formatEuro = (n: number | null | undefined) =>
 export const formatPct = (n: number | null | undefined) =>
   n != null && Number.isFinite(n) ? `${n.toFixed(1)}%` : '–'
 
+export const formatDelta = (n: number | null | undefined, unit = '') => {
+  if (n == null || !Number.isFinite(n)) return '–'
+  const sign = n > 0 ? '+' : ''
+  return `${sign}${n.toFixed(2)}${unit}`
+}
+
+export const formatDeltaPct = (n: number | null | undefined) => {
+  if (n == null || !Number.isFinite(n)) return '–'
+  const sign = n > 0 ? '+' : ''
+  return `${sign}${n.toFixed(1)}%`
+}
+
 export const formatElapsed = (seconds: number) => {
   const m = Math.floor(seconds / 60)
   if (m < 60) return `${m} min`

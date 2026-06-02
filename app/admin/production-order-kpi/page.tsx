@@ -3,13 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import AdminGuard from '@/components/AdminGuard'
 import { useAuth } from '@/components/AuthProvider'
-import { BcItemCode } from '@/lib/bc-mapping/client'
+import { BcItemCode, useBcMapping } from '@/lib/bc-mapping/client'
 import { DEFAULT_SITE, SITES, type Site } from '@/lib/sites'
-import { RefreshCw, User, Wrench } from 'lucide-react'
+import { RefreshCw, User, Wrench, X } from 'lucide-react'
 import { KpiChartsSection } from './KpiChartsSection'
 import { KpiSecondaryStats, KpiSummaryCards } from './KpiSummaryCards'
+import { ItemCompareSection } from './ItemCompareSection'
 import { OrderManagementSection } from './OrderManagementSection'
 import { ProductionDetailTable } from './ProductionDetailTable'
+import { filterRunsByItem, itemMatchesQuery } from './item-analysis'
 import { formatElapsed, toIsoDate } from './kpi-formatters'
 import type {
   ActiveSession,
@@ -23,7 +25,7 @@ import type {
 } from './types'
 
 type DatePreset = 'today' | 'week' | 'month' | 'all'
-type BottomTab = 'detail' | 'orders'
+type BottomTab = 'detail' | 'item' | 'orders'
 
 function startOfWeek(d: Date) {
   const copy = new Date(d)
@@ -35,6 +37,7 @@ function startOfWeek(d: Date) {
 
 export default function ProductionOrderKpiPage() {
   const { allowedSites } = useAuth()
+  const { toNew, toOld } = useBcMapping()
   const availableSites = useMemo(
     () => (allowedSites.length > 0 ? SITES.filter((s) => allowedSites.includes(s)) : [...SITES]),
     [allowedSites]
@@ -49,6 +52,7 @@ export default function ProductionOrderKpiPage() {
   const [kpiData, setKpiData] = useState<KpiData | null>(null)
   const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([])
   const [bottomTab, setBottomTab] = useState<BottomTab>('detail')
+  const [selectedItem, setSelectedItem] = useState('')
 
   const [manageSite, setManageSite] = useState<Site>(DEFAULT_SITE)
   const [manageTab, setManageTab] = useState<'actief' | 'afgewerkt'>('actief')
@@ -178,16 +182,23 @@ export default function ProductionOrderKpiPage() {
     setDateTo(toIsoDate(today))
   }
 
+  const filteredRuns = useMemo(() => {
+    if (!selectedItem.trim()) return runs
+    const exact = filterRunsByItem(runs, selectedItem, toNew, toOld)
+    if (exact.length > 0) return exact
+    return runs.filter((r) => itemMatchesQuery(r.item_number, selectedItem, toNew, toOld))
+  }, [runs, selectedItem, toNew, toOld])
+
   const derived = useMemo<DerivedKpis>(() => {
-    const totalQuantity = runs.reduce((s, r) => s + (r.quantity || 0), 0)
-    const runCount = runs.length
-    const uniqueOrders = new Set(runs.map((r) => r.order_number).filter(Boolean)).size
-    const uniqueItems = new Set(runs.map((r) => r.item_number).filter(Boolean)).size
+    const totalQuantity = filteredRuns.reduce((s, r) => s + (r.quantity || 0), 0)
+    const runCount = filteredRuns.length
+    const uniqueOrders = new Set(filteredRuns.map((r) => r.order_number).filter(Boolean)).size
+    const uniqueItems = new Set(filteredRuns.map((r) => r.item_number).filter(Boolean)).size
     const uniqueEmployees = kpiData?.employees?.length ?? 0
-    const totalHours = totals?.total_hours ?? 0
-    const totalRevenue = totals?.total_revenue ?? 0
-    const totalMaterial = totals?.total_material_cost ?? 0
-    const totalMargin = totals?.total_margin ?? 0
+    const totalHours = filteredRuns.reduce((s, r) => s + (r.hours || 0), 0)
+    const totalRevenue = filteredRuns.reduce((s, r) => s + (r.revenue ?? 0), 0)
+    const totalMaterial = filteredRuns.reduce((s, r) => s + (r.material_cost_total ?? 0), 0)
+    const totalMargin = filteredRuns.reduce((s, r) => s + (r.margin ?? 0), 0)
     const zaagHours = (kpiData?.zaagByDate ?? []).reduce((s, z) => s + z.hours, 0)
 
     return {
@@ -205,7 +216,17 @@ export default function ProductionOrderKpiPage() {
       zaagHours,
       activeStepCount: kpiData?.steps?.length ?? 0,
     }
-  }, [runs, totals, kpiData])
+  }, [filteredRuns, kpiData])
+
+  const filteredTotals = useMemo<RevenueTotals | null>(() => {
+    if (filteredRuns.length === 0) return totals && !selectedItem ? totals : null
+    return {
+      total_revenue: filteredRuns.reduce((s, r) => s + (r.revenue ?? 0), 0),
+      total_material_cost: filteredRuns.reduce((s, r) => s + (r.material_cost_total ?? 0), 0),
+      total_hours: filteredRuns.reduce((s, r) => s + (r.hours || 0), 0),
+      total_margin: filteredRuns.reduce((s, r) => s + (r.margin ?? 0), 0),
+    }
+  }, [filteredRuns, totals, selectedItem])
 
   const dailyHours = useMemo<DailyHours[]>(() => {
     const map = new Map<string, number>()
@@ -219,7 +240,7 @@ export default function ProductionOrderKpiPage() {
 
   const dailyFinancial = useMemo<DailyFinancial[]>(() => {
     const map = new Map<string, DailyFinancial>()
-    runs.forEach((r) => {
+    filteredRuns.forEach((r) => {
       if (!r.date) return
       const existing = map.get(r.date) ?? { date: r.date, revenue: 0, margin: 0, hours: 0, material: 0 }
       existing.revenue += r.revenue ?? 0
@@ -229,7 +250,7 @@ export default function ProductionOrderKpiPage() {
       map.set(r.date, existing)
     })
     return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date))
-  }, [runs])
+  }, [filteredRuns])
 
   const deleteManagedOrder = async (order: ManagedOrder) => {
     if (
@@ -263,6 +284,19 @@ export default function ProductionOrderKpiPage() {
                 <h1 className="text-2xl font-bold text-gray-900">Productie KPI Dashboard</h1>
                 <p className="text-sm text-gray-500 mt-0.5">
                   Opbrengsten, kosten, uren en productiviteit — {selectedSite}
+                  {selectedItem ? (
+                    <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-violet-800 text-xs font-medium">
+                      Item: <BcItemCode value={selectedItem} />
+                      <button
+                        type="button"
+                        onClick={() => setSelectedItem('')}
+                        className="rounded hover:bg-violet-200 p-0.5"
+                        title="Itemfilter wissen"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ) : null}
                 </p>
               </div>
               <div className="flex flex-wrap items-end gap-2">
@@ -277,6 +311,23 @@ export default function ProductionOrderKpiPage() {
                     </option>
                   ))}
                 </select>
+                <input
+                  type="text"
+                  value={selectedItem}
+                  onChange={(e) => setSelectedItem(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') setBottomTab('item')
+                  }}
+                  placeholder="Filter item..."
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white w-36 lg:w-44"
+                  list="kpi-header-items"
+                  title="Snel filteren op item — Enter opent item-vergelijking"
+                />
+                <datalist id="kpi-header-items">
+                  {[...new Set(runs.map((r) => r.item_number).filter(Boolean))].map((item) => (
+                    <option key={item} value={item} />
+                  ))}
+                </datalist>
                 <input
                   type="date"
                   value={dateFrom}
@@ -355,7 +406,7 @@ export default function ProductionOrderKpiPage() {
             </div>
           )}
 
-          <KpiSummaryCards totals={totals} derived={derived} />
+          <KpiSummaryCards totals={filteredTotals} derived={derived} />
           <KpiSecondaryStats derived={derived} />
           <KpiChartsSection kpiData={kpiData} dailyHours={dailyHours} dailyFinancial={dailyFinancial} />
 
@@ -363,6 +414,7 @@ export default function ProductionOrderKpiPage() {
           <div className="flex gap-2 border-b border-gray-200">
             {([
               ['detail', 'Productiedetail'],
+              ['item', 'Item vergelijken'],
               ['orders', 'Orders beheren'],
             ] as const).map(([tab, label]) => (
               <button
@@ -382,10 +434,17 @@ export default function ProductionOrderKpiPage() {
 
           {bottomTab === 'detail' ? (
             <ProductionDetailTable
-              runs={runs}
+              runs={filteredRuns}
               loading={loading}
               dateFrom={dateFrom}
               dateTo={dateTo}
+            />
+          ) : bottomTab === 'item' ? (
+            <ItemCompareSection
+              runs={runs}
+              loading={loading}
+              selectedItem={selectedItem}
+              onSelectItem={setSelectedItem}
             />
           ) : (
             <OrderManagementSection
