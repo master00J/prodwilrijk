@@ -34,6 +34,20 @@ function isPublicSkipAuth(path: string): boolean {
   return PUBLIC_SKIP_AUTH.some((p) => path.startsWith(p))
 }
 
+function isPasswordRecoveryHash(): boolean {
+  if (typeof window === 'undefined') return false
+  return window.location.hash.includes('type=recovery')
+}
+
+function redirectToAccountForRecovery(
+  router: ReturnType<typeof useRouter>,
+  pathname: string
+) {
+  if (pathname === '/account') return
+  const { search, hash } = window.location
+  router.replace(`/account${search}${hash}`)
+}
+
 function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms))
 }
@@ -178,12 +192,24 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   )
 
   useEffect(() => {
+    if (isPasswordRecoveryHash()) {
+      redirectToAccountForRecovery(router, pathname)
+    }
+  }, [router, pathname])
+
+  useEffect(() => {
     if (isPublicSkipAuth(pathname)) {
       setLoading(false)
       return
     }
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (isPasswordRecoveryHash() && pathname !== '/account') {
+        redirectToAccountForRecovery(router, pathname)
+        setLoading(false)
+        return
+      }
+
       setUser(session?.user ?? null)
 
       if (session?.user) {
@@ -208,7 +234,12 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        redirectToAccountForRecovery(router, pathname)
+        return
+      }
+
       setUser(session?.user ?? null)
       await syncSessionCookie(session?.access_token ?? null)
 
