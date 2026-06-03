@@ -1,5 +1,5 @@
 import { Buffer } from 'buffer'
-import * as FileSystem from 'expo-file-system/legacy'
+import * as FileSystem from 'expo-file-system'
 import { Platform } from 'react-native'
 import LiveAudioStream from 'react-native-live-audio-stream'
 import { Openwakeword } from 'react-native-openwakeword'
