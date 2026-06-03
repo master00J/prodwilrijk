@@ -1,5 +1,6 @@
 import { Audio } from 'expo-av'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { LiveVoicePanelHandle } from '@/components/LiveVoicePanel'
 import {
   ActivityIndicator,
   FlatList,
@@ -12,8 +13,16 @@ import {
   TextInput,
   View,
 } from 'react-native'
+import JarvisHandsFreeBar from '@/components/JarvisHandsFreeBar'
 import MessageBubble from '@/components/MessageBubble'
 import LiveVoicePanel from '@/components/LiveVoicePanel'
+import {
+  attachAppStateHandsFree,
+  initHandsFreeOnLogin,
+  pauseHandsFreeForLive,
+  resumeHandsFreeAfterLive,
+  teardownHandsFree,
+} from '@/lib/jarvis-hands-free'
 import { APP_NAME } from '@/config'
 import { sendChat, sendVoice } from '@/lib/api'
 import { signOut } from '@/lib/auth'
@@ -43,6 +52,7 @@ export default function AssistantScreen({ onLoggedOut }: Props) {
   const [autoSpeak, setAutoSpeak] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const listRef = useRef<FlatList<ChatMessage>>(null)
+  const liveVoiceRef = useRef<LiveVoicePanelHandle>(null)
 
   const historyForApi = useMemo(
     () => messages.filter(message => message.role === 'user' || message.role === 'assistant'),
@@ -63,6 +73,18 @@ export default function AssistantScreen({ onLoggedOut }: Props) {
   useEffect(() => {
     listRef.current?.scrollToEnd({ animated: true })
   }, [messages, loading])
+
+  useEffect(() => {
+    attachAppStateHandsFree()
+    void initHandsFreeOnLogin(async () => {
+      if (liveVoiceRef.current?.isActive()) return
+      await pauseHandsFreeForLive()
+      await liveVoiceRef.current?.connect()
+    })
+    return () => {
+      void teardownHandsFree()
+    }
+  }, [])
 
   const appendMessage = useCallback((role: ChatMessage['role'], content: string) => {
     setMessages(prev => [...prev, { id: createId(), role, content }])
@@ -165,7 +187,12 @@ export default function AssistantScreen({ onLoggedOut }: Props) {
     }
   }
 
+  const handleLiveDisconnected = useCallback(() => {
+    void resumeHandsFreeAfterLive()
+  }, [])
+
   const handleLogout = async () => {
+    await teardownHandsFree()
     await stopSpeaking()
     if (recording) {
       await recording.stopAndUnloadAsync()
@@ -218,10 +245,15 @@ export default function AssistantScreen({ onLoggedOut }: Props) {
         ))}
       </View>
 
+      <JarvisHandsFreeBar disabled={loading} />
+
       <LiveVoicePanel
+        ref={liveVoiceRef}
         disabled={loading}
         onUserMessage={onLiveUserMessage}
         onAssistantMessage={onLiveAssistantMessage}
+        onWillConnect={pauseHandsFreeForLive}
+        onDisconnected={handleLiveDisconnected}
       />
 
       <FlatList

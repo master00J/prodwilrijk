@@ -4,6 +4,7 @@ Mobiele assistent-app met AI en live data uit **prodwilrijk.be**. Werkt met teks
 
 ## Wat kan de app?
 
+- **Hey Jarvis (hands-free)** — zeg "Jarvis" om live spraak te starten zonder de telefoon aan te raken (Android + Picovoice)
 - **Live spraak (OpenAI Realtime)** — direct praten via oortjes, zoals Grote Inpak op de website
 - **Klassieke spraak** — knop ingedrukt houden → transcriptie → antwoord
 - **Tekstchat** — typ je vraag
@@ -57,7 +58,21 @@ Vul in `.env`:
 EXPO_PUBLIC_API_BASE=https://prodwilrijk.be
 EXPO_PUBLIC_SUPABASE_URL=<zelfde als NEXT_PUBLIC_SUPABASE_URL>
 EXPO_PUBLIC_SUPABASE_ANON_KEY=<zelfde als NEXT_PUBLIC_SUPABASE_ANON_KEY>
+EXPO_PUBLIC_PICOVOICE_ACCESS_KEY=<AccessKey van console.picovoice.ai>
 ```
+
+### Hey Jarvis (wake word)
+
+**Zonder Picovoice-key (account nog in afwachting):** de app gebruikt automatisch **tijdelijke spraakherkenning** (Google op Android). Zeg "Jarvis" of "Hey Jarvis" — werkt het best met de app open. Geen account-goedkeuring nodig.
+
+**Met Picovoice-key (aanbevolen na goedkeuring):**
+
+1. Account op [Picovoice Console](https://console.picovoice.ai/) — goedkeuring kan enkele uur tot dagen duren.
+2. Zet `EXPO_PUBLIC_PICOVOICE_ACCESS_KEY` in `.env` en EAS secrets.
+3. Bouw een **nieuwe native APK** (geen Expo Go).
+4. Na login: **Hey Jarvis** aan → melding *Jarvis luistert* → zuiniger luisteren, ook op achtergrond.
+
+**Beperkingen:** App force-stop = geen luisteren. iOS: achtergrond beperkt. Batterij-optimalisatie uitzetten helpt op Android.
 
 Installeer en start:
 

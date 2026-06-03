@@ -1,0 +1,53 @@
+const {
+  withAndroidManifest,
+  AndroidConfig,
+} = require('@expo/config-plugins')
+
+const BG_SERVICE = 'com.asterinet.react.bgactions.RNBackgroundActionsTask'
+
+/** Foreground service + microfoon voor hands-free "Jarvis" op Android 14+. */
+function withJarvisAndroid(config) {
+  return withAndroidManifest(config, config => {
+    const manifest = config.modResults
+    const app = AndroidConfig.Manifest.getMainApplicationOrThrow(manifest)
+
+    AndroidConfig.Manifest.ensureToolsAvailable(manifest)
+
+    if (!manifest.manifest['uses-permission']) {
+      manifest.manifest['uses-permission'] = []
+    }
+    const perms = manifest.manifest['uses-permission']
+    const addPerm = name => {
+      if (!perms.some(p => p.$?.['android:name'] === name)) {
+        perms.push({ $: { 'android:name': name } })
+      }
+    }
+    addPerm('android.permission.FOREGROUND_SERVICE')
+    addPerm('android.permission.FOREGROUND_SERVICE_MICROPHONE')
+    addPerm('android.permission.POST_NOTIFICATIONS')
+    addPerm('android.permission.WAKE_LOCK')
+
+    if (!app.service) {
+      app.service = []
+    }
+    const services = Array.isArray(app.service) ? app.service : [app.service]
+    let bg = services.find(s => s.$?.['android:name'] === BG_SERVICE)
+    if (!bg) {
+      bg = {
+        $: {
+          'android:name': BG_SERVICE,
+          'android:exported': 'false',
+          'android:foregroundServiceType': 'microphone',
+        },
+      }
+      services.push(bg)
+      app.service = services
+    } else {
+      bg.$['android:foregroundServiceType'] = 'microphone'
+    }
+
+    return config
+  })
+}
+
+module.exports = withJarvisAndroid

@@ -1,16 +1,27 @@
-import { useEffect, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
 import { MediaStream, RTCView } from 'react-native-webrtc'
 import { stopSpeaking } from '@/lib/speech'
 import { PersonalRealtimeVoice, type RealtimeVoiceStatus } from '@/lib/realtime-voice'
 
+export type LiveVoicePanelHandle = {
+  connect: () => Promise<void>
+  disconnect: () => void
+  isActive: () => boolean
+}
+
 type Props = {
   onUserMessage?: (text: string) => void
   onAssistantMessage?: (text: string) => void
+  onDisconnected?: () => void
+  onWillConnect?: () => void | Promise<void>
   disabled?: boolean
 }
 
-export default function LiveVoicePanel({ onUserMessage, onAssistantMessage, disabled }: Props) {
+const LiveVoicePanel = forwardRef<LiveVoicePanelHandle, Props>(function LiveVoicePanel(
+  { onUserMessage, onAssistantMessage, onDisconnected, onWillConnect, disabled },
+  ref
+) {
   const voiceRef = useRef<PersonalRealtimeVoice | null>(null)
   const [status, setStatus] = useState<RealtimeVoiceStatus>('idle')
   const [message, setMessage] = useState('Start live spraak voor direct praten via je oortjes.')
@@ -56,24 +67,39 @@ export default function LiveVoicePanel({ onUserMessage, onAssistantMessage, disa
 
     return () => {
       voiceRef.current?.disconnect('cleanup')
+      onDisconnected?.()
     }
-  }, [])
+  }, [onDisconnected])
 
-  const handleConnect = async () => {
+  const handleConnect = useCallback(async () => {
     await stopSpeaking()
+    await onWillConnect?.()
     try {
       const stream = await voiceRef.current?.connect()
       if (stream) setRemoteStream(stream)
     } catch {
       setRemoteStream(null)
+      onDisconnected?.()
+      throw new Error('Live spraak verbinden mislukt')
     }
-  }
+  }, [onWillConnect, onDisconnected])
 
-  const handleDisconnect = () => {
+  const handleDisconnect = useCallback(() => {
     voiceRef.current?.disconnect('user')
     setRemoteStream(null)
     setMicEnabled(true)
-  }
+    onDisconnected?.()
+  }, [onDisconnected])
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      connect: handleConnect,
+      disconnect: handleDisconnect,
+      isActive: () => status === 'connected' || status === 'connecting',
+    }),
+    [handleConnect, handleDisconnect, status]
+  )
 
   const toggleMic = () => {
     const next = !micEnabled
@@ -152,7 +178,9 @@ export default function LiveVoicePanel({ onUserMessage, onAssistantMessage, disa
       ) : null}
     </View>
   )
-}
+})
+
+export default LiveVoicePanel
 
 const styles = StyleSheet.create({
   panel: {
