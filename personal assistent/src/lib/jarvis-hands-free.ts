@@ -87,8 +87,14 @@ async function beginWakeWord(): Promise<void> {
   await startWakeWordListener(() => {
     void handleWakeDetected()
   })
-  const hint = getWakeWordEngine() === 'porcupine' ? 'Picovoice' : 'spraakherkenning (tijdelijk)'
-  setStatus('listening', `Luisteren op "Jarvis" (${hint})…`)
+  const engine = getWakeWordEngine()
+  const hint =
+    engine === 'openwakeword'
+      ? 'openWakeWord — zeg Hey Jarvis'
+      : engine === 'porcupine'
+        ? 'Picovoice'
+        : 'spraakherkenning'
+  setStatus('listening', `Luisteren (${hint})…`)
 }
 
 async function handleWakeDetected(): Promise<void> {

@@ -1,4 +1,13 @@
 import { Platform } from 'react-native'
+import { USE_PICOVOICE_WAKE } from '@/config'
+import {
+  isOpenWakeWordPreferred,
+  isOpenWakeWordListening,
+  prepareOpenWakeWord,
+  releaseOpenWakeWordListener,
+  startOpenWakeWordListener,
+  stopOpenWakeWordListener,
+} from '@/lib/wake-word-openwakeword'
 import {
   isPorcupineConfigured,
   releasePorcupineListener,
@@ -6,19 +15,33 @@ import {
   stopPorcupineListener,
   isPorcupineListening,
 } from '@/lib/wake-word-porcupine'
-
-export { isPorcupineConfigured }
 import {
   isVoiceFallbackListening,
   startVoiceFallbackListener,
   stopVoiceFallbackListener,
 } from '@/lib/wake-word-voice-fallback'
 
-export type WakeWordEngine = 'porcupine' | 'voice_fallback'
+export { isPorcupineConfigured }
 
-/** Picovoice-key aanwezig → lage batterij + achtergrond. Anders tijdelijke spraakherkenning. */
+export type WakeWordEngine = 'openwakeword' | 'porcupine' | 'voice_fallback'
+
+let activeEngine: WakeWordEngine | null = null
+
+export async function resolveWakeWordEngine(): Promise<WakeWordEngine> {
+  if (USE_PICOVOICE_WAKE && isPorcupineConfigured()) {
+    return 'porcupine'
+  }
+  if (isOpenWakeWordPreferred() && (await prepareOpenWakeWord())) {
+    return 'openwakeword'
+  }
+  if (isPorcupineConfigured()) {
+    return 'porcupine'
+  }
+  return 'voice_fallback'
+}
+
 export function getWakeWordEngine(): WakeWordEngine {
-  return isPorcupineConfigured() ? 'porcupine' : 'voice_fallback'
+  return activeEngine ?? 'openwakeword'
 }
 
 export function isWakeWordConfigured(): boolean {
@@ -26,23 +49,34 @@ export function isWakeWordConfigured(): boolean {
 }
 
 export function getWakeWordEngineLabel(): string {
-  return getWakeWordEngine() === 'porcupine'
-    ? 'Picovoice (aanbevolen)'
-    : 'Spraakherkenning (tijdelijk, tot Picovoice-key)'
+  const engine = getWakeWordEngine()
+  if (engine === 'openwakeword') return 'openWakeWord (offline, Hey Jarvis)'
+  if (engine === 'porcupine') return 'Picovoice'
+  return 'Spraakherkenning (fallback)'
 }
 
 export function getWakeWordEngineHint(): string {
-  if (getWakeWordEngine() === 'porcupine') {
-    return 'Zeg "Jarvis". Werkt ook op achtergrond via de melding.'
+  const engine = getWakeWordEngine()
+  if (engine === 'openwakeword') {
+    return 'Zeg "Hey Jarvis" (openWakeWord, geen account). Eerste start downloadt modellen (~3 MB). Werkt op achtergrond met de melding.'
+  }
+  if (engine === 'porcupine') {
+    return 'Zeg "Jarvis" via Picovoice.'
   }
   if (Platform.OS === 'android') {
-    return 'Zonder Picovoice-key: zeg "Jarvis" of "Hey Jarvis". Houd de app het liefst open; achtergrond is beperkt. Na goedkeuring op console.picovoice.ai werkt het volledig.'
+    return 'Fallback: zeg "Jarvis" of "Hey Jarvis" (Google STT). openWakeWord kon niet laden.'
   }
-  return 'Zonder Picovoice-key: zeg "Jarvis" met de app open. Voeg later EXPO_PUBLIC_PICOVOICE_ACCESS_KEY toe voor betere detectie.'
+  return 'Fallback spraakherkenning met app open.'
 }
 
 export async function startWakeWordListener(onDetected: () => void): Promise<void> {
-  if (getWakeWordEngine() === 'porcupine') {
+  activeEngine = await resolveWakeWordEngine()
+
+  if (activeEngine === 'openwakeword') {
+    await startOpenWakeWordListener(onDetected)
+    return
+  }
+  if (activeEngine === 'porcupine') {
     await startPorcupineListener(onDetected)
     return
   }
@@ -50,19 +84,26 @@ export async function startWakeWordListener(onDetected: () => void): Promise<voi
 }
 
 export async function stopWakeWordListener(): Promise<void> {
-  if (getWakeWordEngine() === 'porcupine') {
+  if (activeEngine === 'openwakeword') {
+    await stopOpenWakeWordListener()
+  } else if (activeEngine === 'porcupine') {
     await stopPorcupineListener()
-    return
+  } else {
+    await stopVoiceFallbackListener()
   }
-  await stopVoiceFallbackListener()
 }
 
 export async function releaseWakeWordListener(): Promise<void> {
+  await stopOpenWakeWordListener()
   await stopPorcupineListener()
   await stopVoiceFallbackListener()
+  await releaseOpenWakeWordListener()
   await releasePorcupineListener()
+  activeEngine = null
 }
 
 export function isWakeWordListening(): boolean {
-  return getWakeWordEngine() === 'porcupine' ? isPorcupineListening() : isVoiceFallbackListening()
+  if (activeEngine === 'openwakeword') return isOpenWakeWordListening()
+  if (activeEngine === 'porcupine') return isPorcupineListening()
+  return isVoiceFallbackListening()
 }

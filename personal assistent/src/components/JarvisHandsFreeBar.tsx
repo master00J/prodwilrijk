@@ -1,11 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Platform, StyleSheet, Switch, Text, View } from 'react-native'
-import {
-  getWakeWordEngine,
-  getWakeWordEngineHint,
-  getWakeWordEngineLabel,
-  isPorcupineConfigured,
-} from '@/lib/wake-word'
+import { prepareOpenWakeWord } from '@/lib/wake-word-openwakeword'
+import { getWakeWordEngineHint, getWakeWordEngineLabel } from '@/lib/wake-word'
 import {
   loadHandsFreePreference,
   setHandsFreeEnabled,
@@ -20,7 +16,7 @@ type Props = {
 const STATUS_LABELS: Record<HandsFreeStatus, string> = {
   off: 'Uit',
   starting: 'Starten…',
-  listening: 'Luistert op "Jarvis"',
+  listening: 'Luistert',
   activating: 'Jarvis gehoord…',
   live_active: 'Live gesprek',
   error: 'Fout',
@@ -31,8 +27,7 @@ export default function JarvisHandsFreeBar({ disabled }: Props) {
   const [status, setStatus] = useState<HandsFreeStatus>('off')
   const [message, setMessage] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const engine = getWakeWordEngine()
-  const hasPicovoice = isPorcupineConfigured()
+  const [modelsLoading, setModelsLoading] = useState(false)
 
   useEffect(() => {
     void loadHandsFreePreference().then(pref => setOn(pref))
@@ -40,6 +35,11 @@ export default function JarvisHandsFreeBar({ disabled }: Props) {
       setStatus(s)
       setMessage(m)
     })
+  }, [])
+
+  useEffect(() => {
+    void prepareOpenWakeWord().finally(() => setModelsLoading(false))
+    setModelsLoading(true)
   }, [])
 
   const toggle = async (value: boolean) => {
@@ -54,35 +54,27 @@ export default function JarvisHandsFreeBar({ disabled }: Props) {
   }
 
   return (
-    <View style={[styles.panel, !hasPicovoice && styles.panelInterim]}>
+    <View style={styles.panel}>
       <View style={styles.row}>
         <View style={styles.textCol}>
           <Text style={styles.title}>Hey Jarvis</Text>
           <Text style={styles.subtitle}>
             {Platform.OS === 'android'
-              ? 'Zeg "Jarvis" of "Hey Jarvis" — live spraak start automatisch.'
-              : 'Zeg "Jarvis" met de app open.'}
+              ? 'Offline wake word (openWakeWord). Zeg "Hey Jarvis" — geen Picovoice-account nodig.'
+              : 'Zeg "Hey Jarvis" met de app actief.'}
           </Text>
         </View>
         <Switch value={on} onValueChange={v => void toggle(v)} disabled={disabled} />
       </View>
 
-      {!hasPicovoice ? (
-        <View style={styles.notice}>
-          <Text style={styles.noticeTitle}>Picovoice-account nog in afwachting?</Text>
-          <Text style={styles.noticeText}>
-            Geen probleem: je kunt nu al de tijdelijke modus gebruiken ({getWakeWordEngineLabel()}).
-            Na goedkeuring voeg je EXPO_PUBLIC_PICOVOICE_ACCESS_KEY toe en bouw je opnieuw — dan werkt
-            achtergrond-luisteren beter en zuiniger.
-          </Text>
-        </View>
-      ) : null}
-
-      <View style={[styles.badge, status === 'listening' && styles.badgeActive]}>
+      <View style={styles.badge}>
         <Text style={styles.badgeText}>
           {STATUS_LABELS[status]}
-          {engine === 'voice_fallback' && status === 'listening' ? ' (tijdelijk)' : ''}
+          {status === 'listening' ? ` · ${getWakeWordEngineLabel()}` : ''}
         </Text>
+        {modelsLoading ? (
+          <Text style={styles.messageText}>Modellen downloaden bij eerste gebruik (~3 MB)…</Text>
+        ) : null}
         {message ? <Text style={styles.messageText}>{message}</Text> : null}
       </View>
 
@@ -103,10 +95,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f3ff',
     gap: 8,
   },
-  panelInterim: {
-    borderColor: '#fcd34d',
-    backgroundColor: '#fffbeb',
-  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -126,31 +114,10 @@ const styles = StyleSheet.create({
     color: '#6d28d9',
     marginTop: 2,
   },
-  notice: {
-    backgroundColor: '#fef3c7',
-    borderRadius: 10,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#fde68a',
-  },
-  noticeTitle: {
-    fontWeight: '800',
-    fontSize: 12,
-    color: '#92400e',
-    marginBottom: 4,
-  },
-  noticeText: {
-    fontSize: 12,
-    lineHeight: 17,
-    color: '#78350f',
-  },
   badge: {
     backgroundColor: '#ede9fe',
     borderRadius: 10,
     padding: 8,
-  },
-  badgeActive: {
-    backgroundColor: '#ddd6fe',
   },
   badgeText: {
     fontWeight: '700',

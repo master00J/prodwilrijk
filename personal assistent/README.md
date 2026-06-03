@@ -63,16 +63,17 @@ EXPO_PUBLIC_PICOVOICE_ACCESS_KEY=<AccessKey van console.picovoice.ai>
 
 ### Hey Jarvis (wake word)
 
-**Zonder Picovoice-key (account nog in afwachting):** de app gebruikt automatisch **tijdelijke spraakherkenning** (Google op Android). Zeg "Jarvis" of "Hey Jarvis" — werkt het best met de app open. Geen account-goedkeuring nodig.
+**Standaard: [openWakeWord](https://github.com/dscripka/openWakeWord)** (offline, geen account). Zeg **"Hey Jarvis"**. Bij eerste gebruik downloadt de app drie kleine modellen (~3 MB) van GitHub.
 
-**Met Picovoice-key (aanbevolen na goedkeuring):**
+1. Bouw een **native APK** (geen Expo Go).
+2. **Hey Jarvis** aan → melding *Prodwilrijk Assistent actief*.
+3. Zeg **"Hey Jarvis"** → live spraak start.
 
-1. Account op [Picovoice Console](https://console.picovoice.ai/) — goedkeuring kan enkele uur tot dagen duren.
-2. Zet `EXPO_PUBLIC_PICOVOICE_ACCESS_KEY` in `.env` en EAS secrets.
-3. Bouw een **nieuwe native APK** (geen Expo Go).
-4. Na login: **Hey Jarvis** aan → melding *Jarvis luistert* → zuiniger luisteren, ook op achtergrond.
+**Optioneel Picovoice:** `EXPO_PUBLIC_USE_PICOVOICE_WAKE=true` + `EXPO_PUBLIC_PICOVOICE_ACCESS_KEY`.
 
-**Beperkingen:** App force-stop = geen luisteren. iOS: achtergrond beperkt. Batterij-optimalisatie uitzetten helpt op Android.
+**Fallback:** als openWakeWord niet laadt → Google spraakherkenning.
+
+**Beperkingen:** App force-stop = geen luisteren. Batterij-optimalisatie uitzetten op Android helpt.
 
 Installeer en start:
 
