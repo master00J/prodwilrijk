@@ -5,6 +5,7 @@ import {
   getAirtecStatsForAssistant,
 } from '@/lib/personal-assistant/prepack-airtec-extra'
 import { getActiveProductionSummary } from '@/lib/personal-assistant/production-extra'
+import { getAssistantLearnedContext } from '@/lib/personal-assistant/learned-baselines'
 import { supabaseAdmin } from '@/lib/supabase/server'
 
 async function quickGroteInpakCounts() {
@@ -54,7 +55,7 @@ async function quickPackedThisWeek() {
 
 /** Ochtend-/check-in briefing: combineert de belangrijkste live KPI's. */
 export async function getPersonalAssistantDailyBriefing() {
-  const [queue, groteInpak, prepackWeek, airtecWeek, activeProduction, kanban, packed] =
+  const [queue, groteInpak, prepackWeek, airtecWeek, activeProduction, kanban, packed, learned] =
     await Promise.all([
       fetchPrepackQueueStats(),
       quickGroteInpakCounts(),
@@ -63,10 +64,13 @@ export async function getPersonalAssistantDailyBriefing() {
       getActiveProductionSummary(),
       getGroteInpakKanbanSummary(6),
       quickPackedThisWeek(),
+      getAssistantLearnedContext().catch(() => null),
     ])
 
   return {
     generated_at: new Date().toISOString(),
+    learned_summary: learned?.summary_text || null,
+    learned_prepack_today: learned?.live_prepack_today?.focus_totals || null,
     prepack_queue: {
       queue_stuks: queue.queueStuks,
       backlog_stuks: queue.backlogStuks,

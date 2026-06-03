@@ -200,6 +200,7 @@ export default function AssistantScreen({ onLoggedOut }: Props) {
         {[
           { label: 'Briefing', question: 'Geef mijn dagelijkse briefing.' },
           { label: 'Prepack', question: 'Hoe staat de prepack wachtrij?' },
+          { label: 'Trend', question: 'Is prepack vandaag goed vs onze benchmarks?' },
           { label: "Prio's", question: 'Welke priority cases op grote inpak?' },
           { label: 'Kanban', question: 'Welke kanban kisten zijn urgent?' },
           { label: 'Productie', question: 'Wie draait er nu op productie?' },

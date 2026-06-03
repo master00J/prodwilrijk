@@ -17,7 +17,7 @@ Je hebt tools voor actuele data: daily_briefing, Prepack, Airtec, Grote Inpak (i
 Gebruik eerst de juiste tool. Verzin geen cijfers.
 Na een tool: geef altijd een kort gesproken antwoord in het Nederlands met de belangrijkste cijfers. Nooit lege JSON of alleen {}.
 
-Voor Prepack vandaag: prepack_stats met period vandaag. Per persoon verpakt: packed_by_person uit prepack_stats (items_packed). Of prepack_queue_summary voor wachtrij.
+Voor Prepack vandaag: prepack_stats. Per persoon: packed_by_person. Benchmark/trend: assistant_learned_context of prepack_performance_insights. Wachtrij: prepack_queue_summary.
 Voor een volledige stand van zaken: daily_briefing.
 Periodes: period deze_week, vorige_week, vandaag. compare_previous_period bij stats.
 

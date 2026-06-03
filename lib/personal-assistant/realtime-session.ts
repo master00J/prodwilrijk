@@ -88,9 +88,9 @@ export async function createPersonalAssistantRealtimeSecret(userId: string | nul
             },
             turn_detection: {
               type: 'semantic_vad',
-              eagerness: 'auto',
+              eagerness: 'low',
               create_response: true,
-              interrupt_response: true,
+              interrupt_response: false,
             },
           },
           output: {

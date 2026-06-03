@@ -16,6 +16,8 @@ export type RealtimeVoiceEvents = {
   onAssistantTranscript?: (text: string) => void
   onRemoteStream?: (stream: MediaStream) => void
   onToolUsed?: (name: string) => void
+  /** Mic tijdelijk uit tegen echo (AI hoort zichzelf niet). */
+  onMicAutoMuted?: (muted: boolean) => void
 }
 
 /** react-native-webrtc typings missen legacy event handlers */
@@ -107,6 +109,9 @@ export class PersonalRealtimeVoice {
   private processedCalls = new Set<string>()
   private assistantTranscriptBuffer = ''
   private awaitingToolFollowUp = false
+  private userMicEnabled = true
+  private duckMicForAssistant = false
+  private unmuteTimer: ReturnType<typeof setTimeout> | null = null
   private events: RealtimeVoiceEvents
 
   constructor(events: RealtimeVoiceEvents = {}) {
@@ -125,6 +130,37 @@ export class PersonalRealtimeVoice {
 
   private setStatus(status: RealtimeVoiceStatus, message: string) {
     this.events.onStatus?.(status, message)
+  }
+
+  private clearUnmuteTimer() {
+    if (this.unmuteTimer) {
+      clearTimeout(this.unmuteTimer)
+      this.unmuteTimer = null
+    }
+  }
+
+  private applyMicTracks() {
+    const enabled = this.userMicEnabled && !this.duckMicForAssistant
+    this.localStream?.getAudioTracks().forEach(track => {
+      track.enabled = enabled
+    })
+    this.events.onMicAutoMuted?.(this.duckMicForAssistant)
+  }
+
+  private setAssistantSpeaking(speaking: boolean, cooldownMs = 0) {
+    this.clearUnmuteTimer()
+    this.duckMicForAssistant = speaking
+    this.applyMicTracks()
+
+    if (!speaking && cooldownMs > 0) {
+      this.unmuteTimer = setTimeout(() => {
+        this.unmuteTimer = null
+        if (!this.awaitingToolFollowUp) {
+          this.duckMicForAssistant = false
+          this.applyMicTracks()
+        }
+      }, cooldownMs)
+    }
   }
 
   private sendClientEvent(event: Record<string, unknown>) {
@@ -172,6 +208,7 @@ export class PersonalRealtimeVoice {
 
     this.awaitingToolFollowUp = true
     this.assistantTranscriptBuffer = ''
+    this.setAssistantSpeaking(true)
 
     for (const item of calls) {
       const callId = getFunctionCallId(item)
@@ -218,7 +255,25 @@ export class PersonalRealtimeVoice {
       return
     }
 
+    if (
+      event.type === 'response.created' ||
+      event.type === 'response.audio.delta' ||
+      event.type === 'response.output_audio.delta'
+    ) {
+      this.setAssistantSpeaking(true)
+      return
+    }
+
+    if (
+      event.type === 'response.audio.done' ||
+      event.type === 'response.output_audio.done'
+    ) {
+      this.setAssistantSpeaking(true, 1400)
+      return
+    }
+
     if (event.type === 'conversation.item.input_audio_transcription.completed' && event.transcript) {
+      if (this.duckMicForAssistant) return
       this.events.onUserTranscript?.(event.transcript)
       return
     }
@@ -227,6 +282,7 @@ export class PersonalRealtimeVoice {
       event.type === 'response.audio_transcript.delta' ||
       event.type === 'response.output_audio_transcript.delta'
     ) {
+      this.setAssistantSpeaking(true)
       if (this.awaitingToolFollowUp) return
       if (event.transcript) {
         this.assistantTranscriptBuffer += event.transcript
@@ -270,6 +326,8 @@ export class PersonalRealtimeVoice {
         }
       }
       this.flushAssistantTranscript()
+      this.awaitingToolFollowUp = false
+      this.setAssistantSpeaking(true, 1400)
     }
   }
 
@@ -306,7 +364,11 @@ export class PersonalRealtimeVoice {
       }
 
       const stream = (await mediaDevices.getUserMedia({
-        audio: true,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        } as Record<string, unknown>,
         video: false,
       })) as MediaStream
 
@@ -389,12 +451,12 @@ export class PersonalRealtimeVoice {
   }
 
   setMicEnabled(enabled: boolean) {
-    this.localStream?.getAudioTracks().forEach(track => {
-      track.enabled = enabled
-    })
+    this.userMicEnabled = enabled
+    this.applyMicTracks()
   }
 
   disconnect(reason: 'user' | 'error' | 'connection' | 'cleanup' = 'user') {
+    this.clearUnmuteTimer()
     this.dc?.close()
     this.pc?.close()
     this.localStream?.getTracks().forEach(track => track.stop())
@@ -405,6 +467,8 @@ export class PersonalRealtimeVoice {
     this.processedCalls.clear()
     this.assistantTranscriptBuffer = ''
     this.awaitingToolFollowUp = false
+    this.duckMicForAssistant = false
+    this.userMicEnabled = true
 
     if (reason === 'user') {
       this.setStatus('idle', 'Live spraak gestopt.')

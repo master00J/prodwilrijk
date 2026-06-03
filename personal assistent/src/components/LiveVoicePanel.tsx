@@ -15,6 +15,7 @@ export default function LiveVoicePanel({ onUserMessage, onAssistantMessage, disa
   const [status, setStatus] = useState<RealtimeVoiceStatus>('idle')
   const [message, setMessage] = useState('Start live spraak voor direct praten via je oortjes.')
   const [micEnabled, setMicEnabled] = useState(true)
+  const [micAutoMuted, setMicAutoMuted] = useState(false)
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
   const [lastHeard, setLastHeard] = useState('')
   const [lastAnswer, setLastAnswer] = useState('')
@@ -47,6 +48,9 @@ export default function LiveVoicePanel({ onUserMessage, onAssistantMessage, disa
       },
       onToolUsed: name => {
         setToolLog(prev => [name, ...prev].slice(0, 4))
+      },
+      onMicAutoMuted: muted => {
+        setMicAutoMuted(muted)
       },
     })
 
@@ -96,7 +100,7 @@ export default function LiveVoicePanel({ onUserMessage, onAssistantMessage, disa
 
       <Text style={styles.title}>Live spraak (OpenAI Realtime)</Text>
       <Text style={styles.subtitle}>
-        Direct praten zoals in Grote Inpak. Geen knop ingedrukt houden — gewoon conversatie via oortjes.
+        Direct praten zoals in Grote Inpak. Mic gaat kort uit tijdens het antwoord (voorkomt echo-loop).
       </Text>
 
       <View style={[styles.statusBox, statusStyle]}>
@@ -108,7 +112,9 @@ export default function LiveVoicePanel({ onUserMessage, onAssistantMessage, disa
         {status === 'connected' ? (
           <>
             <Pressable style={styles.secondaryButton} onPress={toggleMic} disabled={disabled}>
-              <Text style={styles.secondaryButtonText}>{micEnabled ? 'Mic aan' : 'Mic uit'}</Text>
+              <Text style={styles.secondaryButtonText}>
+                {micAutoMuted ? 'Mic wacht…' : micEnabled ? 'Mic aan' : 'Mic uit'}
+              </Text>
             </Pressable>
             <Pressable style={styles.stopButton} onPress={handleDisconnect} disabled={disabled}>
               <Text style={styles.stopButtonText}>Stop live</Text>

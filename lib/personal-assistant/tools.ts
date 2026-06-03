@@ -17,6 +17,11 @@ import {
 } from '@/lib/personal-assistant/grote-inpak-extra'
 import { rememberAssistantFact, recallAssistantMemory, type MemorySubjectType } from '@/lib/personal-assistant/memory'
 import {
+  getAssistantLearnedContext,
+  refreshPersonalAssistantLearnedBaselines,
+} from '@/lib/personal-assistant/learned-baselines'
+import { getPrepackPerformanceInsights } from '@/lib/personal-assistant/prepack-insights'
+import {
   getAirtecStatsForAssistant,
   getAirtecStockSummary,
   getPrepackStatsForAssistant,
@@ -543,12 +548,15 @@ export type PersonalAssistantToolName =
   | 'atlas_order_status'
   | 'prepack_queue_summary'
   | 'prepack_stats'
+  | 'prepack_performance_insights'
   | 'prepack_stage_kisten'
   | 'airtec_stats'
   | 'airtec_stock_summary'
   | 'production_kpi_summary'
   | 'active_production_summary'
   | 'daily_briefing'
+  | 'assistant_learned_context'
+  | 'assistant_refresh_learned_baselines'
   | 'assistant_remember'
   | 'assistant_recall_memory'
 
@@ -586,6 +594,13 @@ export async function runPersonalAssistantTool(
         compare_previous_period: args.compare_previous_period === true,
         person_name: typeof args.person_name === 'string' ? args.person_name : undefined,
         limit_people: typeof args.limit_people === 'number' ? args.limit_people : undefined,
+      })
+    case 'prepack_performance_insights':
+      return getPrepackPerformanceInsights({
+        period: typeof args.period === 'string' ? args.period : undefined,
+        date_from: typeof args.date_from === 'string' ? args.date_from : undefined,
+        date_to: typeof args.date_to === 'string' ? args.date_to : undefined,
+        history_days: typeof args.history_days === 'number' ? args.history_days : undefined,
       })
     case 'prepack_stage_kisten':
       return getPrepackStageKistenSummary()
@@ -628,6 +643,12 @@ export async function runPersonalAssistantTool(
       )
     case 'daily_briefing':
       return getPersonalAssistantDailyBriefing()
+    case 'assistant_learned_context':
+      return getAssistantLearnedContext({
+        refresh_live: args.refresh_live !== false,
+      })
+    case 'assistant_refresh_learned_baselines':
+      return refreshPersonalAssistantLearnedBaselines()
     case 'assistant_remember':
       return rememberAssistantFact({
         subject_type: (args.subject_type as MemorySubjectType) || 'general',
@@ -789,6 +810,24 @@ export const PERSONAL_ASSISTANT_TOOLS = [
   {
     type: 'function' as const,
     function: {
+      name: 'prepack_performance_insights',
+      description:
+        'Prepack benchmarks en trend: vergelijk focus-periode met rolling 7d gemiddelde, zelfde weekdag, vorige periode. Ratings sterk/normaal/zwak op items_packed en omzet. Gebruik bij "is dit goed", trends, leren uit historiek.',
+      parameters: {
+        type: 'object',
+        properties: {
+          period: { type: 'string', description: 'vandaag, deze_week, vorige_week, deze_maand.' },
+          date_from: { type: 'string' },
+          date_to: { type: 'string' },
+          history_days: { type: 'number', description: 'Dagen historiek (14-90, default 35).' },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
       name: 'prepack_stage_kisten',
       description: 'Prepack stage-kisten nodig voor de huidige wachtrij (admin prepack).',
       parameters: { type: 'object', properties: {}, additionalProperties: false },
@@ -915,6 +954,33 @@ export const PERSONAL_ASSISTANT_TOOLS = [
       name: 'daily_briefing',
       description:
         'Ochtendbriefing: prepack wachtrij, grote inpak, packed, kanban urgent, actieve productie, week KPIs.',
+      parameters: { type: 'object', properties: {}, additionalProperties: false },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'assistant_learned_context',
+      description:
+        'Opgeslagen auto-learned benchmarks (Prepack/Airtec) + live vandaag. Eerst proberen bij trend/benchmark/vragen "is dit goed".',
+      parameters: {
+        type: 'object',
+        properties: {
+          refresh_live: {
+            type: 'boolean',
+            description: 'Voeg live prepack vandaag toe (default true).',
+          },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'assistant_refresh_learned_baselines',
+      description:
+        'Herbereken en bewaar benchmarks in geheugen (zwaar; normaal via cron). Alleen als expliciet gevraagd.',
       parameters: { type: 'object', properties: {}, additionalProperties: false },
     },
   },
