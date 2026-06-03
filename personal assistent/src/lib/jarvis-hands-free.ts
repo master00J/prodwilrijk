@@ -1,7 +1,7 @@
 import { Audio } from 'expo-av'
 import * as SecureStore from 'expo-secure-store'
 import { AppState, PermissionsAndroid, Platform } from 'react-native'
-import BackgroundJob from 'react-native-background-actions'
+import { acquireBackgroundKeeper, releaseBackgroundKeeper } from '@/lib/background-keeper'
 import {
   getWakeWordEngine,
   getWakeWordEngineHint,
@@ -32,8 +32,6 @@ let lastWakeAt = 0
 let pausedForLive = false
 let onWakeCallback: (() => Promise<void>) | null = null
 let appStateSub: { remove: () => void } | null = null
-
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 function setStatus(next: HandsFreeStatus, message: string) {
   status = next
@@ -81,35 +79,8 @@ async function ensureAndroidPermissions(): Promise<void> {
   }
 }
 
-const backgroundTask = async () => {
-  while (BackgroundJob.isRunning()) {
-    await sleep(2000)
-  }
-}
-
-const backgroundOptions = {
-  taskName: 'JarvisWakeWord',
-  taskTitle: 'Jarvis luistert',
-  taskDesc: 'Zeg "Jarvis" om de assistent te starten (hands-free)',
-  taskIcon: {
-    name: 'ic_launcher',
-    type: 'mipmap',
-  },
-  color: '#1a4b8c',
-  linkingURI: 'prodwilrijk-assistant://assistant',
-  parameters: {},
-}
-
-async function startAndroidForegroundKeeper(): Promise<void> {
-  if (Platform.OS !== 'android') return
-  if (BackgroundJob.isRunning()) return
-  await BackgroundJob.start(backgroundTask, backgroundOptions)
-}
-
-async function stopAndroidForegroundKeeper(): Promise<void> {
-  if (Platform.OS !== 'android') return
-  if (!BackgroundJob.isRunning()) return
-  await BackgroundJob.stop()
+export function isHandsFreeServiceEnabled(): boolean {
+  return enabled
 }
 
 async function beginWakeWord(): Promise<void> {
@@ -180,7 +151,7 @@ export async function startHandsFree(): Promise<void> {
     playThroughEarpieceAndroid: false,
   })
 
-  await startAndroidForegroundKeeper()
+  await acquireBackgroundKeeper()
   await beginWakeWord()
   enabled = true
   pausedForLive = false
@@ -190,7 +161,7 @@ export async function stopHandsFree(): Promise<void> {
   enabled = false
   pausedForLive = false
   await stopWakeWordListener()
-  await stopAndroidForegroundKeeper()
+  await releaseBackgroundKeeper()
   setStatus('off', 'Hands-free uit')
 }
 
@@ -209,7 +180,7 @@ export async function setHandsFreeEnabled(
     await startHandsFree()
   } catch (err) {
     enabled = false
-    await stopAndroidForegroundKeeper()
+    await releaseBackgroundKeeper()
     await releaseWakeWordListener()
     throw err
   }

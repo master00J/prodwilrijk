@@ -32,6 +32,7 @@ Belangrijke tools:
 - grote_inpak_summary / grote_inpak_priority_overview / grote_inpak_packed_summary / grote_inpak_kanban_summary / grote_inpak_backlog_summary / grote_inpak_stock_lookup / grote_inpak_production_orders_summary
 - production_kpi_summary / active_production_summary
 - kist_production_status / atlas_order_status / search_grote_inpak_cases
+- assistant_set_hourly_packed_report / assistant_get_hourly_packed_report (uurlijkse gesproken prepack+airtec update)
 - assistant_remember / assistant_recall_memory voor feiten en voorkeuren
 
 Routing verpakking (altijd tool eerst):
@@ -40,6 +41,8 @@ Routing verpakking (altijd tool eerst):
 - Is dit een goede dag/week, benchmark, trend → prepack_performance_insights of airtec_performance_insights; snel alles → ops_snapshot of assistant_learned_context.
 - Wachtrij/backlog Prepack → prepack_queue_summary. Open problemen → prepack_problems_summary.
 - Lumipaper mail-imports → lumipaper_imports_summary. WMS projecten → wms_projects_summary.
+
+Uurlijkse melding: "meld me elk uur de verpakte stuks" → assistant_set_hourly_packed_report enabled true interval_minutes 60. Bevestig dat de app op de telefoon open/achtergrond moet blijven voor automatisch voorlezen.
 
 Leren uit data: start met assistant_learned_context (opgeslagen benchmarks) of prepack_performance_insights (live analyse). Geen vaste targets verzinnen. Leg vergelijkingen uit met percentages en sterk/normaal/zwak.
 Na belangrijke nieuwe feiten van de gebruiker: assistant_remember.

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { LiveVoicePanelHandle } from '@/components/LiveVoicePanel'
 import {
   ActivityIndicator,
+  AppState,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -16,6 +17,10 @@ import {
 import JarvisHandsFreeBar from '@/components/JarvisHandsFreeBar'
 import MessageBubble from '@/components/MessageBubble'
 import LiveVoicePanel from '@/components/LiveVoicePanel'
+import {
+  syncHourlyPackedAnnounceFromServer,
+  stopHourlyPackedAnnounce,
+} from '@/lib/hourly-packed-announce'
 import {
   attachAppStateHandsFree,
   initHandsFreeOnLogin,
@@ -81,7 +86,13 @@ export default function AssistantScreen({ onLoggedOut }: Props) {
       await pauseHandsFreeForLive()
       await liveVoiceRef.current?.connect()
     })
+    void syncHourlyPackedAnnounceFromServer()
+    const appStateSub = AppState.addEventListener('change', state => {
+      if (state === 'active') void syncHourlyPackedAnnounceFromServer()
+    })
     return () => {
+      appStateSub.remove()
+      void stopHourlyPackedAnnounce()
       void teardownHandsFree()
     }
   }, [])

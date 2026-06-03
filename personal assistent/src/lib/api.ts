@@ -39,6 +39,23 @@ export async function sendChat(messages: ChatMessage[]): Promise<ChatResponse> {
   return payload as ChatResponse
 }
 
+export type HourlyPackedResponse = {
+  text: string
+  prepack_items_packed: number
+  airtec_items_packed: number
+  generated_at: string
+  schedule: { enabled: boolean; interval_minutes: number }
+}
+
+export async function fetchHourlyPacked(): Promise<HourlyPackedResponse> {
+  const response = await authorizedFetch('/api/personal-assistant/hourly-packed')
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(payload.error || 'Uurupdate ophalen mislukt')
+  }
+  return payload as HourlyPackedResponse
+}
+
 export async function sendVoice(
   uri: string,
   history: ChatMessage[]

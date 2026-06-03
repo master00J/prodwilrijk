@@ -27,6 +27,11 @@ import {
   getPrepackProblemsSummary,
   getWmsProjectsSummary,
 } from '@/lib/personal-assistant/extra-tools'
+import {
+  getHourlyPackedSchedule,
+  setHourlyPackedSchedule,
+  buildHourlyPackedAnnouncement,
+} from '@/lib/personal-assistant/hourly-packed'
 import { getPrepackPerformanceInsights } from '@/lib/personal-assistant/prepack-insights'
 import {
   getAirtecStatsForAssistant,
@@ -569,6 +574,8 @@ export type PersonalAssistantToolName =
   | 'wms_projects_summary'
   | 'prepack_problems_summary'
   | 'ops_snapshot'
+  | 'assistant_set_hourly_packed_report'
+  | 'assistant_get_hourly_packed_report'
   | 'assistant_remember'
   | 'assistant_recall_memory'
 
@@ -683,6 +690,22 @@ export async function runPersonalAssistantTool(
       })
     case 'ops_snapshot':
       return getOpsSnapshot()
+    case 'assistant_set_hourly_packed_report': {
+      const uid = context?.user_id
+      if (!uid) throw new Error('Gebruiker ontbreekt voor uurlijkse melding.')
+      return setHourlyPackedSchedule(uid, {
+        enabled: args.enabled === true,
+        interval_minutes: typeof args.interval_minutes === 'number' ? args.interval_minutes : undefined,
+      })
+    }
+    case 'assistant_get_hourly_packed_report': {
+      const uid = context?.user_id
+      const [schedule, preview] = await Promise.all([
+        getHourlyPackedSchedule(uid),
+        buildHourlyPackedAnnouncement(),
+      ])
+      return { schedule, preview_text: preview.text }
+    }
     case 'assistant_remember':
       return rememberAssistantFact({
         subject_type: (args.subject_type as MemorySubjectType) || 'general',
@@ -1081,6 +1104,31 @@ export const PERSONAL_ASSISTANT_TOOLS = [
       name: 'assistant_refresh_learned_baselines',
       description:
         'Herbereken en bewaar benchmarks in geheugen (zwaar; normaal via cron). Alleen als expliciet gevraagd.',
+      parameters: { type: 'object', properties: {}, additionalProperties: false },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'assistant_set_hourly_packed_report',
+      description:
+        'Zet uurlijkse gesproken melding aan/uit: verpakte stuks Prepack + Airtec vandaag. interval_minutes default 60 (min 15, max 240). Werkt op de telefoon als de app actief/achtergrond-melding aan staat.',
+      parameters: {
+        type: 'object',
+        properties: {
+          enabled: { type: 'boolean' },
+          interval_minutes: { type: 'number', description: 'Standaard 60.' },
+        },
+        required: ['enabled'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'assistant_get_hourly_packed_report',
+      description: 'Huidige instelling uurlijkse melding + voorbeeldtekst van de volgende update.',
       parameters: { type: 'object', properties: {}, additionalProperties: false },
     },
   },

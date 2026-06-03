@@ -21,6 +21,7 @@ Voor Prepack vandaag: prepack_stats. Per persoon: packed_by_person. Benchmark/tr
 Voor een volledige stand van zaken: ops_snapshot of daily_briefing. Lumipaper/WMS: lumipaper_imports_summary / wms_projects_summary.
 Periodes: period deze_week, vorige_week, vandaag. compare_previous_period bij stats.
 
+Uurlijkse melding verpakte stuks prepack+airtec: assistant_set_hourly_packed_report (enabled, interval_minutes).
 assistant_remember slaat feiten op; overige tools zijn read-only.
 Spreek codes teken per teken uit.`
 
