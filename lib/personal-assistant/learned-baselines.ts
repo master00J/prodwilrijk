@@ -1,4 +1,5 @@
 import { rememberAssistantFact, recallAssistantMemory } from '@/lib/personal-assistant/memory'
+import { getAirtecPerformanceInsights } from '@/lib/personal-assistant/airtec-insights'
 import { getPrepackPerformanceInsights } from '@/lib/personal-assistant/prepack-insights'
 import { getPrepackStatsForAssistant, getAirtecStatsForAssistant } from '@/lib/personal-assistant/prepack-airtec-extra'
 
@@ -23,11 +24,12 @@ function compactInsight(insight: Awaited<ReturnType<typeof getPrepackPerformance
 
 /** Sla compacte benchmarks op in persistent geheugen (cron of na zware tool-runs). */
 export async function refreshPersonalAssistantLearnedBaselines() {
-  const [prepackToday, prepackWeek, prepackMonth, airtecWeek] = await Promise.all([
+  const [prepackToday, prepackWeek, prepackMonth, airtecWeek, airtecToday] = await Promise.all([
     getPrepackPerformanceInsights({ period: 'vandaag' }),
     getPrepackPerformanceInsights({ period: 'deze_week' }),
     getPrepackPerformanceInsights({ period: 'deze_maand', history_days: 60 }),
     getAirtecStatsForAssistant({ period: 'deze_week' }),
+    getAirtecPerformanceInsights({ period: 'vandaag' }).catch(() => null),
   ])
 
   const prepackPayload = {
@@ -39,6 +41,12 @@ export async function refreshPersonalAssistantLearnedBaselines() {
 
   const airtecPayload = {
     updated_at: new Date().toISOString(),
+    vandaag: airtecToday
+      ? {
+          items_packed: airtecToday.focus_totals.items_packed,
+          rating: airtecToday.evaluation.items_packed_vs_baseline.rating,
+        }
+      : null,
     deze_week: {
       items_packed: (airtecWeek.totals as { items_packed?: number }).items_packed,
       revenue: (airtecWeek.totals as { revenue?: number }).revenue,
@@ -116,23 +124,50 @@ export type AssistantLearnedContext = {
 }
 
 /** Opgeslagen + live learned context voor de assistent. */
+const STALE_MS = 20 * 60 * 60 * 1000
+
 export async function getAssistantLearnedContext(input?: {
   refresh_live?: boolean
+  auto_refresh_stale?: boolean
 }): Promise<AssistantLearnedContext> {
-  const memories = await recallAssistantMemory({
+  let memories = await recallAssistantMemory({
     subject_type: 'general',
     limit: 20,
   })
 
-  const prepackStored = memories.memories.find(
+  let prepackStored = memories.memories.find(
     m => m.subject_key === PREPACK_LEARNED_KEY && m.memory_type === 'baseline'
   )
-  const airtecStored = memories.memories.find(
+  let airtecStored = memories.memories.find(
     m => m.subject_key === AIRTEC_LEARNED_KEY && m.memory_type === 'baseline'
   )
-  const summaryStored = memories.memories.find(
+  let summaryStored = memories.memories.find(
     m => m.subject_key === SUMMARY_LEARNED_KEY && m.memory_type === 'baseline'
   )
+
+  const summaryAge = summaryStored?.updated_at
+    ? Date.now() - new Date(summaryStored.updated_at).getTime()
+    : Number.POSITIVE_INFINITY
+  if (
+    input?.auto_refresh_stale !== false &&
+    (!summaryStored || summaryAge > STALE_MS)
+  ) {
+    try {
+      await refreshPersonalAssistantLearnedBaselines()
+      memories = await recallAssistantMemory({ subject_type: 'general', limit: 20 })
+      prepackStored = memories.memories.find(
+        m => m.subject_key === PREPACK_LEARNED_KEY && m.memory_type === 'baseline'
+      )
+      airtecStored = memories.memories.find(
+        m => m.subject_key === AIRTEC_LEARNED_KEY && m.memory_type === 'baseline'
+      )
+      summaryStored = memories.memories.find(
+        m => m.subject_key === SUMMARY_LEARNED_KEY && m.memory_type === 'baseline'
+      )
+    } catch {
+      // gebruik bestaand geheugen
+    }
+  }
 
   const stored_prepack = prepackStored?.value
     ? parseStoredJson<Record<string, unknown>>(prepackStored.value)

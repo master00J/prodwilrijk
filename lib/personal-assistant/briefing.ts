@@ -53,19 +53,75 @@ async function quickPackedThisWeek() {
   return { packed_rows: packed ?? 0, draft_import_batches: drafts ?? 0 }
 }
 
+async function quickLumipaperAlerts() {
+  const from = new Date()
+  from.setDate(from.getDate() - 14)
+  const { data, error } = await supabaseAdmin
+    .from('lumipaper_imports')
+    .select('status')
+    .gte('created_at', from.toISOString())
+    .limit(50)
+
+  if (error) throw error
+  const rows = data || []
+  return {
+    recent_imports: rows.length,
+    partial: rows.filter(r => r.status === 'partial').length,
+    error: rows.filter(r => r.status === 'error').length,
+  }
+}
+
+async function quickWmsOpen() {
+  const { data, error } = await supabaseAdmin
+    .from('wms_projects')
+    .select('status')
+    .order('created_at', { ascending: false })
+    .limit(60)
+
+  if (error) throw error
+  const rows = data || []
+  const open = rows.filter(p => String(p.status || '').toLowerCase() !== 'completed')
+  return { open_projects: open.length, total_recent: rows.length }
+}
+
+async function quickPrepackProblemCount() {
+  const { count, error } = await supabaseAdmin
+    .from('items_to_pack')
+    .select('*', { count: 'exact', head: true })
+    .eq('packed', false)
+    .eq('problem', true)
+
+  if (error) throw error
+  return { open_problem_lines: count ?? 0 }
+}
+
 /** Ochtend-/check-in briefing: combineert de belangrijkste live KPI's. */
 export async function getPersonalAssistantDailyBriefing() {
-  const [queue, groteInpak, prepackWeek, airtecWeek, activeProduction, kanban, packed, learned] =
-    await Promise.all([
-      fetchPrepackQueueStats(),
-      quickGroteInpakCounts(),
-      getPrepackStatsForAssistant({ period: 'deze_week' }),
-      getAirtecStatsForAssistant({ period: 'deze_week' }),
-      getActiveProductionSummary(),
-      getGroteInpakKanbanSummary(6),
-      quickPackedThisWeek(),
-      getAssistantLearnedContext().catch(() => null),
-    ])
+  const [
+    queue,
+    groteInpak,
+    prepackWeek,
+    airtecWeek,
+    activeProduction,
+    kanban,
+    packed,
+    learned,
+    lumipaper,
+    wms,
+    prepackProblems,
+  ] = await Promise.all([
+    fetchPrepackQueueStats(),
+    quickGroteInpakCounts(),
+    getPrepackStatsForAssistant({ period: 'deze_week' }),
+    getAirtecStatsForAssistant({ period: 'deze_week' }),
+    getActiveProductionSummary(),
+    getGroteInpakKanbanSummary(6),
+    quickPackedThisWeek(),
+    getAssistantLearnedContext().catch(() => null),
+    quickLumipaperAlerts().catch(() => null),
+    quickWmsOpen().catch(() => null),
+    quickPrepackProblemCount().catch(() => null),
+  ])
 
   return {
     generated_at: new Date().toISOString(),
@@ -87,5 +143,8 @@ export async function getPersonalAssistantDailyBriefing() {
       active_orders: activeProduction.active_orders,
     },
     kanban_urgent: kanban.urgent_kanban,
+    lumipaper: lumipaper,
+    wms: wms,
+    prepack_problems: prepackProblems,
   }
 }

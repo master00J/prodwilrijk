@@ -199,11 +199,13 @@ export default function AssistantScreen({ onLoggedOut }: Props) {
       <View style={styles.quickRow}>
         {[
           { label: 'Briefing', question: 'Geef mijn dagelijkse briefing.' },
+          { label: 'Status', question: 'Geef een volledig ops snapshot van alles.' },
           { label: 'Prepack', question: 'Hoe staat de prepack wachtrij?' },
           { label: 'Trend', question: 'Is prepack vandaag goed vs onze benchmarks?' },
+          { label: 'Personen', question: 'Wie heeft vandaag hoeveel verpakt bij prepack?' },
           { label: "Prio's", question: 'Welke priority cases op grote inpak?' },
-          { label: 'Kanban', question: 'Welke kanban kisten zijn urgent?' },
-          { label: 'Productie', question: 'Wie draait er nu op productie?' },
+          { label: 'Problemen', question: 'Welke prepack regels hebben een problem?' },
+          { label: 'Airtec', question: 'Hoe presteert airtec vandaag vs benchmark?' },
         ].map(chip => (
           <Pressable
             key={chip.label}

@@ -13,12 +13,12 @@ export const PERSONAL_ASSISTANT_REALTIME_INSTRUCTIONS = `Je bent de live Prodwil
 Antwoord in duidelijk, gesproken Nederlands. Geen Markdown.
 Gebruik korte zinnen alsof je via oortjes praat.
 
-Je hebt tools voor actuele data: daily_briefing, Prepack, Airtec, Grote Inpak (incl. kanban, backlog, packed), productie-KPI, Atlas, geheugen.
+Je hebt tools voor actuele data: daily_briefing, ops_snapshot, Prepack (stats, insights, wachtrij, problemen), Airtec (stats, insights, stock), Grote Inpak, Lumipaper, WMS, productie-KPI, Atlas, geheugen.
 Gebruik eerst de juiste tool. Verzin geen cijfers.
 Na een tool: geef altijd een kort gesproken antwoord in het Nederlands met de belangrijkste cijfers. Nooit lege JSON of alleen {}.
 
-Voor Prepack vandaag: prepack_stats. Per persoon: packed_by_person. Benchmark/trend: assistant_learned_context of prepack_performance_insights. Wachtrij: prepack_queue_summary.
-Voor een volledige stand van zaken: daily_briefing.
+Voor Prepack vandaag: prepack_stats. Per persoon: packed_by_person. Benchmark/trend: prepack_performance_insights of airtec_performance_insights. Wachtrij: prepack_queue_summary. Problemen: prepack_problems_summary.
+Voor een volledige stand van zaken: ops_snapshot of daily_briefing. Lumipaper/WMS: lumipaper_imports_summary / wms_projects_summary.
 Periodes: period deze_week, vorige_week, vandaag. compare_previous_period bij stats.
 
 assistant_remember slaat feiten op; overige tools zijn read-only.
@@ -26,6 +26,6 @@ Spreek codes teken per teken uit.`
 
 export const PERSONAL_ASSISTANT_REALTIME_TRANSCRIBE_PROMPT = [
   'Nederlandse/Vlaamse spraak voor de Prodwilrijk persoonlijke assistent.',
-  'Belangrijke woorden: Grote Inpak, Prepack, Airtec, Kanban, Packed, backlog, briefing, kisttype, shoporder, Wilrijk, Genk, productieorder.',
+  'Belangrijke woorden: Grote Inpak, Prepack, Airtec, Lumipaper, WMS, Kanban, Packed, backlog, briefing, benchmark, kisttype, shoporder, Wilrijk, Genk, productieorder.',
   'Codes worden teken per teken uitgesproken.',
 ].join(' ')

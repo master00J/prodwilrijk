@@ -20,6 +20,13 @@ import {
   getAssistantLearnedContext,
   refreshPersonalAssistantLearnedBaselines,
 } from '@/lib/personal-assistant/learned-baselines'
+import { getAirtecPerformanceInsights } from '@/lib/personal-assistant/airtec-insights'
+import {
+  getLumipaperImportsSummary,
+  getOpsSnapshot,
+  getPrepackProblemsSummary,
+  getWmsProjectsSummary,
+} from '@/lib/personal-assistant/extra-tools'
 import { getPrepackPerformanceInsights } from '@/lib/personal-assistant/prepack-insights'
 import {
   getAirtecStatsForAssistant,
@@ -557,6 +564,11 @@ export type PersonalAssistantToolName =
   | 'daily_briefing'
   | 'assistant_learned_context'
   | 'assistant_refresh_learned_baselines'
+  | 'airtec_performance_insights'
+  | 'lumipaper_imports_summary'
+  | 'wms_projects_summary'
+  | 'prepack_problems_summary'
+  | 'ops_snapshot'
   | 'assistant_remember'
   | 'assistant_recall_memory'
 
@@ -649,6 +661,28 @@ export async function runPersonalAssistantTool(
       })
     case 'assistant_refresh_learned_baselines':
       return refreshPersonalAssistantLearnedBaselines()
+    case 'airtec_performance_insights':
+      return getAirtecPerformanceInsights({
+        period: typeof args.period === 'string' ? args.period : undefined,
+        date_from: typeof args.date_from === 'string' ? args.date_from : undefined,
+        date_to: typeof args.date_to === 'string' ? args.date_to : undefined,
+        history_days: typeof args.history_days === 'number' ? args.history_days : undefined,
+      })
+    case 'lumipaper_imports_summary':
+      return getLumipaperImportsSummary({
+        limit: typeof args.limit === 'number' ? args.limit : undefined,
+      })
+    case 'wms_projects_summary':
+      return getWmsProjectsSummary({
+        limit: typeof args.limit === 'number' ? args.limit : undefined,
+        open_only: args.open_only === true,
+      })
+    case 'prepack_problems_summary':
+      return getPrepackProblemsSummary({
+        limit: typeof args.limit === 'number' ? args.limit : undefined,
+      })
+    case 'ops_snapshot':
+      return getOpsSnapshot()
     case 'assistant_remember':
       return rememberAssistantFact({
         subject_type: (args.subject_type as MemorySubjectType) || 'general',
@@ -955,6 +989,72 @@ export const PERSONAL_ASSISTANT_TOOLS = [
       description:
         'Ochtendbriefing: prepack wachtrij, grote inpak, packed, kanban urgent, actieve productie, week KPIs.',
       parameters: { type: 'object', properties: {}, additionalProperties: false },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'ops_snapshot',
+      description:
+        'Volledig cross-domain overzicht in één call: briefing, prepack/airtec trend vandaag, wachtrij, productie, grote inpak priority.',
+      parameters: { type: 'object', properties: {}, additionalProperties: false },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'airtec_performance_insights',
+      description:
+        'Airtec benchmarks en trend (items_packed, omzet) vs 7 dagen en vorige periode. Ratings sterk/normaal/zwak.',
+      parameters: {
+        type: 'object',
+        properties: {
+          period: { type: 'string' },
+          date_from: { type: 'string' },
+          date_to: { type: 'string' },
+          history_days: { type: 'number' },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'lumipaper_imports_summary',
+      description: 'Recente Lumipaper mail-imports: ordernummers, status, unmapped regels.',
+      parameters: {
+        type: 'object',
+        properties: { limit: { type: 'number' } },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'wms_projects_summary',
+      description: 'WMS projecten: project_no, status, open lijnen.',
+      parameters: {
+        type: 'object',
+        properties: {
+          limit: { type: 'number' },
+          open_only: { type: 'boolean', description: 'Alleen niet-afgeronde projecten.' },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'prepack_problems_summary',
+      description: 'Open problem-regels op items-to-pack (niet verpakt, problem=true).',
+      parameters: {
+        type: 'object',
+        properties: { limit: { type: 'number' } },
+        additionalProperties: false,
+      },
     },
   },
   {
