@@ -61,6 +61,22 @@
         }
       ]
     ],
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "exclude": [
+          "react-native-background-actions",
+          "react-native-webrtc",
+          "@react-native-voice/voice",
+          "expo-av",
+          "@config-plugins/react-native-webrtc",
+          "@picovoice/porcupine-react-native",
+          "@picovoice/react-native-voice-processor",
+          "buffer",
+          "react-native-openwakeword"
+        ],
+        "listUnknownPackages": false
+      }
+    },
     "extra": {
       "eas": {
         "projectId": "b9289d69-4585-4a88-b33c-8adb72e839ce"

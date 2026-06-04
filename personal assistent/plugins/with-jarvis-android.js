@@ -1,12 +1,35 @@
 const {
   withAndroidManifest,
+  withProjectBuildGradle,
   AndroidConfig,
 } = require('@expo/config-plugins')
+
+const ANDROIDX_CORE_MARKER = 'androidx.core:core:1.15.0'
+
+/** ServiceCompat.startForeground(4 args) vereist androidx.core >= 1.12 (background-actions 4.1). */
+function withAndroidxCoreForBackgroundActions(config) {
+  return withProjectBuildGradle(config, cfg => {
+    if (cfg.modResults.contents.includes(ANDROIDX_CORE_MARKER)) {
+      return cfg
+    }
+    cfg.modResults.contents += `
+
+// with-jarvis-android: force recent androidx.core for react-native-background-actions
+subprojects { subproject ->
+  subproject.configurations.configureEach { configuration ->
+    configuration.resolutionStrategy.force '${ANDROIDX_CORE_MARKER}'
+  }
+}
+`
+    return cfg
+  })
+}
 
 const BG_SERVICE = 'com.asterinet.react.bgactions.RNBackgroundActionsTask'
 
 /** Foreground service + microfoon voor hands-free "Jarvis" op Android 14+. */
 function withJarvisAndroid(config) {
+  config = withAndroidxCoreForBackgroundActions(config)
   return withAndroidManifest(config, config => {
     const manifest = config.modResults
     const app = AndroidConfig.Manifest.getMainApplicationOrThrow(manifest)
