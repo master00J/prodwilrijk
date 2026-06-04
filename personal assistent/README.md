@@ -118,6 +118,15 @@ eas build -p android --profile preview
 
 Installeer de APK direct op je telefoon.
 
+### APK bouwen zonder lokale Node/EAS (GitHub Actions)
+
+Als je op je pc geen `npm`/`eas` kunt draaien:
+
+1. Maak op [Expo Access Tokens](https://expo.dev/accounts/versility/settings/access-tokens) een token (bijv. naam `github-actions`).
+2. In GitHub: repo **prodwilrijk** → **Settings** → **Secrets and variables** → **Actions** → **New repository secret** → naam `EXPO_TOKEN`, plak het token.
+3. **Actions** → workflow **EAS Android APK (preview)** → **Run workflow** → **Run workflow**.
+4. Volg de build op [Expo builds](https://expo.dev/accounts/versility/projects/prodwilrijk-personal-assistant/builds) en download de APK als die klaar is.
+
 ### Play Store submit (optioneel)
 
 ```bash

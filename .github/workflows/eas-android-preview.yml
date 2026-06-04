@@ -1,0 +1,31 @@
+# Android APK via EAS — draait op GitHub (geen lokale Node/EAS nodig).
+# Vereist repo secret: EXPO_TOKEN (https://expo.dev/accounts/versility/settings/access-tokens)
+name: EAS Android APK (preview)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: personal assistent
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.11.0'
+          cache: npm
+          cache-dependency-path: personal assistent/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build APK on EAS (preview)
+        run: npx eas-cli@latest build --platform android --profile preview --non-interactive
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
