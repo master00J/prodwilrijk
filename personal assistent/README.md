@@ -118,16 +118,38 @@ eas build -p android --profile preview
 
 Installeer de APK direct op je telefoon.
 
-### APK bouwen zonder lokale Node/EAS (GitHub Actions)
+### APK bouwen zonder EAS-quota (GitHub Actions + Gradle) — aanbevolen
 
-Als je op je pc geen `npm`/`eas` kunt draaien:
+Geen Expo build-minuten nodig; de APK wordt op GitHub gebouwd met `expo prebuild` + Gradle.
 
-1. Maak op [Expo Access Tokens](https://expo.dev/accounts/versility/settings/access-tokens) een token (bijv. naam `github-actions`).
-2. In GitHub: repo **prodwilrijk** → **Settings** → **Secrets and variables** → **Actions** → **New repository secret** → naam `EXPO_TOKEN`, plak het token.
-3. **Actions** → workflow **EAS Android APK (preview)** → **Run workflow** → **Run workflow**.
+1. GitHub → repo **prodwilrijk** → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**:
+   - `EXPO_PUBLIC_SUPABASE_URL` (zelfde waarde als `NEXT_PUBLIC_SUPABASE_URL` op Vercel)
+   - `EXPO_PUBLIC_SUPABASE_ANON_KEY` (zelfde als `NEXT_PUBLIC_SUPABASE_ANON_KEY`)
+2. **Actions** → **Android APK (Gradle preview)** → **Run workflow**.
+3. Na ~15–40 min: open de run → onder **Artifacts** → download `prodwilrijk-assistant-preview-apk` (`.apk`).
 
-De native patch (`react-native-background-actions`) draait via `eas-build-post-install` / `postinstall`, niet in `prebuildCommand` (EAS voert dat uit als `npx expo …`).
-4. Volg de build op [Expo builds](https://expo.dev/accounts/versility/projects/prodwilrijk-personal-assistant/builds) en download de APK als die klaar is.
+De native patches draaien via `postinstall` (`scripts/patch-android-native-deps.js`).
+
+### APK via EAS (verbruikt Expo-quota)
+
+Als je wél EAS wilt gebruiken:
+
+1. [Expo Access Token](https://expo.dev/accounts/versility/settings/access-tokens) → GitHub secret `EXPO_TOKEN`.
+2. **Actions** → **EAS Android APK (preview, verbruikt quota)** → **Run workflow**.
+3. Download op [Expo builds](https://expo.dev/accounts/versility/projects/prodwilrijk-personal-assistant/builds).
+
+### Lokaal bouwen (geen EAS-quota)
+
+```bash
+cd "personal assistent"
+npm ci
+npx expo prebuild --platform android --clean
+node scripts/ensure-ci-release-apk.js
+cd android && ./gradlew assembleRelease
+# APK: android/app/build/outputs/apk/release/app-release.apk
+```
+
+Of: `npx eas-cli build --platform android --profile preview --local` (Gradle op je pc, telt niet mee voor EAS-cloud).
 
 ### Play Store submit (optioneel)
 

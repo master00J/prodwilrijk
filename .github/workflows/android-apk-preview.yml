@@ -1,0 +1,94 @@
+# Bouwt een installbare Android APK op GitHub — geen EAS / geen Expo build-quota.
+# Vereist secrets: EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY
+name: Android APK (Gradle preview)
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: android-apk-preview
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: personal assistent
+
+    env:
+      EXPO_PUBLIC_API_BASE: https://prodwilrijk.be
+      CI: true
+      NODE_OPTIONS: --max-old-space-size=6144
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.11.0'
+          cache: npm
+          cache-dependency-path: personal assistent/package-lock.json
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept SDK licenses
+        run: yes | sdkmanager --licenses >/dev/null 2>&1 || true
+
+      - name: Install NDK (openWakeWord / expo-build-properties)
+        run: sdkmanager "ndk;27.1.12297006"
+
+      - name: Validate Supabase env secrets
+        run: |
+          if [ -z "${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}" ] || [ -z "${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}" ]; then
+            echo "::error::Voeg GitHub secrets toe: EXPO_PUBLIC_SUPABASE_URL en EXPO_PUBLIC_SUPABASE_ANON_KEY (zelfde waarden als Vercel/NEXT_PUBLIC_*)."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prebuild Android project
+        run: npx expo prebuild --platform android --clean --non-interactive
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+
+      - name: Configure release signing for CI
+        run: node scripts/ensure-ci-release-apk.js
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('personal assistent/package-lock.json') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Build release APK
+        working-directory: personal assistent/android
+        run: chmod +x gradlew && ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+        env:
+          EXPO_PUBLIC_API_BASE: https://prodwilrijk.be
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: prodwilrijk-assistant-preview-apk
+          path: personal assistent/android/app/build/outputs/apk/release/*.apk
+          retention-days: 30
+          if-no-files-found: error

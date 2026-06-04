@@ -1,6 +1,6 @@
-# Android APK via EAS — draait op GitHub (geen lokale Node/EAS nodig).
+# Verbruikt Expo EAS build-quota. Gebruik liever: Android APK (Gradle preview).
 # Vereist repo secret: EXPO_TOKEN (https://expo.dev/accounts/versility/settings/access-tokens)
-name: EAS Android APK (preview)
+name: EAS Android APK (preview, verbruikt quota)
 
 on:
   workflow_dispatch:
