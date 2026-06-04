@@ -7,6 +7,7 @@ import {
   waitAfterPermissionDialog,
 } from '@/lib/android-permissions'
 import { bringAssistantToForeground } from '@/lib/bring-assistant-foreground'
+import { nativeAudioCooldown } from '@/lib/native-audio-cooldown'
 import { USE_OPENWAKEWORD_ON_ANDROID } from '@/config'
 import { acquireBackgroundKeeper, releaseBackgroundKeeper } from '@/lib/background-keeper'
 import {
@@ -40,11 +41,22 @@ let lastWakeAt = 0
 let pausedForLive = false
 let onWakeCallback: (() => Promise<void>) | null = null
 let appStateSub: { remove: () => void } | null = null
+let lifecycleChain: Promise<void> = Promise.resolve()
+let toggleGeneration = 0
 
 function setStatus(next: HandsFreeStatus, message: string) {
   status = next
   statusMessage = message
   for (const fn of listeners) fn(next, message)
+}
+
+function runHandsFreeLifecycle<T>(fn: () => Promise<T>): Promise<T> {
+  const run = lifecycleChain.then(fn, fn)
+  lifecycleChain = run.then(
+    () => undefined,
+    () => undefined
+  )
+  return run
 }
 
 export function subscribeHandsFree(listener: Listener): () => void {
@@ -63,23 +75,9 @@ async function markHandsFreeStartOk(ok: boolean): Promise<void> {
   await SecureStore.setItemAsync(HANDS_FREE_OK_KEY, ok ? '1' : '0')
 }
 
-async function wasHandsFreeStartConfirmed(): Promise<boolean> {
-  try {
-    return (await SecureStore.getItemAsync(HANDS_FREE_OK_KEY)) === '1'
-  } catch {
-    return false
-  }
-}
-
-/** Schakelaar alleen aan als voorkeur én laatste start geslaagd was. */
+/** Alleen voor weergave — start nooit automatisch de microfoon. */
 export async function loadHandsFreePreference(): Promise<boolean> {
-  try {
-    const v = await SecureStore.getItemAsync(HANDS_FREE_KEY)
-    if (v !== '1') return false
-    return await wasHandsFreeStartConfirmed()
-  } catch {
-    return false
-  }
+  return false
 }
 
 export async function saveHandsFreePreference(on: boolean): Promise<void> {
@@ -87,6 +85,12 @@ export async function saveHandsFreePreference(on: boolean): Promise<void> {
   if (!on) {
     await SecureStore.setItemAsync(HANDS_FREE_OK_KEY, '0').catch(() => {})
   }
+}
+
+/** Verwijdert oude "aan"-voorkeur (native service draait dan niet meer). */
+export async function clearStaleHandsFreePreference(): Promise<void> {
+  await saveHandsFreePreference(false)
+  await markHandsFreeStartOk(false)
 }
 
 async function ensureHandsFreePermissions(): Promise<void> {
@@ -110,7 +114,7 @@ export function isHandsFreeServiceEnabled(): boolean {
 
 async function beginWakeWord(): Promise<void> {
   if (Platform.OS === 'android') {
-    await waitAfterPermissionDialog(500)
+    await waitAfterPermissionDialog(400)
   }
   await startWakeWordListener(() => {
     void handleWakeDetected()
@@ -161,7 +165,7 @@ export async function resumeHandsFreeAfterLive(): Promise<void> {
   pausedForLive = false
   try {
     await beginWakeWord()
-    setStatus('listening', 'Luisteren op "Jarvis"…')
+    setStatus('listening', 'Luisteren op "Hey Jarvis"…')
   } catch (err) {
     setStatus('error', err instanceof Error ? err.message : 'Wake word herstart mislukt')
   }
@@ -177,7 +181,7 @@ export function registerWakeHandler(handler: () => Promise<void>): void {
   onWakeCallback = handler
 }
 
-export async function startHandsFree(): Promise<void> {
+async function startHandsFreeInner(): Promise<void> {
   setStatus('starting', 'Hands-free Jarvis wordt gestart…')
   await ensureHandsFreePermissions()
 
@@ -200,7 +204,7 @@ export async function startHandsFree(): Promise<void> {
       if (USE_OPENWAKEWORD_ON_ANDROID) {
         setStatus(
           'listening',
-          'Hey Jarvis actief op achtergrond — melding blijft zichtbaar. Zeg "Hey Jarvis".'
+          'Hey Jarvis actief — melding blijft zichtbaar. Zeg "Hey Jarvis".'
         )
       }
     } catch (err) {
@@ -212,64 +216,83 @@ export async function startHandsFree(): Promise<void> {
         'listening',
         USE_OPENWAKEWORD_ON_ANDROID
           ? 'Hey Jarvis luistert — zet batterij-optimalisatie uit voor betrouwbare achtergrond.'
-          : 'Hey Jarvis alleen betrouwbaar met app open (geen achtergrondmelding).'
+          : 'Hey Jarvis alleen betrouwbaar met app open.'
       )
     }
   }
 }
 
-export async function stopHandsFree(): Promise<void> {
+export async function startHandsFree(): Promise<void> {
+  return runHandsFreeLifecycle(() => startHandsFreeInner())
+}
+
+async function stopHandsFreeInner(): Promise<void> {
   enabled = false
   pausedForLive = false
   await stopWakeWordListener()
   await releaseBackgroundKeeper()
+  await nativeAudioCooldown(400)
   setStatus('off', 'Hands-free uit')
+}
+
+export async function stopHandsFree(): Promise<void> {
+  return runHandsFreeLifecycle(() => stopHandsFreeInner())
 }
 
 export async function setHandsFreeEnabled(
   on: boolean,
   options?: { skipSave?: boolean }
 ): Promise<void> {
-  if (!on) {
-    if (!options?.skipSave) await saveHandsFreePreference(false)
-    await stopHandsFree()
-    return
-  }
+  return runHandsFreeLifecycle(async () => {
+    const gen = ++toggleGeneration
 
-  try {
-    await startHandsFree()
-    await markHandsFreeStartOk(true)
-    if (!options?.skipSave) await saveHandsFreePreference(true)
-  } catch (err) {
-    enabled = false
-    await markHandsFreeStartOk(false)
-    if (!options?.skipSave) await saveHandsFreePreference(false)
-    await releaseBackgroundKeeper()
+    if (!on) {
+      if (!options?.skipSave) await saveHandsFreePreference(false)
+      await stopHandsFreeInner()
+      return
+    }
+
+    await stopHandsFreeInner()
     await releaseWakeWordListener()
-    throw err
-  }
+    await nativeAudioCooldown(600)
+
+    if (gen !== toggleGeneration) return
+
+    try {
+      await startHandsFreeInner()
+      if (gen !== toggleGeneration) {
+        await stopHandsFreeInner()
+        return
+      }
+      await markHandsFreeStartOk(true)
+      if (!options?.skipSave) await saveHandsFreePreference(true)
+    } catch (err) {
+      enabled = false
+      await markHandsFreeStartOk(false)
+      if (!options?.skipSave) await saveHandsFreePreference(false)
+      await releaseBackgroundKeeper()
+      await releaseWakeWordListener()
+      await nativeAudioCooldown(300)
+      throw err
+    }
+  })
 }
 
 export function isHandsFreeEnabled(): boolean {
   return enabled && isWakeWordListening()
 }
 
-/** Geen auto-start bij login — alleen handmatig via schakelaar (voorkomt crash bij openen). */
 export async function initHandsFreeOnLogin(onWake: () => Promise<void>): Promise<void> {
   registerWakeHandler(onWake)
-
-  const pref = (await SecureStore.getItemAsync(HANDS_FREE_KEY).catch(() => null)) === '1'
-  const confirmed = await wasHandsFreeStartConfirmed()
-
-  if (pref && !confirmed) {
-    await saveHandsFreePreference(false)
-  }
-
+  await clearStaleHandsFreePreference()
+  enabled = false
+  pausedForLive = false
   setStatus('off', getWakeWordEngineHint())
 }
 
 export async function teardownHandsFree(): Promise<void> {
-  await stopHandsFree()
+  toggleGeneration += 1
+  await stopHandsFreeInner()
   await releaseWakeWordListener()
   onWakeCallback = null
   appStateSub?.remove()
@@ -282,11 +305,6 @@ export function attachAppStateHandsFree(): void {
     if (!enabled || pausedForLive) return
 
     if (Platform.OS === 'android') {
-      if (next === 'active' && !isWakeWordListening()) {
-        void beginWakeWord().catch(() => {
-          setStatus('error', 'Hey Jarvis kon niet herstarten — zet schakelaar opnieuw aan.')
-        })
-      }
       return
     }
 

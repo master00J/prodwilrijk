@@ -12,7 +12,7 @@ import {
 import { getWakeWordEngineHint, getWakeWordEngineLabel } from '@/lib/wake-word'
 import { USE_OPENWAKEWORD_ON_ANDROID } from '@/config'
 import {
-  loadHandsFreePreference,
+  clearStaleHandsFreePreference,
   setHandsFreeEnabled,
   subscribeHandsFree,
   type HandsFreeStatus,
@@ -39,36 +39,32 @@ export default function JarvisHandsFreeBar({ disabled }: Props) {
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    void loadHandsFreePreference().then(pref => setOn(pref))
+    void clearStaleHandsFreePreference()
+    setOn(false)
     return subscribeHandsFree((s, m) => {
       setStatus(s)
       setMessage(m)
-      if (s === 'off') void loadHandsFreePreference().then(pref => setOn(pref))
+      if (s === 'off') setOn(false)
     })
   }, [])
 
   const toggle = async (value: boolean) => {
     setError(null)
-    if (!value) {
-      setOn(false)
-      setBusy(true)
-      try {
-        await setHandsFreeEnabled(false)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Uitzetten mislukt')
-      } finally {
-        setBusy(false)
-      }
-      return
-    }
-
     setBusy(true)
+    if (!value) setOn(false)
+
     try {
-      await setHandsFreeEnabled(true)
-      setOn(true)
+      await setHandsFreeEnabled(value)
+      setOn(value)
     } catch (err) {
       setOn(false)
-      setError(err instanceof Error ? err.message : 'Hey Jarvis start mislukt')
+      setError(
+        err instanceof Error
+          ? err.message
+          : value
+            ? 'Hey Jarvis start mislukt'
+            : 'Uitzetten mislukt'
+      )
     } finally {
       setBusy(false)
     }

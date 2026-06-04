@@ -2,6 +2,7 @@ import * as FileSystem from 'expo-file-system'
 import { VoiceProcessor } from '@picovoice/react-native-voice-processor'
 import { Openwakeword } from 'react-native-openwakeword'
 import { Platform } from 'react-native'
+import { nativeAudioCooldown } from '@/lib/native-audio-cooldown'
 import { OPENWAKEWORD_THRESHOLD, USE_OPENWAKEWORD_ON_ANDROID, USE_PICOVOICE_WAKE } from '@/config'
 
 const MODEL_RELEASE = 'https://github.com/dscripka/openWakeWord/releases/download/v0.5.1'
@@ -14,7 +15,8 @@ const MODEL_FILES = [
 const FRAME_LENGTH = 1280
 const SAMPLE_RATE = 16000
 
-let modelsReady = false
+/** Eén keer per app-sessie laden — tweede loadModels() crasht native. */
+let modelsLoadedInSession = false
 let prepareInFlight: Promise<boolean> | null = null
 let listening = false
 let onDetectedHandler: (() => void) | null = null
@@ -58,31 +60,29 @@ async function downloadModelsIfNeeded(): Promise<{
   }
 }
 
-async function prepareOpenWakeWordOnce(): Promise<boolean> {
+async function loadModelsOncePerSession(): Promise<boolean> {
   if (!isOpenWakeWordPreferred()) return false
-  if (modelsReady) return true
+  if (modelsLoadedInSession) return true
 
   try {
     const paths = await downloadModelsIfNeeded()
     const loaded = Openwakeword.loadModels(paths.mel, paths.embedding, paths.wake)
     if (!loaded) return false
     Openwakeword.setThreshold(OPENWAKEWORD_THRESHOLD)
-    Openwakeword.reset()
-    modelsReady = true
+    modelsLoadedInSession = true
     return true
   } catch (err) {
-    console.warn('[openwakeword] init', err instanceof Error ? err.message : err)
-    modelsReady = false
+    console.warn('[openwakeword] loadModels', err instanceof Error ? err.message : err)
+    modelsLoadedInSession = false
     return false
   }
 }
 
-/** Eén gelijktijdige init — dubbele loadModels crashte de app bij opstart. */
 export async function prepareOpenWakeWord(): Promise<boolean> {
   if (!isOpenWakeWordPreferred()) return false
-  if (modelsReady) return true
+  if (modelsLoadedInSession) return true
   if (prepareInFlight) return prepareInFlight
-  prepareInFlight = prepareOpenWakeWordOnce().finally(() => {
+  prepareInFlight = loadModelsOncePerSession().finally(() => {
     prepareInFlight = null
   })
   return prepareInFlight
@@ -102,11 +102,17 @@ function pcmFrameToBuffer(frame: number[]): ArrayBuffer {
   return int16.buffer
 }
 
-function attachFrameListener() {
+function detachFrameListener() {
   const vp = VoiceProcessor.instance
   if (frameListener) {
     vp.removeFrameListener(frameListener)
+    frameListener = null
   }
+}
+
+function attachFrameListener() {
+  const vp = VoiceProcessor.instance
+  detachFrameListener()
   frameListener = (frame: number[]) => {
     if (!listening || !onDetectedHandler || frame.length === 0) return
     try {
@@ -123,11 +129,31 @@ function attachFrameListener() {
   vp.addFrameListener(frameListener)
 }
 
-export async function startOpenWakeWordListener(onDetected: () => void): Promise<void> {
-  if (listening) {
-    onDetectedHandler = onDetected
-    return
+async function ensureVoiceProcessorFullyStopped(): Promise<void> {
+  listening = false
+  onDetectedHandler = null
+  detachFrameListener()
+
+  const vp = VoiceProcessor.instance
+  try {
+    if (await vp.isRecording()) {
+      await vp.stop()
+    }
+  } catch {
+    // ignore
   }
+
+  try {
+    Openwakeword.reset()
+  } catch {
+    // ignore
+  }
+
+  await nativeAudioCooldown(500)
+}
+
+export async function startOpenWakeWordListener(onDetected: () => void): Promise<void> {
+  await ensureVoiceProcessorFullyStopped()
 
   const ready = await prepareOpenWakeWord()
   if (!ready) {
@@ -141,50 +167,25 @@ export async function startOpenWakeWordListener(onDetected: () => void): Promise
 
   onDetectedHandler = onDetected
   listening = true
-  Openwakeword.reset()
   attachFrameListener()
 
   try {
-    const recording = await vp.isRecording()
-    if (!recording) {
-      await vp.start(FRAME_LENGTH, SAMPLE_RATE)
-    }
+    await vp.start(FRAME_LENGTH, SAMPLE_RATE)
   } catch (err) {
     listening = false
     onDetectedHandler = null
-    if (frameListener) {
-      vp.removeFrameListener(frameListener)
-      frameListener = null
-    }
+    detachFrameListener()
     throw err
   }
 }
 
 export async function stopOpenWakeWordListener(): Promise<void> {
-  listening = false
-  onDetectedHandler = null
-  const vp = VoiceProcessor.instance
-  if (frameListener) {
-    vp.removeFrameListener(frameListener)
-    frameListener = null
-  }
-  try {
-    if (await vp.isRecording()) {
-      await vp.stop()
-    }
-  } catch {
-    // ignore
-  }
-  try {
-    Openwakeword.reset()
-  } catch {
-    // ignore
-  }
+  await ensureVoiceProcessorFullyStopped()
 }
 
+/** Soft release: microfoon uit, modellen blijven in geheugen (geen tweede loadModels). */
 export async function releaseOpenWakeWordListener(): Promise<void> {
-  await stopOpenWakeWordListener()
-  modelsReady = false
+  await ensureVoiceProcessorFullyStopped()
 }
 
 export function isOpenWakeWordListening(): boolean {
