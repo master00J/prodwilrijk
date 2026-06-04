@@ -38,9 +38,10 @@ export default function JarvisHandsFreeBar({ disabled }: Props) {
   }, [])
 
   useEffect(() => {
-    void prepareOpenWakeWord().finally(() => setModelsLoading(false))
+    if (!on) return
     setModelsLoading(true)
-  }, [])
+    void prepareOpenWakeWord().finally(() => setModelsLoading(false))
+  }, [on])
 
   const toggle = async (value: boolean) => {
     setError(null)

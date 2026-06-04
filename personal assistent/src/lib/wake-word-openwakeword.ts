@@ -14,6 +14,7 @@ const FRAME_LENGTH = 1280
 const SAMPLE_RATE = 16000
 
 let modelsReady = false
+let prepareInFlight: Promise<boolean> | null = null
 let listening = false
 let onDetectedHandler: (() => void) | null = null
 let lastTriggerAt = 0
@@ -55,7 +56,7 @@ async function downloadModelsIfNeeded(): Promise<{
   }
 }
 
-export async function prepareOpenWakeWord(): Promise<boolean> {
+async function prepareOpenWakeWordOnce(): Promise<boolean> {
   if (!isOpenWakeWordPreferred()) return false
   if (modelsReady) return true
 
@@ -72,6 +73,17 @@ export async function prepareOpenWakeWord(): Promise<boolean> {
     modelsReady = false
     return false
   }
+}
+
+/** Eén gelijktijdige init — dubbele loadModels crashte de app bij opstart. */
+export async function prepareOpenWakeWord(): Promise<boolean> {
+  if (!isOpenWakeWordPreferred()) return false
+  if (modelsReady) return true
+  if (prepareInFlight) return prepareInFlight
+  prepareInFlight = prepareOpenWakeWordOnce().finally(() => {
+    prepareInFlight = null
+  })
+  return prepareInFlight
 }
 
 function pcmFrameToBuffer(frame: number[]): ArrayBuffer {
@@ -110,14 +122,18 @@ function attachFrameListener() {
 }
 
 export async function startOpenWakeWordListener(onDetected: () => void): Promise<void> {
+  if (listening) {
+    onDetectedHandler = onDetected
+    return
+  }
+
   const ready = await prepareOpenWakeWord()
   if (!ready) {
     throw new Error('openWakeWord-modellen laden mislukt.')
   }
 
   const vp = VoiceProcessor.instance
-  const hasPermission = await vp.hasRecordAudioPermission()
-  if (!hasPermission) {
+  if (!(await vp.hasRecordAudioPermission())) {
     throw new Error('Microfoon-toestemming is vereist voor Hey Jarvis.')
   }
 
@@ -126,9 +142,19 @@ export async function startOpenWakeWordListener(onDetected: () => void): Promise
   Openwakeword.reset()
   attachFrameListener()
 
-  const recording = await vp.isRecording()
-  if (!recording) {
-    await vp.start(FRAME_LENGTH, SAMPLE_RATE)
+  try {
+    const recording = await vp.isRecording()
+    if (!recording) {
+      await vp.start(FRAME_LENGTH, SAMPLE_RATE)
+    }
+  } catch (err) {
+    listening = false
+    onDetectedHandler = null
+    if (frameListener) {
+      vp.removeFrameListener(frameListener)
+      frameListener = null
+    }
+    throw err
   }
 }
 

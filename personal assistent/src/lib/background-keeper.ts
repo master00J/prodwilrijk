@@ -28,7 +28,13 @@ export async function acquireBackgroundKeeper(): Promise<void> {
   if (Platform.OS !== 'android') return
   keeperRefCount += 1
   if (keeperRefCount === 1 && !BackgroundJob.isRunning()) {
-    await BackgroundJob.start(backgroundTask, backgroundOptions)
+    try {
+      await BackgroundJob.start(backgroundTask, backgroundOptions)
+    } catch (err) {
+      keeperRefCount = Math.max(0, keeperRefCount - 1)
+      console.warn('[background-keeper] start', err instanceof Error ? err.message : err)
+      throw err
+    }
   }
 }
 

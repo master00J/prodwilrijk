@@ -62,6 +62,75 @@ function formatDateLabel(value: string): string {
   return `${day}-${month}-${date.getFullYear()}`
 }
 
+type ForecastMatrixRow = Record<string, string | number> & {
+  _stockCoverage?: Map<string, number>
+  _inkoopCoverage?: Map<string, number>
+  _prodCoverage?: Map<string, number>
+}
+
+const FILL_GREEN = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'C6EFCE' } }
+const FILL_ORANGE = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FCE4D6' } }
+const FILL_YELLOW = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFEB9C' } }
+const FILL_RED = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFC7CE' } }
+
+function addForecastLegenda(legendaSheet: ExcelJS.Worksheet) {
+  legendaSheet.mergeCells(1, 1, 1, 2)
+  legendaSheet.getCell(1, 1).value = 'Legenda — Betekenis kleuren in Forecast-tabblad'
+  legendaSheet.getCell(1, 1).font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } }
+  legendaSheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2E75B6' } }
+  legendaSheet.getCell(1, 1).alignment = { horizontal: 'left', vertical: 'middle' }
+  legendaSheet.addRow([])
+  const legendaData = [
+    ['Kleur', 'Betekenis'],
+    ['Groen', 'Gedekt door stock en/of transfer (fysiek beschikbaar)'],
+    ['Oranje', 'Gedekt door inkooporder — nog niet op stock, wel besteld'],
+    ['Geel', 'Gedekt door lopende productie order'],
+    ['Rood', 'Nog te starten — geen stock, inkoop of productie voor deze datum'],
+  ]
+  legendaData.forEach(([label, uitleg], i) => {
+    const r = legendaSheet.addRow([label, uitleg])
+    if (i === 0) {
+      r.font = { bold: true }
+      r.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'D9D9D9' } }
+    } else if (label === 'Groen') {
+      r.getCell(1).fill = FILL_GREEN
+    } else if (label === 'Oranje') {
+      r.getCell(1).fill = FILL_ORANGE
+    } else if (label === 'Geel') {
+      r.getCell(1).fill = FILL_YELLOW
+    } else if (label === 'Rood') {
+      r.getCell(1).fill = FILL_RED
+    }
+  })
+  legendaSheet.columns = [{ width: 14 }, { width: 72 }]
+  const border = {
+    top: { style: 'thin' as const },
+    left: { style: 'thin' as const },
+    bottom: { style: 'thin' as const },
+    right: { style: 'thin' as const },
+  }
+  legendaSheet.eachRow((row) => {
+    row.eachCell((cell) => {
+      cell.border = border
+    })
+  })
+}
+
+/** Kleur per datumcel: stock → inkoop → productie → rood. */
+function fillForDateCoverage(
+  need: number,
+  stockUsed: number,
+  inkoopUsed: number,
+  prodUsed: number
+): typeof FILL_GREEN | typeof FILL_ORANGE | typeof FILL_YELLOW | typeof FILL_RED | undefined {
+  if (need <= 0) return undefined
+  const remaining = need - stockUsed - inkoopUsed - prodUsed
+  if (remaining > 0) return FILL_RED
+  if (prodUsed > 0) return FILL_YELLOW
+  if (inkoopUsed > 0) return FILL_ORANGE
+  return FILL_GREEN
+}
+
 async function fetchAllRows<T>(table: string, select: string): Promise<T[]> {
   const pageSize = 1000
   let from = 0
@@ -228,7 +297,6 @@ export async function POST(request: NextRequest) {
         source_file: String(row.source_file || '').trim(),
       }))
       .filter((row) => row.case_label && row.case_type && row.arrival_date)
-      .filter((row) => !pilsLabels.has(row.case_label))
       .filter((row) => {
         const arrival = new Date(row.arrival_date)
         if (Number.isNaN(arrival.getTime())) return false
@@ -246,26 +314,29 @@ export async function POST(request: NextRequest) {
     if (filtered.length === 0) {
       const wb = new ExcelJS.Workbook()
       const legendaWs = wb.addWorksheet('Legenda')
-      legendaWs.mergeCells(1, 1, 1, 2)
-      legendaWs.getCell(1, 1).value = 'Legenda — Betekenis kleuren in Forecast-tabblad'
-      legendaWs.getCell(1, 1).font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } }
-      legendaWs.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2E75B6' } }
-      legendaWs.addRow([])
-      ;[
-        ['Kleur', 'Betekenis'],
-        ['Groen', 'Volledig gedekt'],
-        ['Geel', 'Gedeeltelijk gedekt'],
-        ['Rood', 'Niet gedekt'],
-      ].forEach(([label, uitleg], i) => {
-        const r = legendaWs.addRow([label, uitleg])
-        if (i === 0) { r.font = { bold: true }; r.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'D9D9D9' } } }
-        else if (label === 'Groen') r.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'C6EFCE' } }
-        else if (label === 'Geel') r.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEB9C' } }
-        else if (label === 'Rood') r.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC7CE' } }
-      })
-      legendaWs.columns = [{ width: 14 }, { width: 70 }]
+      addForecastLegenda(legendaWs)
       const ws = wb.addWorksheet('Forecast')
-      ws.addRow(['BC CODE', 'oude BC CODE', 'kist', 'productielocatie', 'Totaal al in productie order', 'Totaal nog in productie order te leggen', 'productie genk', 'productie wilrijk', 'productie willebroek', 'Totaal forecast', 'op stock', 'stock genk', 'stock wilrijk', 'stock willebroek', 'in transfer', 'in inkooporder'])
+      ws.addRow([
+        'BC CODE',
+        'oude BC CODE',
+        'kist',
+        'productielocatie',
+        'op PILS',
+        'Totaal forecast',
+        'Totaal vraag (forecast + PILS)',
+        'Totaal al in productie order',
+        'Overproductie',
+        'Totaal nog in productie order te leggen',
+        'productie genk',
+        'productie wilrijk',
+        'productie willebroek',
+        'op stock',
+        'stock genk',
+        'stock wilrijk',
+        'stock willebroek',
+        'in transfer',
+        'in inkooporder',
+      ])
       const header = ws.getRow(1)
       header.font = { bold: true }
       header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'D9D9D9' } }
@@ -297,15 +368,24 @@ export async function POST(request: NextRequest) {
       map.set(dateLabel, (map.get(dateLabel) || 0) + 1)
     })
 
+    // Kisttypes alleen op PILS (geen forecast-regel) ook tonen
+    pilsNeedByCase.forEach((_, caseType) => {
+      const normalized = normalizeCaseType(caseType)
+      if (!normalized) return
+      const loc = erpByCase.get(normalized)?.productielocatie || 'Wilrijk'
+      if (!isAlle && String(loc).toLowerCase() !== location.toLowerCase()) return
+      if (!counts.has(normalized)) counts.set(normalized, new Map())
+    })
+
     const dateCols = Array.from(dateSet).sort((a, b) => {
       const da = new Date(a.split('-').reverse().join('-'))
       const db = new Date(b.split('-').reverse().join('-'))
       return da.getTime() - db.getTime()
     })
 
-    const rows: Array<Record<string, string | number> & { _stockCoverage?: Map<string, number>; _prodCoverage?: Map<string, number> }> = []
+    const rows: ForecastMatrixRow[] = []
     counts.forEach((map, caseType) => {
-      const row: Record<string, string | number> & { _stockCoverage?: Map<string, number>; _prodCoverage?: Map<string, number> } = {}
+      const row: ForecastMatrixRow = {}
       const normalizedCaseType = normalizeCaseType(caseType)
       const erpCodeRaw = erpByCase.get(normalizedCaseType)?.erp_code || 'Special'
       row['BC CODE'] = erpCodeRaw === 'Special' ? 'Special' : bcMapping.toNew(erpCodeRaw)
@@ -318,27 +398,36 @@ export async function POST(request: NextRequest) {
       rows.push(row)
     })
 
-    // Per-datum coverage: eerst stock/inkoop/transfer, daarna productie, dan rood
+    // Per-datum: stock+transfer → inkoop → productie → rood
     rows.forEach((row) => {
       const kist = String(row['kist'])
       let stockLeft = Math.max(
         0,
-        (stockByCase.get(kist) || 0) + (inkoopByCase.get(kist) || 0) + (transferByCase.get(kist) || 0) - (pilsNeedByCase.get(kist) || 0)
+        (stockByCase.get(kist) || 0) + (transferByCase.get(kist) || 0) - (pilsNeedByCase.get(kist) || 0)
       )
+      let inkoopLeft = inkoopByCase.get(kist) || 0
       let prodLeft = productieByCase.get(kist) || 0
       const stockCoverage = new Map<string, number>()
+      const inkoopCoverage = new Map<string, number>()
       const prodCoverage = new Map<string, number>()
       for (const date of dateCols) {
         const need = Number(row[date] || 0)
         if (need <= 0) continue
-        const stockUsed = Math.min(need, stockLeft)
+        let remaining = need
+        const stockUsed = Math.min(remaining, stockLeft)
         stockLeft -= stockUsed
-        const prodUsed = Math.min(need - stockUsed, prodLeft)
+        remaining -= stockUsed
+        const inkoopUsed = Math.min(remaining, inkoopLeft)
+        inkoopLeft -= inkoopUsed
+        remaining -= inkoopUsed
+        const prodUsed = Math.min(remaining, prodLeft)
         prodLeft -= prodUsed
         stockCoverage.set(date, stockUsed)
+        inkoopCoverage.set(date, inkoopUsed)
         prodCoverage.set(date, prodUsed)
       }
       row._stockCoverage = stockCoverage
+      row._inkoopCoverage = inkoopCoverage
       row._prodCoverage = prodCoverage
     })
 
@@ -353,8 +442,13 @@ export async function POST(request: NextRequest) {
         const opStock = stockByCase.get(kist) || 0
         const inTransfer = transferByCase.get(kist) || 0
         const inInkoop = inkoopByCase.get(kist) || 0
+        const opPils = pilsNeedByCase.get(kist) || 0
+        const totaalVraag = totalForecast + opPils
         const alInProd = productieByCase.get(kist) || 0
         const beschikbaar = opStock + inTransfer + inInkoop + alInProd
+        const overProd = Math.max(0, alInProd - totaalVraag)
+        row['op PILS'] = opPils
+        row['Totaal vraag (forecast + PILS)'] = totaalVraag
         row['op stock'] = opStock
         row['stock genk'] = stockMap?.get('Genk') ?? 0
         row['stock wilrijk'] = stockMap?.get('Wilrijk') ?? 0
@@ -362,24 +456,28 @@ export async function POST(request: NextRequest) {
         row['in transfer'] = inTransfer
         row['in inkooporder'] = inInkoop
         row['Totaal al in productie order'] = alInProd
+        row['Overproductie'] = overProd > 0 ? -overProd : 0
         row['productie genk'] = prodMap?.get('Genk') ?? 0
         row['productie wilrijk'] = prodMap?.get('Wilrijk') ?? 0
         row['productie willebroek'] = prodMap?.get('Willebroek') ?? 0
-        row['Totaal nog in productie order te leggen'] = Math.max(0, Math.round(totalForecast - beschikbaar))
+        row['Totaal nog in productie order te leggen'] = Math.max(0, Math.round(totaalVraag - beschikbaar))
         return totalForecast >= 0
       })
       .map((row) => {
-        const output: Record<string, string | number> & { _stockCoverage?: Map<string, number>; _prodCoverage?: Map<string, number> } = {}
+        const output: ForecastMatrixRow = {}
         output['BC CODE'] = row['BC CODE']
         output['oude BC CODE'] = row['oude BC CODE'] ?? ''
         output['kist'] = row['kist']
         output['productielocatie'] = row['productielocatie'] ?? ''
+        output['op PILS'] = row['op PILS'] ?? 0
+        output['Totaal forecast'] = row['Totaal forecast'] ?? 0
+        output['Totaal vraag (forecast + PILS)'] = row['Totaal vraag (forecast + PILS)'] ?? 0
         output['Totaal al in productie order'] = row['Totaal al in productie order'] ?? 0
+        output['Overproductie'] = row['Overproductie'] ?? 0
         output['Totaal nog in productie order te leggen'] = row['Totaal nog in productie order te leggen'] ?? 0
         filteredDateCols.forEach((date) => {
           output[date] = row[date]
         })
-        output['Totaal forecast'] = row['Totaal forecast'] ?? 0
         output['op stock'] = row['op stock'] ?? 0
         output['stock genk'] = row['stock genk'] ?? 0
         output['stock wilrijk'] = row['stock wilrijk'] ?? 0
@@ -390,45 +488,15 @@ export async function POST(request: NextRequest) {
         output['productie wilrijk'] = row['productie wilrijk'] ?? 0
         output['productie willebroek'] = row['productie willebroek'] ?? 0
         output._stockCoverage = row._stockCoverage
+        output._inkoopCoverage = row._inkoopCoverage
         output._prodCoverage = row._prodCoverage
         return output
       })
 
     const wb = new ExcelJS.Workbook()
 
-    // Legenda als eerste tabblad
     const legendaSheet = wb.addWorksheet('Legenda')
-    legendaSheet.mergeCells(1, 1, 1, 2)
-    legendaSheet.getCell(1, 1).value = 'Legenda — Betekenis kleuren in Forecast-tabblad'
-    legendaSheet.getCell(1, 1).font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } }
-    legendaSheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2E75B6' } }
-    legendaSheet.getCell(1, 1).alignment = { horizontal: 'left', vertical: 'middle' }
-    legendaSheet.addRow([])
-    const legendaData = [
-      ['Kleur', 'Betekenis'],
-      ['Groen', 'Reeds op stock — vraag is volledig gedekt door stock, transfer of inkooporder'],
-      ['Geel', 'Al in productie — vraag is gedekt door een lopende productie order'],
-      ['Rood', 'Nog te starten — nog geen productie order aangemaakt'],
-    ]
-    legendaData.forEach(([label, uitleg], i) => {
-      const r = legendaSheet.addRow([label, uitleg])
-      if (i === 0) {
-        r.font = { bold: true }
-        r.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'D9D9D9' } }
-      } else if (label === 'Groen') {
-        r.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'C6EFCE' } }
-      } else if (label === 'Geel') {
-        r.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEB9C' } }
-      } else if (label === 'Rood') {
-        r.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC7CE' } }
-      }
-    })
-    legendaSheet.columns = [{ width: 14 }, { width: 70 }]
-    legendaSheet.eachRow((row) => {
-      row.eachCell((cell) => {
-        cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } }
-      })
-    })
+    addForecastLegenda(legendaSheet)
 
     const ws = wb.addWorksheet('Forecast')
 
@@ -437,13 +505,16 @@ export async function POST(request: NextRequest) {
       'oude BC CODE',
       'kist',
       'productielocatie',
+      'op PILS',
+      'Totaal forecast',
+      'Totaal vraag (forecast + PILS)',
       'Totaal al in productie order',
+      'Overproductie',
       'Totaal nog in productie order te leggen',
       'productie genk',
       'productie wilrijk',
       'productie willebroek',
       ...filteredDateCols,
-      'Totaal forecast',
       'op stock',
       'stock genk',
       'stock wilrijk',
@@ -475,20 +546,14 @@ export async function POST(request: NextRequest) {
         const numericValue = typeof cell.value === 'number' ? cell.value : Number.NaN
         if (colTitle && filteredDateCols.includes(colTitle) && Number.isFinite(numericValue) && numericValue > 0) {
           const need = Number(dataRow[colTitle] ?? 0)
-          const stockCovered = dataRow._stockCoverage?.get(colTitle) ?? 0
-          const prodCovered = dataRow._prodCoverage?.get(colTitle) ?? 0
-          if (need > 0) {
-            if (stockCovered >= need) {
-              // Volledig gedekt door stock/inkoop/transfer → groen
-              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'C6EFCE' } }
-            } else if (stockCovered + prodCovered >= need) {
-              // Gedekt door lopende productie order → geel
-              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEB9C' } }
-            } else {
-              // Nog geen productie order → rood
-              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC7CE' } }
-            }
-          }
+          const stockUsed = dataRow._stockCoverage?.get(colTitle) ?? 0
+          const inkoopUsed = dataRow._inkoopCoverage?.get(colTitle) ?? 0
+          const prodUsed = dataRow._prodCoverage?.get(colTitle) ?? 0
+          const fill = fillForDateCoverage(need, stockUsed, inkoopUsed, prodUsed)
+          if (fill) cell.fill = fill
+        }
+        if (colTitle === 'Overproductie' && typeof cell.value === 'number' && cell.value < 0) {
+          cell.font = { color: { argb: 'FF9C0006' } }
         }
       })
     })
@@ -727,7 +792,7 @@ export async function POST(request: NextRequest) {
     prioritySheet.views = [{ state: 'frozen', ySplit: 2 }]
 
     const caseLabelsSheet = wb.addWorksheet('Case labels')
-    caseLabelsSheet.addRow(['Case label', 'Case type', 'Arrival date', 'Source file', 'Productielocatie'])
+    caseLabelsSheet.addRow(['Case label', 'Case type', 'Arrival date', 'Source file', 'Productielocatie', 'op PILS'])
     const caseHeader = caseLabelsSheet.getRow(1)
     caseHeader.font = { bold: true }
     caseHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'D9D9D9' } }
@@ -751,6 +816,7 @@ export async function POST(request: NextRequest) {
         formatDateLabel(row.arrival_date),
         row.source_file,
         row.productielocatie,
+        pilsLabels.has(row.case_label) ? 'ja' : 'nee',
       ])
     })
     caseLabelsSheet.columns.forEach((col) => {

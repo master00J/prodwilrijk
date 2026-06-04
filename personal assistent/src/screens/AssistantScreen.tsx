@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   AppState,
   FlatList,
+  InteractionManager,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -81,16 +82,19 @@ export default function AssistantScreen({ onLoggedOut }: Props) {
 
   useEffect(() => {
     attachAppStateHandsFree()
-    void initHandsFreeOnLogin(async () => {
-      if (liveVoiceRef.current?.isActive()) return
-      await pauseHandsFreeForLive()
-      await liveVoiceRef.current?.connect()
+    const handsFreeTask = InteractionManager.runAfterInteractions(() => {
+      void initHandsFreeOnLogin(async () => {
+        if (liveVoiceRef.current?.isActive()) return
+        await pauseHandsFreeForLive()
+        await liveVoiceRef.current?.connect()
+      })
     })
     void syncHourlyPackedAnnounceFromServer()
     const appStateSub = AppState.addEventListener('change', state => {
       if (state === 'active') void syncHourlyPackedAnnounceFromServer()
     })
     return () => {
+      handsFreeTask.cancel()
       appStateSub.remove()
       void stopHourlyPackedAnnounce()
       void teardownHandsFree()

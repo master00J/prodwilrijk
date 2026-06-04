@@ -137,7 +137,20 @@ eas submit -p android --profile production
 
 ---
 
-## 4. Samsung-oortjes tips
+## 4. App crasht na Hey Jarvis / opent niet meer
+
+**Oorzaak:** een eerdere build sloeg “Hey Jarvis aan” op vóór de microfoon echt werkte; bij elke open startte de app opnieuw de microfoon en crashte native.
+
+**Nu meteen (zonder nieuwe APK):**
+
+1. Instellingen → Apps → **Prodwilrijk Assistent** → Opslag → **Gegevens wissen** (of app verwijderen en opnieuw installeren)
+2. App openen → inloggen → Hey Jarvis pas **aan** zetten na een **nieuwe** APK-build
+
+**Na update:** voorkeur wordt pas opgeslagen als start gelukt is; mislukte start zet de schakelaar automatisch weer uit.
+
+---
+
+## 5. Samsung-oortjes tips
 
 - Verbind je Buds vóór je opneemt
 - Houd **“Houd ingedrukt”** ingedrukt tijdens je vraag; laat los om te versturen
@@ -146,7 +159,7 @@ eas submit -p android --profile production
 
 ---
 
-## 5. Veiligheid
+## 6. Veiligheid
 
 - Alleen ingelogde, geverifieerde Prodwilrijk-gebruikers kunnen de API aanroepen (zelfde middleware als de website)
 - Rate limit: zelfde bucket als AI-chat (20 req/min per IP)
