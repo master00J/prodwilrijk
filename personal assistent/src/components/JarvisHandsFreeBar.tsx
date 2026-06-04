@@ -1,5 +1,14 @@
 import { useEffect, useState } from 'react'
-import { ActivityIndicator, Platform, StyleSheet, Switch, Text, View } from 'react-native'
+import {
+  ActivityIndicator,
+  Linking,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from 'react-native'
 import { getWakeWordEngineHint, getWakeWordEngineLabel } from '@/lib/wake-word'
 import { USE_OPENWAKEWORD_ON_ANDROID } from '@/config'
 import {
@@ -73,10 +82,10 @@ export default function JarvisHandsFreeBar({ disabled }: Props) {
         <View style={styles.textCol}>
           <Text style={styles.title}>Hey Jarvis</Text>
           <Text style={styles.subtitle}>
-            {Platform.OS === 'android' && !USE_OPENWAKEWORD_ON_ANDROID
-              ? 'Spraakherkenning met app open — zeg "Hey Jarvis" of "Jarvis".'
+            {Platform.OS === 'android' && USE_OPENWAKEWORD_ON_ANDROID
+              ? 'Zeg "Hey Jarvis" — ook met scherm uit (melding blijft actief).'
               : Platform.OS === 'android'
-                ? 'Offline wake word (openWakeWord). Zeg "Hey Jarvis".'
+                ? 'Alleen met app open. Installeer nieuwste APK voor achtergrond-wake word.'
                 : 'Zeg "Hey Jarvis" met de app actief.'}
           </Text>
         </View>
@@ -96,6 +105,17 @@ export default function JarvisHandsFreeBar({ disabled }: Props) {
       </View>
 
       <Text style={styles.hint}>{getWakeWordEngineHint()}</Text>
+      {Platform.OS === 'android' && status === 'listening' ? (
+        <Text style={styles.limitHint}>
+          Werkt niet na &quot;Force stop&quot; in Android-instellingen. Vergelijkbaar met Google Assistant:
+          éénmalig Hey Jarvis aanzetten, daarna luistert de app op de achtergrond.
+        </Text>
+      ) : null}
+      {Platform.OS === 'android' && USE_OPENWAKEWORD_ON_ANDROID ? (
+        <Pressable onPress={() => void Linking.openSettings()}>
+          <Text style={styles.settingsLink}>Batterij &amp; app-instellingen openen</Text>
+        </Pressable>
+      ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
     </View>
   )
@@ -150,6 +170,17 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#7c3aed',
     lineHeight: 15,
+  },
+  limitHint: {
+    fontSize: 11,
+    color: '#6b7280',
+    lineHeight: 15,
+  },
+  settingsLink: {
+    fontSize: 12,
+    color: '#1d4ed8',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   error: {
     color: '#b91c1c',

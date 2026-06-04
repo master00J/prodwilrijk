@@ -16,6 +16,7 @@
       "node": "22.11.0",
       "env": {
         "EXPO_PUBLIC_API_BASE": "https://prodwilrijk.be",
+        "EXPO_PUBLIC_USE_OPENWAKEWORD_ON_ANDROID": "true",
         "NPM_CONFIG_PRODUCTION": "false"
       },
       "prebuildCommand": "prebuild --platform android --clean",

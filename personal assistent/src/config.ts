@@ -12,11 +12,11 @@ export const PICOVOICE_ACCESS_KEY = process.env.EXPO_PUBLIC_PICOVOICE_ACCESS_KEY
 export const USE_PICOVOICE_WAKE = process.env.EXPO_PUBLIC_USE_PICOVOICE_WAKE === 'true'
 
 /**
- * Android: native openWakeWord + Picovoice VoiceProcessor crasht op sommige toestellen na microfoon-toestemming.
- * Standaard uit → veilige spraakherkenning (app actief). Zet EXPO_PUBLIC_USE_OPENWAKEWORD_ON_ANDROID=true voor offline wake word.
+ * Android: offline "Hey Jarvis" via openWakeWord + foreground service (achtergrond).
+ * Zet EXPO_PUBLIC_USE_OPENWAKEWORD_ON_ANDROID=false om terug te vallen op spraakherkenning (alleen app open).
  */
 export const USE_OPENWAKEWORD_ON_ANDROID =
-  process.env.EXPO_PUBLIC_USE_OPENWAKEWORD_ON_ANDROID === 'true'
+  process.env.EXPO_PUBLIC_USE_OPENWAKEWORD_ON_ANDROID !== 'false'
 
 /** Detectiedrempel openWakeWord (0–1), default 0.5. */
 export const OPENWAKEWORD_THRESHOLD = Math.min(

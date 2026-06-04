@@ -12,7 +12,7 @@ const backgroundTask = async () => {
 const backgroundOptions = {
   taskName: 'JarvisAssistant',
   taskTitle: 'Prodwilrijk Assistent actief',
-  taskDesc: 'Jarvis en/of uurlijkse updates',
+  taskDesc: 'Luistert op "Hey Jarvis" — tik om de app te openen',
   taskIcon: {
     name: 'ic_launcher',
     type: 'mipmap',

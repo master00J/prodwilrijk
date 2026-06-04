@@ -64,7 +64,7 @@ export function getWakeWordEngineHint(): string {
     return 'Zeg "Jarvis" via Picovoice.'
   }
   if (Platform.OS === 'android') {
-    return 'Zeg "Hey Jarvis" of "Jarvis" met de app open (spraakherkenning). Offline wake word: zet EXPO_PUBLIC_USE_OPENWAKEWORD_ON_ANDROID=true bij build.'
+    return 'Zeg "Hey Jarvis" (spraakherkenning, alleen met app open). Voor achtergrond: nieuwe APK met openWakeWord.'
   }
   return 'Fallback spraakherkenning met app open.'
 }

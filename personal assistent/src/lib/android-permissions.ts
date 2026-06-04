@@ -34,7 +34,7 @@ export async function ensureRecordAudioForWakeWord(): Promise<void> {
   if (!granted) {
     throw new Error('Microfoon-toestemming is vereist voor "Hey Jarvis".')
   }
-  await waitAfterPermissionDialog()
+  await waitAfterPermissionDialog(700)
 }
 
 export async function ensurePostNotificationsIfNeeded(): Promise<void> {

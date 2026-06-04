@@ -6,6 +6,7 @@ import {
   ensureRecordAudioForWakeWord,
   waitAfterPermissionDialog,
 } from '@/lib/android-permissions'
+import { bringAssistantToForeground } from '@/lib/bring-assistant-foreground'
 import { USE_OPENWAKEWORD_ON_ANDROID } from '@/config'
 import { acquireBackgroundKeeper, releaseBackgroundKeeper } from '@/lib/background-keeper'
 import {
@@ -130,11 +131,16 @@ async function handleWakeDetected(): Promise<void> {
   if (now - lastWakeAt < WAKE_COOLDOWN_MS) return
   lastWakeAt = now
 
-  setStatus('activating', 'Jarvis gehoord — live spraak start…')
+  setStatus('activating', 'Jarvis gehoord — app wordt geopend…')
   pausedForLive = true
   await stopWakeWordListener()
 
   try {
+    await bringAssistantToForeground()
+    if (Platform.OS === 'android') {
+      await waitAfterPermissionDialog(400)
+    }
+    setStatus('activating', 'Live spraak start…')
     await onWakeCallback?.()
     setStatus('live_active', 'Live gesprek actief. Zeg "stop live" of tik Stop.')
   } catch (err) {
@@ -187,16 +193,27 @@ export async function startHandsFree(): Promise<void> {
   enabled = true
   pausedForLive = false
 
-  if (Platform.OS === 'android' && USE_OPENWAKEWORD_ON_ANDROID) {
+  if (Platform.OS === 'android') {
     try {
       await ensurePostNotificationsIfNeeded()
       await acquireBackgroundKeeper()
+      if (USE_OPENWAKEWORD_ON_ANDROID) {
+        setStatus(
+          'listening',
+          'Hey Jarvis actief op achtergrond — melding blijft zichtbaar. Zeg "Hey Jarvis".'
+        )
+      }
     } catch (err) {
       console.warn(
         '[hands-free] achtergrondmelding',
         err instanceof Error ? err.message : err
       )
-      setStatus('listening', 'Hey Jarvis actief (zonder achtergrondmelding).')
+      setStatus(
+        'listening',
+        USE_OPENWAKEWORD_ON_ANDROID
+          ? 'Hey Jarvis luistert — zet batterij-optimalisatie uit voor betrouwbare achtergrond.'
+          : 'Hey Jarvis alleen betrouwbaar met app open (geen achtergrondmelding).'
+      )
     }
   }
 }
@@ -262,10 +279,20 @@ export async function teardownHandsFree(): Promise<void> {
 export function attachAppStateHandsFree(): void {
   appStateSub?.remove()
   appStateSub = AppState.addEventListener('change', next => {
-    if (!enabled || Platform.OS !== 'ios') return
-    if (next === 'active' && !pausedForLive) {
+    if (!enabled || pausedForLive) return
+
+    if (Platform.OS === 'android') {
+      if (next === 'active' && !isWakeWordListening()) {
+        void beginWakeWord().catch(() => {
+          setStatus('error', 'Hey Jarvis kon niet herstarten — zet schakelaar opnieuw aan.')
+        })
+      }
+      return
+    }
+
+    if (next === 'active') {
       void beginWakeWord().catch(() => {})
-    } else if (next !== 'active') {
+    } else {
       void stopWakeWordListener().catch(() => {})
     }
   })
