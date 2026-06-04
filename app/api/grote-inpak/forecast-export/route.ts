@@ -297,6 +297,7 @@ export async function POST(request: NextRequest) {
         source_file: String(row.source_file || '').trim(),
       }))
       .filter((row) => row.case_label && row.case_type && row.arrival_date)
+      .filter((row) => !pilsLabels.has(row.case_label))
       .filter((row) => {
         const arrival = new Date(row.arrival_date)
         if (Number.isNaN(arrival.getTime())) return false
@@ -321,9 +322,7 @@ export async function POST(request: NextRequest) {
         'oude BC CODE',
         'kist',
         'productielocatie',
-        'op PILS',
         'Totaal forecast',
-        'Totaal vraag (forecast + PILS)',
         'Totaal al in productie order',
         'Overproductie',
         'Totaal nog in productie order te leggen',
@@ -366,15 +365,6 @@ export async function POST(request: NextRequest) {
       if (!counts.has(caseType)) counts.set(caseType, new Map())
       const map = counts.get(caseType)!
       map.set(dateLabel, (map.get(dateLabel) || 0) + 1)
-    })
-
-    // Kisttypes alleen op PILS (geen forecast-regel) ook tonen
-    pilsNeedByCase.forEach((_, caseType) => {
-      const normalized = normalizeCaseType(caseType)
-      if (!normalized) return
-      const loc = erpByCase.get(normalized)?.productielocatie || 'Wilrijk'
-      if (!isAlle && String(loc).toLowerCase() !== location.toLowerCase()) return
-      if (!counts.has(normalized)) counts.set(normalized, new Map())
     })
 
     const dateCols = Array.from(dateSet).sort((a, b) => {
@@ -442,13 +432,9 @@ export async function POST(request: NextRequest) {
         const opStock = stockByCase.get(kist) || 0
         const inTransfer = transferByCase.get(kist) || 0
         const inInkoop = inkoopByCase.get(kist) || 0
-        const opPils = pilsNeedByCase.get(kist) || 0
-        const totaalVraag = totalForecast + opPils
         const alInProd = productieByCase.get(kist) || 0
         const beschikbaar = opStock + inTransfer + inInkoop + alInProd
-        const overProd = Math.max(0, alInProd - totaalVraag)
-        row['op PILS'] = opPils
-        row['Totaal vraag (forecast + PILS)'] = totaalVraag
+        const overProd = Math.max(0, alInProd - totalForecast)
         row['op stock'] = opStock
         row['stock genk'] = stockMap?.get('Genk') ?? 0
         row['stock wilrijk'] = stockMap?.get('Wilrijk') ?? 0
@@ -460,8 +446,8 @@ export async function POST(request: NextRequest) {
         row['productie genk'] = prodMap?.get('Genk') ?? 0
         row['productie wilrijk'] = prodMap?.get('Wilrijk') ?? 0
         row['productie willebroek'] = prodMap?.get('Willebroek') ?? 0
-        row['Totaal nog in productie order te leggen'] = Math.max(0, Math.round(totaalVraag - beschikbaar))
-        return totalForecast >= 0
+        row['Totaal nog in productie order te leggen'] = Math.max(0, Math.round(totalForecast - beschikbaar))
+        return totalForecast > 0
       })
       .map((row) => {
         const output: ForecastMatrixRow = {}
@@ -469,9 +455,7 @@ export async function POST(request: NextRequest) {
         output['oude BC CODE'] = row['oude BC CODE'] ?? ''
         output['kist'] = row['kist']
         output['productielocatie'] = row['productielocatie'] ?? ''
-        output['op PILS'] = row['op PILS'] ?? 0
         output['Totaal forecast'] = row['Totaal forecast'] ?? 0
-        output['Totaal vraag (forecast + PILS)'] = row['Totaal vraag (forecast + PILS)'] ?? 0
         output['Totaal al in productie order'] = row['Totaal al in productie order'] ?? 0
         output['Overproductie'] = row['Overproductie'] ?? 0
         output['Totaal nog in productie order te leggen'] = row['Totaal nog in productie order te leggen'] ?? 0
@@ -505,9 +489,7 @@ export async function POST(request: NextRequest) {
       'oude BC CODE',
       'kist',
       'productielocatie',
-      'op PILS',
       'Totaal forecast',
-      'Totaal vraag (forecast + PILS)',
       'Totaal al in productie order',
       'Overproductie',
       'Totaal nog in productie order te leggen',
@@ -792,7 +774,7 @@ export async function POST(request: NextRequest) {
     prioritySheet.views = [{ state: 'frozen', ySplit: 2 }]
 
     const caseLabelsSheet = wb.addWorksheet('Case labels')
-    caseLabelsSheet.addRow(['Case label', 'Case type', 'Arrival date', 'Source file', 'Productielocatie', 'op PILS'])
+    caseLabelsSheet.addRow(['Case label', 'Case type', 'Arrival date', 'Source file', 'Productielocatie'])
     const caseHeader = caseLabelsSheet.getRow(1)
     caseHeader.font = { bold: true }
     caseHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'D9D9D9' } }
@@ -816,7 +798,6 @@ export async function POST(request: NextRequest) {
         formatDateLabel(row.arrival_date),
         row.source_file,
         row.productielocatie,
-        pilsLabels.has(row.case_label) ? 'ja' : 'nee',
       ])
     })
     caseLabelsSheet.columns.forEach((col) => {
