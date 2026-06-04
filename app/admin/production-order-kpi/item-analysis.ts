@@ -1,4 +1,4 @@
-import type { ItemAnalysis, ItemRunComparison, RevenueRun } from './types'
+import type { ItemAnalysis, ItemOrderComparison, ItemRunComparison, RevenueRun } from './types'
 
 function normalizeItemKey(item: string) {
   return (item || '').trim().toUpperCase()
@@ -105,6 +105,51 @@ function buildRunComparisons(itemRuns: RevenueRun[]): ItemRunComparison[] {
     .sort((a, b) => a.run.date.localeCompare(b.run.date) || a.run.order_number.localeCompare(b.run.order_number))
 }
 
+function buildOrderComparisons(
+  itemRuns: RevenueRun[],
+  orderSummaries: ItemAnalysis['orders']
+): ItemOrderComparison[] {
+  const avgTotalHours = avg(orderSummaries.map((o) => o.hours))
+  const hppValues = orderSummaries.map((o) => o.hoursPerPiece).filter((v) => Number.isFinite(v))
+  const avgHpp = avg(hppValues)
+  const totalHoursValues = orderSummaries.map((o) => o.hours)
+
+  return orderSummaries
+    .map((order) => {
+      const totalHoursDelta = order.hours - avgTotalHours
+      const totalHoursDeltaPct = avgTotalHours > 0 ? (totalHoursDelta / avgTotalHours) * 100 : 0
+      const hoursPerPieceDelta = order.hoursPerPiece - avgHpp
+      const hoursPerPieceDeltaPct = avgHpp > 0 ? (hoursPerPieceDelta / avgHpp) * 100 : 0
+
+      const employees = new Set<string>()
+      itemRuns
+        .filter((r) => r.order_number === order.order_number)
+        .forEach((run) => {
+          ;(run.employees ?? []).forEach((e) => {
+            if (e.employee_name) employees.add(e.employee_name)
+          })
+        })
+
+      return {
+        ...order,
+        employeesLabel: employees.size > 0 ? Array.from(employees).join(', ') : '–',
+        totalHoursDelta,
+        totalHoursDeltaPct,
+        hoursPerPieceDelta,
+        hoursPerPieceDeltaPct,
+        isFastestTotal:
+          totalHoursValues.length > 1 && order.hours === Math.min(...totalHoursValues),
+        isSlowestTotal:
+          totalHoursValues.length > 1 && order.hours === Math.max(...totalHoursValues),
+        isFastestPerPiece:
+          hppValues.length > 1 && order.hoursPerPiece === Math.min(...hppValues),
+        isSlowestPerPiece:
+          hppValues.length > 1 && order.hoursPerPiece === Math.max(...hppValues),
+      }
+    })
+    .sort((a, b) => b.hours - a.hours)
+}
+
 export function analyzeItemRuns(itemNumber: string, itemRuns: RevenueRun[]): ItemAnalysis | null {
   if (itemRuns.length === 0) return null
 
@@ -130,14 +175,45 @@ export function analyzeItemRuns(itemNumber: string, itemRuns: RevenueRun[]): Ite
     })
   })
 
-  const orderMap = new Map<string, { runs: number; hours: number; hoursPerPiece: number[] }>()
+  const orderMap = new Map<
+    string,
+    { runs: number; hours: number; quantity: number; dates: string[] }
+  >()
   itemRuns.forEach((run) => {
-    const existing = orderMap.get(run.order_number) ?? { runs: 0, hours: 0, hoursPerPiece: [] }
+    const existing = orderMap.get(run.order_number) ?? {
+      runs: 0,
+      hours: 0,
+      quantity: 0,
+      dates: [],
+    }
     existing.runs += 1
     existing.hours += run.hours
-    existing.hoursPerPiece.push(run.hours_per_piece)
+    existing.quantity += run.quantity || 0
+    if (run.date) existing.dates.push(run.date)
     orderMap.set(run.order_number, existing)
   })
+
+  const orders = Array.from(orderMap.entries())
+    .map(([order_number, data]) => {
+      const dates = [...data.dates].sort()
+      const hoursPerPiece = data.quantity > 0 ? data.hours / data.quantity : 0
+      return {
+        order_number,
+        runs: data.runs,
+        quantity: data.quantity,
+        hours: data.hours,
+        hoursPerPiece,
+        dateFrom: dates[0] ?? '',
+        dateTo: dates[dates.length - 1] ?? '',
+        employeesLabel: '',
+      }
+    })
+    .sort((a, b) => b.hours - a.hours)
+
+  const orderHoursValues = orders.map((o) => o.hours)
+  const minOrderHours = orderHoursValues.length ? Math.min(...orderHoursValues) : 0
+  const maxOrderHours = orderHoursValues.length ? Math.max(...orderHoursValues) : 0
+  const avgOrderHours = avg(orderHoursValues)
 
   const stepMap = new Map<string, number>()
   itemRuns.forEach((run) => {
@@ -162,6 +238,13 @@ export function analyzeItemRuns(itemNumber: string, itemRuns: RevenueRun[]): Ite
       spread: maxHpp - minHpp,
       spreadPct: avgHpp > 0 ? ((maxHpp - minHpp) / avgHpp) * 100 : 0,
     },
+    totalHoursPerOrder: {
+      min: minOrderHours,
+      max: maxOrderHours,
+      avg: avgOrderHours,
+      spread: maxOrderHours - minOrderHours,
+      spreadPct: avgOrderHours > 0 ? ((maxOrderHours - minOrderHours) / avgOrderHours) * 100 : 0,
+    },
     margin:
       marginValues.length > 0
         ? {
@@ -174,14 +257,8 @@ export function analyzeItemRuns(itemNumber: string, itemRuns: RevenueRun[]): Ite
     employees: Array.from(employeeMap.entries())
       .map(([name, data]) => ({ name, ...data }))
       .sort((a, b) => b.hours - a.hours),
-    orders: Array.from(orderMap.entries())
-      .map(([order_number, data]) => ({
-        order_number,
-        runs: data.runs,
-        hours: data.hours,
-        hoursPerPiece: avg(data.hoursPerPiece),
-      }))
-      .sort((a, b) => b.hours - a.hours),
+    orders,
+    orderComparisons: buildOrderComparisons(itemRuns, orders),
     steps: Array.from(stepMap.entries())
       .map(([step, hours]) => ({ step, hours }))
       .sort((a, b) => b.hours - a.hours),

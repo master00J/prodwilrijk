@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import AdminGuard from '@/components/AdminGuard'
 import { useAuth } from '@/components/AuthProvider'
 import { BcItemCode, useBcMapping } from '@/lib/bc-mapping/client'
@@ -25,7 +25,7 @@ import type {
 } from './types'
 
 type DatePreset = 'today' | 'week' | 'month' | 'all'
-type BottomTab = 'live' | 'detail' | 'item' | 'orders'
+type BottomTab = 'live' | 'detail' | 'orders'
 
 function startOfWeek(d: Date) {
   const copy = new Date(d)
@@ -53,6 +53,7 @@ export default function ProductionOrderKpiPage() {
   const [activeLoading, setActiveLoading] = useState(false)
   const [bottomTab, setBottomTab] = useState<BottomTab>('live')
   const [selectedItem, setSelectedItem] = useState('')
+  const itemCompareRef = useRef<HTMLDivElement>(null)
 
   const [manageSite, setManageSite] = useState<Site>(DEFAULT_SITE)
   const [manageTab, setManageTab] = useState<'actief' | 'afgewerkt'>('actief')
@@ -164,6 +165,16 @@ export default function ProductionOrderKpiPage() {
   useEffect(() => {
     void loadManagedOrders()
   }, [loadManagedOrders])
+
+  const scrollToItemCompare = useCallback(() => {
+    itemCompareRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
+
+  useEffect(() => {
+    if (!selectedItem.trim()) return
+    const t = window.setTimeout(scrollToItemCompare, 150)
+    return () => window.clearTimeout(t)
+  }, [selectedItem, scrollToItemCompare])
 
   const applyPreset = (preset: DatePreset) => {
     const today = new Date()
@@ -323,12 +334,27 @@ export default function ProductionOrderKpiPage() {
                   value={selectedItem}
                   onChange={(e) => setSelectedItem(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') setBottomTab('item')
+                    if (e.key !== 'Enter') return
+                    const q = selectedItem.trim()
+                    if (q) {
+                      const exact = runs.find(
+                        (r) =>
+                          r.item_number.trim().toLowerCase() === q.toLowerCase() ||
+                          toNew(r.item_number).toLowerCase() === q.toLowerCase()
+                      )
+                      if (!exact) {
+                        const match = [...new Set(runs.map((r) => r.item_number).filter(Boolean))].find(
+                          (item) => itemMatchesQuery(item, q, toNew, toOld)
+                        )
+                        if (match) setSelectedItem(match)
+                      }
+                    }
+                    scrollToItemCompare()
                   }}
-                  placeholder="Filter item..."
-                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white w-36 lg:w-44"
+                  placeholder="Item vergelijken..."
+                  className="rounded-lg border border-violet-200 px-3 py-2 text-sm bg-violet-50/50 w-40 lg:w-48 focus:ring-2 focus:ring-violet-300 focus:border-violet-400"
                   list="kpi-header-items"
-                  title="Snel filteren op item — Enter opent item-vergelijking"
+                  title="Typ een itemnummer en druk Enter om order-vergelijking te openen"
                 />
                 <datalist id="kpi-header-items">
                   {[...new Set(runs.map((r) => r.item_number).filter(Boolean))].map((item) => (
@@ -418,12 +444,21 @@ export default function ProductionOrderKpiPage() {
           <KpiSecondaryStats derived={derived} />
           <KpiChartsSection kpiData={kpiData} dailyHours={dailyHours} />
 
+          <div ref={itemCompareRef}>
+            <ItemCompareSection
+              runs={runs}
+              loading={loading}
+              selectedItem={selectedItem}
+              onSelectItem={setSelectedItem}
+              id="item-compare"
+            />
+          </div>
+
           {/* Bottom tabs */}
           <div className="flex gap-2 border-b border-gray-200">
             {([
               ['live', 'Live productie'],
               ['detail', 'Productiedetail'],
-              ['item', 'Item vergelijken'],
               ['orders', 'Orders beheren'],
             ] as const).map(([tab, label]) => (
               <button
@@ -458,13 +493,6 @@ export default function ProductionOrderKpiPage() {
               loading={loading}
               dateFrom={dateFrom}
               dateTo={dateTo}
-            />
-          ) : bottomTab === 'item' ? (
-            <ItemCompareSection
-              runs={runs}
-              loading={loading}
-              selectedItem={selectedItem}
-              onSelectItem={setSelectedItem}
             />
           ) : (
             <OrderManagementSection

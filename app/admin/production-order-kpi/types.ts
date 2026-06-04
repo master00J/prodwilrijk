@@ -118,6 +118,28 @@ export type ItemRunComparison = {
   isSlowest: boolean
 }
 
+export type ItemOrderSummary = {
+  order_number: string
+  runs: number
+  quantity: number
+  hours: number
+  hoursPerPiece: number
+  dateFrom: string
+  dateTo: string
+  employeesLabel: string
+}
+
+export type ItemOrderComparison = ItemOrderSummary & {
+  totalHoursDelta: number
+  totalHoursDeltaPct: number
+  hoursPerPieceDelta: number
+  hoursPerPieceDeltaPct: number
+  isFastestTotal: boolean
+  isSlowestTotal: boolean
+  isFastestPerPiece: boolean
+  isSlowestPerPiece: boolean
+}
+
 export type ItemAnalysis = {
   item_number: string
   description: string | null
@@ -134,6 +156,13 @@ export type ItemAnalysis = {
     spread: number
     spreadPct: number
   }
+  totalHoursPerOrder: {
+    min: number
+    max: number
+    avg: number
+    spread: number
+    spreadPct: number
+  }
   margin: {
     min: number | null
     max: number | null
@@ -141,7 +170,8 @@ export type ItemAnalysis = {
     spread: number | null
   } | null
   employees: { name: string; hours: number; runCount: number }[]
-  orders: { order_number: string; runs: number; hours: number; hoursPerPiece: number }[]
+  orders: ItemOrderSummary[]
+  orderComparisons: ItemOrderComparison[]
   steps: { step: string; hours: number }[]
   runComparisons: ItemRunComparison[]
 }
