@@ -296,7 +296,6 @@ export async function POST(request: NextRequest) {
         source_file: String(row.source_file || '').trim(),
       }))
       .filter((row) => row.case_label && row.case_type && row.arrival_date)
-      .filter((row) => !pilsLabels.has(row.case_label))
       .filter((row) => {
         const arrival = new Date(row.arrival_date)
         if (Number.isNaN(arrival.getTime())) return false
@@ -321,6 +320,7 @@ export async function POST(request: NextRequest) {
         'oude BC CODE',
         'kist',
         'productielocatie',
+        'labels ook op PILS',
         'Totaal forecast',
         'Totaal al in productie order',
         'Overproductie',
@@ -357,6 +357,7 @@ export async function POST(request: NextRequest) {
 
     const dateSet = new Set<string>()
     const counts = new Map<string, Map<string, number>>()
+    const labelsOnPilsByCase = new Map<string, number>()
     filtered.forEach((row) => {
       const dateLabel = formatDateLabel(row.arrival_date)
       dateSet.add(dateLabel)
@@ -364,6 +365,9 @@ export async function POST(request: NextRequest) {
       if (!counts.has(caseType)) counts.set(caseType, new Map())
       const map = counts.get(caseType)!
       map.set(dateLabel, (map.get(dateLabel) || 0) + 1)
+      if (pilsLabels.has(row.case_label)) {
+        labelsOnPilsByCase.set(caseType, (labelsOnPilsByCase.get(caseType) || 0) + 1)
+      }
     })
 
     const dateCols = Array.from(dateSet).sort((a, b) => {
@@ -425,6 +429,7 @@ export async function POST(request: NextRequest) {
       .filter((row) => {
         const totalForecast = filteredDateCols.reduce((sum, date) => sum + Number(row[date] || 0), 0)
         row['Totaal forecast'] = totalForecast
+        row['labels ook op PILS'] = labelsOnPilsByCase.get(String(row['kist'])) || 0
         const kist = String(row['kist'])
         const stockMap = stockByCaseByLoc.get(kist)
         const prodMap = productieByCaseByLoc.get(kist)
@@ -454,6 +459,7 @@ export async function POST(request: NextRequest) {
         output['oude BC CODE'] = row['oude BC CODE'] ?? ''
         output['kist'] = row['kist']
         output['productielocatie'] = row['productielocatie'] ?? ''
+        output['labels ook op PILS'] = row['labels ook op PILS'] ?? 0
         output['Totaal forecast'] = row['Totaal forecast'] ?? 0
         output['Totaal al in productie order'] = row['Totaal al in productie order'] ?? 0
         output['Overproductie'] = row['Overproductie'] ?? 0
@@ -488,6 +494,7 @@ export async function POST(request: NextRequest) {
       'oude BC CODE',
       'kist',
       'productielocatie',
+      'labels ook op PILS',
       'Totaal forecast',
       'Totaal al in productie order',
       'Overproductie',
@@ -773,7 +780,7 @@ export async function POST(request: NextRequest) {
     prioritySheet.views = [{ state: 'frozen', ySplit: 2 }]
 
     const caseLabelsSheet = wb.addWorksheet('Case labels')
-    caseLabelsSheet.addRow(['Case label', 'Case type', 'Arrival date', 'Source file', 'Productielocatie'])
+    caseLabelsSheet.addRow(['Case label', 'Case type', 'Arrival date', 'Source file', 'Productielocatie', 'op PILS'])
     const caseHeader = caseLabelsSheet.getRow(1)
     caseHeader.font = { bold: true }
     caseHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'D9D9D9' } }
@@ -797,6 +804,7 @@ export async function POST(request: NextRequest) {
         formatDateLabel(row.arrival_date),
         row.source_file,
         row.productielocatie,
+        pilsLabels.has(row.case_label) ? 'ja' : 'nee',
       ])
     })
     caseLabelsSheet.columns.forEach((col) => {

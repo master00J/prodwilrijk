@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
     }
 
     const pilsLabels = await loadPilsCaseLabels()
-    const { active, excludedOnPils } = excludeForecastRowsOnPils(all, pilsLabels)
+    const { excludedOnPils } = excludeForecastRowsOnPils(all, pilsLabels)
 
     const forecastLabelSet = new Set(
       all.map(row => String(row.case_label || '').trim()).filter(Boolean)
@@ -68,22 +68,27 @@ export async function GET(request: NextRequest) {
       ...row,
       source_file: 'PILS (niet op forecast)',
       list_kind: 'pils_only' as const,
+      on_pils: true,
     }))
 
-    const forecastRows = active.map(row => ({
-      ...row,
-      list_kind: 'forecast' as const,
-    }))
+    const forecastRows = all.map(row => {
+      const label = String(row.case_label || '').trim()
+      return {
+        ...row,
+        list_kind: 'forecast' as const,
+        on_pils: label ? pilsLabels.has(label) : false,
+      }
+    })
 
     return NextResponse.json(
       {
         data: forecastRows,
         pils_only: pilsOnly,
         count: forecastRows.length + pilsOnly.length,
-        count_forecast_active: forecastRows.length,
+        count_forecast_total: forecastRows.length,
+        count_forecast_also_on_pils: excludedOnPils,
         count_pils_only: pilsOnly.length,
         count_in_database: all.length,
-        count_already_on_pils: excludedOnPils,
       },
       { headers: { 'Cache-Control': 'private, no-store, max-age=0', Pragma: 'no-cache' } }
     )

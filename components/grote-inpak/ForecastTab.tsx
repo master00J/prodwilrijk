@@ -52,7 +52,7 @@ const CHANGE_COLORS: Record<ChangeType, { bg: string; text: string; badge: strin
 export default function ForecastTab() {
   const [forecastData, setForecastData] = useState<any[]>([])
   const [pilsOnlyData, setPilsOnlyData] = useState<any[]>([])
-  const [countOnPils, setCountOnPils] = useState(0)
+  const [countForecastOnPils, setCountForecastOnPils] = useState(0)
   const [countPilsOnly, setCountPilsOnly] = useState(0)
   const [loading, setLoading] = useState(false)
   const [dateFrom, setDateFrom] = useState('')
@@ -93,7 +93,9 @@ export default function ForecastTab() {
         const result = await res.json()
         setForecastData(result.data || [])
         setPilsOnlyData(result.pils_only || [])
-        setCountOnPils(Number(result.count_already_on_pils) || 0)
+        setCountForecastOnPils(
+          Number(result.count_forecast_also_on_pils ?? result.count_already_on_pils) || 0
+        )
         setCountPilsOnly(Number(result.count_pils_only) || 0)
       }
     } catch { /* ignore */ } finally {
@@ -838,8 +840,8 @@ export default function ForecastTab() {
                   ({searchQuery ? `${totalVisible} gevonden · ` : ''}
                   {forecastData.length} forecast
                   {countPilsOnly > 0 ? ` + ${countPilsOnly} alleen PILS` : ''}
-                  {countOnPils > 0 ? ` · ${countOnPils} forecast al op PILS verborgen` : ''}
-                  {forecastData.length > 0 ? ' · forecast-deel = Excel' : ''})
+                  {countForecastOnPils > 0 ? ` · ${countForecastOnPils} forecast ook op PILS` : ''}
+                  {forecastData.length > 0 ? ' · zelfde labels als Excel' : ''})
                 </span>
               )}
             </span>
@@ -849,8 +851,8 @@ export default function ForecastTab() {
 
         {openSections.huidig && <>
         <p className="px-5 py-2 text-xs text-slate-600 bg-slate-50 border-b border-slate-100 leading-relaxed">
-          <strong>Forecast</strong> = onderweg (Atlas), minus labels die al op PILS staan (zelfde basis als Excel-export).{' '}
-          <strong>Alleen PILS</strong> = nooit op forecast aangemeld, wel in Willebroek of op trailer — die staan hieronder ook in de lijst.
+          <strong>Forecast</strong> = alle Atlas-forecast-labels (ook als ze intussen op PILS staan — zelfde als Excel).{' '}
+          <strong>Alleen PILS</strong> = nooit op forecast, wel in Willebroek of op trailer.
         </p>
         <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex flex-wrap items-center gap-2">
             <input
@@ -887,10 +889,19 @@ export default function ForecastTab() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredForecast.map((item, i) => (
-                  <tr key={`f-${i}`} className="hover:bg-gray-50">
+                  <tr
+                    key={`f-${i}`}
+                    className={item.on_pils ? 'hover:bg-sky-50/50 bg-sky-50/20' : 'hover:bg-gray-50'}
+                  >
                     <td className="px-5 py-2.5">
-                      <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded">
-                        Forecast
+                      <span
+                        className={`text-xs font-semibold px-2 py-0.5 rounded ${
+                          item.on_pils
+                            ? 'text-sky-900 bg-sky-100'
+                            : 'text-emerald-800 bg-emerald-50'
+                        }`}
+                      >
+                        {item.on_pils ? 'Forecast + PILS' : 'Forecast'}
                       </span>
                     </td>
                     <td className="px-5 py-2.5 font-medium text-gray-900">{item.case_label || '—'}</td>
