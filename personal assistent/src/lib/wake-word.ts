@@ -58,29 +58,37 @@ export function getWakeWordEngineLabel(): string {
 export function getWakeWordEngineHint(): string {
   const engine = getWakeWordEngine()
   if (engine === 'openwakeword') {
-    return 'Zeg "Hey Jarvis" (openWakeWord, geen account). Eerste start downloadt modellen (~3 MB). Werkt op achtergrond met de melding.'
+    return 'Zeg "Hey Jarvis" (openWakeWord, offline). Eerste start downloadt modellen (~3 MB).'
   }
   if (engine === 'porcupine') {
     return 'Zeg "Jarvis" via Picovoice.'
   }
   if (Platform.OS === 'android') {
-    return 'Fallback: zeg "Jarvis" of "Hey Jarvis" (Google STT). openWakeWord kon niet laden.'
+    return 'Zeg "Hey Jarvis" of "Jarvis" met de app open (spraakherkenning). Offline wake word: zet EXPO_PUBLIC_USE_OPENWAKEWORD_ON_ANDROID=true bij build.'
   }
   return 'Fallback spraakherkenning met app open.'
 }
 
 export async function startWakeWordListener(onDetected: () => void): Promise<void> {
-  activeEngine = await resolveWakeWordEngine()
+  try {
+    activeEngine = await resolveWakeWordEngine()
 
-  if (activeEngine === 'openwakeword') {
-    await startOpenWakeWordListener(onDetected)
-    return
+    if (activeEngine === 'openwakeword') {
+      await startOpenWakeWordListener(onDetected)
+      return
+    }
+    if (activeEngine === 'porcupine') {
+      await startPorcupineListener(onDetected)
+      return
+    }
+    await startVoiceFallbackListener(onDetected)
+  } catch (err) {
+    console.warn('[wake-word] start mislukt, fallback', err instanceof Error ? err.message : err)
+    await stopOpenWakeWordListener().catch(() => {})
+    await stopPorcupineListener().catch(() => {})
+    activeEngine = 'voice_fallback'
+    await startVoiceFallbackListener(onDetected)
   }
-  if (activeEngine === 'porcupine') {
-    await startPorcupineListener(onDetected)
-    return
-  }
-  await startVoiceFallbackListener(onDetected)
 }
 
 export async function stopWakeWordListener(): Promise<void> {

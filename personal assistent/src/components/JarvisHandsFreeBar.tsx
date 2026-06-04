@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Platform, StyleSheet, Switch, Text, View } from 'react-native'
-import { prepareOpenWakeWord } from '@/lib/wake-word-openwakeword'
+import { ActivityIndicator, Platform, StyleSheet, Switch, Text, View } from 'react-native'
 import { getWakeWordEngineHint, getWakeWordEngineLabel } from '@/lib/wake-word'
+import { USE_OPENWAKEWORD_ON_ANDROID } from '@/config'
 import {
   loadHandsFreePreference,
   setHandsFreeEnabled,
@@ -27,32 +27,45 @@ export default function JarvisHandsFreeBar({ disabled }: Props) {
   const [status, setStatus] = useState<HandsFreeStatus>('off')
   const [message, setMessage] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [modelsLoading, setModelsLoading] = useState(false)
+  const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     void loadHandsFreePreference().then(pref => setOn(pref))
     return subscribeHandsFree((s, m) => {
       setStatus(s)
       setMessage(m)
+      if (s === 'off') void loadHandsFreePreference().then(pref => setOn(pref))
     })
   }, [])
 
-  useEffect(() => {
-    if (!on) return
-    setModelsLoading(true)
-    void prepareOpenWakeWord().finally(() => setModelsLoading(false))
-  }, [on])
-
   const toggle = async (value: boolean) => {
     setError(null)
-    setOn(value)
+    if (!value) {
+      setOn(false)
+      setBusy(true)
+      try {
+        await setHandsFreeEnabled(false)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Uitzetten mislukt')
+      } finally {
+        setBusy(false)
+      }
+      return
+    }
+
+    setBusy(true)
     try {
-      await setHandsFreeEnabled(value)
+      await setHandsFreeEnabled(true)
+      setOn(true)
     } catch (err) {
-      setOn(!value)
-      setError(err instanceof Error ? err.message : 'Hands-free mislukt')
+      setOn(false)
+      setError(err instanceof Error ? err.message : 'Hey Jarvis start mislukt')
+    } finally {
+      setBusy(false)
     }
   }
+
+  const switchDisabled = disabled || busy || status === 'starting'
 
   return (
     <View style={styles.panel}>
@@ -60,12 +73,18 @@ export default function JarvisHandsFreeBar({ disabled }: Props) {
         <View style={styles.textCol}>
           <Text style={styles.title}>Hey Jarvis</Text>
           <Text style={styles.subtitle}>
-            {Platform.OS === 'android'
-              ? 'Offline wake word (openWakeWord). Zeg "Hey Jarvis" — geen Picovoice-account nodig.'
-              : 'Zeg "Hey Jarvis" met de app actief.'}
+            {Platform.OS === 'android' && !USE_OPENWAKEWORD_ON_ANDROID
+              ? 'Spraakherkenning met app open — zeg "Hey Jarvis" of "Jarvis".'
+              : Platform.OS === 'android'
+                ? 'Offline wake word (openWakeWord). Zeg "Hey Jarvis".'
+                : 'Zeg "Hey Jarvis" met de app actief.'}
           </Text>
         </View>
-        <Switch value={on} onValueChange={v => void toggle(v)} disabled={disabled} />
+        {busy ? (
+          <ActivityIndicator color="#5b21b6" />
+        ) : (
+          <Switch value={on} onValueChange={v => void toggle(v)} disabled={switchDisabled} />
+        )}
       </View>
 
       <View style={styles.badge}>
@@ -73,9 +92,6 @@ export default function JarvisHandsFreeBar({ disabled }: Props) {
           {STATUS_LABELS[status]}
           {status === 'listening' ? ` · ${getWakeWordEngineLabel()}` : ''}
         </Text>
-        {modelsLoading ? (
-          <Text style={styles.messageText}>Modellen downloaden bij eerste gebruik (~3 MB)…</Text>
-        ) : null}
         {message ? <Text style={styles.messageText}>{message}</Text> : null}
       </View>
 

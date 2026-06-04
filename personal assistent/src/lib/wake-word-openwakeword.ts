@@ -1,7 +1,8 @@
 import * as FileSystem from 'expo-file-system'
 import { VoiceProcessor } from '@picovoice/react-native-voice-processor'
 import { Openwakeword } from 'react-native-openwakeword'
-import { OPENWAKEWORD_THRESHOLD, USE_PICOVOICE_WAKE } from '@/config'
+import { Platform } from 'react-native'
+import { OPENWAKEWORD_THRESHOLD, USE_OPENWAKEWORD_ON_ANDROID, USE_PICOVOICE_WAKE } from '@/config'
 
 const MODEL_RELEASE = 'https://github.com/dscripka/openWakeWord/releases/download/v0.5.1'
 const MODEL_FILES = [
@@ -24,6 +25,7 @@ let frameListener: ((frame: number[]) => void) | null = null
 
 export function isOpenWakeWordPreferred(): boolean {
   if (USE_PICOVOICE_WAKE) return false
+  if (Platform.OS === 'android' && !USE_OPENWAKEWORD_ON_ANDROID) return false
   return true
 }
 

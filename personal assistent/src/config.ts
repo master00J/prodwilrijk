@@ -11,6 +11,13 @@ export const PICOVOICE_ACCESS_KEY = process.env.EXPO_PUBLIC_PICOVOICE_ACCESS_KEY
 /** Zet op "true" om Picovoice te prefereren boven openWakeWord. */
 export const USE_PICOVOICE_WAKE = process.env.EXPO_PUBLIC_USE_PICOVOICE_WAKE === 'true'
 
+/**
+ * Android: native openWakeWord + Picovoice VoiceProcessor crasht op sommige toestellen na microfoon-toestemming.
+ * Standaard uit → veilige spraakherkenning (app actief). Zet EXPO_PUBLIC_USE_OPENWAKEWORD_ON_ANDROID=true voor offline wake word.
+ */
+export const USE_OPENWAKEWORD_ON_ANDROID =
+  process.env.EXPO_PUBLIC_USE_OPENWAKEWORD_ON_ANDROID === 'true'
+
 /** Detectiedrempel openWakeWord (0–1), default 0.5. */
 export const OPENWAKEWORD_THRESHOLD = Math.min(
   Math.max(Number(process.env.EXPO_PUBLIC_OPENWAKEWORD_THRESHOLD) || 0.5, 0.2),

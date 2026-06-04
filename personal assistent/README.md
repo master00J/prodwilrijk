@@ -137,7 +137,16 @@ eas submit -p android --profile production
 
 ---
 
-## 4. App crasht na Hey Jarvis / opent niet meer
+## 4. Hey Jarvis op Android (stabiel)
+
+Standaard gebruikt Android **spraakherkenning** (Google STT) met de app **open** — geen native openWakeWord, om crashes na microfoon-toestemming te vermijden.
+
+- Zeg **"Hey Jarvis"** of **"Jarvis"** als de app op de voorgrond staat.
+- Offline wake word + achtergrond: bij EAS-build `EXPO_PUBLIC_USE_OPENWAKEWORD_ON_ANDROID=true` zetten (experimenteel).
+
+Hey Jarvis start **niet** automatisch bij openen — alleen via de schakelaar.
+
+## 5. App crasht na Hey Jarvis / opent niet meer
 
 **Oorzaak:** een eerdere build sloeg “Hey Jarvis aan” op vóór de microfoon echt werkte; bij elke open startte de app opnieuw de microfoon en crashte native.
 
@@ -150,7 +159,7 @@ eas submit -p android --profile production
 
 ---
 
-## 5. Samsung-oortjes tips
+## 6. Samsung-oortjes tips
 
 - Verbind je Buds vóór je opneemt
 - Houd **“Houd ingedrukt”** ingedrukt tijdens je vraag; laat los om te versturen
@@ -159,7 +168,7 @@ eas submit -p android --profile production
 
 ---
 
-## 6. Veiligheid
+## 7. Veiligheid
 
 - Alleen ingelogde, geverifieerde Prodwilrijk-gebruikers kunnen de API aanroepen (zelfde middleware als de website)
 - Rate limit: zelfde bucket als AI-chat (20 req/min per IP)
