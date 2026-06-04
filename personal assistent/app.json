@@ -46,7 +46,20 @@
       "@config-plugins/react-native-webrtc",
       "./plugins/with-jarvis-android.js",
       "expo-asset",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 24,
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "ndkVersion": "27.1.12297006",
+            "useAndroidX": true,
+            "enableJetifier": true
+          }
+        }
+      ]
     ],
     "extra": {
       "eas": {

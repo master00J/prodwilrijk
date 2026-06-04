@@ -1,7 +1,5 @@
-import { Buffer } from 'buffer'
 import * as FileSystem from 'expo-file-system'
-import { Platform } from 'react-native'
-import LiveAudioStream from 'react-native-live-audio-stream'
+import { VoiceProcessor } from '@picovoice/react-native-voice-processor'
 import { Openwakeword } from 'react-native-openwakeword'
 import { OPENWAKEWORD_THRESHOLD, USE_PICOVOICE_WAKE } from '@/config'
 
@@ -12,11 +10,8 @@ const MODEL_FILES = [
   'hey_jarvis_v0.1.tflite',
 ] as const
 
-function modelDir(): string {
-  const base = FileSystem.documentDirectory
-  if (!base) throw new Error('App-opslag niet beschikbaar.')
-  return `${base}openwakeword/`
-}
+const FRAME_LENGTH = 1280
+const SAMPLE_RATE = 16000
 
 let modelsReady = false
 let listening = false
@@ -24,9 +19,17 @@ let onDetectedHandler: (() => void) | null = null
 let lastTriggerAt = 0
 const COOLDOWN_MS = 3500
 
+let frameListener: ((frame: number[]) => void) | null = null
+
 export function isOpenWakeWordPreferred(): boolean {
   if (USE_PICOVOICE_WAKE) return false
-  return Platform.OS === 'android' || Platform.OS === 'ios'
+  return true
+}
+
+function modelDir(): string {
+  const base = FileSystem.documentDirectory
+  if (!base) throw new Error('App-opslag niet beschikbaar.')
+  return `${base}openwakeword/`
 }
 
 async function downloadModelsIfNeeded(): Promise<{
@@ -71,20 +74,39 @@ export async function prepareOpenWakeWord(): Promise<boolean> {
   }
 }
 
-function onAudioData(base64Chunk: string) {
-  if (!listening || !onDetectedHandler) return
-  try {
-    const chunk = Buffer.from(base64Chunk, 'base64')
-    const buffer = chunk.buffer.slice(chunk.byteOffset, chunk.byteOffset + chunk.byteLength)
-    const result = Openwakeword.processFrame(buffer)
-    if (!result.isDetected) return
-    const now = Date.now()
-    if (now - lastTriggerAt < COOLDOWN_MS) return
-    lastTriggerAt = now
-    onDetectedHandler()
-  } catch {
-    // frame overslaan
+function pcmFrameToBuffer(frame: number[]): ArrayBuffer {
+  const int16 = new Int16Array(frame.length)
+  for (let i = 0; i < frame.length; i++) {
+    const sample = frame[i]
+    if (sample >= -32768 && sample <= 32767) {
+      int16[i] = sample
+    } else {
+      const clamped = Math.max(-1, Math.min(1, sample))
+      int16[i] = clamped < 0 ? clamped * 32768 : clamped * 32767
+    }
   }
+  return int16.buffer
+}
+
+function attachFrameListener() {
+  const vp = VoiceProcessor.instance
+  if (frameListener) {
+    vp.removeFrameListener(frameListener)
+  }
+  frameListener = (frame: number[]) => {
+    if (!listening || !onDetectedHandler || frame.length === 0) return
+    try {
+      const result = Openwakeword.processFrame(pcmFrameToBuffer(frame))
+      if (!result.isDetected) return
+      const now = Date.now()
+      if (now - lastTriggerAt < COOLDOWN_MS) return
+      lastTriggerAt = now
+      onDetectedHandler()
+    } catch {
+      // frame overslaan
+    }
+  }
+  vp.addFrameListener(frameListener)
 }
 
 export async function startOpenWakeWordListener(onDetected: () => void): Promise<void> {
@@ -93,28 +115,35 @@ export async function startOpenWakeWordListener(onDetected: () => void): Promise
     throw new Error('openWakeWord-modellen laden mislukt.')
   }
 
+  const vp = VoiceProcessor.instance
+  const hasPermission = await vp.hasRecordAudioPermission()
+  if (!hasPermission) {
+    throw new Error('Microfoon-toestemming is vereist voor Hey Jarvis.')
+  }
+
   onDetectedHandler = onDetected
   listening = true
   Openwakeword.reset()
+  attachFrameListener()
 
-  const base = FileSystem.documentDirectory || ''
-  LiveAudioStream.on('data', onAudioData)
-  LiveAudioStream.init({
-    sampleRate: 16000,
-    channels: 1,
-    bitsPerSample: 16,
-    bufferSize: 4096,
-    audioSource: 6,
-    wavFile: `${base}openwakeword_mic.wav`,
-  })
-  LiveAudioStream.start()
+  const recording = await vp.isRecording()
+  if (!recording) {
+    await vp.start(FRAME_LENGTH, SAMPLE_RATE)
+  }
 }
 
 export async function stopOpenWakeWordListener(): Promise<void> {
   listening = false
   onDetectedHandler = null
+  const vp = VoiceProcessor.instance
+  if (frameListener) {
+    vp.removeFrameListener(frameListener)
+    frameListener = null
+  }
   try {
-    LiveAudioStream.stop()
+    if (await vp.isRecording()) {
+      await vp.stop()
+    }
   } catch {
     // ignore
   }

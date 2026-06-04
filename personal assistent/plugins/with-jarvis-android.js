@@ -46,6 +46,17 @@ function withJarvisAndroid(config) {
       bg.$['android:foregroundServiceType'] = 'microphone'
     }
 
+    // @react-native-voice/voice trekt nog com.android.support binnen → manifest merger conflict met AndroidX.
+    app.$['android:appComponentFactory'] = 'androidx.core.app.CoreComponentFactory'
+    const existingReplace = app.$['tools:replace']
+    const replaceKeys = new Set(
+      (existingReplace ? String(existingReplace).split(',') : [])
+        .map(s => s.trim())
+        .filter(Boolean)
+    )
+    replaceKeys.add('android:appComponentFactory')
+    app.$['tools:replace'] = [...replaceKeys].join(',')
+
     return config
   })
 }
