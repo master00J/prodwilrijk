@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { applyForecastSave } from '@/lib/grote-inpak/apply-forecast-save'
+import {
+  excludeForecastRowsOnPils,
+  loadPilsCaseLabels,
+} from '@/lib/grote-inpak/load-pils-case-labels'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,8 +55,16 @@ export async function GET(request: NextRequest) {
       from += rows.length
     }
 
+    const pilsLabels = await loadPilsCaseLabels()
+    const { active, excludedOnPils } = excludeForecastRowsOnPils(all, pilsLabels)
+
     return NextResponse.json(
-      { data: all, count: all.length },
+      {
+        data: active,
+        count: active.length,
+        count_in_database: all.length,
+        count_already_on_pils: excludedOnPils,
+      },
       { headers: { 'Cache-Control': 'private, no-store, max-age=0', Pragma: 'no-cache' } }
     )
   } catch (error: any) {

@@ -51,6 +51,7 @@ const CHANGE_COLORS: Record<ChangeType, { bg: string; text: string; badge: strin
 
 export default function ForecastTab() {
   const [forecastData, setForecastData] = useState<any[]>([])
+  const [countOnPils, setCountOnPils] = useState(0)
   const [loading, setLoading] = useState(false)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -89,6 +90,7 @@ export default function ForecastTab() {
       if (res.ok) {
         const result = await res.json()
         setForecastData(result.data || [])
+        setCountOnPils(Number(result.count_already_on_pils) || 0)
       }
     } catch { /* ignore */ } finally {
       setLoading(false)
@@ -824,7 +826,11 @@ export default function ForecastTab() {
             <span className="font-semibold text-gray-800 flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-gray-500" /> Huidige forecast
               {forecastData.length > 0 && (
-                <span className="text-xs font-normal text-gray-400">({filteredForecast.length} / {forecastData.length})</span>
+                <span className="text-xs font-normal text-gray-400">
+                  ({searchQuery ? `${filteredForecast.length} gevonden · ` : ''}
+                  {forecastData.length} units — zelfde als Excel-export
+                  {countOnPils > 0 ? ` · ${countOnPils} al op PILS niet getoond` : ''})
+                </span>
               )}
             </span>
             {openSections.huidig ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
@@ -832,6 +838,11 @@ export default function ForecastTab() {
         </div>
 
         {openSections.huidig && <>
+        <p className="px-5 py-2 text-xs text-slate-600 bg-slate-50 border-b border-slate-100 leading-relaxed">
+          <strong>Forecast</strong> = units onderweg (Atlas). <strong>PILS</strong> = al in Willebroek of op trailer.
+          Labels die al op PILS staan tellen hier niet mee (zoals in de Excel). Units die nooit op forecast staan maar wel binnenkomen, staan alleen op{' '}
+          <span className="font-medium">Overzicht / PILS</span>, niet in deze lijst.
+        </p>
         <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex flex-wrap items-center gap-2">
             <input
               type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}

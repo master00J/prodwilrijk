@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 import { getBcMappingLookup } from '@/lib/bc-mapping/server'
 
 export const dynamic = 'force-dynamic'
+import { loadPilsCaseLabels } from '@/lib/grote-inpak/load-pils-case-labels'
 import { normalizeErpCode, normalizeKistnummer } from '@/lib/utils/erp-code-normalizer'
 
 type ForecastRow = {
@@ -176,9 +177,7 @@ export async function POST(request: NextRequest) {
     )
     const bcMapping = await getBcMappingLookup()
 
-    const pilsLabels = new Set(
-      (casesData || []).map((row: CaseRow) => String(row.case_label || '').trim()).filter(Boolean)
-    )
+    const pilsLabels = await loadPilsCaseLabels()
 
     const erpByCase = new Map<string, ErpRow>()
     const caseByErp = new Map<string, string>()
