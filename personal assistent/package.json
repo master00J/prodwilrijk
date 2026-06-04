@@ -9,7 +9,9 @@
     "ios": "expo run:ios",
     "type-check": "tsc --noEmit",
     "lint": "eslint .",
-    "eas-build-pre-install": "npm ci"
+    "eas-build-pre-install": "npm ci",
+    "eas-build-post-install": "node scripts/patch-android-native-deps.js",
+    "postinstall": "node scripts/patch-android-native-deps.js"
   },
   "dependencies": {
     "@config-plugins/react-native-webrtc": "^10.0.0",

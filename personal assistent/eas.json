@@ -18,7 +18,7 @@
         "EXPO_PUBLIC_API_BASE": "https://prodwilrijk.be",
         "NPM_CONFIG_PRODUCTION": "false"
       },
-      "prebuildCommand": "npx expo prebuild --platform android --clean",
+      "prebuildCommand": "node scripts/patch-android-native-deps.js && npx expo prebuild --platform android --clean",
       "android": {
         "buildType": "apk"
       }
@@ -30,7 +30,7 @@
         "EXPO_PUBLIC_API_BASE": "https://prodwilrijk.be",
         "NPM_CONFIG_PRODUCTION": "false"
       },
-      "prebuildCommand": "npx expo prebuild --platform android --clean",
+      "prebuildCommand": "node scripts/patch-android-native-deps.js && npx expo prebuild --platform android --clean",
       "android": {
         "buildType": "app-bundle"
       }

@@ -56,7 +56,10 @@
             "targetSdkVersion": 35,
             "ndkVersion": "27.1.12297006",
             "useAndroidX": true,
-            "enableJetifier": true
+            "enableJetifier": true,
+            "packagingOptions": {
+              "pickFirst": ["**/libreactnative.so", "**/libc++_shared.so"]
+            }
           }
         }
       ]
