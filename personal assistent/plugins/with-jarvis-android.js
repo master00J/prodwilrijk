@@ -1,9 +1,28 @@
-const { withAndroidManifest, AndroidConfig } = require('@expo/config-plugins')
+const { withAndroidManifest, withAppBuildGradle, AndroidConfig } = require('@expo/config-plugins')
 
 const BG_SERVICE = 'com.asterinet.react.bgactions.RNBackgroundActionsTask'
+const EXCLUDE_SUPPORT_MARKER = '// with-jarvis-android: exclude legacy com.android.support'
+
+/** @react-native-voice/voice + AndroidX → duplicate classes zonder exclude. */
+function withExcludeLegacySupportLibs(config) {
+  return withAppBuildGradle(config, cfg => {
+    if (cfg.modResults.contents.includes(EXCLUDE_SUPPORT_MARKER)) {
+      return cfg
+    }
+    cfg.modResults.contents += `
+
+${EXCLUDE_SUPPORT_MARKER}
+configurations.configureEach {
+    exclude group: 'com.android.support'
+}
+`
+    return cfg
+  })
+}
 
 /** Foreground service + microfoon voor hands-free "Jarvis" op Android 14+. */
 function withJarvisAndroid(config) {
+  config = withExcludeLegacySupportLibs(config)
   return withAndroidManifest(config, config => {
     const manifest = config.modResults
     const app = AndroidConfig.Manifest.getMainApplicationOrThrow(manifest)
@@ -43,7 +62,6 @@ function withJarvisAndroid(config) {
       bg.$['android:foregroundServiceType'] = 'microphone'
     }
 
-    // @react-native-voice/voice trekt nog com.android.support binnen → manifest merger conflict met AndroidX.
     app.$['android:appComponentFactory'] = 'androidx.core.app.CoreComponentFactory'
     const existingReplace = app.$['tools:replace']
     const replaceKeys = new Set(
