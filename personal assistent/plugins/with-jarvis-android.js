@@ -1,5 +1,3 @@
-const fs = require('fs')
-const path = require('path')
 const { withAndroidManifest, AndroidConfig } = require('@expo/config-plugins')
 
 const BG_SERVICE = 'com.asterinet.react.bgactions.RNBackgroundActionsTask'
