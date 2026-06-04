@@ -16,10 +16,9 @@
       "node": "22.11.0",
       "env": {
         "EXPO_PUBLIC_API_BASE": "https://prodwilrijk.be",
-        "EXPO_PUBLIC_USE_OPENWAKEWORD_ON_ANDROID": "false",
         "NPM_CONFIG_PRODUCTION": "false"
       },
-      "prebuildCommand": "prebuild --platform android --clean",
+      "prebuildCommand": "npx expo prebuild --platform android --clean",
       "android": {
         "buildType": "apk"
       }
@@ -31,7 +30,7 @@
         "EXPO_PUBLIC_API_BASE": "https://prodwilrijk.be",
         "NPM_CONFIG_PRODUCTION": "false"
       },
-      "prebuildCommand": "prebuild --platform android --clean",
+      "prebuildCommand": "npx expo prebuild --platform android --clean",
       "android": {
         "buildType": "app-bundle"
       }

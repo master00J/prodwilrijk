@@ -185,9 +185,14 @@ export async function stopOpenWakeWordListener(): Promise<void> {
 
 /** Soft release: microfoon uit, modellen blijven in geheugen (geen tweede loadModels). */
 export async function releaseOpenWakeWordListener(): Promise<void> {
+  if (!modelsLoadedInSession && !listening) return
   await ensureVoiceProcessorFullyStopped()
 }
 
 export function isOpenWakeWordListening(): boolean {
   return listening
+}
+
+export function wasOpenWakeWordUsedThisSession(): boolean {
+  return modelsLoadedInSession
 }

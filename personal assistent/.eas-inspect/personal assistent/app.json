@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "Prodwilrijk Assistent",
+    "slug": "prodwilrijk-personal-assistant",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "prodwilrijk-assistant",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1a4b8c"
+    },
+    "android": {
+      "package": "be.prodwilrijk.assistant",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1a4b8c"
+      },
+      "permissions": [
+        "INTERNET",
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS",
+        "BLUETOOTH_CONNECT",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
+    },
+    "plugins": [
+      "expo-dev-client",
+      [
+        "expo-av",
+        {
+          "microphonePermission": "De assistent gebruikt je microfoon (ook via oortjes) om vragen te stellen."
+        }
+      ],
+      "@config-plugins/react-native-webrtc",
+      "expo-asset",
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b9289d69-4585-4a88-b33c-8adb72e839ce"
+      }
+    },
+    "owner": "versility"
+  }
+}

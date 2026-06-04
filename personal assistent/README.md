@@ -159,22 +159,19 @@ eas submit -p android --profile production
 
 ---
 
-## 4. Hey Jarvis op Android (achtergrond)
+## 4. Hey Jarvis op Android
 
-**Doel:** zeg **"Hey Jarvis"** terwijl je een andere app gebruikt of het scherm uit staat — vergelijkbaar met "Hey Google", maar dan voor Prodwilrijk.
+**Standaard (veilig, o.a. Galaxy S24):** Google **spraakherkenning** — app **open** laten, zeg **"Hey Jarvis"** of **"Jarvis"**. Geen crash bij aanzetten.
 
-1. Installeer een **native APK** (niet Expo Go).
-2. Log in → zet **Hey Jarvis** aan → geef microfoon + notificatie toe.
-3. Laat de melding **Prodwilrijk Assistent actief** staan (foreground service).
-4. Zeg **"Hey Jarvis"** → de app opent en start live spraak.
+1. Native APK installeren (niet Expo Go).
+2. Inloggen → **Hey Jarvis** aanzetten → microfoon toestaan.
+3. App op voorgrond houden → **"Hey Jarvis"** → live spraak start.
 
-**Belangrijk (Android-beperkingen):**
+**Experimenteel (achtergrond, scherm uit):** alleen met build-flag `EXPO_PUBLIC_USE_OPENWAKEWORD_ON_ANDROID=true`. Crasht op veel Samsung-toestellen — daarom standaard **uit**.
 
-- Werkt **niet** na **Force stop** van de app — open de app één keer en zet Hey Jarvis opnieuw aan.
-- Geen volledige parity met Google Assistant (die is systeem-app). Zet **batterij-optimalisatie** uit voor betrouwbaar luisteren.
-- Eerste keer worden openWakeWord-modellen gedownload (~3 MB).
+**Hey Google-achtig zonder app open** is voor gewone apps niet mogelijk zonder systeem-integratie; Google Assistant heeft speciale Android-rechten.
 
-Hey Jarvis start **niet** automatisch bij inloggen — alleen via de schakelaar (voorkomt crash bij opstarten).
+Hey Jarvis start **niet** automatisch bij inloggen — alleen via de schakelaar.
 
 ## 5. App crasht na Hey Jarvis / opent niet meer
 

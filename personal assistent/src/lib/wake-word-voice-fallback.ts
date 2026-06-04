@@ -2,6 +2,7 @@ import Voice, {
   type SpeechErrorEvent,
   type SpeechResultsEvent,
 } from '@react-native-voice/voice'
+import { nativeAudioCooldown } from '@/lib/native-audio-cooldown'
 
 let listening = false
 let onDetectedHandler: (() => void) | null = null
@@ -24,6 +25,7 @@ function maybeTrigger(text: string) {
 }
 
 function bindVoiceHandlers() {
+  Voice.removeAllListeners()
   Voice.onSpeechPartialResults = (event: SpeechResultsEvent) => {
     maybeTrigger(textFromResults(event))
   }
@@ -42,12 +44,36 @@ function bindVoiceHandlers() {
   }
 }
 
-async function restartVoiceListening(): Promise<void> {
+async function ensureVoiceFullyStopped(): Promise<void> {
+  listening = false
+  onDetectedHandler = null
   try {
     await Voice.stop()
   } catch {
     // ignore
   }
+  try {
+    await Voice.cancel()
+  } catch {
+    // ignore
+  }
+  try {
+    await Voice.destroy()
+  } catch {
+    // ignore
+  }
+  Voice.removeAllListeners()
+  await nativeAudioCooldown(450)
+}
+
+async function restartVoiceListening(): Promise<void> {
+  if (!listening) return
+  try {
+    await Voice.stop()
+  } catch {
+    // ignore
+  }
+  await nativeAudioCooldown(200)
   try {
     await Voice.start('nl-NL')
   } catch {
@@ -56,6 +82,8 @@ async function restartVoiceListening(): Promise<void> {
 }
 
 export async function startVoiceFallbackListener(onDetected: () => void): Promise<void> {
+  await ensureVoiceFullyStopped()
+
   const available = await Voice.isAvailable()
   if (!available) {
     throw new Error('Spraakherkenning is niet beschikbaar op dit toestel.')
@@ -68,19 +96,7 @@ export async function startVoiceFallbackListener(onDetected: () => void): Promis
 }
 
 export async function stopVoiceFallbackListener(): Promise<void> {
-  listening = false
-  onDetectedHandler = null
-  try {
-    await Voice.stop()
-  } catch {
-    // ignore
-  }
-  try {
-    await Voice.destroy()
-  } catch {
-    // ignore
-  }
-  Voice.removeAllListeners()
+  await ensureVoiceFullyStopped()
 }
 
 export function isVoiceFallbackListening(): boolean {

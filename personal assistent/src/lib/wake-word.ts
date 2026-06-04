@@ -1,5 +1,5 @@
 import { Platform } from 'react-native'
-import { USE_PICOVOICE_WAKE } from '@/config'
+import { USE_OPENWAKEWORD_ON_ANDROID, USE_PICOVOICE_WAKE } from '@/config'
 import {
   isOpenWakeWordPreferred,
   isOpenWakeWordListening,
@@ -31,8 +31,11 @@ export async function resolveWakeWordEngine(): Promise<WakeWordEngine> {
   if (USE_PICOVOICE_WAKE && isPorcupineConfigured()) {
     return 'porcupine'
   }
-  if (isOpenWakeWordPreferred() && (await prepareOpenWakeWord())) {
-    return 'openwakeword'
+  // openWakeWord alleen als expliciet ingeschakeld bij build (crasht op veel Samsung-toestellen)
+  if (isOpenWakeWordPreferred() && USE_OPENWAKEWORD_ON_ANDROID) {
+    if (await prepareOpenWakeWord()) {
+      return 'openwakeword'
+    }
   }
   if (isPorcupineConfigured()) {
     return 'porcupine'
@@ -64,31 +67,23 @@ export function getWakeWordEngineHint(): string {
     return 'Zeg "Jarvis" via Picovoice.'
   }
   if (Platform.OS === 'android') {
-    return 'Zeg "Hey Jarvis" (spraakherkenning, alleen met app open). Voor achtergrond: nieuwe APK met openWakeWord.'
+    return 'Zeg "Hey Jarvis" of "Jarvis" — app moet open/zichtbaar zijn (veilige modus voor Samsung).'
   }
   return 'Fallback spraakherkenning met app open.'
 }
 
 export async function startWakeWordListener(onDetected: () => void): Promise<void> {
-  try {
-    activeEngine = await resolveWakeWordEngine()
+  activeEngine = await resolveWakeWordEngine()
 
-    if (activeEngine === 'openwakeword') {
-      await startOpenWakeWordListener(onDetected)
-      return
-    }
-    if (activeEngine === 'porcupine') {
-      await startPorcupineListener(onDetected)
-      return
-    }
-    await startVoiceFallbackListener(onDetected)
-  } catch (err) {
-    console.warn('[wake-word] start mislukt, fallback', err instanceof Error ? err.message : err)
-    await stopOpenWakeWordListener().catch(() => {})
-    await stopPorcupineListener().catch(() => {})
-    activeEngine = 'voice_fallback'
-    await startVoiceFallbackListener(onDetected)
+  if (activeEngine === 'openwakeword') {
+    await startOpenWakeWordListener(onDetected)
+    return
   }
+  if (activeEngine === 'porcupine') {
+    await startPorcupineListener(onDetected)
+    return
+  }
+  await startVoiceFallbackListener(onDetected)
 }
 
 export async function stopWakeWordListener(): Promise<void> {
@@ -102,10 +97,13 @@ export async function stopWakeWordListener(): Promise<void> {
 }
 
 export async function releaseWakeWordListener(): Promise<void> {
-  await stopOpenWakeWordListener()
+  if (activeEngine === 'openwakeword') {
+    await releaseOpenWakeWordListener()
+  } else {
+    await stopOpenWakeWordListener().catch(() => {})
+  }
   await stopPorcupineListener()
   await stopVoiceFallbackListener()
-  await releaseOpenWakeWordListener()
   await releasePorcupineListener()
   activeEngine = null
 }

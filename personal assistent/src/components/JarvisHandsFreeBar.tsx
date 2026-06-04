@@ -79,9 +79,9 @@ export default function JarvisHandsFreeBar({ disabled }: Props) {
           <Text style={styles.title}>Hey Jarvis</Text>
           <Text style={styles.subtitle}>
             {Platform.OS === 'android' && USE_OPENWAKEWORD_ON_ANDROID
-              ? 'Zeg "Hey Jarvis" — ook met scherm uit (melding blijft actief).'
+              ? 'Zeg "Hey Jarvis" — ook met scherm uit (experimenteel).'
               : Platform.OS === 'android'
-                ? 'Alleen met app open. Installeer nieuwste APK voor achtergrond-wake word.'
+                ? 'Veilige modus (Samsung e.d.): app open laten, zeg "Hey Jarvis" of "Jarvis".'
                 : 'Zeg "Hey Jarvis" met de app actief.'}
           </Text>
         </View>

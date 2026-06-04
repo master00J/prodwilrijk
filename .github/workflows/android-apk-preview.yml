@@ -19,7 +19,7 @@ jobs:
 
     env:
       EXPO_PUBLIC_API_BASE: https://prodwilrijk.be
-      EXPO_PUBLIC_USE_OPENWAKEWORD_ON_ANDROID: "true"
+      EXPO_PUBLIC_USE_OPENWAKEWORD_ON_ANDROID: "false"
       CI: true
       NODE_OPTIONS: --max-old-space-size=6144
 

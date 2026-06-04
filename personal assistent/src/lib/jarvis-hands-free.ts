@@ -197,16 +197,14 @@ async function startHandsFreeInner(): Promise<void> {
   enabled = true
   pausedForLive = false
 
-  if (Platform.OS === 'android') {
+  if (Platform.OS === 'android' && USE_OPENWAKEWORD_ON_ANDROID) {
     try {
       await ensurePostNotificationsIfNeeded()
       await acquireBackgroundKeeper()
-      if (USE_OPENWAKEWORD_ON_ANDROID) {
-        setStatus(
-          'listening',
-          'Hey Jarvis actief — melding blijft zichtbaar. Zeg "Hey Jarvis".'
-        )
-      }
+      setStatus(
+        'listening',
+        'Hey Jarvis actief — melding blijft zichtbaar. Zeg "Hey Jarvis".'
+      )
     } catch (err) {
       console.warn(
         '[hands-free] achtergrondmelding',
@@ -253,8 +251,12 @@ export async function setHandsFreeEnabled(
     }
 
     await stopHandsFreeInner()
-    await releaseWakeWordListener()
-    await nativeAudioCooldown(600)
+    if (USE_OPENWAKEWORD_ON_ANDROID) {
+      await releaseWakeWordListener()
+      await nativeAudioCooldown(600)
+    } else {
+      await nativeAudioCooldown(350)
+    }
 
     if (gen !== toggleGeneration) return
 
@@ -305,6 +307,14 @@ export function attachAppStateHandsFree(): void {
     if (!enabled || pausedForLive) return
 
     if (Platform.OS === 'android') {
+      if (USE_OPENWAKEWORD_ON_ANDROID) return
+      if (next === 'active' && !isWakeWordListening()) {
+        void beginWakeWord().catch(() => {
+          setStatus('error', 'Hey Jarvis kon niet herstarten.')
+        })
+      } else if (next !== 'active') {
+        void stopWakeWordListener().catch(() => {})
+      }
       return
     }
 
