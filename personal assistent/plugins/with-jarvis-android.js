@@ -1,10 +1,14 @@
+const fs = require('fs')
+const path = require('path')
 const {
   withAndroidManifest,
   withProjectBuildGradle,
+  withDangerousMod,
   AndroidConfig,
 } = require('@expo/config-plugins')
 
-const ANDROIDX_CORE_MARKER = 'androidx.core:core:1.15.0'
+const ANDROIDX_CORE = 'androidx.core:core:1.15.0'
+const ANDROIDX_CORE_MARKER = ANDROIDX_CORE
 
 /** ServiceCompat.startForeground(4 args) vereist androidx.core >= 1.12 (background-actions 4.1). */
 function withAndroidxCoreForBackgroundActions(config) {
@@ -15,8 +19,8 @@ function withAndroidxCoreForBackgroundActions(config) {
     cfg.modResults.contents += `
 
 // with-jarvis-android: force recent androidx.core for react-native-background-actions
-subprojects { subproject ->
-  subproject.configurations.configureEach { configuration ->
+allprojects {
+  configurations.configureEach { configuration ->
     configuration.resolutionStrategy.force '${ANDROIDX_CORE_MARKER}'
   }
 }
@@ -25,11 +29,78 @@ subprojects { subproject ->
   })
 }
 
+const BG_JAVA = path.join(
+  'node_modules',
+  'react-native-background-actions',
+  'android',
+  'src',
+  'main',
+  'java',
+  'com',
+  'asterinet',
+  'react',
+  'bgactions',
+  'RNBackgroundActionsTask.java'
+)
+
+const BG_GRADLE = path.join(
+  'node_modules',
+  'react-native-background-actions',
+  'android',
+  'build.gradle'
+)
+
+/** Patch node_modules vóór Gradle compile (EAS prebuild). */
+function withPatchBackgroundActionsModule(config) {
+  return withDangerousMod(config, [
+    'android',
+    async cfg => {
+      const root = cfg.modRequest.projectRoot
+      const javaPath = path.join(root, BG_JAVA)
+      const gradlePath = path.join(root, BG_GRADLE)
+
+      if (fs.existsSync(javaPath)) {
+        let src = fs.readFileSync(javaPath, 'utf8')
+        if (src.includes('ServiceCompat.startForeground')) {
+          src = src.replace(
+            /import androidx\.core\.app\.ServiceCompat;\r?\n/,
+            ''
+          )
+          src = src.replace(
+            /ServiceCompat\.startForeground\(\s*this,\s*SERVICE_NOTIFICATION_ID,\s*notification,\s*bgOptions\.getForegroundServiceType\(\)\s*\);/,
+            `if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(SERVICE_NOTIFICATION_ID, notification, bgOptions.getForegroundServiceType());
+        } else {
+            startForeground(SERVICE_NOTIFICATION_ID, notification);
+        }`
+          )
+          fs.writeFileSync(javaPath, src)
+        }
+      }
+
+      if (fs.existsSync(gradlePath)) {
+        let gradle = fs.readFileSync(gradlePath, 'utf8')
+        const dep = `implementation "${ANDROIDX_CORE}"`
+        if (!gradle.includes(ANDROIDX_CORE)) {
+          gradle = gradle.replace(
+            /dependencies\s*\{/,
+            `dependencies {\n    ${dep}`
+          )
+          fs.writeFileSync(gradlePath, gradle)
+        }
+      }
+
+      return cfg
+    },
+  ])
+}
+
 const BG_SERVICE = 'com.asterinet.react.bgactions.RNBackgroundActionsTask'
 
 /** Foreground service + microfoon voor hands-free "Jarvis" op Android 14+. */
 function withJarvisAndroid(config) {
   config = withAndroidxCoreForBackgroundActions(config)
+  config = withPatchBackgroundActionsModule(config)
   return withAndroidManifest(config, config => {
     const manifest = config.modResults
     const app = AndroidConfig.Manifest.getMainApplicationOrThrow(manifest)
