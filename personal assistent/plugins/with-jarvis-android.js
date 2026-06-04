@@ -1,57 +1,11 @@
 const fs = require('fs')
 const path = require('path')
-const {
-  withAndroidManifest,
-  withProjectBuildGradle,
-  withDangerousMod,
-  AndroidConfig,
-} = require('@expo/config-plugins')
-
-const ANDROIDX_CORE = 'androidx.core:core:1.15.0'
-const ANDROIDX_CORE_MARKER = ANDROIDX_CORE
-
-/** Optioneel: forceer androidx.core via root Gradle (backup naast scripts/patch-android-native-deps.js). */
-function withAndroidxCoreForBackgroundActions(config) {
-  return withProjectBuildGradle(config, cfg => {
-    const marker = '// with-jarvis-android: androidx.core force'
-    if (cfg.modResults.contents.includes(marker)) {
-      return cfg
-    }
-    cfg.modResults.contents += `
-
-${marker}
-subprojects { sub ->
-  sub.afterEvaluate {
-    sub.configurations.configureEach { cfg ->
-      cfg.resolutionStrategy.force '${ANDROIDX_CORE_MARKER}'
-    }
-  }
-}
-`
-    return cfg
-  })
-}
-
-/** Patch node_modules tijdens prebuild (backup; primair via scripts/patch-android-native-deps.js). */
-function withPatchBackgroundActionsModule(config) {
-  return withDangerousMod(config, [
-    'android',
-    async cfg => {
-      const { patchBackgroundActions } = require(
-        path.join(cfg.modRequest.projectRoot, 'scripts/patch-android-native-deps.js')
-      )
-      patchBackgroundActions(cfg.modRequest.projectRoot)
-      return cfg
-    },
-  ])
-}
+const { withAndroidManifest, AndroidConfig } = require('@expo/config-plugins')
 
 const BG_SERVICE = 'com.asterinet.react.bgactions.RNBackgroundActionsTask'
 
 /** Foreground service + microfoon voor hands-free "Jarvis" op Android 14+. */
 function withJarvisAndroid(config) {
-  config = withAndroidxCoreForBackgroundActions(config)
-  config = withPatchBackgroundActionsModule(config)
   return withAndroidManifest(config, config => {
     const manifest = config.modResults
     const app = AndroidConfig.Manifest.getMainApplicationOrThrow(manifest)
