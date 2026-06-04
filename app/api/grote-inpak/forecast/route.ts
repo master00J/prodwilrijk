@@ -3,7 +3,9 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 import { applyForecastSave } from '@/lib/grote-inpak/apply-forecast-save'
 import {
   excludeForecastRowsOnPils,
+  filterRowsByArrivalDate,
   loadPilsCaseLabels,
+  loadPilsOnlyCases,
 } from '@/lib/grote-inpak/load-pils-case-labels'
 
 export const dynamic = 'force-dynamic'
@@ -58,10 +60,28 @@ export async function GET(request: NextRequest) {
     const pilsLabels = await loadPilsCaseLabels()
     const { active, excludedOnPils } = excludeForecastRowsOnPils(all, pilsLabels)
 
+    const forecastLabelSet = new Set(
+      all.map(row => String(row.case_label || '').trim()).filter(Boolean)
+    )
+    let pilsOnly = await loadPilsOnlyCases(forecastLabelSet)
+    pilsOnly = filterRowsByArrivalDate(pilsOnly, dateFrom, dateTo).map(row => ({
+      ...row,
+      source_file: 'PILS (niet op forecast)',
+      list_kind: 'pils_only' as const,
+    }))
+
+    const forecastRows = active.map(row => ({
+      ...row,
+      list_kind: 'forecast' as const,
+    }))
+
     return NextResponse.json(
       {
-        data: active,
-        count: active.length,
+        data: forecastRows,
+        pils_only: pilsOnly,
+        count: forecastRows.length + pilsOnly.length,
+        count_forecast_active: forecastRows.length,
+        count_pils_only: pilsOnly.length,
         count_in_database: all.length,
         count_already_on_pils: excludedOnPils,
       },

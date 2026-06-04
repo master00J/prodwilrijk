@@ -51,7 +51,9 @@ const CHANGE_COLORS: Record<ChangeType, { bg: string; text: string; badge: strin
 
 export default function ForecastTab() {
   const [forecastData, setForecastData] = useState<any[]>([])
+  const [pilsOnlyData, setPilsOnlyData] = useState<any[]>([])
   const [countOnPils, setCountOnPils] = useState(0)
+  const [countPilsOnly, setCountPilsOnly] = useState(0)
   const [loading, setLoading] = useState(false)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -90,7 +92,9 @@ export default function ForecastTab() {
       if (res.ok) {
         const result = await res.json()
         setForecastData(result.data || [])
+        setPilsOnlyData(result.pils_only || [])
         setCountOnPils(Number(result.count_already_on_pils) || 0)
+        setCountPilsOnly(Number(result.count_pils_only) || 0)
       }
     } catch { /* ignore */ } finally {
       setLoading(false)
@@ -229,7 +233,7 @@ export default function ForecastTab() {
     }
   }
 
-  const filteredForecast = forecastData.filter(item => {
+  const matchesSearch = (item: { case_label?: string; case_type?: string; source_file?: string }) => {
     if (!searchQuery) return true
     const q = searchQuery.toLowerCase()
     return (
@@ -237,7 +241,11 @@ export default function ForecastTab() {
       String(item.case_type || '').toLowerCase().includes(q) ||
       String(item.source_file || '').toLowerCase().includes(q)
     )
-  })
+  }
+
+  const filteredForecast = forecastData.filter(matchesSearch)
+  const filteredPilsOnly = pilsOnlyData.filter(matchesSearch)
+  const totalVisible = filteredForecast.length + filteredPilsOnly.length
 
   // ── HISTORIEK OVERZICHT (alle caselabels) ──
   const [historyData, setHistoryData] = useState<any[]>([])
@@ -825,11 +833,13 @@ export default function ForecastTab() {
           >
             <span className="font-semibold text-gray-800 flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-gray-500" /> Huidige forecast
-              {forecastData.length > 0 && (
+              {(forecastData.length > 0 || pilsOnlyData.length > 0) && (
                 <span className="text-xs font-normal text-gray-400">
-                  ({searchQuery ? `${filteredForecast.length} gevonden · ` : ''}
-                  {forecastData.length} units — zelfde als Excel-export
-                  {countOnPils > 0 ? ` · ${countOnPils} al op PILS niet getoond` : ''})
+                  ({searchQuery ? `${totalVisible} gevonden · ` : ''}
+                  {forecastData.length} forecast
+                  {countPilsOnly > 0 ? ` + ${countPilsOnly} alleen PILS` : ''}
+                  {countOnPils > 0 ? ` · ${countOnPils} forecast al op PILS verborgen` : ''}
+                  {forecastData.length > 0 ? ' · forecast-deel = Excel' : ''})
                 </span>
               )}
             </span>
@@ -839,9 +849,8 @@ export default function ForecastTab() {
 
         {openSections.huidig && <>
         <p className="px-5 py-2 text-xs text-slate-600 bg-slate-50 border-b border-slate-100 leading-relaxed">
-          <strong>Forecast</strong> = units onderweg (Atlas). <strong>PILS</strong> = al in Willebroek of op trailer.
-          Labels die al op PILS staan tellen hier niet mee (zoals in de Excel). Units die nooit op forecast staan maar wel binnenkomen, staan alleen op{' '}
-          <span className="font-medium">Overzicht / PILS</span>, niet in deze lijst.
+          <strong>Forecast</strong> = onderweg (Atlas), minus labels die al op PILS staan (zelfde basis als Excel-export).{' '}
+          <strong>Alleen PILS</strong> = nooit op forecast aangemeld, wel in Willebroek of op trailer — die staan hieronder ook in de lijst.
         </p>
         <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex flex-wrap items-center gap-2">
             <input
@@ -862,13 +871,14 @@ export default function ForecastTab() {
 
         {loading ? (
           <div className="py-10 text-center text-gray-400">Laden...</div>
-        ) : filteredForecast.length === 0 ? (
+        ) : totalVisible === 0 ? (
           <div className="py-10 text-center text-gray-400">Geen forecast data. Upload een forecast CSV.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-100 text-sm">
               <thead className="bg-gray-50 text-xs uppercase text-gray-500 font-medium">
                 <tr>
+                  <th className="px-5 py-3 text-left">Status</th>
                   <th className="px-5 py-3 text-left">Case Label</th>
                   <th className="px-5 py-3 text-left">Case Type</th>
                   <th className="px-4 py-3 text-left">Aankomstdatum</th>
@@ -877,7 +887,25 @@ export default function ForecastTab() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredForecast.map((item, i) => (
-                  <tr key={i} className="hover:bg-gray-50">
+                  <tr key={`f-${i}`} className="hover:bg-gray-50">
+                    <td className="px-5 py-2.5">
+                      <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded">
+                        Forecast
+                      </span>
+                    </td>
+                    <td className="px-5 py-2.5 font-medium text-gray-900">{item.case_label || '—'}</td>
+                    <td className="px-5 py-2.5 text-gray-700">{item.case_type || '—'}</td>
+                    <td className="px-4 py-2.5 text-gray-700">{fmtDate(item.arrival_date)}</td>
+                    <td className="px-4 py-2.5 text-gray-400 text-xs">{item.source_file || '—'}</td>
+                  </tr>
+                ))}
+                {filteredPilsOnly.map((item, i) => (
+                  <tr key={`p-${i}`} className="hover:bg-amber-50/60 bg-amber-50/30">
+                    <td className="px-5 py-2.5">
+                      <span className="text-xs font-semibold text-amber-900 bg-amber-100 px-2 py-0.5 rounded">
+                        Alleen PILS
+                      </span>
+                    </td>
                     <td className="px-5 py-2.5 font-medium text-gray-900">{item.case_label || '—'}</td>
                     <td className="px-5 py-2.5 text-gray-700">{item.case_type || '—'}</td>
                     <td className="px-4 py-2.5 text-gray-700">{fmtDate(item.arrival_date)}</td>
