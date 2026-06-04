@@ -14,7 +14,7 @@ import { ItemCompareSection } from './ItemCompareSection'
 import { OrderManagementSection } from './OrderManagementSection'
 import { ProductionDetailTable } from './ProductionDetailTable'
 import { filterRunsByItem, itemMatchesQuery } from './item-analysis'
-import { toIsoDate } from './kpi-formatters'
+import { daysAgoIso, toIsoDate, todayIso, yearStartIso } from './kpi-formatters'
 import type {
   ActiveSession,
   DailyHours,
@@ -44,8 +44,8 @@ export default function ProductionOrderKpiPage() {
   )
 
   const [selectedSite, setSelectedSite] = useState<Site>(DEFAULT_SITE)
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  const [dateFrom, setDateFrom] = useState(daysAgoIso(30))
+  const [dateTo, setDateTo] = useState(todayIso())
   const [loading, setLoading] = useState(false)
   const [runs, setRuns] = useState<RevenueRun[]>([])
   const [kpiData, setKpiData] = useState<KpiData | null>(null)
@@ -203,6 +203,12 @@ export default function ProductionOrderKpiPage() {
     const uniqueEmployees = kpiData?.employees?.length ?? 0
     const totalHours = filteredRuns.reduce((s, r) => s + (r.hours || 0), 0)
     const zaagHours = (kpiData?.zaagByDate ?? []).reduce((s, z) => s + z.hours, 0)
+    const totalRevenue = filteredRuns.reduce((s, r) => s + (r.revenue ?? 0), 0)
+    const totalMaterialCost = filteredRuns.reduce((s, r) => s + (r.material_cost_total ?? 0), 0)
+    const totalMargin = filteredRuns.reduce((s, r) => s + (r.margin ?? 0), 0)
+    const marginPctOverall =
+      totalRevenue > 0 ? (totalMargin / totalRevenue) * 100 : null
+    const revPerHourOverall = totalHours > 0 ? totalRevenue / totalHours : null
 
     return {
       totalQuantity,
@@ -214,6 +220,11 @@ export default function ProductionOrderKpiPage() {
       avgHoursPerPiece: totalQuantity > 0 ? totalHours / totalQuantity : 0,
       zaagHours,
       activeStepCount: kpiData?.steps?.length ?? 0,
+      totalRevenue,
+      totalMaterialCost,
+      totalMargin,
+      marginPctOverall,
+      revPerHourOverall,
     }
   }, [filteredRuns, kpiData])
 
@@ -338,9 +349,13 @@ export default function ProductionOrderKpiPage() {
                   className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white"
                   title="Tot"
                 />
-                <div className="flex rounded-lg border border-gray-300 overflow-hidden bg-white">
+                <div className="flex flex-wrap rounded-lg border border-gray-300 overflow-hidden bg-white">
                   {([
                     ['today', 'Vandaag'],
+                    ['7d', '7 d'],
+                    ['30d', '30 d'],
+                    ['90d', '90 d'],
+                    ['ytd', 'YTD'],
                     ['week', 'Week'],
                     ['month', 'Maand'],
                     ['all', 'Alles'],
@@ -348,7 +363,29 @@ export default function ProductionOrderKpiPage() {
                     <button
                       key={preset}
                       type="button"
-                      onClick={() => applyPreset(preset)}
+                      onClick={() => {
+                        if (preset === '7d') {
+                          setDateFrom(daysAgoIso(7))
+                          setDateTo(todayIso())
+                          return
+                        }
+                        if (preset === '30d') {
+                          setDateFrom(daysAgoIso(30))
+                          setDateTo(todayIso())
+                          return
+                        }
+                        if (preset === '90d') {
+                          setDateFrom(daysAgoIso(90))
+                          setDateTo(todayIso())
+                          return
+                        }
+                        if (preset === 'ytd') {
+                          setDateFrom(yearStartIso())
+                          setDateTo(todayIso())
+                          return
+                        }
+                        applyPreset(preset)
+                      }}
                       className="px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 border-r border-gray-200 last:border-r-0"
                     >
                       {label}

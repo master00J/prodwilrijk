@@ -78,7 +78,21 @@ export type DerivedKpis = {
   avgHoursPerPiece: number
   zaagHours: number
   activeStepCount: number
+  totalRevenue: number
+  totalMaterialCost: number
+  totalMargin: number
+  marginPctOverall: number | null
+  revPerHourOverall: number | null
 }
+
+export type DetailSortKey =
+  | 'date'
+  | 'hours'
+  | 'revenue'
+  | 'margin'
+  | 'margin_pct'
+  | 'rev_per_hour'
+  | 'quantity'
 
 export type DailyFinancial = {
   date: string
