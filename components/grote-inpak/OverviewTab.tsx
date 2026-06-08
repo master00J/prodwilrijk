@@ -83,6 +83,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
   const [willebroekFilter, setWillebroekFilter] = useState('Alle')
   const [priorityFilter, setPriorityFilter] = useState('Alle')
   const [kistTypeFilter, setKistTypeFilter] = useState<'Alle' | 'C' | 'K'>('Alle')
+  const [wmsFilter, setWmsFilter] = useState('Alle')
   const [searchQuery, setSearchQuery] = useState('')
   const [verbergInProductie, setVerbergInProductie] = useState(false)
   const [verbergOpStock, setVerbergOpStock] = useState(false)
@@ -153,6 +154,15 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
     []
   )
 
+  const wmsLocations = useMemo(() => {
+    const locs = new Set(
+      overview
+        .map((item) => (item.stock_location || '').trim())
+        .filter(Boolean)
+    )
+    return ['Alle', ...Array.from(locs).sort((a, b) => a.localeCompare(b, 'nl-BE')), '(Leeg)']
+  }, [overview])
+
   // Apply filters
   useEffect(() => {
     let filtered = [...overview]
@@ -184,6 +194,14 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
         const ct = String(item.case_type || '').toUpperCase()
         return ct.startsWith('K') || ct.startsWith('V') // V-kisten = K
       })
+    }
+
+    if (wmsFilter !== 'Alle') {
+      if (wmsFilter === '(Leeg)') {
+        filtered = filtered.filter((item) => !(item.stock_location || '').trim())
+      } else {
+        filtered = filtered.filter((item) => (item.stock_location || '').trim() === wmsFilter)
+      }
     }
 
     if (searchQuery) {
@@ -225,7 +243,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
     }
 
     setFilteredData(filtered)
-  }, [overview, locationFilter, statusFilter, willebroekFilter, priorityFilter, kistTypeFilter, searchQuery, verbergInProductie, verbergOpStock, verbergInTransfer])
+  }, [overview, locationFilter, statusFilter, willebroekFilter, priorityFilter, kistTypeFilter, wmsFilter, searchQuery, verbergInProductie, verbergOpStock, verbergInTransfer])
 
   // Sort filtered data
   const sortedData = useMemo(() => {
@@ -417,12 +435,14 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
     willebroek: willebroekFilter,
     priority: priorityFilter,
     kistType: kistTypeFilter,
+    wms: wmsFilter,
     search: searchQuery,
     verbergInProductie: String(verbergInProductie),
     verbergOpStock: String(verbergOpStock),
     verbergInTransfer: String(verbergInTransfer),
   }), [
     kistTypeFilter,
+    wmsFilter,
     locationFilter,
     priorityFilter,
     searchQuery,
@@ -451,6 +471,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
     willebroekFilter !== 'Alle' ||
     priorityFilter !== 'Alle' ||
     kistTypeFilter !== 'Alle' ||
+    wmsFilter !== 'Alle' ||
     searchQuery.trim() !== '' ||
     verbergInProductie ||
     verbergOpStock ||
@@ -462,6 +483,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
     setWillebroekFilter('Alle')
     setPriorityFilter('Alle')
     setKistTypeFilter('Alle')
+    setWmsFilter('Alle')
     setSearchQuery('')
     setVerbergInProductie(false)
     setVerbergOpStock(false)
@@ -511,6 +533,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
               willebroek: willebroekFilter,
               priority: priorityFilter,
               kistType: kistTypeFilter,
+              wms: wmsFilter,
               search: searchQuery,
               verbergInProductie: String(verbergInProductie),
               verbergOpStock: String(verbergOpStock),
@@ -545,6 +568,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
     commentCount,
     filteredData,
     kistTypeFilter,
+    wmsFilter,
     locationFilter,
     overview.length,
     priorityCount,
@@ -1068,7 +1092,7 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
             <span className="text-xs text-slate-500">Tip: combineer filters en snelknoppen hieronder.</span>
           )}
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-3">
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Kistsoort</label>
             <select
@@ -1131,6 +1155,20 @@ export default function OverviewTab({ overview }: OverviewTabProps) {
               <option value="Alle">Alles</option>
               <option value="Priority Only">Alleen priority</option>
               <option value="Non-Priority">Zonder priority</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">WMS</label>
+            <select
+              value={wmsFilter}
+              onChange={(e) => setWmsFilter(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-[#1a4b8c] focus:ring-1 focus:ring-[#1a4b8c]"
+            >
+              {wmsLocations.map((loc) => (
+                <option key={loc} value={loc}>
+                  {loc === 'Alle' ? 'Alle locaties' : loc}
+                </option>
+              ))}
             </select>
           </div>
           <div>
