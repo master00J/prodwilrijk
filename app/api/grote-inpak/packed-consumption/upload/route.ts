@@ -140,16 +140,21 @@ export async function POST(request: NextRequest) {
     // Haal alle bestaande PCCANO labels op voor de case_types in deze upload
     const { data: existingLabels } = await supabaseAdmin
       .from('grote_inpak_packed_labels')
-      .select('case_label')
+      .select('case_label, case_type')
       .in('case_type', uniqueCaseTypes)
-      .limit(50000)
-      .maybeSingle()
-      .then(() => supabaseAdmin
-        .from('grote_inpak_packed_labels')
-        .select('case_label')
-        .in('case_type', uniqueCaseTypes))
 
     const existingLabelSet = new Set((existingLabels || []).map((r: any) => String(r.case_label || '').trim()))
+    const existingTypeByLabel = new Map(
+      (existingLabels || []).map((r: any) => [
+        String(r.case_label || '').trim(),
+        r.case_type ? String(r.case_type).trim() : null,
+      ])
+    )
+    const uploadTypeByLabel = new Map(
+      allParsed
+        .filter((r) => r.case_label)
+        .map((r) => [String(r.case_label).trim(), r.case_type ? String(r.case_type).trim() : null])
+    )
 
     // Unieke PCCANO labels in deze upload
     const uploadLabelSet = new Set(allParsed.map(r => r.case_label).filter(Boolean))
@@ -157,6 +162,14 @@ export async function POST(request: NextRequest) {
     // "Afgegaan" = labels die eerder wel voorkwamen maar niet in deze batch zitten
     // (alleen relevant voor labels die in hetzelfde datumbereik verwacht worden)
     const labelsRemoved  = [...existingLabelSet].filter(l => !uploadLabelSet.has(l)).sort()
+    const labelsAddedDetail = labelsAdded.map((label) => ({
+      label,
+      case_type: uploadTypeByLabel.get(label) ?? null,
+    }))
+    const labelsRemovedDetail = labelsRemoved.map((label) => ({
+      label,
+      case_type: existingTypeByLabel.get(label) ?? null,
+    }))
 
     // ── Sla caselabels op voor toekomstige vergelijkingen ───────────────────
     // Upsert alle PCCANO → case_type relaties
@@ -201,6 +214,8 @@ export async function POST(request: NextRequest) {
         // Labels beperkt tot 500 om DB-rij niet te zwaar te maken
         labels_added:   labelsAdded.length   > 0 ? labelsAdded.slice(0, 500)   : null,
         labels_removed: labelsRemoved.length > 0 ? labelsRemoved.slice(0, 500) : null,
+        labels_added_detail: labelsAddedDetail.length > 0 ? labelsAddedDetail.slice(0, 500) : null,
+        labels_removed_detail: labelsRemovedDetail.length > 0 ? labelsRemovedDetail.slice(0, 500) : null,
       })
 
     // ── Top kisten samenvatting ──────────────────────────────────────────────

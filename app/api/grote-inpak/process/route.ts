@@ -42,9 +42,15 @@ async function processGroteInpakPilsData({
   // Haal huidige case_labels op vóór verwerking (voor upload-log)
   const { data: existingRows } = await supabaseAdmin
     .from('grote_inpak_cases')
-    .select('case_label')
+    .select('case_label, case_type')
   const existingLabels = new Set(
     (existingRows || []).map((r: any) => String(r.case_label || '').trim()).filter(Boolean)
+  )
+  const existingTypeByLabel = new Map(
+    (existingRows || []).map((r: any) => [
+      String(r.case_label || '').trim(),
+      r.case_type ? String(r.case_type).trim() : null,
+    ])
   )
 
   // If no ERP data provided, try to load from database
@@ -87,6 +93,20 @@ async function processGroteInpakPilsData({
   )
   const labelsAdded   = [...newLabels].filter((l) => !existingLabels.has(l)).sort()
   const labelsRemoved = [...existingLabels].filter((l) => !newLabels.has(l)).sort()
+  const overviewTypeByLabel = new Map(
+    overview.map((r: any) => [
+      String(r.case_label || '').trim(),
+      r.case_type ? String(r.case_type).trim() : null,
+    ])
+  )
+  const labelsAddedDetail = labelsAdded.map((label) => ({
+    label,
+    case_type: overviewTypeByLabel.get(label) ?? null,
+  }))
+  const labelsRemovedDetail = labelsRemoved.map((label) => ({
+    label,
+    case_type: existingTypeByLabel.get(label) ?? null,
+  }))
   await supabaseAdmin.from('grote_inpak_pils_upload_log').insert({
     source_file:    sourceFile || null,
     cnt_added:      labelsAdded.length,
@@ -94,6 +114,8 @@ async function processGroteInpakPilsData({
     total_records:  overview.length,
     labels_added:   labelsAdded.length   > 0 ? labelsAdded   : null,
     labels_removed: labelsRemoved.length > 0 ? labelsRemoved : null,
+    labels_added_detail: labelsAddedDetail.length > 0 ? labelsAddedDetail : null,
+    labels_removed_detail: labelsRemovedDetail.length > 0 ? labelsRemovedDetail : null,
   })
 
   // Save stock data if provided

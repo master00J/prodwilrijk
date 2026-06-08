@@ -154,6 +154,14 @@ export async function applyForecastSave(
 
     const labelsAdded = addedChanges.map((c) => c.case_label).sort().slice(0, 500)
     const labelsRemoved = removedChanges.map((c) => c.case_label).sort().slice(0, 500)
+    const labelsAddedDetail = addedChanges
+      .map((c) => ({ label: c.case_label, case_type: c.case_type ?? null }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'nl-BE'))
+      .slice(0, 500)
+    const labelsRemovedDetail = removedChanges
+      .map((c) => ({ label: c.case_label, case_type: c.case_type ?? null }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'nl-BE'))
+      .slice(0, 500)
 
     const fromRows = deduped.map((r: any) => String(r.source_file || '').trim()).filter(Boolean)
     const fromUpload = (options?.uploadedFileNames || []).map((n) => String(n || '').trim()).filter(Boolean)
@@ -168,6 +176,8 @@ export async function applyForecastSave(
       cnt_date_change: cntDateChange,
       labels_added: labelsAdded.length > 0 ? labelsAdded : null,
       labels_removed: labelsRemoved.length > 0 ? labelsRemoved : null,
+      labels_added_detail: labelsAddedDetail.length > 0 ? labelsAddedDetail : null,
+      labels_removed_detail: labelsRemovedDetail.length > 0 ? labelsRemovedDetail : null,
     })
 
     if (changes.length > 0) {

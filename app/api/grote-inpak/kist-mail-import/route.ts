@@ -19,6 +19,7 @@ import {
 } from '@/lib/grote-inpak/imap-mail-core'
 import { parseKistTePakkenBody, parseKistTePakkenSubject } from '@/lib/grote-inpak/parse-kist-te-pakken-mail'
 import { shopOrderMatchKey } from '@/lib/grote-inpak/pils-serial'
+import { mergeLabelDetails } from '@/lib/grote-inpak/upload-log-labels'
 import { supabaseAdmin } from '@/lib/supabase/server'
 
 export const runtime = 'nodejs'
@@ -172,6 +173,7 @@ async function applyKistMailToCase(row: ImportedKistMail): Promise<{ wasInsert: 
 async function bumpKistMailDailyLog(
   logDate: string,
   caseLabel: string,
+  caseType: string | null,
   wasInsert: boolean,
   depth = 0
 ): Promise<void> {
@@ -182,7 +184,7 @@ async function bumpKistMailDailyLog(
 
   const { data: row, error: selErr } = await supabaseAdmin
     .from('grote_inpak_kist_mail_upload_log')
-    .select('mail_count, cases_inserted, cases_updated, case_labels')
+    .select('mail_count, cases_inserted, cases_updated, case_labels, case_labels_detail')
     .eq('log_date', logDate)
     .maybeSingle()
 
@@ -193,6 +195,7 @@ async function bumpKistMailDailyLog(
 
   const ts = new Date().toISOString()
   const label = caseLabel.trim()
+  const labelDetail = { label, case_type: caseType?.trim() || null }
   if (!row) {
     const { error } = await supabaseAdmin.from('grote_inpak_kist_mail_upload_log').insert({
       log_date: logDate,
@@ -200,10 +203,11 @@ async function bumpKistMailDailyLog(
       cases_inserted: wasInsert ? 1 : 0,
       cases_updated: wasInsert ? 0 : 1,
       case_labels: [label],
+      case_labels_detail: [labelDetail],
       last_event_at: ts,
     })
     if (error?.code === '23505') {
-      await bumpKistMailDailyLog(logDate, caseLabel, wasInsert, depth + 1)
+      await bumpKistMailDailyLog(logDate, caseLabel, caseType, wasInsert, depth + 1)
       return
     }
     if (error) console.error('kist mail upload log insert:', error.message)
@@ -212,6 +216,7 @@ async function bumpKistMailDailyLog(
 
   const prevLabels = Array.isArray(row.case_labels) ? row.case_labels : []
   const case_labels = Array.from(new Set([...prevLabels.map(String), label])).sort()
+  const case_labels_detail = mergeLabelDetails(row.case_labels_detail, labelDetail)
 
   const { error } = await supabaseAdmin
     .from('grote_inpak_kist_mail_upload_log')
@@ -220,6 +225,7 @@ async function bumpKistMailDailyLog(
       cases_inserted: (row.cases_inserted ?? 0) + (wasInsert ? 1 : 0),
       cases_updated: (row.cases_updated ?? 0) + (wasInsert ? 0 : 1),
       case_labels,
+      case_labels_detail,
       last_event_at: ts,
     })
     .eq('log_date', logDate)
@@ -342,7 +348,7 @@ async function runImport(request: NextRequest) {
         const parsed: ImportedKistMail = { ...head, ...body }
         const { wasInsert } = await applyKistMailToCase(parsed)
         await recordProcessedMessage(dedupeKey, parsed.case_label)
-        await bumpKistMailDailyLog(getBelgiumDate(), parsed.case_label, wasInsert)
+        await bumpKistMailDailyLog(getBelgiumDate(), parsed.case_label, parsed.case_type, wasInsert)
         imported.push(parsed)
         await client.command(`STORE ${id} +FLAGS (\\Seen)`)
       } catch (error) {

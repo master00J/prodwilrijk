@@ -3,6 +3,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { RefreshCw, History, FileUp, ChevronDown, ChevronUp } from 'lucide-react'
 
+type UploadLabelEntry = {
+  label: string
+  case_type: string | null
+}
+
 interface UploadLogEntry {
   id: string
   uploaded_at: string
@@ -14,8 +19,8 @@ interface UploadLogEntry {
   total_records: number
   cnt_date_change: number | null
   case_types_new: string[] | null
-  labels_added: string[] | null
-  labels_removed: string[] | null
+  labels_added: UploadLabelEntry[] | null
+  labels_removed: UploadLabelEntry[] | null
 }
 
 function fmtTs(d: string) {
@@ -35,37 +40,67 @@ const TYPE_STYLE: Record<string, { bg: string; text: string; label: string }> = 
 const PREVIEW = 10 // max labels direct zichtbaar
 
 // ── Label-lijstje met uitklap ────────────────────────────────────────────────
-function LabelList({ labels, color }: { labels: string[]; color: 'green' | 'red' | 'purple' }) {
+function LabelList({
+  entries,
+  color,
+}: {
+  entries: UploadLabelEntry[]
+  color: 'green' | 'red' | 'purple'
+}) {
   const [open, setOpen] = useState(false)
-  if (!labels || labels.length === 0) return <span className="text-gray-300">—</span>
+  if (!entries || entries.length === 0) return <span className="text-gray-300">—</span>
 
-  const visible = open ? labels : labels.slice(0, PREVIEW)
-  const rest    = labels.length - PREVIEW
+  const visible = open ? entries : entries.slice(0, PREVIEW)
+  const rest = entries.length - PREVIEW
 
   const cls = {
-    green:  { chip: 'bg-green-100 text-green-800',   btn: 'text-green-600 hover:text-green-800' },
-    red:    { chip: 'bg-red-100   text-red-800',     btn: 'text-red-600   hover:text-red-800'   },
+    green: { chip: 'bg-green-100 text-green-800', btn: 'text-green-600 hover:text-green-800' },
+    red: { chip: 'bg-red-100 text-red-800', btn: 'text-red-600 hover:text-red-800' },
     purple: { chip: 'bg-purple-100 text-purple-800', btn: 'text-purple-600 hover:text-purple-800' },
   }[color]
 
   return (
     <div className="space-y-1">
       <div className="flex flex-wrap gap-1">
-        {visible.map(l => (
-          <span key={l} className={`text-xs px-1.5 py-0.5 rounded font-mono ${cls.chip}`}>{l}</span>
+        {visible.map((entry) => (
+          <span
+            key={entry.label}
+            className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded font-mono ${cls.chip}`}
+            title={entry.case_type ? `${entry.label} · ${entry.case_type}` : entry.label}
+          >
+            <span>{entry.label}</span>
+            {entry.case_type ? (
+              <span className="font-sans font-semibold opacity-80">· {entry.case_type}</span>
+            ) : null}
+          </span>
         ))}
       </div>
-      {labels.length > PREVIEW && (
+      {entries.length > PREVIEW && (
         <button
-          onClick={() => setOpen(v => !v)}
+          onClick={() => setOpen((v) => !v)}
           className={`text-xs flex items-center gap-0.5 ${cls.btn}`}
         >
-          {open
-            ? <><ChevronUp className="w-3 h-3" /> Inklappen</>
-            : <><ChevronDown className="w-3 h-3" /> +{rest} meer tonen</>}
+          {open ? (
+            <>
+              <ChevronUp className="w-3 h-3" /> Inklappen
+            </>
+          ) : (
+            <>
+              <ChevronDown className="w-3 h-3" /> +{rest} meer tonen
+            </>
+          )}
         </button>
       )}
     </div>
+  )
+}
+
+function LabelTypeList({ labels, color }: { labels: string[]; color: 'green' | 'red' | 'purple' }) {
+  return (
+    <LabelList
+      entries={labels.map((label) => ({ label, case_type: null }))}
+      color={color}
+    />
   )
 }
 
@@ -148,7 +183,7 @@ function DetailRow({ row }: { row: UploadLogEntry }) {
                       ? `Caselabels via mail (${row.labels_added!.length})`
                       : `Bijgekomen (${row.labels_added!.length})`}
                   </p>
-                  <LabelList labels={row.labels_added!} color={row.upload_type === 'kist_mail' ? 'purple' : 'green'} />
+                  <LabelList entries={row.labels_added!} color={row.upload_type === 'kist_mail' ? 'purple' : 'green'} />
                 </div>
               )}
 
@@ -159,7 +194,7 @@ function DetailRow({ row }: { row: UploadLogEntry }) {
                     <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
                     Afgegaan ({row.labels_removed!.length})
                   </p>
-                  <LabelList labels={row.labels_removed!} color="red" />
+                  <LabelList entries={row.labels_removed!} color="red" />
                 </div>
               )}
 
@@ -170,7 +205,7 @@ function DetailRow({ row }: { row: UploadLogEntry }) {
                     <span className="w-2 h-2 rounded-full bg-purple-500 inline-block" />
                     Nieuwe kisttypes ({row.case_types_new!.length})
                   </p>
-                  <LabelList labels={row.case_types_new!} color="purple" />
+                  <LabelTypeList labels={row.case_types_new!} color="purple" />
                 </div>
               )}
 
