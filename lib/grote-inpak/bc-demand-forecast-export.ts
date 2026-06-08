@@ -38,8 +38,8 @@ export const BC_FP_UNIT = 'PCE/LWT'
 
 /** Productielocatie uit ERP LINK → BC Location Code (Demand Forecast Entry). */
 export const BC_LOCATION_BY_SITE: Record<LocationName, string> = {
-  Wilrijk: 'SKW_MECH',
-  Genk: 'GENK_WNTRB',
+  Wilrijk: 'Wilrijk',
+  Genk: 'GENK_EIK',
 }
 
 export const OUTPUT_LOCATIONS: LocationName[] = ['Wilrijk', 'Genk']
