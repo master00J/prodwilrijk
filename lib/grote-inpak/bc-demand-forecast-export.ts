@@ -117,12 +117,16 @@ function isRedForecastCell(cell: ExcelJS.Cell): boolean {
   return getFillRgb(cell) === RED_FILL_RGB
 }
 
-function findHeaderColumn(headerRow: ExcelJS.Row, name: string): number {
+function findHeaderColumn(headerRow: ExcelJS.Row, name: string, maxCol = headerRow.cellCount): number {
   const target = normalizeHeader(name)
-  for (let col = 1; col <= headerRow.cellCount; col += 1) {
+  for (let col = 1; col <= maxCol; col += 1) {
     if (normalizeHeader(headerRow.getCell(col).value) === target) return col
   }
   return -1
+}
+
+function getHeaderColumnCount(headerRow: ExcelJS.Row, worksheet: ExcelJS.Worksheet): number {
+  return Math.max(headerRow.cellCount, worksheet.columnCount || 0, headerRow.actualCellCount || 0)
 }
 
 export type ParsedForecastMatrix = {
@@ -134,23 +138,26 @@ export type ParsedForecastMatrix = {
 
 export function parseForecastMatrixWorksheet(worksheet: ExcelJS.Worksheet): ParsedForecastMatrix {
   const headerRow = worksheet.getRow(1)
-  const codeCol = findHeaderColumn(headerRow, 'BC CODE')
-  const descriptionCol = findHeaderColumn(headerRow, 'kist')
-  const locationCol = findHeaderColumn(headerRow, 'productielocatie')
-  const totalForecastCol = findHeaderColumn(headerRow, 'Totaal forecast')
+  const maxCol = getHeaderColumnCount(headerRow, worksheet)
+  const codeCol = findHeaderColumn(headerRow, 'BC CODE', maxCol)
+  const descriptionCol = findHeaderColumn(headerRow, 'kist', maxCol)
+  const locationCol = findHeaderColumn(headerRow, 'productielocatie', maxCol)
 
-  if (codeCol < 0 || locationCol < 0 || totalForecastCol < 0) {
-    throw new Error('Kolommen BC CODE, productielocatie of Totaal forecast niet gevonden.')
+  if (codeCol < 0 || locationCol < 0) {
+    throw new Error('Kolommen BC CODE of productielocatie niet gevonden.')
   }
 
+  // Datumkolommen staan in de matrix-export ná de vaste metadata (niet vóór Totaal forecast).
   const dateColumns: Array<{ column: number; date: Date }> = []
-  for (let col = 1; col < totalForecastCol; col += 1) {
+  for (let col = 1; col <= maxCol; col += 1) {
     const date = parseDateHeader(headerRow.getCell(col).value)
     if (date) dateColumns.push({ column: col, date })
   }
 
   if (dateColumns.length === 0) {
-    throw new Error('Geen datumkolommen gevonden in het Forecast-tabblad.')
+    throw new Error(
+      'Geen datumkolommen gevonden in het Forecast-tabblad. Controleer of er forecast-data is voor de gekozen periode.'
+    )
   }
 
   const rowsByLocation: Record<LocationName, ForecastMatrixItem[]> = { Wilrijk: [], Genk: [] }
