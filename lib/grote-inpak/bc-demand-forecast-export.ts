@@ -21,20 +21,12 @@ export const BC_DEMAND_FORECAST_HEADERS = [
   'Item No.',
   'Forecast Date',
   'Forecast Quantity',
-  'Unit of Measure Code',
-  'Qty. per Unit of Measure',
-  'Forecast Quantity (Base)',
   'Location Code',
-  'Variant Code',
-  'Component Forecast',
-  'Description',
-  'Unit of Measure Code (Base)',
-  'Forecast Unit',
-  'Forecast Unit (Base)',
 ] as const
 
 export const BC_FORECAST_NAME = 'FORECAST'
-export const BC_FP_UNIT = 'PCE/LWT'
+export const BC_FORECAST_SHEET_META = 'NG_FORECAST_AC'
+export const BC_FORECAST_TABLE_ID = '99000852'
 
 /** Productielocatie uit ERP LINK → BC Location Code (Demand Forecast Entry). */
 export const BC_LOCATION_BY_SITE: Record<LocationName, string> = {
@@ -95,7 +87,20 @@ export function parseDateHeader(value: unknown): Date | null {
     return new Date(year, Number(month) - 1, Number(day))
   }
 
+  match = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
+  if (match) {
+    const [, year, month, day] = match
+    return new Date(Number(year), Number(month) - 1, Number(day))
+  }
+
   return null
+}
+
+export function formatForecastDateIso(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 function getCellText(row: ExcelJS.Row, column: number): string {
@@ -232,28 +237,18 @@ export async function createDemandForecastWorkbook(
   const worksheet = workbook.addWorksheet('Demand Forecast Entry')
   const locationCode = BC_LOCATION_BY_SITE[location]
 
-  worksheet.addRow(['RW_TEST 2', 'Demand Forecast Entry', '99000852'])
+  worksheet.addRow([BC_FORECAST_SHEET_META, 'Demand Forecast Entry', BC_FORECAST_TABLE_ID])
   worksheet.addRow([])
   worksheet.addRow([...BC_DEMAND_FORECAST_HEADERS])
 
   entries.forEach((entry, index) => {
-    const qty = entry.quantity
     worksheet.addRow([
       index + 1,
       BC_FORECAST_NAME,
       entry.itemNo,
-      entry.forecastDate,
-      qty,
-      BC_FP_UNIT,
-      1,
-      qty,
+      formatForecastDateIso(entry.forecastDate),
+      entry.quantity,
       locationCode,
-      '',
-      false,
-      entry.description,
-      BC_FP_UNIT,
-      0,
-      0,
     ])
   })
 
@@ -262,14 +257,12 @@ export async function createDemandForecastWorkbook(
     cell.font = { bold: true }
   })
 
-  worksheet.getColumn(4).numFmt = 'yyyy-mm-dd'
   worksheet.getColumn(1).width = 12
   worksheet.getColumn(2).width = 24
   worksheet.getColumn(3).width = 14
   worksheet.getColumn(4).width = 14
   worksheet.getColumn(5).width = 18
-  worksheet.getColumn(9).width = 16
-  worksheet.getColumn(12).width = 42
+  worksheet.getColumn(6).width = 16
 
   return workbook.xlsx.writeBuffer() as Promise<ArrayBuffer>
 }

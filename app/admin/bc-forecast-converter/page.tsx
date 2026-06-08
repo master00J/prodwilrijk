@@ -156,7 +156,8 @@ export default function BcForecastConverterPage() {
           <p>
             De export bouwt eerst de Forecast matrix op (stock, transfer, inkoop, productieorders), neemt alleen
             rode cellen (&quot;nog te starten&quot;), filtert op <strong>FP</strong>-codes en schrijft per locatie een
-            Excel in BC Demand Forecast Entry-formaat (FORECAST, forecastdatum, Location Code Wilrijk / GENK_EIK).
+            Excel met 6 kolommen: Entry No., Demand Forecast Name, Item No., Forecast Date, Forecast Quantity,
+            Location Code (Wilrijk / GENK_EIK).
           </p>
         </div>
       </div>
