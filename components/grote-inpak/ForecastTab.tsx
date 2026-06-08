@@ -214,6 +214,31 @@ export default function ForecastTab() {
     if (e.dataTransfer.files?.length) handleFileSelect(e.dataTransfer.files)
   }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
+  const downloadBcForecastImport = async () => {
+    try {
+      const res = await fetch('/api/bc-forecast-converter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dateFrom: dateFrom || null, dateTo: dateTo || null }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'BC forecast export mislukt')
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      const today = new Date()
+      const todayStr = `${String(today.getDate()).padStart(2, '0')}-${String(today.getMonth() + 1).padStart(2, '0')}-${today.getFullYear()}`
+      a.href = url
+      a.download = `BC Demand Forecast Import ${todayStr}.zip`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err: any) {
+      alert(`BC forecast import mislukt: ${err.message}`)
+    }
+  }
+
   const downloadForecastMatrix = async (location: 'Genk' | 'Wilrijk' | 'Alle') => {
     try {
       const res = await fetch('/api/grote-inpak/forecast-export', {
@@ -341,6 +366,14 @@ export default function ForecastTab() {
             className="flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 text-sm disabled:opacity-50 font-medium"
           >
             <Download className="w-4 h-4" /> Matrix Alle locaties
+          </button>
+          <button
+            onClick={downloadBcForecastImport}
+            disabled={forecastData.length === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm disabled:opacity-50 font-medium"
+            title="BC Demand Forecast Entry import — per locatie (Wilrijk + Genk), alleen nog te starten FP-codes"
+          >
+            <Download className="w-4 h-4" /> BC forecast import
           </button>
         </div>
       </div>

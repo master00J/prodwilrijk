@@ -5,7 +5,8 @@ import AdminGuard from '@/components/AdminGuard'
 
 type SummaryFile = {
   location: 'Wilrijk' | 'Genk'
-  rows: number
+  entries: number
+  items: number
   totalQuantity: number
   filename: string
 }
@@ -62,7 +63,7 @@ export default function BcForecastConverterPage() {
 
       setMessage({
         type: 'success',
-        text: 'Forecast uit de website geconverteerd. De ZIP met Genk en Wilrijk is gedownload.',
+        text: 'BC Demand Forecast Entry-bestanden gegenereerd. De ZIP met Wilrijk en Genk is gedownload.',
       })
     } catch (error: any) {
       setMessage({ type: 'error', text: error.message || 'Conversie mislukt.' })
@@ -76,8 +77,9 @@ export default function BcForecastConverterPage() {
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         <h1 className="text-3xl font-bold mb-4">BC Forecast Converter</h1>
         <p className="text-gray-600 mb-6">
-          Maakt rechtstreeks vanuit de forecastgegevens in de website Business Central-matrixbestanden met alleen
-          rode regels (&quot;nog te starten&quot;), opgesplitst voor Wilrijk en Genk en met de nieuwe FP-codes.
+          Genereert rechtstreeks vanuit de forecastgegevens in de website BC Demand Forecast Entry-importbestanden
+          (zoals het BC-voorbeeld), met alleen rode &quot;nog te starten&quot; hoeveelheden, FP-codes via ERP LINK,
+          en aparte Excel per productielocatie (Wilrijk + Genk).
         </p>
 
         <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
@@ -113,7 +115,7 @@ export default function BcForecastConverterPage() {
             disabled={converting}
             className="mt-4 w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
           >
-            {converting ? 'Converteren...' : 'Download BC forecast ZIP'}
+            {converting ? 'Genereren...' : 'Download BC forecast import ZIP'}
           </button>
 
           {message && (
@@ -134,7 +136,7 @@ export default function BcForecastConverterPage() {
               {summary.files.map((file) => (
                 <div key={file.location} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
                   <div className="font-semibold">{file.location}</div>
-                  <div className="text-sm text-gray-600 mt-1">{file.rows} FP-regels</div>
+                  <div className="text-sm text-gray-600 mt-1">{file.entries} importregels · {file.items} FP-items</div>
                   <div className="text-sm text-gray-600">{file.totalQuantity} stuks nog te starten</div>
                 </div>
               ))}
@@ -152,8 +154,9 @@ export default function BcForecastConverterPage() {
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6 text-sm text-blue-900">
           <p className="font-medium mb-1">Wat doet deze converter?</p>
           <p>
-            De export bouwt eerst de bestaande Forecast matrix op, neemt daar alleen de rode cellen uit, filtert op
-            <strong> FP</strong>-codes en maakt twee Excelbestanden in een ZIP: een voor Wilrijk en een voor Genk.
+            De export bouwt eerst de Forecast matrix op (stock, transfer, inkoop, productieorders), neemt alleen
+            rode cellen (&quot;nog te starten&quot;), filtert op <strong>FP</strong>-codes en schrijft per locatie een
+            Excel in BC Demand Forecast Entry-formaat (FORECAST, forecastdatum, Location Code SKW_MECH / GENK_WNTRB).
           </p>
         </div>
       </div>
