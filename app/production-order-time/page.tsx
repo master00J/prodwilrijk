@@ -1,9 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ScanBarcode } from 'lucide-react'
 import { BcItemCode } from '@/lib/bc-mapping/client'
 import { DEFAULT_SITE, employeeHasSite, SITES, type Site } from '@/lib/sites'
 import { useAuth } from '@/components/AuthProvider'
+import {
+  normalizeScannedOrderNumber,
+  OrderBarcodeScanner,
+} from '@/components/production-order-time/OrderBarcodeScanner'
 
 interface Employee {
   id: number
@@ -92,6 +97,8 @@ export default function ProductionOrderTimePage() {
   } | null>(null)
   const [stopQuantity, setStopQuantity] = useState(1)
   const [stopping, setStopping] = useState(false)
+  const [scannerOpen, setScannerOpen] = useState(false)
+  const [openingOrder, setOpeningOrder] = useState(false)
 
   useEffect(() => {
     if (availableSites.length > 0 && !availableSites.includes(site)) {
@@ -180,6 +187,63 @@ export default function ProductionOrderTimePage() {
     setCustomStep('')
     await fetchOrderLines(order.order_number)
   }
+
+  const findOrderByNumber = useCallback(
+    async (rawOrderNumber: string, includeFinished = false): Promise<OrderRow | null> => {
+      const orderNumber = normalizeScannedOrderNumber(rawOrderNumber)
+      if (!orderNumber) return null
+
+      const localMatch = orders.find((order) => order.order_number === orderNumber)
+      if (localMatch) return localMatch
+
+      const fetchMatch = async (finished: boolean) => {
+        const params = new URLSearchParams({ site, q: orderNumber })
+        if (finished) params.set('finished', 'true')
+        const response = await fetch(`/api/production-orders/list?${params.toString()}`)
+        if (!response.ok) return null
+        const data = await response.json()
+        return (
+          (data.orders as OrderRow[] | undefined)?.find((order) => order.order_number === orderNumber) ?? null
+        )
+      }
+
+      const activeMatch = await fetchMatch(false)
+      if (activeMatch) return activeMatch
+      if (includeFinished) return fetchMatch(true)
+      return null
+    },
+    [orders, site]
+  )
+
+  const openOrderByNumber = useCallback(
+    async (rawOrderNumber: string) => {
+      const orderNumber = normalizeScannedOrderNumber(rawOrderNumber)
+      if (!orderNumber) return
+
+      setOpeningOrder(true)
+      try {
+        let order = await findOrderByNumber(orderNumber, false)
+        if (!order) {
+          order = await findOrderByNumber(orderNumber, true)
+          if (order) {
+            alert(`Order ${orderNumber} is al afgewerkt en kan niet meer geopend worden voor registratie.`)
+            return
+          }
+          alert(`Geen actieve productieorder gevonden met nummer: ${orderNumber}`)
+          return
+        }
+
+        if (activeTab !== 'actief') {
+          setActiveTab('actief')
+          setSearchQuery('')
+        }
+        await openOrderModal(order)
+      } finally {
+        setOpeningOrder(false)
+      }
+    },
+    [activeTab, findOrderByNumber, openOrderModal]
+  )
 
   const closeOrderModal = () => {
     setModalOrder(null)
@@ -330,6 +394,21 @@ export default function ProductionOrderTimePage() {
             Afgewerkte Orders
           </button>
         </nav>
+      </div>
+
+      <div className="mb-6">
+        <button
+          type="button"
+          onClick={() => setScannerOpen(true)}
+          disabled={openingOrder}
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 min-h-[52px] bg-emerald-600 text-white rounded-lg shadow hover:bg-emerald-700 disabled:opacity-60 text-lg font-medium"
+        >
+          <ScanBarcode className="h-5 w-5" />
+          {openingOrder ? 'Order zoeken...' : 'Scan werkbon'}
+        </button>
+        <p className="mt-2 text-sm text-gray-500">
+          Scan de barcode op de werkbon om de productieorder automatisch te openen.
+        </p>
       </div>
 
       {/* Zoek en filters */}
@@ -655,6 +734,12 @@ export default function ProductionOrderTimePage() {
           </div>
         </div>
       )}
+
+      <OrderBarcodeScanner
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScan={(orderNumber) => void openOrderByNumber(orderNumber)}
+      />
 
       {/* Stop modal */}
       {stopModal && (
