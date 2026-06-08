@@ -239,22 +239,31 @@ export async function createDemandForecastWorkbook(
 
   worksheet.addRow([BC_FORECAST_SHEET_META, 'Demand Forecast Entry', BC_FORECAST_TABLE_ID])
   worksheet.addRow([])
-  worksheet.addRow([...BC_DEMAND_FORECAST_HEADERS])
 
-  entries.forEach((entry, index) => {
-    worksheet.addRow([
-      index + 1,
-      BC_FORECAST_NAME,
-      entry.itemNo,
-      formatForecastDateIso(entry.forecastDate),
-      entry.quantity,
-      locationCode,
-    ])
-  })
+  const tableRows = entries.map((entry, index) => [
+    index + 1,
+    BC_FORECAST_NAME,
+    entry.itemNo,
+    formatForecastDateIso(entry.forecastDate),
+    entry.quantity,
+    locationCode,
+  ])
 
-  const headerRowNumber = 3
-  worksheet.getRow(headerRowNumber).eachCell((cell) => {
-    cell.font = { bold: true }
+  worksheet.addTable({
+    name: `ForecastImport${location}`,
+    displayName: `ForecastImport${location}`,
+    ref: 'A3',
+    headerRow: true,
+    totalsRow: false,
+    style: {
+      theme: 'TableStyleMedium2',
+      showRowStripes: true,
+      showFirstColumn: false,
+      showLastColumn: false,
+      showColumnStripes: false,
+    },
+    columns: BC_DEMAND_FORECAST_HEADERS.map((name) => ({ name, filterButton: true })),
+    rows: tableRows,
   })
 
   worksheet.getColumn(1).width = 12
