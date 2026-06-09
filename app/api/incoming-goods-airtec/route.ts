@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { sanitizePostgrestOrValue } from '@/lib/api/postgrest-filter'
+import { isSpecialPackItemNumber, specialPackItemOrFilter } from '@/lib/airtec/special-pack-items'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -11,6 +12,7 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const pageSize = parseInt(searchParams.get('pageSize') || '100')
     const search = sanitizePostgrestOrValue(searchParams.get('search'))
+    const specialPackOnly = searchParams.get('specialPack') === 'true'
 
     // Build query with filters
     let query = supabaseAdmin
@@ -22,15 +24,16 @@ export async function GET(request: NextRequest) {
       query = query.or(`beschrijving.ilike.%${search}%,item_number.ilike.%${search}%,lot_number.ilike.%${search}%,kistnummer.ilike.%${search}%,divisie.ilike.%${search}%`)
     }
 
+    if (specialPackOnly) {
+      query = query.or(specialPackItemOrFilter())
+    }
+
     // Order and paginate
     query = query.order('datum_ontvangen', { ascending: false })
-    
-    // Apply pagination
-    const from = (page - 1) * pageSize
-    const to = from + pageSize - 1
-    query = query.range(from, to)
 
-    const { data, error, count } = await query
+    const { data, error, count } = specialPackOnly
+      ? await query
+      : await query.range((page - 1) * pageSize, page * pageSize - 1)
 
     if (error) {
       console.error('Error fetching incoming goods airtec:', error)
@@ -40,10 +43,19 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const totalPages = count ? Math.ceil(count / pageSize) : 0
+    let items = data || []
+    let resolvedCount = count || 0
+    if (specialPackOnly) {
+      const filtered = items.filter((row) => isSpecialPackItemNumber(row.item_number))
+      resolvedCount = filtered.length
+      const from = (page - 1) * pageSize
+      items = filtered.slice(from, from + pageSize)
+    }
+
+    const totalPages = resolvedCount ? Math.ceil(resolvedCount / pageSize) : 0
     const response = NextResponse.json({
-      items: data || [],
-      total: count || 0,
+      items,
+      total: resolvedCount || 0,
       page,
       pageSize,
       totalPages,

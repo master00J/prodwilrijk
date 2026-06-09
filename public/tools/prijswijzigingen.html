@@ -1,0 +1,1398 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prijswijzigingen — BC snapshot diff</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#EDF0F3; --ink:#15202B; --muted:#677483; --surface:#ffffff;
+    --line:#DCE2E8; --line-strong:#C4CCD4;
+    --accent:#0F6E63; --accent-soft:#E2F0EE;
+    --up:#A8480C; --up-soft:#F6E7DB;
+    --down:#1E6CA8; --down-soft:#E0ECF6;
+    --new:#2F7D43; --new-soft:#E3F1E6;
+    --warn:#92700A; --warn-soft:#F4ECCF;
+    --removed:#8A93A0;
+    --ui:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --display:"Space Grotesk", "IBM Plex Sans", system-ui, sans-serif;
+    --mono:"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --r:10px; --r-sm:7px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--bg); color:var(--ink); font-family:var(--ui);
+    font-size:14px; line-height:1.45; -webkit-font-smoothing:antialiased;
+    padding:0 20px 80px;
+  }
+  .wrap{max-width:1320px; margin:0 auto}
+
+  header.top{
+    display:flex; align-items:baseline; justify-content:space-between; gap:16px;
+    padding:26px 0 18px; flex-wrap:wrap;
+    border-bottom:2px solid var(--accent);
+  }
+  header.top h1{
+    font-family:var(--display); font-weight:700; font-size:23px; letter-spacing:-.02em;
+    margin:0; line-height:1.1;
+  }
+  header.top h1 .dot{color:var(--accent)}
+  header.top .sub{color:var(--muted); font-size:13px; margin-top:4px}
+  header.top .tag{
+    font-family:var(--mono); font-size:11px; color:var(--muted);
+    text-transform:uppercase; letter-spacing:.08em;
+    border:1px solid var(--line-strong); border-radius:100px; padding:5px 11px;
+    white-space:nowrap;
+  }
+
+  .step{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--r);
+    padding:18px 20px; margin-top:18px;
+  }
+  .step-head{display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap}
+  .step-num{
+    font-family:var(--mono); font-weight:600; font-size:12px; color:var(--accent);
+    background:var(--accent-soft); border-radius:6px; width:24px; height:24px;
+    display:grid; place-items:center; flex:none;
+  }
+  .step-head h2{font-family:var(--display); font-weight:600; font-size:15px; margin:0}
+  .step-head .hint{color:var(--muted); font-size:12.5px; margin-left:2px}
+
+  .drop{
+    border:1.5px dashed var(--line-strong); border-radius:var(--r-sm);
+    padding:26px 18px; text-align:center; color:var(--muted);
+    cursor:pointer; transition:border-color .15s, background .15s; background:#fbfcfd;
+  }
+  .drop:hover,.drop.over{border-color:var(--accent); background:var(--accent-soft); color:var(--ink)}
+  .drop .big{font-family:var(--display); font-size:15px; color:var(--ink); margin-bottom:4px}
+  input[type=file]{display:none}
+
+  .files{margin-top:14px; display:flex; flex-direction:column; gap:8px}
+  .file-row{
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    border:1px solid var(--line); border-radius:var(--r-sm); padding:9px 12px; background:#fbfcfd;
+  }
+  .file-row .nm{font-weight:500; flex:1 1 220px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .file-row .cnt{font-family:var(--mono); font-size:12px; color:var(--muted); flex:none}
+  .file-row label{font-size:12.5px; color:var(--muted); display:flex; align-items:center; gap:7px}
+  .file-row input[type=date]{font-family:var(--mono); font-size:12.5px; padding:4px 7px; border:1px solid var(--line-strong); border-radius:6px; color:var(--ink); background:#fff}
+  .file-row .rm{
+    border:none; background:none; color:var(--removed); cursor:pointer; font-size:18px; line-height:1;
+    padding:2px 4px; border-radius:5px; flex:none;
+  }
+  .file-row .rm:hover{background:#f0f0f2; color:var(--up)}
+
+  .timeline{
+    display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; align-items:center;
+    font-size:12.5px; color:var(--muted);
+  }
+  .timeline .snap{
+    font-family:var(--mono); font-size:11.5px; background:var(--accent-soft); color:var(--accent);
+    border-radius:100px; padding:4px 10px; font-weight:600;
+  }
+
+  .map-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:13px}
+  .fld{display:flex; flex-direction:column; gap:5px}
+  .fld label{font-size:12px; font-weight:600; color:var(--ink)}
+  .fld .req{color:var(--up); font-weight:700}
+  .fld .opt{color:var(--muted); font-weight:400}
+  select, .num-in{
+    font-family:var(--ui); font-size:13.5px; padding:8px 9px; border:1px solid var(--line-strong);
+    border-radius:var(--r-sm); background:#fff; color:var(--ink); width:100%;
+  }
+  select:focus,.num-in:focus,input:focus-visible,button:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+
+  .keys{margin-top:16px}
+  .keys > .lab{font-size:12px; font-weight:600; margin-bottom:7px}
+  .keys > .lab span{color:var(--muted); font-weight:400}
+  .chips{display:flex; flex-wrap:wrap; gap:7px}
+  .chip{
+    display:inline-flex; align-items:center; gap:7px; font-size:12.5px; cursor:pointer;
+    border:1px solid var(--line-strong); border-radius:100px; padding:5px 11px 5px 9px; user-select:none;
+    background:#fff; transition:.12s;
+  }
+  .chip input{accent-color:var(--accent); margin:0}
+  .chip.on{background:var(--accent-soft); border-color:var(--accent); color:var(--accent); font-weight:600}
+
+  .params{display:flex; gap:18px; flex-wrap:wrap; align-items:flex-end; margin-top:16px}
+  .params .fld{max-width:170px}
+  .num-in{font-family:var(--mono)}
+
+  .actions{display:flex; gap:10px; align-items:center; margin-top:18px; flex-wrap:wrap}
+  .btn{
+    font-family:var(--ui); font-weight:600; font-size:13.5px; cursor:pointer;
+    border-radius:var(--r-sm); padding:9px 16px; border:1px solid transparent;
+  }
+  .btn-primary{background:var(--accent); color:#fff}
+  .btn-primary:hover{background:#0c5b52}
+  .btn-primary:disabled{background:#aeb8c0; cursor:not-allowed}
+  .btn-ghost{background:#fff; border-color:var(--line-strong); color:var(--ink)}
+  .btn-ghost:hover{border-color:var(--accent); color:var(--accent)}
+  .btn-ghost.on{border-color:var(--accent); color:var(--accent); background:var(--accent-soft)}
+  .msg{font-size:12.5px; color:var(--up)}
+
+  #results{margin-top:22px}
+  .hidden{display:none!important}
+  .summary{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px}
+  .chip-stat{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--r-sm);
+    padding:11px 15px; display:flex; flex-direction:column; gap:2px; min-width:96px;
+  }
+  .chip-stat .n{font-family:var(--mono); font-weight:600; font-size:21px; line-height:1}
+  .chip-stat .k{font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em}
+  .chip-stat.changed .n{color:var(--accent)} .chip-stat.new .n{color:var(--new)}
+  .chip-stat.removed .n{color:var(--removed)} .chip-stat.stale .n{color:var(--warn)}
+  .chip-stat.exp .n{color:var(--up)}
+
+  .toolbar{display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap; margin-bottom:12px}
+  .tabs{display:flex; gap:4px; flex-wrap:wrap; background:#e4e9ed; padding:4px; border-radius:9px}
+  .tab{
+    font-size:13px; font-weight:500; border:none; background:none; cursor:pointer;
+    padding:6px 12px; border-radius:6px; color:var(--muted);
+  }
+  .tab.on{background:#fff; color:var(--ink); font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,.06)}
+  .tab .b{font-family:var(--mono); font-size:11px; opacity:.7; margin-left:5px}
+  .grow{flex:1}
+  .search{
+    font-family:var(--ui); font-size:13.5px; padding:8px 12px; border:1px solid var(--line-strong);
+    border-radius:var(--r-sm); background:#fff; min-width:180px;
+  }
+  select.ptype{max-width:150px; font-size:13px; padding:7px 9px}
+
+  .assign-filter{position:relative}
+  .filter-pop{
+    position:absolute; top:calc(100% + 6px); right:0; z-index:20;
+    width:min(360px, calc(100vw - 40px)); background:#fff; border:1px solid var(--line-strong);
+    border-radius:var(--r-sm); box-shadow:0 8px 24px rgba(21,32,43,.12);
+    padding:12px; display:flex; flex-direction:column; gap:10px;
+  }
+  .filter-pop .search{width:100%; min-width:0}
+  .filter-quick{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+  .filter-quick button{
+    font-family:var(--ui); font-size:12px; font-weight:600; cursor:pointer;
+    border:1px solid var(--line-strong); background:#fff; border-radius:6px; padding:5px 10px;
+  }
+  .filter-quick button:hover{border-color:var(--accent); color:var(--accent)}
+  .filter-count{font-size:12px; color:var(--muted); margin-left:auto}
+  .filter-list{
+    max-height:280px; overflow:auto; border:1px solid var(--line); border-radius:6px;
+    background:#fbfcfd;
+  }
+  .filter-group{
+    font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;
+    color:var(--muted); padding:8px 10px 4px; background:#f3f6f8; position:sticky; top:0;
+  }
+  .filter-item{
+    display:flex; align-items:center; gap:8px; padding:7px 10px; cursor:pointer;
+    border-bottom:1px solid var(--line); font-size:13px;
+  }
+  .filter-item:hover{background:#f6f9fa}
+  .filter-item input{accent-color:var(--accent); margin:0; flex:none}
+  .filter-item .code{font-family:var(--mono); font-weight:600; min-width:72px}
+  .filter-item .meta{font-size:11.5px; color:var(--muted); margin-left:auto}
+  .selected-tags{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px}
+  .selected-tags:empty{display:none}
+  .sel-tag{
+    font-family:var(--mono); font-size:11.5px; background:var(--accent-soft); color:var(--accent);
+    border-radius:100px; padding:4px 10px; display:inline-flex; align-items:center; gap:6px;
+  }
+  .sel-tag button{
+    border:none; background:none; cursor:pointer; color:inherit; font-size:14px; line-height:1; padding:0;
+  }
+
+  .tbl-wrap{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--r);
+    overflow:auto; max-height:68vh;
+  }
+  table{border-collapse:collapse; width:100%; font-size:13px}
+  thead th{
+    position:sticky; top:0; background:#f3f6f8; z-index:1;
+    text-align:left; font-weight:600; font-size:11.5px; letter-spacing:.02em; color:var(--muted);
+    text-transform:uppercase; padding:11px 13px; white-space:nowrap; cursor:pointer;
+    border-bottom:1px solid var(--line-strong); user-select:none;
+  }
+  thead th.num{text-align:right}
+  thead th .ar{opacity:.45; font-size:9px; margin-left:3px}
+  thead th.sorted{color:var(--ink)}
+  tbody td{padding:10px 13px; border-bottom:1px solid var(--line); vertical-align:top}
+  tbody tr:hover{background:#f6f9fa}
+  td.num{text-align:right; font-family:var(--mono); font-feature-settings:"tnum" 1; white-space:nowrap}
+  td.date{font-family:var(--mono); font-size:12.5px; white-space:nowrap; color:var(--muted)}
+  td.mono{font-family:var(--mono); font-size:12.5px}
+  .label-main{font-weight:500}
+  .label-sub{font-family:var(--mono); font-size:11.5px; color:var(--muted); margin-top:2px; max-width:340px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  tr.removed .label-main{color:var(--removed); text-decoration:line-through}
+  tr.removed td.num{color:var(--removed)}
+  .delta-up{color:var(--up)} .delta-down{color:var(--down)} .delta-zero{color:var(--muted)}
+  .pill{
+    display:inline-block; font-size:11px; font-weight:600; padding:3px 9px; border-radius:100px;
+    white-space:nowrap; letter-spacing:.01em;
+  }
+  .pill.changed{background:var(--accent-soft); color:var(--accent)}
+  .pill.new{background:var(--new-soft); color:var(--new)}
+  .pill.removed{background:#eceef0; color:var(--removed)}
+  .pill.unchanged{background:#eceef0; color:var(--muted)}
+  .pill.baseline{background:#eceef0; color:var(--muted)}
+  .stable{font-family:var(--mono); font-size:12px; color:var(--muted)}
+  .warn-cell{color:var(--warn); font-weight:600}
+  .empty-state{padding:46px 20px; text-align:center; color:var(--muted)}
+  .empty-state .big{font-family:var(--display); color:var(--ink); font-size:15px; margin-bottom:5px}
+
+  .note{
+    margin-top:14px; font-size:12.5px; color:var(--muted); line-height:1.5;
+    border-left:2px solid var(--line-strong); padding-left:12px;
+  }
+  .legend{display:flex; gap:14px; flex-wrap:wrap; font-size:12px; color:var(--muted); margin-bottom:12px}
+  .legend b{color:var(--ink); font-weight:600}
+
+  .pager{
+    display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:space-between;
+    margin-top:10px; font-size:13px; color:var(--muted);
+  }
+  .pager .pg-btns{display:flex; gap:6px; align-items:center; flex-wrap:wrap}
+  .pager button{
+    font-family:var(--ui); font-size:12.5px; font-weight:600; cursor:pointer;
+    border:1px solid var(--line-strong); background:#fff; border-radius:6px; padding:6px 11px;
+  }
+  .pager button:hover:not(:disabled){border-color:var(--accent); color:var(--accent)}
+  .pager button:disabled{opacity:.45; cursor:not-allowed}
+  .pager select{font-size:12.5px; padding:5px 8px; border:1px solid var(--line-strong); border-radius:6px}
+  .busy-overlay{
+    position:fixed; inset:0; background:rgba(237,240,243,.72); z-index:100;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .busy-card{
+    background:#fff; border:1px solid var(--line); border-radius:var(--r);
+    padding:22px 28px; box-shadow:0 8px 24px rgba(21,32,43,.1);
+    font-family:var(--display); font-weight:600; font-size:15px;
+  }
+  .filter-hint{padding:14px 12px; font-size:12.5px; color:var(--muted); text-align:center}
+
+  @media (max-width:600px){
+    body{padding:0 12px 60px}
+    header.top h1{font-size:20px}
+    .params .fld{max-width:none}
+    .filter-pop{right:auto; left:0}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <h1>Prijswijzigingen<span class="dot">.</span></h1>
+      <div class="sub">Vergelijk BC-prijslijst-exports (aankoop &amp; verkoop) en zie wat wijzigde, nieuw is, of al lang stilstaat.</div>
+    </div>
+    <div class="tag">snapshot diff · lokaal</div>
+  </header>
+
+  <section class="step">
+    <div class="step-head">
+      <span class="step-num">1</span>
+      <h2>Exports laden</h2>
+      <span class="hint">Twee of meer &quot;Open in Excel&quot;-exports (.xlsx). Volgorde maakt niet uit — datum bepaalt de tijdlijn.</span>
+    </div>
+    <div class="drop" id="drop">
+      <div class="big">Sleep bestanden hierheen of klik om te kiezen</div>
+      <div>Laad meerdere momentopnames. Hoe meer exports, hoe beter het beeld van wijzigingen over tijd.</div>
+    </div>
+    <input type="file" id="file" multiple accept=".xlsx,.xls,.csv">
+    <div class="files" id="files"></div>
+    <div class="timeline hidden" id="timeline"></div>
+  </section>
+
+  <section class="step hidden" id="mapStep">
+    <div class="step-head">
+      <span class="step-num">2</span>
+      <h2>Kolommen koppelen</h2>
+      <span class="hint">BC Price List Line wordt automatisch herkend — pas aan als nodig.</span>
+    </div>
+
+    <div class="map-grid">
+      <div class="fld">
+        <label>Prijs <span class="req">verplicht</span></label>
+        <select id="m_price"></select>
+      </div>
+      <div class="fld">
+        <label>Klant/leverancier nr. <span class="opt">optioneel</span></label>
+        <select id="m_assign"></select>
+      </div>
+      <div class="fld">
+        <label>Relatietype <span class="opt">optioneel</span></label>
+        <select id="m_assignType"></select>
+      </div>
+      <div class="fld">
+        <label>Omschrijving <span class="opt">optioneel</span></label>
+        <select id="m_desc"></select>
+      </div>
+      <div class="fld">
+        <label>Begindatum <span class="opt">optioneel</span></label>
+        <select id="m_start"></select>
+      </div>
+      <div class="fld">
+        <label>Einddatum <span class="opt">optioneel</span></label>
+        <select id="m_end"></select>
+      </div>
+      <div class="fld">
+        <label>Prijssoort <span class="opt">verkoop/aankoop</span></label>
+        <select id="m_ptype"></select>
+      </div>
+    </div>
+
+    <div class="keys">
+      <div class="lab">Sleutelkolommen <span>— identiteit van één prijsregel (geen prijs, datum of klantnummer dubbel indien apart gekoppeld)</span></div>
+      <div class="chips" id="keyChips"></div>
+    </div>
+
+    <div class="params">
+      <div class="fld">
+        <label>Koprij (rijnummer)</label>
+        <input type="number" min="1" value="1" class="num-in" id="headerRow">
+      </div>
+      <div class="fld">
+        <label>Stale na (dagen)</label>
+        <input type="number" min="1" value="90" class="num-in" id="staleDays">
+      </div>
+      <div class="fld">
+        <label>Verloopt binnen (dagen)</label>
+        <input type="number" min="1" value="30" class="num-in" id="expiryDays">
+      </div>
+      <div class="fld">
+        <label>Peildatum</label>
+        <input type="date" class="num-in" id="refDate">
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" id="analyze" disabled>Vergelijk</button>
+      <span class="msg" id="mapMsg"></span>
+    </div>
+  </section>
+
+  <section id="results" class="hidden">
+    <div class="summary" id="summary"></div>
+
+    <div class="legend">
+      <span><b>Δ</b> = verschil t.o.v. vorige export</span>
+      <span><b>Laatst gewijzigd</b> = sinds wanneer de huidige prijs geldt</span>
+      <span><b>Stabiel</b> = opeenvolgende exports met dezelfde prijs</span>
+    </div>
+
+    <div class="selected-tags" id="selectedTags"></div>
+
+    <div class="toolbar">
+      <div class="tabs" id="tabs"></div>
+      <span class="grow"></span>
+      <div class="assign-filter hidden" id="assignFilterWrap">
+        <button type="button" class="btn btn-ghost" id="assignFilterBtn">Klant/leverancier ▾</button>
+        <div class="filter-pop hidden" id="assignFilterPop">
+          <input type="search" class="search" id="assignFilterSearch" placeholder="Zoek klant- of leveranciersnummer…">
+          <div class="filter-quick">
+            <button type="button" id="assignSelectAll">Alles tonen</button>
+            <span class="filter-count" id="assignFilterCount"></span>
+          </div>
+          <div class="filter-list" id="assignFilterList"></div>
+        </div>
+      </div>
+      <select class="ptype hidden" id="ptypeFilter"></select>
+      <input type="search" class="search" id="search" placeholder="Zoek op regel, nummer…">
+      <button class="btn btn-ghost" id="exportBtn">Exporteer weergave</button>
+    </div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr id="thead"></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="pager hidden" id="pager">
+      <div class="pg-btns">
+        <button type="button" id="pgFirst">«</button>
+        <button type="button" id="pgPrev">‹ Vorige</button>
+        <span id="pgInfo"></span>
+        <button type="button" id="pgNext">Volgende ›</button>
+        <button type="button" id="pgLast">»</button>
+      </div>
+      <label>Rijen per pagina
+        <select id="pageSize">
+          <option value="100">100</option>
+          <option value="150" selected>150</option>
+          <option value="250">250</option>
+          <option value="500">500</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="note" id="resultNote"></div>
+  </section>
+
+  <div class="busy-overlay hidden" id="busy"><div class="busy-card">Bezig met vergelijken…</div></div>
+
+  <div class="note" id="introNote">
+    Alles draait lokaal in je browser. Grote exports (~50k regels) worden pagineerbaar getoond — start bij voorkeur op tab &quot;Gewijzigd&quot;.
+  </div>
+
+</div>
+
+<script>
+"use strict";
+
+const PAGE_SIZE_DEFAULT = 150;
+const ASSIGN_FILTER_LIMIT = 80;
+const SEARCH_DEBOUNCE_MS = 280;
+
+const state = {
+  files: [],
+  headers: [],
+  mapping: { price:-1, desc:-1, start:-1, end:-1, ptype:-1, assign:-1, assignType:-1, keys:[] },
+  result: [],
+  tab: "all",
+  search: "",
+  sort: { col:"status", dir:"asc" },
+  ptype: "all",
+  assignToSelected: null,
+  assignFilterQuery: "",
+  assignFilterOpen: false,
+  page: 0,
+  pageSize: PAGE_SIZE_DEFAULT,
+  viewCache: null,
+  assignOptionsCache: [],
+  summaryCounts: null,
+};
+let fileSeq = 0;
+let mappingWired = false;
+let theadWired = false;
+let searchTimer = null;
+let assignFilterListWired = false;
+
+const STATUS_ORDER = {changed:0,new:1,removed:2,unchanged:3,baseline:4};
+const TABS = [
+  {id:"all",      label:"Alles"},
+  {id:"changed",  label:"Gewijzigd"},
+  {id:"new",      label:"Nieuw"},
+  {id:"removed",  label:"Verdwenen"},
+  {id:"stale",    label:"Stale"},
+  {id:"expiring", label:"Verloopt"},
+];
+const COLS = [
+  {id:"assignTo", label:"Nr.", num:false},
+  {id:"assignToType", label:"Relatie", num:false},
+  {id:"label",  label:"Regel", num:false},
+  {id:"ptype",  label:"Soort", num:false},
+  {id:"current",label:"Huidige prijs", num:true},
+  {id:"previous",label:"Vorige prijs", num:true},
+  {id:"delta",  label:"Δ", num:true},
+  {id:"deltaPct",label:"Δ%", num:true},
+  {id:"lastChanged",label:"Laatst gewijzigd", num:false},
+  {id:"stableCount",label:"Stabiel", num:true},
+  {id:"endDate",label:"Einddatum", num:false},
+  {id:"status", label:"Status", num:false},
+];
+
+const round2 = n => Math.round(n*100)/100;
+
+function parseNum(v){
+  if(v===null||v===undefined||v==="") return null;
+  if(typeof v==="number") return isNaN(v)?null:round2(v);
+  let s = String(v).trim().replace(/[^\d.,\-]/g,"");
+  if(s===""||s==="-") return null;
+  const lc=s.lastIndexOf(","), ld=s.lastIndexOf(".");
+  let dec = lc>ld ? "," : (ld>lc ? "." : "");
+  if(dec){
+    const thou = dec==="," ? "." : ",";
+    s = s.split(thou).join("");
+    s = s.replace(dec,".");
+  }
+  const n = parseFloat(s);
+  return isNaN(n)?null:round2(n);
+}
+
+function parseDate(v){
+  if(v===null||v===undefined||v==="") return null;
+  if(v instanceof Date) return isNaN(v)?null:stripTime(v);
+  if(typeof v==="number"){
+    const d = new Date(Math.round((v-25569)*86400000));
+    return isNaN(d)?null:stripTime(d);
+  }
+  let s = String(v).trim();
+  let m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})$/);
+  if(m){ let y=+m[3]; if(y<100) y+=2000; const d=new Date(y,+m[2]-1,+m[1]); return isNaN(d)?null:stripTime(d); }
+  m = s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/);
+  if(m){ const d=new Date(+m[1],+m[2]-1,+m[3]); return isNaN(d)?null:stripTime(d); }
+  const d = new Date(s);
+  return isNaN(d)?null:stripTime(d);
+}
+function stripTime(d){ return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function fmtDate(d){
+  if(!d) return "—";
+  const p=n=>String(n).padStart(2,"0");
+  return p(d.getDate())+"-"+p(d.getMonth()+1)+"-"+d.getFullYear();
+}
+function fmtDateISO(d){
+  const p=n=>String(n).padStart(2,"0");
+  return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());
+}
+function fmtNum(n){
+  if(n===null||n===undefined) return "—";
+  return n.toLocaleString("nl-BE",{minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function daysBetween(a,b){ return Math.round((a-b)/86400000); }
+
+function cellStr(v){
+  if(v===null||v===undefined) return "";
+  return String(v).trim();
+}
+
+function guessDateFromName(name){
+  let m = name.match(/(\d{2})[-_.](\d{2})[-_.](20\d{2})/);
+  if(m){ const d=new Date(+m[3],+m[2]-1,+m[1]); if(!isNaN(d)) return d; }
+  m = name.match(/(20\d{2})[-_.]?(\d{2})[-_.]?(\d{2})/);
+  if(m){ const d=new Date(+m[1],+m[2]-1,+m[3]); if(!isNaN(d)) return d; }
+  return null;
+}
+
+function readFile(file){
+  return new Promise((res,rej)=>{
+    const r = new FileReader();
+    r.onload = e => {
+      try{
+        const wb = XLSX.read(new Uint8Array(e.target.result), {type:"array", cellDates:true});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null, blankrows:false});
+        res(rows);
+      }catch(err){ rej(err); }
+    };
+    r.onerror = () => rej(new Error("read error"));
+    r.readAsArrayBuffer(file);
+  });
+}
+
+async function addFiles(list){
+  const arr = Array.from(list);
+  for(const f of arr){
+    try{
+      const rows = await readFile(f);
+      if(!rows.length) throw new Error("leeg");
+      const date = guessDateFromName(f.name) || stripTime(new Date(f.lastModified)) || stripTime(new Date());
+      state.files.push({ id:++fileSeq, name:f.name, rows, date });
+    }catch(err){
+      setMapMsg("Kon \""+f.name+"\" niet lezen. Verwacht een .xlsx of .csv uit Open in Excel.");
+    }
+  }
+  if(state.files.length && !state.headers.length){
+    detectHeadersAndMapping();
+  }
+  renderFiles();
+  renderTimeline();
+  if(state.files.length){
+    document.getElementById("mapStep").classList.remove("hidden");
+    renderMapping();
+    refreshAnalyzeState();
+  }
+}
+
+function getHeaderRowIdx(){
+  const v = parseInt(document.getElementById("headerRow").value,10);
+  return (isNaN(v)||v<1) ? 0 : v-1;
+}
+
+function detectHeadersAndMapping(){
+  const rows = state.files[0].rows;
+  let best=0, bestScore=-1;
+  for(let i=0;i<Math.min(6,rows.length);i++){
+    const score = rows[i].filter(c => typeof c==="string" && c.trim()!=="").length;
+    if(score>bestScore){ bestScore=score; best=i; }
+  }
+  document.getElementById("headerRow").value = best+1;
+  state.headers = (rows[best]||[]).map((h,i)=> (h===null||h===undefined||String(h).trim()==="") ? ("Kolom "+(i+1)) : String(h).trim());
+  autoMap();
+}
+
+function findBestColumn(H, tests, exclude=[]){
+  const matches=[];
+  for(const test of tests){
+    for(let i=0;i<H.length;i++){
+      if(exclude.includes(i)) continue;
+      if(test(H[i])) matches.push(i);
+    }
+    if(matches.length) break;
+  }
+  if(!matches.length) return -1;
+  matches.sort((a,b)=>{
+    const ha=H[a], hb=H[b];
+    const ca=/\(custom\)/i.test(ha), cb=/\(custom\)/i.test(hb);
+    if(ca!==cb) return ca?1:-1;
+    return ha.length - hb.length;
+  });
+  return matches[0];
+}
+
+function autoMap(){
+  const H = state.headers.map(h=>h.toLowerCase());
+  const has = (...kw)=> (h)=> kw.some(k=>h.includes(k));
+  const excl = [];
+
+  const price = findBestColumn(H, [
+    h=>h.includes("unit price") && !h.includes("per pu"),
+    has("eenheidsprijs"),
+    h=>h.startsWith("prijs") && !h.includes("lijst"),
+  ], excl);
+  if(price>=0) excl.push(price);
+
+  const assign = findBestColumn(H, [
+    h=>/^assign-to no\.?$/.test(h.trim()),
+    h=>h.includes("assign-to no") && !h.includes("parent"),
+    has("klantnr","klant nr","leverancier","vendor no","customer no"),
+  ], excl);
+  if(assign>=0) excl.push(assign);
+
+  const assignType = findBestColumn(H, [
+    h=>/^assign-to type$/.test(h.trim()),
+    has("assign-to type","relatietype"),
+  ], excl);
+
+  const desc = findBestColumn(H, [ has("description","omschrijving","beschrijving") ], excl);
+  const start = findBestColumn(H, [ has("starting date","begindatum"), h=>(h.includes("start")&&(h.includes("datum")||h.includes("date"))) ], excl);
+  const end = findBestColumn(H, [ has("ending date","einddatum","expir","verval"), h=>((h.includes("eind")||h.includes("end"))&&(h.includes("datum")||h.includes("date"))) ], excl);
+  const ptype = findBestColumn(H, [ has("price type","prijssoort"), h=>h==="soort"||h==="type" ], excl);
+
+  state.mapping.price=price;
+  state.mapping.assign=assign;
+  state.mapping.assignType=assignType;
+  state.mapping.desc=desc;
+  state.mapping.start=start;
+  state.mapping.end=end;
+  state.mapping.ptype=ptype;
+
+  const used = new Set([price,start,end,ptype,desc,assign,assignType].filter(i=>i>=0));
+  const keys=[];
+
+  function addKey(test){
+    const idx = findBestColumn(H, [test], [...used, ...keys]);
+    if(idx>=0 && !keys.includes(idx)){ keys.push(idx); used.add(idx); }
+  }
+
+  addKey(h=>h.includes("price list code"));
+  if(assign>=0) addKey(h=>h===H[assign] || (h.includes("assign-to no") && !h.includes("parent")));
+  addKey(h=>/^product no\.?$/.test(h.trim()) || (h.includes("product no") && !h.includes("type")));
+  addKey(h=>h.includes("variant code") || h==="variant code");
+  addKey(h=>h.includes("unit of measure code") || h.includes("unit of measure"));
+  addKey(h=>(h.includes("minimum quantity") || h.includes("min quantity")) && !h.includes("type"));
+
+  if(!keys.length && desc>=0) keys.push(desc);
+  state.mapping.keys = keys;
+}
+
+function renderTimeline(){
+  const el = document.getElementById("timeline");
+  if(!state.files.length){ el.classList.add("hidden"); return; }
+  const snaps = state.files.slice().sort((a,b)=>a.date-b.date);
+  el.innerHTML = '<span>Tijdlijn:</span>' + snaps.map((f,i)=>
+    '<span class="snap" title="'+escapeAttr(f.name)+'">'+(i+1)+'. '+fmtDate(f.date)+'</span>'
+  ).join("");
+  el.classList.remove("hidden");
+}
+
+function renderFiles(){
+  const box = document.getElementById("files");
+  box.innerHTML = "";
+  state.files.slice().sort((a,b)=>a.date-b.date).forEach(f=>{
+    const row = document.createElement("div");
+    row.className="file-row";
+    row.innerHTML =
+      '<span class="nm" title="'+escapeAttr(f.name)+'">'+escapeHtml(f.name)+'</span>'+
+      '<span class="cnt">'+(Math.max(0,f.rows.length-getHeaderRowIdx()-1))+' regels</span>'+
+      '<label>datum <input type="date" value="'+fmtDateISO(f.date)+'" data-id="'+f.id+'"></label>'+
+      '<button class="rm" data-rm="'+f.id+'" title="Verwijderen">×</button>';
+    box.appendChild(row);
+  });
+  box.querySelectorAll('input[type=date]').forEach(inp=>{
+    inp.addEventListener("change", e=>{
+      const f = state.files.find(x=>x.id==e.target.getAttribute("data-id"));
+      const d = parseDate(e.target.value);
+      if(f && d){ f.date=d; renderFiles(); renderTimeline(); }
+    });
+  });
+  box.querySelectorAll('[data-rm]').forEach(btn=>{
+    btn.addEventListener("click", e=>{
+      const id = +e.target.getAttribute("data-rm");
+      state.files = state.files.filter(x=>x.id!==id);
+      if(!state.files.length){
+        state.headers=[];
+        document.getElementById("mapStep").classList.add("hidden");
+        document.getElementById("results").classList.add("hidden");
+      }
+      renderFiles();
+      renderTimeline();
+      refreshAnalyzeState();
+    });
+  });
+}
+
+function fillSelect(sel, withEmpty){
+  sel.innerHTML="";
+  if(withEmpty){ const o=document.createElement("option"); o.value="-1"; o.textContent="— geen —"; sel.appendChild(o); }
+  state.headers.forEach((h,i)=>{ const o=document.createElement("option"); o.value=i; o.textContent=h; sel.appendChild(o); });
+}
+
+function renderMapping(){
+  fillSelect(document.getElementById("m_price"), false);
+  fillSelect(document.getElementById("m_assign"), true);
+  fillSelect(document.getElementById("m_assignType"), true);
+  fillSelect(document.getElementById("m_desc"), true);
+  fillSelect(document.getElementById("m_start"), true);
+  fillSelect(document.getElementById("m_end"), true);
+  fillSelect(document.getElementById("m_ptype"), true);
+
+  document.getElementById("m_price").value = state.mapping.price>=0?state.mapping.price:0;
+  document.getElementById("m_assign").value = state.mapping.assign;
+  document.getElementById("m_assignType").value = state.mapping.assignType;
+  document.getElementById("m_desc").value  = state.mapping.desc;
+  document.getElementById("m_start").value = state.mapping.start;
+  document.getElementById("m_end").value   = state.mapping.end;
+  document.getElementById("m_ptype").value = state.mapping.ptype;
+
+  const chips = document.getElementById("keyChips");
+  chips.innerHTML="";
+  state.headers.forEach((h,i)=>{
+    const on = state.mapping.keys.includes(i);
+    const lbl = document.createElement("label");
+    lbl.className="chip"+(on?" on":"");
+    lbl.innerHTML='<input type="checkbox" '+(on?"checked":"")+' value="'+i+'">'+escapeHtml(h);
+    chips.appendChild(lbl);
+  });
+  chips.querySelectorAll("input").forEach(cb=>{
+    cb.addEventListener("change", e=>{
+      const i=+e.target.value;
+      if(e.target.checked){ if(!state.mapping.keys.includes(i)) state.mapping.keys.push(i); }
+      else { state.mapping.keys = state.mapping.keys.filter(x=>x!==i); }
+      e.target.parentElement.classList.toggle("on", e.target.checked);
+      refreshAnalyzeState();
+    });
+  });
+
+  if(!mappingWired){
+    mappingWired = true;
+    ["m_price","m_desc","m_start","m_end","m_ptype","m_assign","m_assignType"].forEach(id=>{
+      document.getElementById(id).addEventListener("change", e=>{
+        const key = id.replace("m_","");
+        state.mapping[key] = parseInt(e.target.value,10);
+        refreshAnalyzeState();
+      });
+    });
+    document.getElementById("headerRow").addEventListener("change", ()=>{ renderFiles(); });
+  }
+}
+
+function refreshAnalyzeState(){
+  const ok = state.files.length>=1 && state.mapping.price>=0 && state.mapping.keys.length>=1;
+  document.getElementById("analyze").disabled = !ok;
+  if(state.mapping.price<0) setMapMsg("Koppel een prijskolom.");
+  else if(!state.mapping.keys.length) setMapMsg("Kies minstens één sleutelkolom.");
+  else if(state.files.length<2) setMapMsg("Eén export geladen — je ziet een basislijn. Laad een tweede om wijzigingen te zien.");
+  else setMapMsg(state.files.length+" exports klaar — klik Vergelijk.");
+}
+function setMapMsg(t){ document.getElementById("mapMsg").textContent=t; }
+
+function buildSnapshot(file){
+  const h = getHeaderRowIdx();
+  const m = state.mapping;
+  const map = new Map();
+  for(let r=h+1; r<file.rows.length; r++){
+    const row = file.rows[r];
+    if(!row) continue;
+    const keyVal = m.keys.map(i=>cellStr(row[i])).join(" ¦ ");
+    if(keyVal.replace(/¦/g,"").trim()==="") continue;
+    const price = parseNum(row[m.price]);
+    map.set(keyVal, {
+      price,
+      desc:  m.desc>=0  ? row[m.desc]  : null,
+      start: m.start>=0 ? parseDate(row[m.start]) : null,
+      end:   m.end>=0   ? parseDate(row[m.end])   : null,
+      ptype: m.ptype>=0 ? cellStr(row[m.ptype]) || null : null,
+      assignTo: m.assign>=0 ? cellStr(row[m.assign]) || null : null,
+      assignToType: m.assignType>=0 ? cellStr(row[m.assignType]) || null : null,
+    });
+  }
+  return map;
+}
+
+function buildAssignOptionsCache(){
+  const map = new Map();
+  state.result.forEach(r=>{
+    if(!r.assignTo) return;
+    if(!map.has(r.assignTo)){
+      map.set(r.assignTo, { code:r.assignTo, type:r.assignToType||"", count:0 });
+    }
+    map.get(r.assignTo).count++;
+  });
+  state.assignOptionsCache = [...map.values()].sort((a,b)=>a.code.localeCompare(b.code, "nl"));
+}
+
+function getAssignOptions(){
+  return state.assignOptionsCache;
+}
+
+async function analyze(){
+  const btn = document.getElementById("analyze");
+  btn.disabled = true;
+  setBusy(true);
+  await new Promise(r=>setTimeout(r, 20));
+
+  try{
+    const files = state.files.slice().sort((a,b)=>a.date-b.date);
+    const snaps = files.map(f=>({ date:f.date, map:buildSnapshot(f) }));
+    const latest = snaps[snaps.length-1];
+    const single = snaps.length===1;
+
+    const allKeys = new Set();
+    snaps.forEach(s=>s.map.forEach((_,k)=>allKeys.add(k)));
+
+    const out=[];
+    allKeys.forEach(key=>{
+      const series=[];
+      snaps.forEach(s=>{
+        if(s.map.has(key)){
+          const p=s.map.get(key).price;
+          if(p!==null) series.push({date:s.date, price:p});
+        }
+      });
+      if(!series.length) return;
+
+      const inLatest = latest.map.has(key);
+      const recSrc = inLatest ? latest.map.get(key) : lastPresentRec(snaps,key);
+      const current = series[series.length-1].price;
+
+      let runStart = series.length-1;
+      while(runStart>0 && series[runStart-1].price===current) runStart--;
+      let lastChanged = series[runStart].date;
+      const previous = runStart>0 ? series[runStart-1].price : null;
+      const stableCount = series.length - runStart;
+      const firstSeen = series[0].date;
+
+      if(single && recSrc && recSrc.start) lastChanged = recSrc.start;
+
+      let status;
+      if(!inLatest) status="removed";
+      else if(single) status="baseline";
+      else if(firstSeen.getTime()===latest.date.getTime()) status="new";
+      else if(previous!==null && lastChanged.getTime()===latest.date.getTime()) status="changed";
+      else status="unchanged";
+
+      const delta = previous!==null ? round2(current-previous) : null;
+      const deltaPct = (previous!==null && previous!==0) ? round2((current-previous)/previous*100) : null;
+
+      const desc = recSrc && recSrc.desc!=null && cellStr(recSrc.desc) ? cellStr(recSrc.desc) : "";
+      const label = desc || key;
+      const assignTo = recSrc?recSrc.assignTo:null;
+      const assignToType = recSrc?recSrc.assignToType:null;
+      const ptype = recSrc?recSrc.ptype:null;
+
+      out.push({
+        key, label, sub: (desc && desc!==key)?key:"",
+        assignTo, assignToType,
+        current, previous, delta, deltaPct,
+        lastChanged, stableCount, firstSeen,
+        endDate: recSrc?recSrc.end:null,
+        startDate: recSrc?recSrc.start:null,
+        ptype, status,
+        _hay: [label, (desc && desc!==key)?key:"", assignTo, assignToType, ptype, key].filter(Boolean).join(" ").toLowerCase(),
+      });
+    });
+
+    state.result = out;
+    state.assignToSelected = null;
+    state.assignFilterQuery = "";
+    state.page = 0;
+    state.tab = files.length >= 2 ? "changed" : "all";
+    invalidateViewCache();
+    buildAssignOptionsCache();
+
+    const ref = document.getElementById("refDate");
+    if(!ref.value) ref.value = fmtDateISO(latest.date);
+
+    const ptypes = [...new Set(out.map(r=>r.ptype).filter(Boolean))].sort();
+    const pf=document.getElementById("ptypeFilter");
+    if(ptypes.length>1){
+      pf.classList.remove("hidden");
+      pf.innerHTML='<option value="all">Alle prijssoorten</option>'+ptypes.map(p=>'<option value="'+escapeAttr(p)+'">'+escapeHtml(p)+'</option>').join("");
+    } else { pf.classList.add("hidden"); state.ptype="all"; }
+
+    const hasAssign = state.assignOptionsCache.length > 0;
+    document.getElementById("assignFilterWrap").classList.toggle("hidden", !hasAssign);
+
+    document.getElementById("results").classList.remove("hidden");
+    document.getElementById("introNote").classList.add("hidden");
+    renderAll();
+  } finally {
+    setBusy(false);
+    refreshAnalyzeState();
+  }
+}
+
+function lastPresentRec(snaps,key){
+  for(let i=snaps.length-1;i>=0;i--) if(snaps[i].map.has(key)) return snaps[i].map.get(key);
+  return null;
+}
+
+function setBusy(on){
+  document.getElementById("busy").classList.toggle("hidden", !on);
+}
+
+function invalidateViewCache(){
+  state.viewCache = null;
+  state.summaryCounts = null;
+}
+
+function rowHay(r){
+  if(!r._hay){
+    r._hay = [r.label, r.sub, r.assignTo, r.assignToType, r.ptype, r.key].filter(Boolean).join(" ").toLowerCase();
+  }
+  return r._hay;
+}
+
+function assignToMatch(r){
+  if(state.assignToSelected === null) return true;
+  if(!state.assignToSelected.size) return false;
+  if(!r.assignTo) return false;
+  return state.assignToSelected.has(r.assignTo);
+}
+
+function passesBaseFilters(r){
+  if(state.ptype!=="all" && r.ptype!==state.ptype) return false;
+  if(!assignToMatch(r)) return false;
+  if(state.search.trim()){
+    if(!rowHay(r).includes(state.search.toLowerCase())) return false;
+  }
+  return true;
+}
+
+function tabMatch(r,tab){
+  switch(tab){
+    case "all": return true;
+    case "changed": return r.status==="changed";
+    case "new": return r.status==="new";
+    case "removed": return r.status==="removed";
+    case "stale": return r.isStale;
+    case "expiring": return r.isExpiring;
+  }
+}
+
+function compareRows(a,b,sort){
+  const dir = sort.dir==="asc"?1:-1;
+  let va,vb;
+  switch(sort.col){
+    case "assignTo": va=(a.assignTo||"").toLowerCase(); vb=(b.assignTo||"").toLowerCase(); break;
+    case "assignToType": va=(a.assignToType||"").toLowerCase(); vb=(b.assignToType||"").toLowerCase(); break;
+    case "label": va=(a.label||"").toLowerCase(); vb=(b.label||"").toLowerCase(); break;
+    case "ptype": va=(a.ptype||"").toLowerCase(); vb=(b.ptype||"").toLowerCase(); break;
+    case "current": va=num(a.current); vb=num(b.current); break;
+    case "previous": va=num(a.previous); vb=num(b.previous); break;
+    case "delta": va=num(a.delta); vb=num(b.delta); break;
+    case "deltaPct": va=num(a.deltaPct); vb=num(b.deltaPct); break;
+    case "lastChanged": va=a.lastChanged?a.lastChanged.getTime():-Infinity; vb=b.lastChanged?b.lastChanged.getTime():-Infinity; break;
+    case "stableCount": va=a.stableCount; vb=b.stableCount; break;
+    case "endDate": va=a.endDate?a.endDate.getTime():Infinity; vb=b.endDate?b.endDate.getTime():Infinity; break;
+    case "status": va=STATUS_ORDER[a.status]; vb=STATUS_ORDER[b.status]; break;
+    default: va=0; vb=0;
+  }
+  if(typeof va==="string") return va.localeCompare(vb,"nl")*dir;
+  return (va-vb)*dir;
+}
+
+function rebuildViewCache(){
+  const p = getParams();
+  const res = state.result;
+  for(let i=0;i<res.length;i++) deriveFlags(res[i], p);
+
+  const tabCounts = { all:0, changed:0, new:0, removed:0, stale:0, expiring:0 };
+  let baseTotal = 0;
+  const indices = [];
+
+  for(let i=0;i<res.length;i++){
+    const r = res[i];
+    if(!passesBaseFilters(r)) continue;
+    baseTotal++;
+    tabCounts.all++;
+    if(r.status==="changed") tabCounts.changed++;
+    if(r.status==="new") tabCounts.new++;
+    if(r.status==="removed") tabCounts.removed++;
+    if(r.isStale) tabCounts.stale++;
+    if(r.isExpiring) tabCounts.expiring++;
+    if(tabMatch(r, state.tab)) indices.push(i);
+  }
+
+  const sort = state.sort;
+  indices.sort((ia,ib)=>compareRows(res[ia], res[ib], sort));
+
+  const maxPage = Math.max(0, Math.ceil(indices.length / state.pageSize) - 1);
+  if(state.page > maxPage) state.page = maxPage;
+
+  state.summaryCounts = tabCounts;
+  state.viewCache = { indices, baseTotal, total: indices.length, maxPage };
+}
+
+function getViewIndices(){
+  if(!state.viewCache) rebuildViewCache();
+  return state.viewCache;
+}
+
+function countForTab(tabId){
+  const c = state.summaryCounts || (rebuildViewCache(), state.summaryCounts);
+  return c[tabId] || 0;
+}
+
+function scheduleFilterUpdate(){
+  invalidateViewCache();
+  if(searchTimer) clearTimeout(searchTimer);
+  searchTimer = setTimeout(()=>{
+    renderTabs();
+    renderTable();
+  }, SEARCH_DEBOUNCE_MS);
+}
+
+function refreshView(){
+  invalidateViewCache();
+  renderTabs();
+  renderTable();
+}
+
+function renderAssignFilter(){
+  const wrap = document.getElementById("assignFilterWrap");
+  if(wrap.classList.contains("hidden")) return;
+
+  const btn = document.getElementById("assignFilterBtn");
+  const active = state.assignToSelected !== null;
+  btn.textContent = active
+    ? "Klant/leverancier ("+state.assignToSelected.size+") ▾"
+    : "Klant/leverancier ▾";
+  btn.classList.toggle("on", active);
+
+  const tags = document.getElementById("selectedTags");
+  if(!active || !state.assignToSelected.size){
+    tags.innerHTML = "";
+  } else {
+    tags.innerHTML = [...state.assignToSelected].sort().map(code=>
+      '<span class="sel-tag">'+escapeHtml(code)+
+      '<button type="button" data-rm-tag="'+escapeAttr(code)+'" title="Verwijderen">×</button></span>'
+    ).join("");
+    tags.querySelectorAll("[data-rm-tag]").forEach(b=>{
+      b.addEventListener("click", ()=>{
+        state.assignToSelected.delete(b.getAttribute("data-rm-tag"));
+        if(!state.assignToSelected.size) state.assignToSelected = null;
+        state.page = 0;
+        refreshView();
+        renderAssignFilter();
+      });
+    });
+  }
+
+  if(!state.assignFilterOpen) return;
+
+  const q = state.assignFilterQuery.toLowerCase().trim();
+  const all = getAssignOptions();
+  let options = q.length >= 2
+    ? all.filter(o=> o.code.toLowerCase().includes(q) || (o.type||"").toLowerCase().includes(q))
+    : [];
+
+  if(active && state.assignToSelected.size){
+    const picked = all.filter(o=> state.assignToSelected.has(o.code));
+    const seen = new Set(options.map(o=>o.code));
+    picked.forEach(o=>{ if(!seen.has(o.code)){ options.unshift(o); seen.add(o.code); } });
+  }
+
+  const totalMatches = q.length >= 2 ? all.filter(o=> o.code.toLowerCase().includes(q) || (o.type||"").toLowerCase().includes(q)).length : 0;
+  const limited = options.slice(0, ASSIGN_FILTER_LIMIT);
+  const list = document.getElementById("assignFilterList");
+
+  if(!q && !active){
+    list.innerHTML = '<div class="filter-hint">Typ minstens 2 tekens om te zoeken tussen '+all.length+' relaties.</div>';
+  } else if(q.length >= 2 && !limited.length){
+    list.innerHTML = '<div class="filter-hint">Geen match voor &quot;'+escapeHtml(q)+'&quot;.</div>';
+  } else {
+    list.innerHTML = limited.map(o=>{
+      const checked = state.assignToSelected !== null && state.assignToSelected.has(o.code);
+      return '<label class="filter-item">'+
+        '<input type="checkbox" data-code="'+escapeAttr(o.code)+'" '+(checked?"checked":"")+'>'+
+        '<span class="code">'+escapeHtml(o.code)+'</span>'+
+        '<span class="meta">'+o.count+' · '+escapeHtml(o.type||"—")+'</span></label>';
+    }).join("") + (totalMatches > ASSIGN_FILTER_LIMIT ? '<div class="filter-hint">'+ASSIGN_FILTER_LIMIT+' van '+totalMatches+' getoond — verfijn je zoekterm.</div>' : "");
+  }
+
+  document.getElementById("assignFilterCount").textContent =
+    active ? state.assignToSelected.size+" geselecteerd" : all.length+" relaties";
+}
+
+function getParams(){
+  return {
+    stale: Math.max(1, parseInt(document.getElementById("staleDays").value,10)||90),
+    expiry: Math.max(1, parseInt(document.getElementById("expiryDays").value,10)||30),
+    ref: parseDate(document.getElementById("refDate").value) || stripTime(new Date()),
+  };
+}
+
+function deriveFlags(r,p){
+  r.daysSince = r.lastChanged ? daysBetween(p.ref, r.lastChanged) : null;
+  r.daysToEnd = r.endDate ? daysBetween(r.endDate, p.ref) : null;
+  r.isStale = r.status!=="removed" && r.daysSince!==null && r.daysSince>=p.stale;
+  r.isExpiring = r.daysToEnd!==null && r.daysToEnd>=0 && r.daysToEnd<=p.expiry;
+}
+
+function renderAll(){
+  if(state.mapping.end<0 && state.tab==="expiring") state.tab="all";
+  invalidateViewCache();
+  rebuildViewCache();
+  renderSummary();
+  renderAssignFilter();
+  renderTabs();
+  renderTable();
+}
+
+function renderSummary(){
+  const r = state.result;
+  const p = getParams();
+  let changed=0, newer=0, removed=0, stale=0, exp=0;
+  for(let i=0;i<r.length;i++){
+    const x = r[i];
+    deriveFlags(x, p);
+    if(x.status==="changed") changed++;
+    else if(x.status==="new") newer++;
+    else if(x.status==="removed") removed++;
+    if(x.isStale) stale++;
+    if(x.isExpiring) exp++;
+  }
+  document.getElementById("summary").innerHTML =
+    stat("changed","Gewijzigd",changed)+
+    stat("new","Nieuw",newer)+
+    stat("removed","Verdwenen",removed)+
+    stat("stale","Stale",stale)+
+    (state.mapping.end>=0 ? stat("exp","Verloopt",exp) : "")+
+    '<div class="chip-stat"><span class="n">'+r.length+'</span><span class="k">Totaal</span></div>';
+}
+function stat(cls,k,n){ return '<div class="chip-stat '+cls+'"><span class="n">'+n+'</span><span class="k">'+k+'</span></div>'; }
+
+function renderTabs(){
+  const box=document.getElementById("tabs");
+  box.innerHTML="";
+  TABS.filter(t=> t.id!=="expiring" || state.mapping.end>=0).forEach(t=>{
+    const b=document.createElement("button");
+    b.className="tab"+(state.tab===t.id?" on":"");
+    b.innerHTML=t.label+'<span class="b">'+countForTab(t.id)+'</span>';
+    b.addEventListener("click",()=>{
+      state.tab=t.id;
+      state.page=0;
+      invalidateViewCache();
+      renderTabs();
+      renderTable();
+    });
+    box.appendChild(b);
+  });
+}
+
+function getVisibleCols(){
+  const hasPtype = state.mapping.ptype >= 0;
+  const hasAssign = state.assignOptionsCache.length > 0;
+  return COLS.filter(c=>
+    (c.id!=="ptype" || hasPtype) &&
+    (c.id!=="endDate" || state.mapping.end>=0) &&
+    ((c.id!=="assignTo" && c.id!=="assignToType") || hasAssign)
+  );
+}
+
+function renderTableHead(cols){
+  const thead=document.getElementById("thead");
+  thead.innerHTML = cols.map(c=>{
+    const sorted = state.sort.col===c.id;
+    const ar = sorted ? (state.sort.dir==="asc"?"▲":"▼") : "";
+    return '<th class="'+(c.num?"num ":"")+(sorted?"sorted":"")+'" data-col="'+c.id+'">'+c.label+'<span class="ar">'+ar+'</span></th>';
+  }).join("");
+  if(!theadWired){
+    theadWired = true;
+    thead.addEventListener("click", e=>{
+      const th = e.target.closest("th[data-col]");
+      if(!th) return;
+      const col = th.getAttribute("data-col");
+      if(state.sort.col===col) state.sort.dir = state.sort.dir==="asc"?"desc":"asc";
+      else { state.sort.col=col; state.sort.dir = (col==="label"||col==="status"||col==="assignTo"||col==="assignToType")?"asc":"desc"; }
+      invalidateViewCache();
+      renderTable();
+    });
+  }
+}
+
+function renderPager(cache){
+  const pager = document.getElementById("pager");
+  if(!cache.total){
+    pager.classList.add("hidden");
+    return;
+  }
+  pager.classList.remove("hidden");
+  const start = state.page * state.pageSize + 1;
+  const end = Math.min(cache.total, (state.page + 1) * state.pageSize);
+  document.getElementById("pgInfo").textContent = start+"–"+end+" van "+cache.total;
+  document.getElementById("pgFirst").disabled = state.page <= 0;
+  document.getElementById("pgPrev").disabled = state.page <= 0;
+  document.getElementById("pgNext").disabled = state.page >= cache.maxPage;
+  document.getElementById("pgLast").disabled = state.page >= cache.maxPage;
+}
+
+function renderTable(){
+  const cache = getViewIndices();
+  const cols = getVisibleCols();
+  renderTableHead(cols);
+
+  const tbody=document.getElementById("tbody");
+  const pager = document.getElementById("pager");
+
+  if(!cache.total){
+    tbody.innerHTML='<tr><td colspan="'+cols.length+'"><div class="empty-state"><div class="big">Niets hier</div>Geen regels in deze weergave. Pas je filter of drempels aan.</div></td></tr>';
+    document.getElementById("resultNote").textContent="";
+    pager.classList.add("hidden");
+    return;
+  }
+
+  const res = state.result;
+  const from = state.page * state.pageSize;
+  const pageIndices = cache.indices.slice(from, from + state.pageSize);
+  tbody.innerHTML = pageIndices.map(i=>rowHtml(res[i],cols)).join("");
+  renderPager(cache);
+
+  document.getElementById("resultNote").textContent =
+    cache.total+" regels in deze weergave · pagina "+(state.page+1)+"/"+(cache.maxPage+1)+
+    " · "+cache.baseTotal+" na filters · "+state.result.length+" totaal · peildatum "+fmtDate(getParams().ref)+
+    (state.files.length>=2 ? " · "+state.files.length+" snapshots" : "")+".";
+}
+
+function rowHtml(r,cols){
+  const cells = cols.map(c=>{
+    switch(c.id){
+      case "assignTo": return '<td class="mono">'+escapeHtml(r.assignTo||"—")+'</td>';
+      case "assignToType": return '<td>'+escapeHtml(r.assignToType||"—")+'</td>';
+      case "label":
+        return '<td><div class="label-main">'+escapeHtml(r.label)+'</div>'+(r.sub?'<div class="label-sub" title="'+escapeAttr(r.sub)+'">'+escapeHtml(r.sub)+'</div>':'')+'</td>';
+      case "ptype": return '<td>'+(r.ptype?escapeHtml(r.ptype):'—')+'</td>';
+      case "current": return '<td class="num">'+fmtNum(r.current)+'</td>';
+      case "previous": return '<td class="num">'+fmtNum(r.previous)+'</td>';
+      case "delta": return '<td class="num '+deltaCls(r.delta)+'">'+deltaStr(r.delta)+'</td>';
+      case "deltaPct": return '<td class="num '+deltaCls(r.delta)+'">'+(r.deltaPct===null?'—':(r.deltaPct>0?'+':'')+fmtNum(r.deltaPct)+'%')+'</td>';
+      case "lastChanged": return '<td class="date'+(r.isStale?' warn-cell':'')+'">'+fmtDate(r.lastChanged)+(r.daysSince!==null?'<br><span style="opacity:.7">'+r.daysSince+'d</span>':'')+'</td>';
+      case "stableCount": return '<td class="num"><span class="stable">'+r.stableCount+'×</span></td>';
+      case "endDate": return '<td class="date'+(r.isExpiring?' warn-cell':'')+'">'+fmtDate(r.endDate)+(r.isExpiring?'<br><span style="opacity:.8">'+r.daysToEnd+'d</span>':'')+'</td>';
+      case "status": return '<td><span class="pill '+r.status+'">'+statusLabel(r.status)+'</span></td>';
+    }
+  }).join("");
+  return '<tr class="'+(r.status==="removed"?"removed":"")+'">'+cells+'</tr>';
+}
+function deltaCls(d){ if(d===null) return ""; if(d>0) return "delta-up"; if(d<0) return "delta-down"; return "delta-zero"; }
+function deltaStr(d){ if(d===null) return "—"; return (d>0?"▲ +":(d<0?"▼ ":""))+fmtNum(d); }
+function statusLabel(s){ return {changed:"Gewijzigd",new:"Nieuw",removed:"Verdwenen",unchanged:"Ongewijzigd",baseline:"Basislijn"}[s]; }
+
+function exportView(){
+  const cache = getViewIndices();
+  const res = state.result;
+  const head=["Relatienr.","Relatie","Regel","Identiteit","Prijssoort","Huidige prijs","Vorige prijs","Delta","Delta %","Laatst gewijzigd","Dagen sinds","Stabiel","Einddatum","Status"];
+  const csvNum = n => n===null||n===undefined?"":String(n).replace(".",",");
+  const lines=[head.join(";")];
+  cache.indices.forEach(i=>{
+    const r = res[i];
+    lines.push([
+      q(r.assignTo||""), q(r.assignToType||""), q(r.label), q(r.sub), q(r.ptype||""),
+      csvNum(r.current), csvNum(r.previous), csvNum(r.delta), csvNum(r.deltaPct),
+      r.lastChanged?fmtDate(r.lastChanged):"", r.daysSince!==null?r.daysSince:"",
+      r.stableCount, r.endDate?fmtDate(r.endDate):"", statusLabel(r.status)
+    ].join(";"));
+  });
+  const p = getParams();
+  const blob=new Blob(["\ufeff"+lines.join("\r\n")],{type:"text/csv;charset=utf-8;"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url; a.download="prijswijzigingen_"+fmtDateISO(p.ref)+"_"+state.tab+".csv";
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+function q(s){ s=String(s==null?"":s); return /[";\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }
+
+function escapeHtml(s){ return String(s==null?"":s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+function escapeAttr(s){ return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+const drop=document.getElementById("drop"), fileInput=document.getElementById("file");
+drop.addEventListener("click",()=>fileInput.click());
+fileInput.addEventListener("change",e=>{ addFiles(e.target.files); e.target.value=""; });
+["dragenter","dragover"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault(); drop.classList.add("over");}));
+["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault(); drop.classList.remove("over");}));
+drop.addEventListener("drop",e=>{ if(e.dataTransfer.files.length) addFiles(e.dataTransfer.files); });
+
+function num(v){ return v===null||v===undefined?-Infinity:v; }
+
+document.getElementById("analyze").addEventListener("click",()=>{ analyze(); });
+document.getElementById("search").addEventListener("input",e=>{ state.search=e.target.value; state.page=0; scheduleFilterUpdate(); });
+document.getElementById("ptypeFilter").addEventListener("change",e=>{ state.ptype=e.target.value; state.page=0; refreshView(); });
+document.getElementById("exportBtn").addEventListener("click",exportView);
+["staleDays","expiryDays","refDate"].forEach(id=>document.getElementById(id).addEventListener("change",()=>{ if(state.result.length){ state.page=0; renderAll(); } }));
+
+document.getElementById("pageSize").addEventListener("change", e=>{
+  state.pageSize = parseInt(e.target.value, 10) || PAGE_SIZE_DEFAULT;
+  state.page = 0;
+  invalidateViewCache();
+  renderTable();
+});
+document.getElementById("pgFirst").addEventListener("click", ()=>{ state.page=0; renderTable(); });
+document.getElementById("pgPrev").addEventListener("click", ()=>{ if(state.page>0){ state.page--; renderTable(); } });
+document.getElementById("pgNext").addEventListener("click", ()=>{
+  const c = getViewIndices();
+  if(state.page < c.maxPage){ state.page++; renderTable(); }
+});
+document.getElementById("pgLast").addEventListener("click", ()=>{
+  const c = getViewIndices();
+  state.page = c.maxPage;
+  renderTable();
+});
+
+document.getElementById("assignFilterBtn").addEventListener("click", e=>{
+  e.stopPropagation();
+  state.assignFilterOpen = !state.assignFilterOpen;
+  document.getElementById("assignFilterPop").classList.toggle("hidden", !state.assignFilterOpen);
+  if(state.assignFilterOpen) renderAssignFilter();
+});
+document.getElementById("assignFilterSearch").addEventListener("input", e=>{
+  state.assignFilterQuery = e.target.value;
+  renderAssignFilter();
+});
+document.getElementById("assignSelectAll").addEventListener("click", ()=>{
+  state.assignToSelected = null;
+  state.page = 0;
+  refreshView();
+  renderAssignFilter();
+});
+document.getElementById("assignFilterList").addEventListener("change", e=>{
+  if(e.target.type !== "checkbox") return;
+  const code = e.target.getAttribute("data-code");
+  if(e.target.checked){
+    if(state.assignToSelected === null) state.assignToSelected = new Set();
+    state.assignToSelected.add(code);
+  } else if(state.assignToSelected){
+    state.assignToSelected.delete(code);
+    if(!state.assignToSelected.size) state.assignToSelected = null;
+  }
+  state.page = 0;
+  refreshView();
+  renderAssignFilter();
+});
+document.addEventListener("click", e=>{
+  if(!state.assignFilterOpen) return;
+  const wrap = document.getElementById("assignFilterWrap");
+  if(!wrap.contains(e.target)){
+    state.assignFilterOpen = false;
+    document.getElementById("assignFilterPop").classList.add("hidden");
+  }
+});
+</script>
+</body>
+</html>

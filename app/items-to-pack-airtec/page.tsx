@@ -27,6 +27,7 @@ export default function ItemsToPackAirtecPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [appliedSearchTerm, setAppliedSearchTerm] = useState('')
   const [priorityOnly, setPriorityOnly] = useState(false)
+  const [specialPackOnly, setSpecialPackOnly] = useState(false)
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set())
   const [showTimeModal, setShowTimeModal] = useState(false)
   const [showReport, setShowReport] = useState(false)
@@ -47,6 +48,7 @@ export default function ItemsToPackAirtecPage() {
 
       if (appliedSearchTerm) params.append('search', appliedSearchTerm)
       if (priorityOnly) params.append('priority', 'true')
+      if (specialPackOnly) params.append('specialPack', 'true')
 
       const response = await fetch(`/api/items-to-pack-airtec?${params.toString()}`)
       if (!response.ok) throw new Error('Failed to fetch items')
@@ -58,7 +60,7 @@ export default function ItemsToPackAirtecPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentPage, pageSize, appliedSearchTerm, priorityOnly])
+  }, [currentPage, pageSize, appliedSearchTerm, priorityOnly, specialPackOnly])
 
   const fetchActiveTimeLogs = async () => {
     try {
@@ -209,6 +211,11 @@ export default function ItemsToPackAirtecPage() {
 
   const handlePriorityToggle = () => {
     setPriorityOnly(!priorityOnly)
+    setCurrentPage(1)
+  }
+
+  const handleSpecialPackToggle = () => {
+    setSpecialPackOnly((prev) => !prev)
     setCurrentPage(1)
   }
 
@@ -468,6 +475,8 @@ export default function ItemsToPackAirtecPage() {
         onSearchSubmit={handleSearchSubmit}
         priorityOnly={priorityOnly}
         onPriorityToggle={handlePriorityToggle}
+        specialPackOnly={specialPackOnly}
+        onSpecialPackToggle={handleSpecialPackToggle}
         onShowReport={() => setShowReport(true)}
       />
 

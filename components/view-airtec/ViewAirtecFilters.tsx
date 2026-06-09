@@ -3,6 +3,8 @@
 interface ViewAirtecFiltersProps {
   searchTerm: string
   onSearchChange: (value: string) => void
+  specialPackOnly: boolean
+  onSpecialPackToggle: () => void
   selectedCount: number
   totalQuantity: number
   onConfirm: () => void
@@ -12,6 +14,8 @@ interface ViewAirtecFiltersProps {
 export default function ViewAirtecFilters({
   searchTerm,
   onSearchChange,
+  specialPackOnly,
+  onSpecialPackToggle,
   selectedCount,
   totalQuantity,
   onConfirm,
@@ -19,17 +23,30 @@ export default function ViewAirtecFilters({
 }: ViewAirtecFiltersProps) {
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-6">
-      <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-        <div className="flex-1 w-full md:w-auto">
-          <input
-            type="text"
-            placeholder="Search by description, item number, lot number, box number, division..."
-            value={searchTerm}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
-          />
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+          <div className="flex-1 w-full md:w-auto">
+            <input
+              type="text"
+              placeholder="Search by description, item number, lot number, box number, division..."
+              value={searchTerm}
+              onChange={(e) => onSearchChange(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={onSpecialPackToggle}
+            className={`px-4 py-3 rounded-lg font-medium text-lg whitespace-nowrap ${
+              specialPackOnly
+                ? 'bg-teal-600 text-white'
+                : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
+            }`}
+          >
+            📦 Speciale verpakking
+          </button>
         </div>
-        <div className="flex gap-4 items-center">
+        <div className="flex flex-wrap gap-4 items-center justify-end">
           <div className="text-lg font-medium">
             Total Quantity: <span className="font-bold text-blue-600">{totalQuantity}</span>
           </div>

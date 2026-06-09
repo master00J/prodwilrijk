@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { ItemToPackAirtec } from '@/types/database'
 import { BcItemCode } from '@/lib/bc-mapping/client'
+import { isSpecialPackItemNumber } from '@/lib/airtec/special-pack-items'
+import SpecialPackBadge from '@/components/airtec/SpecialPackBadge'
 import LabelScanPhotosModal, { filterLabelPhotoUrls } from '@/components/common/LabelScanPhotosModal'
 
 interface ItemsTableAirtecProps {
@@ -118,7 +120,10 @@ export default function ItemsTableAirtec({
             ) : (
               items.map((item) => {
                 const urgency = getUrgencyGroup ? getUrgencyGroup(item) : 2
-                const rowClass = urgency === 0
+                const specialPack = isSpecialPackItemNumber(item.item_number)
+                const rowClass = specialPack
+                  ? 'bg-teal-50 border-l-4 border-l-teal-500'
+                  : urgency === 0
                   ? 'bg-purple-100 border-l-4 border-l-purple-500'
                   : urgency === 1
                     ? 'bg-orange-100 border-l-4 border-l-orange-500'
@@ -150,7 +155,10 @@ export default function ItemsTableAirtec({
                   <td className="print-col-id px-4 py-4 text-sm text-gray-900">{item.id}</td>
                   <td className="print-col-desc px-4 py-4 text-sm text-gray-900">{item.beschrijving || '-'}</td>
                   <td className="print-col-item px-4 py-4 text-sm font-medium text-gray-900">
-                    {item.item_number ? <BcItemCode value={item.item_number} /> : '-'}
+                    <div className="flex flex-col gap-1">
+                      {item.item_number ? <BcItemCode value={item.item_number} /> : '-'}
+                      {specialPack && <SpecialPackBadge compact />}
+                    </div>
                   </td>
                   <td className="print-col-lot px-4 py-4 text-sm text-gray-900">{item.lot_number || '-'}</td>
                   <td className="print-col-date px-4 py-4 text-sm text-gray-900">

@@ -22,6 +22,7 @@ export default function ViewAirtecPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize] = useState(100000)
   const [searchTerm, setSearchTerm] = useState('')
+  const [specialPackOnly, setSpecialPackOnly] = useState(false)
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set())
   const [sortColumn, setSortColumn] = useState<keyof IncomingGoodAirtec | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
@@ -36,6 +37,7 @@ export default function ViewAirtecPage() {
       })
 
       if (searchTerm) params.append('search', searchTerm)
+      if (specialPackOnly) params.append('specialPack', 'true')
 
       const response = await fetch(`/api/incoming-goods-airtec?${params.toString()}`)
       if (!response.ok) throw new Error('Failed to fetch items')
@@ -46,7 +48,7 @@ export default function ViewAirtecPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentPage, pageSize, searchTerm])
+  }, [currentPage, pageSize, searchTerm, specialPackOnly])
 
   useEffect(() => {
     fetchItems()
@@ -111,6 +113,11 @@ export default function ViewAirtecPage() {
 
   const handleSearchChange = (value: string) => {
     setSearchTerm(value)
+    setCurrentPage(1)
+  }
+
+  const handleSpecialPackToggle = () => {
+    setSpecialPackOnly((prev) => !prev)
     setCurrentPage(1)
   }
 
@@ -232,6 +239,8 @@ export default function ViewAirtecPage() {
       <ViewAirtecFilters
         searchTerm={searchTerm}
         onSearchChange={handleSearchChange}
+        specialPackOnly={specialPackOnly}
+        onSpecialPackToggle={handleSpecialPackToggle}
         selectedCount={selectedItems.size}
         totalQuantity={totalQuantity}
         onConfirm={handleConfirm}

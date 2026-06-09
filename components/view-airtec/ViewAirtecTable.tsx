@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { IncomingGoodAirtec } from '@/types/database'
+import { isSpecialPackItemNumber } from '@/lib/airtec/special-pack-items'
+import SpecialPackBadge from '@/components/airtec/SpecialPackBadge'
 
 interface ViewAirtecTableProps {
   items: IncomingGoodAirtec[]
@@ -176,8 +178,13 @@ export default function ViewAirtecTable({
                 </td>
               </tr>
             ) : (
-              items.map((item) => (
-                <tr key={item.id} className="hover:bg-gray-50">
+              items.map((item) => {
+                const specialPack = isSpecialPackItemNumber(item.item_number)
+                return (
+                <tr
+                  key={item.id}
+                  className={`hover:bg-gray-50 ${specialPack ? 'bg-teal-50 border-l-4 border-l-teal-500' : ''}`}
+                >
                   <td className="px-4 py-3">
                     <input
                       type="checkbox"
@@ -191,7 +198,10 @@ export default function ViewAirtecTable({
                     {renderCell(item, 'beschrijving', item.beschrijving || '')}
                   </td>
                   <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                    {renderCell(item, 'item_number', item.item_number || '')}
+                    <div className="flex flex-col gap-1">
+                      {renderCell(item, 'item_number', item.item_number || '')}
+                      {specialPack && <SpecialPackBadge compact />}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-900">
                     {renderCell(item, 'lot_number', item.lot_number || '')}
@@ -224,7 +234,7 @@ export default function ViewAirtecTable({
                     </button>
                   </td>
                 </tr>
-              ))
+              )})
             )}
           </tbody>
         </table>

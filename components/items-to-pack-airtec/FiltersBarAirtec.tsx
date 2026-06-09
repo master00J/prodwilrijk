@@ -6,6 +6,8 @@ interface FiltersBarAirtecProps {
   onSearchSubmit: () => void
   priorityOnly: boolean
   onPriorityToggle: () => void
+  specialPackOnly: boolean
+  onSpecialPackToggle: () => void
   onShowReport?: () => void
 }
 
@@ -15,6 +17,8 @@ export default function FiltersBarAirtec({
   onSearchSubmit,
   priorityOnly,
   onPriorityToggle,
+  specialPackOnly,
+  onSpecialPackToggle,
   onShowReport,
 }: FiltersBarAirtecProps) {
   return (
@@ -46,16 +50,27 @@ export default function FiltersBarAirtec({
         </div>
 
         {/* Toggle Buttons */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button
             onClick={onPriorityToggle}
-            className={`flex-1 px-4 py-3 rounded-lg font-medium text-lg ${
+            className={`flex-1 min-w-[140px] px-4 py-3 rounded-lg font-medium text-lg ${
               priorityOnly
                 ? 'bg-yellow-500 text-white'
                 : 'bg-gray-200 hover:bg-gray-300'
             }`}
           >
             ⭐ Priority
+          </button>
+          <button
+            type="button"
+            onClick={onSpecialPackToggle}
+            className={`flex-1 min-w-[180px] px-4 py-3 rounded-lg font-medium text-lg ${
+              specialPackOnly
+                ? 'bg-teal-600 text-white'
+                : 'bg-gray-200 hover:bg-gray-300'
+            }`}
+          >
+            📦 Speciale verpakking
           </button>
         </div>
       </div>
