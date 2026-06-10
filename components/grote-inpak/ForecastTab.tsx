@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Upload, Download, TrendingUp, ChevronDown, ChevronRight, Plus, Minus, Calendar, RefreshCw, Search, Clock, History, MessageSquare, CheckCircle, XCircle } from 'lucide-react'
+import { Upload, Download, TrendingUp, ChevronDown, ChevronRight, Plus, Minus, Calendar, RefreshCw, Search, Clock, History, MessageSquare, CheckCircle, XCircle, Mail } from 'lucide-react'
+import CaseMailViewerModal from '@/components/grote-inpak/CaseMailViewerModal'
 
 type ChangeType = 'added' | 'removed' | 'date_change'
 type CustomerRequestFilter = 'all' | 'open' | 'not_on_pils' | 'on_pils'
@@ -37,6 +38,7 @@ interface CustomerRequest {
   requested_action?: string | null
   status: 'open' | 'waiting_forecast' | 'on_pils' | 'handled' | 'cancelled'
   due_date?: string | null
+  linked_mail_id?: number | null
   created_at: string
 }
 
@@ -82,6 +84,14 @@ export default function ForecastTab() {
   const [searchQuery, setSearchQuery] = useState('')
   const [customerRequestFilter, setCustomerRequestFilter] = useState<CustomerRequestFilter>('all')
   const [savingCustomerRequestFor, setSavingCustomerRequestFor] = useState<string | null>(null)
+  const [mailDropTarget, setMailDropTarget] = useState<string | null>(null)
+  const [mailDropBusy, setMailDropBusy] = useState<string | null>(null)
+  const [mailDropMessage, setMailDropMessage] = useState<{
+    type: 'success' | 'error' | 'info'
+    text: string
+  } | null>(null)
+  const [mailViewerCaseLabel, setMailViewerCaseLabel] = useState<string | null>(null)
+  const [mailViewerInitialId, setMailViewerInitialId] = useState<number | null>(null)
 
   // Collapsible secties
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -358,6 +368,88 @@ export default function ForecastTab() {
     }
   }
 
+  const openMailViewer = useCallback((caseLabel: string, mailId?: number | null) => {
+    setMailViewerCaseLabel(caseLabel)
+    setMailViewerInitialId(mailId ?? null)
+  }, [])
+
+  const handleMailDragOver = useCallback((e: React.DragEvent, caseLabel: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (mailDropBusy) return
+    e.dataTransfer.dropEffect = 'copy'
+    setMailDropTarget(caseLabel)
+  }, [mailDropBusy])
+
+  const handleMailDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    const related = e.relatedTarget as Node | null
+    if (related && e.currentTarget.contains(related)) return
+    setMailDropTarget(null)
+  }, [])
+
+  const handleMailDrop = useCallback(async (e: React.DragEvent, item: any) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setMailDropTarget(null)
+
+    const caseLabel = String(item.case_label || '').trim()
+    if (!caseLabel) return
+
+    const files = Array.from(e.dataTransfer.files || [])
+    const mailFile =
+      files.find((f) => /\.(eml|msg)$/i.test(f.name)) ||
+      (files.length === 1 ? files[0] : null)
+
+    if (!mailFile) {
+      setMailDropMessage({
+        type: 'error',
+        text: 'Sleep een mail vanuit Outlook (.eml of .msg) op de forecast-rij.',
+      })
+      return
+    }
+
+    setMailDropBusy(caseLabel)
+    setMailDropMessage({ type: 'info', text: `Mail koppelen aan ${caseLabel}...` })
+
+    try {
+      const formData = new FormData()
+      formData.append('case_label', caseLabel)
+      formData.append('case_type', String(item.case_type || ''))
+      formData.append('file', mailFile)
+
+      const response = await fetch('/api/grote-inpak/forecast-mail-drop', {
+        method: 'POST',
+        body: formData,
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(result.error || 'Mail koppelen mislukt')
+      }
+
+      await loadForecast()
+
+      const mailId =
+        (result.mail as { id?: number } | undefined)?.id ??
+        (result.parsed as { mailId?: number } | undefined)?.mailId ??
+        null
+
+      setMailDropMessage({
+        type: 'success',
+        text: `${result.summary || `Mail gekoppeld aan ${caseLabel}`} — open via het envelop-icoon bij de klantvraag.`,
+      })
+      if (mailId) openMailViewer(caseLabel, mailId)
+      setTimeout(() => setMailDropMessage(null), 8000)
+    } catch (err: unknown) {
+      setMailDropMessage({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'Mail koppelen mislukt',
+      })
+    } finally {
+      setMailDropBusy(null)
+    }
+  }, [loadForecast, openMailViewer])
+
   const matchesSearch = (item: { case_label?: string; case_type?: string; source_file?: string; customer_requests?: CustomerRequest[] }) => {
     if (!searchQuery) return true
     const q = searchQuery.toLowerCase()
@@ -444,6 +536,31 @@ export default function ForecastTab() {
 
   return (
     <div className="space-y-4">
+      {mailViewerCaseLabel && (
+        <CaseMailViewerModal
+          caseLabel={mailViewerCaseLabel}
+          initialMailId={mailViewerInitialId}
+          onClose={() => {
+            setMailViewerCaseLabel(null)
+            setMailViewerInitialId(null)
+          }}
+        />
+      )}
+
+      {mailDropMessage && (
+        <div
+          className={`rounded-lg border px-4 py-3 text-sm ${
+            mailDropMessage.type === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+              : mailDropMessage.type === 'error'
+                ? 'border-red-200 bg-red-50 text-red-900'
+                : 'border-sky-200 bg-sky-50 text-sky-900'
+          }`}
+        >
+          {mailDropMessage.text}
+        </div>
+      )}
+
       {/* Header + globale zoekbalk + export knoppen */}
       <div className="flex flex-wrap justify-between items-center gap-3">
         <h2 className="text-2xl font-bold">📈 Forecast</h2>
@@ -999,6 +1116,7 @@ export default function ForecastTab() {
         <p className="px-5 py-2 text-xs text-slate-600 bg-slate-50 border-b border-slate-100 leading-relaxed">
           <strong>Forecast</strong> = alle Atlas-forecast-labels (ook als ze intussen op PILS staan — zelfde als Excel).{' '}
           <strong>Alleen PILS</strong> = nooit op forecast, wel in Willebroek of op trailer.
+          Sleep een <strong>Outlook-mail</strong> (.msg/.eml) op een rij om automatisch een klantvraag met mailbijlage aan te maken.
         </p>
         <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex flex-wrap items-center gap-2">
             <input
@@ -1066,12 +1184,18 @@ export default function ForecastTab() {
                   return (
                     <tr
                       key={`f-${i}`}
+                      onDragOver={(e) => handleMailDragOver(e, String(item.case_label || ''))}
+                      onDragLeave={handleMailDragLeave}
+                      onDrop={(e) => handleMailDrop(e, item)}
                       className={
-                        hasRequests && item.on_pils ? 'hover:bg-sky-50 bg-sky-50'
+                        mailDropBusy === String(item.case_label || '') ? 'bg-sky-100 ring-2 ring-inset ring-sky-400'
+                        : mailDropTarget === String(item.case_label || '') ? 'bg-sky-50 ring-2 ring-inset ring-sky-500'
+                        : hasRequests && item.on_pils ? 'hover:bg-sky-50 bg-sky-50'
                         : hasRequests ? 'hover:bg-amber-50 bg-amber-50/50'
                         : item.on_pils ? 'hover:bg-sky-50/50 bg-sky-50/20'
                         : 'hover:bg-gray-50'
                       }
+                      title="Sleep een Outlook-mail (.msg/.eml) hierheen om een klantvraag te koppelen"
                     >
                       <td className="px-5 py-2.5">
                         <div className="flex flex-col gap-1">
@@ -1093,7 +1217,29 @@ export default function ForecastTab() {
                           )}
                         </div>
                       </td>
-                      <td className="px-5 py-2.5 font-medium text-gray-900">{item.case_label || '—'}</td>
+                      <td className="px-5 py-2.5 font-medium text-gray-900">
+                        <span className="inline-flex items-center gap-1.5">
+                          {mailDropBusy === String(item.case_label || '') ? (
+                            <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-sky-600 border-t-transparent" />
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(ev) => {
+                                ev.stopPropagation()
+                                openMailViewer(String(item.case_label || ''))
+                              }}
+                              className={`shrink-0 rounded p-0.5 hover:bg-sky-100 ${
+                                hasRequests ? 'text-sky-600' : 'text-slate-400 opacity-40 hover:opacity-100'
+                              }`}
+                              title={hasRequests ? 'Gekoppelde mails bekijken' : 'Mails bekijken'}
+                              aria-label={`Mails voor ${item.case_label}`}
+                            >
+                              <Mail className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                          {item.case_label || '—'}
+                        </span>
+                      </td>
                       <td className="px-5 py-2.5 text-gray-700">{item.case_type || '—'}</td>
                       <td className="px-4 py-2.5 text-gray-700">{fmtDate(item.arrival_date)}</td>
                       <td className="px-4 py-2.5 text-gray-400 text-xs">{item.source_file || '—'}</td>
@@ -1108,6 +1254,15 @@ export default function ForecastTab() {
                                   <MessageSquare className="w-3.5 h-3.5 text-amber-600" />
                                   {req.customer_name && <span className="font-semibold text-gray-900">{req.customer_name}</span>}
                                   <span className="text-gray-400">{fmtTs(req.created_at)}</span>
+                                  {req.linked_mail_id && (
+                                    <button
+                                      type="button"
+                                      onClick={() => openMailViewer(req.case_label, req.linked_mail_id)}
+                                      className="inline-flex items-center gap-1 rounded bg-sky-100 px-1.5 py-0.5 font-medium text-sky-800 hover:bg-sky-200"
+                                    >
+                                      <Mail className="h-3 w-3" /> Mail
+                                    </button>
+                                  )}
                                 </div>
                                 <p className="mt-1 font-medium text-gray-900">{req.request_text}</p>
                                 {req.requested_action && <p className="mt-1 text-gray-500">{req.requested_action}</p>}
@@ -1125,7 +1280,7 @@ export default function ForecastTab() {
                             className="inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
                           >
                             <MessageSquare className="w-3.5 h-3.5" />
-                            Vraag toevoegen
+                            Vraag manueel
                           </button>
                           {requests.map((req) => (
                             <div key={req.id} className="flex gap-1">
@@ -1155,7 +1310,19 @@ export default function ForecastTab() {
                 {filteredPilsOnly.map((item, i) => {
                   const requests = getCustomerRequests(item)
                   return (
-                    <tr key={`p-${i}`} className={requests.length > 0 ? 'hover:bg-sky-50 bg-sky-50' : 'hover:bg-amber-50/60 bg-amber-50/30'}>
+                    <tr
+                      key={`p-${i}`}
+                      onDragOver={(e) => handleMailDragOver(e, String(item.case_label || ''))}
+                      onDragLeave={handleMailDragLeave}
+                      onDrop={(e) => handleMailDrop(e, item)}
+                      className={
+                        mailDropBusy === String(item.case_label || '') ? 'bg-sky-100 ring-2 ring-inset ring-sky-400'
+                        : mailDropTarget === String(item.case_label || '') ? 'bg-sky-50 ring-2 ring-inset ring-sky-500'
+                        : requests.length > 0 ? 'hover:bg-sky-50 bg-sky-50'
+                        : 'hover:bg-amber-50/60 bg-amber-50/30'
+                      }
+                      title="Sleep een Outlook-mail (.msg/.eml) hierheen om een klantvraag te koppelen"
+                    >
                       <td className="px-5 py-2.5">
                         <div className="flex flex-col gap-1">
                           <span className="text-xs font-semibold text-amber-900 bg-amber-100 px-2 py-0.5 rounded w-fit">
@@ -1168,7 +1335,29 @@ export default function ForecastTab() {
                           )}
                         </div>
                       </td>
-                      <td className="px-5 py-2.5 font-medium text-gray-900">{item.case_label || '—'}</td>
+                      <td className="px-5 py-2.5 font-medium text-gray-900">
+                        <span className="inline-flex items-center gap-1.5">
+                          {mailDropBusy === String(item.case_label || '') ? (
+                            <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-sky-600 border-t-transparent" />
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(ev) => {
+                                ev.stopPropagation()
+                                openMailViewer(String(item.case_label || ''))
+                              }}
+                              className={`shrink-0 rounded p-0.5 hover:bg-sky-100 ${
+                                requests.length > 0 ? 'text-sky-600' : 'text-slate-400 opacity-40 hover:opacity-100'
+                              }`}
+                              title={requests.length > 0 ? 'Gekoppelde mails bekijken' : 'Mails bekijken'}
+                              aria-label={`Mails voor ${item.case_label}`}
+                            >
+                              <Mail className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                          {item.case_label || '—'}
+                        </span>
+                      </td>
                       <td className="px-5 py-2.5 text-gray-700">{item.case_type || '—'}</td>
                       <td className="px-4 py-2.5 text-gray-700">{fmtDate(item.arrival_date)}</td>
                       <td className="px-4 py-2.5 text-gray-400 text-xs">{item.source_file || '—'}</td>
@@ -1183,6 +1372,15 @@ export default function ForecastTab() {
                                   <MessageSquare className="w-3.5 h-3.5 text-sky-600" />
                                   {req.customer_name && <span className="font-semibold text-gray-900">{req.customer_name}</span>}
                                   <span className="text-gray-400">{fmtTs(req.created_at)}</span>
+                                  {req.linked_mail_id && (
+                                    <button
+                                      type="button"
+                                      onClick={() => openMailViewer(req.case_label, req.linked_mail_id)}
+                                      className="inline-flex items-center gap-1 rounded bg-sky-100 px-1.5 py-0.5 font-medium text-sky-800 hover:bg-sky-200"
+                                    >
+                                      <Mail className="h-3 w-3" /> Mail
+                                    </button>
+                                  )}
                                 </div>
                                 <p className="mt-1 font-medium text-gray-900">{req.request_text}</p>
                                 {req.requested_action && <p className="mt-1 text-gray-500">{req.requested_action}</p>}
@@ -1200,7 +1398,7 @@ export default function ForecastTab() {
                             className="inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
                           >
                             <MessageSquare className="w-3.5 h-3.5" />
-                            Vraag toevoegen
+                            Vraag manueel
                           </button>
                           {requests.map((req) => (
                             <div key={req.id} className="flex gap-1">
