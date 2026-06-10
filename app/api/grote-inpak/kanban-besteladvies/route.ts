@@ -4,6 +4,10 @@ import { normalizeErpCode, normalizeKistnummer } from '@/lib/utils/erp-code-norm
 import JSZip from 'jszip'
 import { buildDailyOrderWorkbook } from '@/lib/grote-inpak/daily-order-excel'
 import { getEndingDatesByKist } from '@/lib/grote-inpak/production-orders'
+import {
+  enrichRowWithBouwpakketStock,
+  fetchBouwpakketStockContext,
+} from '@/lib/grote-inpak/bouwpakket-stock'
 
 export const dynamic = 'force-dynamic'
 
@@ -326,9 +330,14 @@ export async function POST(request: NextRequest) {
 
     // Hernummer per locatie zodat elke Excel begint bij 1, 2, 3...
     const renumber = (rows: any[]) => rows.map((r, i) => ({ ...r, priority_rank: i + 1 }))
-    const endingDatesByKist = await getEndingDatesByKist()
-    const wbGenk = buildDailyOrderWorkbook('Genk', renumber(genkRows), today, { endingDatesByKist })
-    const wbWilrijk = buildDailyOrderWorkbook('Wilrijk', renumber(wilrijkRows), today, { endingDatesByKist })
+    const [endingDatesByKist, bouwpakketCtx] = await Promise.all([
+      getEndingDatesByKist(),
+      fetchBouwpakketStockContext(),
+    ])
+    // Bouwpakket-referentie + BP-stock uit ERP koppeling toevoegen (zelfde als daily order download)
+    const withBouwpakket = (rows: any[]) => rows.map((r) => enrichRowWithBouwpakketStock(r, bouwpakketCtx))
+    const wbGenk = buildDailyOrderWorkbook('Genk', withBouwpakket(renumber(genkRows)), today, { endingDatesByKist })
+    const wbWilrijk = buildDailyOrderWorkbook('Wilrijk', withBouwpakket(renumber(wilrijkRows)), today, { endingDatesByKist })
 
     const bufGenk = await wbGenk.xlsx.writeBuffer() as ArrayBuffer
     const bufWilrijk = await wbWilrijk.xlsx.writeBuffer() as ArrayBuffer
