@@ -9,6 +9,110 @@ export type ParsedDroppedMail = {
   contentType: string
 }
 
+export type MailInlineImage = {
+  filename: string
+  mediaType: string
+  base64: string
+  bytes: number
+}
+
+// Kleine afbeeldingen zijn vrijwel altijd logo's/handtekeningen — overslaan voor AI.
+const MIN_INLINE_IMAGE_BYTES = 8 * 1024
+const MAX_INLINE_IMAGES = 6
+
+function imageMediaTypeForName(name: string): string | null {
+  const lower = name.toLowerCase()
+  if (lower.endsWith('.png')) return 'image/png'
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg'
+  if (lower.endsWith('.gif')) return 'image/gif'
+  if (lower.endsWith('.webp')) return 'image/webp'
+  if (lower.endsWith('.bmp')) return 'image/bmp'
+  return null
+}
+
+function extractEmlInlineImages(raw: string): MailInlineImage[] {
+  const images: MailInlineImage[] = []
+  // MIME-delen zijn gescheiden door boundary-regels die met '--' beginnen.
+  const segments = raw.split(/\r?\n--/)
+
+  for (const segment of segments) {
+    const headerEnd = segment.search(/\r?\n\r?\n/)
+    if (headerEnd < 0) continue
+
+    const headers = segment.slice(0, headerEnd)
+    const typeMatch = headers.match(/Content-Type:\s*image\/(png|jpe?g|gif|webp|bmp)/i)
+    if (!typeMatch) continue
+    if (!/Content-Transfer-Encoding:\s*base64/i.test(headers)) continue
+
+    const nameMatch = headers.match(/(?:file)?name="?([^";\r\n]+)"?/i)
+    const base64 = segment.slice(headerEnd).replace(/[^A-Za-z0-9+/=]/g, '')
+    if (!base64) continue
+
+    const ext = typeMatch[1].toLowerCase().replace('jpg', 'jpeg')
+    images.push({
+      filename: nameMatch?.[1]?.trim() || `inline.${ext}`,
+      mediaType: `image/${ext}`,
+      base64,
+      bytes: Math.floor((base64.length * 3) / 4),
+    })
+  }
+
+  return images
+    .filter((img) => img.bytes >= MIN_INLINE_IMAGE_BYTES)
+    .slice(0, MAX_INLINE_IMAGES)
+}
+
+async function extractMsgInlineImages(buffer: Buffer): Promise<MailInlineImage[]> {
+  try {
+    const mod = await import('@kenjiuno/msgreader')
+    const MsgReader = mod.default as new (input: ArrayBuffer | Buffer) => {
+      getFileData(): { attachments?: unknown[] }
+      getAttachment(att: unknown): { fileName?: string; content?: Uint8Array } | null
+    }
+    const reader = new MsgReader(toMsgArrayBuffer(buffer))
+    const attachments = reader.getFileData()?.attachments || []
+    const images: MailInlineImage[] = []
+
+    for (const att of attachments) {
+      const attRecord = att as { fileName?: string; name?: string; content?: Uint8Array }
+      const name = String(attRecord.fileName || attRecord.name || '')
+      const mediaType = imageMediaTypeForName(name)
+      if (!mediaType) continue
+
+      let content: Uint8Array | null = null
+      try {
+        content = reader.getAttachment(att)?.content || null
+      } catch {
+        content = attRecord.content || null
+      }
+      if (!content || content.length < MIN_INLINE_IMAGE_BYTES) continue
+
+      images.push({
+        filename: name,
+        mediaType,
+        base64: Buffer.from(content).toString('base64'),
+        bytes: content.length,
+      })
+      if (images.length >= MAX_INLINE_IMAGES) break
+    }
+
+    return images
+  } catch {
+    return []
+  }
+}
+
+/** Haal inline afbeeldingen/bijlagen (PNG/JPG/...) uit een .eml of .msg bestand. */
+export async function extractMailInlineImages(
+  buffer: Buffer,
+  filename: string
+): Promise<MailInlineImage[]> {
+  const lower = filename.toLowerCase()
+  if (lower.endsWith('.eml')) return extractEmlInlineImages(buffer.toString('utf8'))
+  if (lower.endsWith('.msg')) return extractMsgInlineImages(buffer)
+  return []
+}
+
 const EMAIL_RE = /[\w.+-]+@[\w.-]+\.\w+/i
 const TRANSPORT_HEADER_RE =
   /^(Received|Return-Path|Delivered-To|Authentication-Results|X-MS-|MIME-Version|Content-Type|Message-ID|Thread-)/im

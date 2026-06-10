@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Upload, Download, TrendingUp, ChevronDown, ChevronRight, Plus, Minus, Calendar, RefreshCw, Search, Clock, History, MessageSquare, CheckCircle, XCircle, Mail } from 'lucide-react'
+import { Upload, Download, TrendingUp, ChevronDown, ChevronRight, Plus, Minus, Calendar, RefreshCw, Search, Clock, History, MessageSquare, CheckCircle, XCircle, Mail, Sparkles } from 'lucide-react'
 import CaseMailViewerModal from '@/components/grote-inpak/CaseMailViewerModal'
 
 type ChangeType = 'added' | 'removed' | 'date_change'
@@ -40,6 +40,22 @@ interface CustomerRequest {
   due_date?: string | null
   linked_mail_id?: number | null
   created_at: string
+}
+
+interface AiMailDropResult {
+  summary: string
+  unmatched: boolean
+  images_analyzed: number
+  extraction: {
+    order_numbers: string[]
+    shop_orders: string[]
+    case_numbers: string[]
+    customer_name: string | null
+    request_summary: string
+    requested_action: string
+    due_hint: string | null
+  }
+  requests: Array<CustomerRequest & { on_pils?: boolean; matched_on?: string }>
 }
 
 function fmtDate(d: string | null | undefined) {
@@ -92,6 +108,13 @@ export default function ForecastTab() {
   } | null>(null)
   const [mailViewerCaseLabel, setMailViewerCaseLabel] = useState<string | null>(null)
   const [mailViewerInitialId, setMailViewerInitialId] = useState<number | null>(null)
+
+  // AI mail-drop (zonder specifieke rij): AI leest de mail + afbeeldingen en
+  // koppelt zelf aan de juiste units.
+  const [aiDropActive, setAiDropActive] = useState(false)
+  const [aiDropBusy, setAiDropBusy] = useState(false)
+  const [aiDropError, setAiDropError] = useState<string | null>(null)
+  const [aiDropResult, setAiDropResult] = useState<AiMailDropResult | null>(null)
 
   // Collapsible secties
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -450,6 +473,48 @@ export default function ForecastTab() {
     }
   }, [loadForecast, openMailViewer])
 
+  const handleAiMailDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setAiDropActive(false)
+    if (aiDropBusy) return
+
+    const files = Array.from(e.dataTransfer.files || [])
+    const mailFile =
+      files.find((f) => /\.(eml|msg)$/i.test(f.name)) ||
+      (files.length === 1 ? files[0] : null)
+
+    if (!mailFile) {
+      setAiDropError('Sleep een mail vanuit Outlook (.eml of .msg) in de AI-dropzone.')
+      return
+    }
+
+    setAiDropBusy(true)
+    setAiDropError(null)
+    setAiDropResult(null)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', mailFile)
+
+      const response = await fetch('/api/grote-inpak/ai-mail-drop', {
+        method: 'POST',
+        body: formData,
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(result.error || 'AI-verwerking van de mail mislukt')
+      }
+
+      setAiDropResult(result as AiMailDropResult)
+      await loadForecast()
+    } catch (err: unknown) {
+      setAiDropError(err instanceof Error ? err.message : 'AI-verwerking van de mail mislukt')
+    } finally {
+      setAiDropBusy(false)
+    }
+  }, [aiDropBusy, loadForecast])
+
   const matchesSearch = (item: { case_label?: string; case_type?: string; source_file?: string; customer_requests?: CustomerRequest[] }) => {
     if (!searchQuery) return true
     const q = searchQuery.toLowerCase()
@@ -605,6 +670,101 @@ export default function ForecastTab() {
             <Download className="w-4 h-4" /> BC forecast import
           </button>
         </div>
+      </div>
+
+      {/* ── AI MAIL-DROP ── */}
+      <div
+        onDragOver={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          if (!aiDropBusy) {
+            e.dataTransfer.dropEffect = 'copy'
+            setAiDropActive(true)
+          }
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault()
+          const related = e.relatedTarget as Node | null
+          if (related && e.currentTarget.contains(related)) return
+          setAiDropActive(false)
+        }}
+        onDrop={handleAiMailDrop}
+        className={`rounded-xl border-2 border-dashed p-4 transition-all ${
+          aiDropBusy
+            ? 'border-violet-400 bg-violet-50'
+            : aiDropActive
+              ? 'border-violet-500 bg-violet-50 scale-[1.01]'
+              : 'border-violet-300 bg-violet-50/50 hover:border-violet-400'
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          <Sparkles className={`w-6 h-6 shrink-0 ${aiDropBusy ? 'animate-pulse text-violet-600' : 'text-violet-500'}`} />
+          <div className="min-w-0">
+            <p className="font-semibold text-violet-900 text-sm">
+              {aiDropBusy ? 'AI leest de mail en zoekt de juiste units...' : 'AI mail-drop'}
+            </p>
+            <p className="text-xs text-violet-700">
+              Sleep hier een Outlook-mail (.eml/.msg). AI leest de inhoud — ook tabellen in afbeeldingen —
+              zoekt de bijhorende units (case-, shop order- of ordernummer) en maakt automatisch klantvragen aan.
+            </p>
+          </div>
+          {aiDropBusy && <RefreshCw className="w-4 h-4 animate-spin text-violet-500 ml-auto shrink-0" />}
+        </div>
+
+        {aiDropError && (
+          <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+            {aiDropError}
+          </div>
+        )}
+
+        {aiDropResult && (
+          <div className="mt-3 rounded-lg border border-violet-200 bg-white p-3 space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm font-semibold text-violet-900">✅ {aiDropResult.summary}</p>
+              <button
+                onClick={() => setAiDropResult(null)}
+                className="text-xs text-gray-400 hover:text-gray-600 shrink-0"
+              >
+                Sluiten
+              </button>
+            </div>
+            <p className="text-xs text-gray-600">
+              <strong>Vraag:</strong> {aiDropResult.extraction.request_summary}
+              {aiDropResult.extraction.due_hint && <> — <strong>timing:</strong> {aiDropResult.extraction.due_hint}</>}
+              {aiDropResult.images_analyzed > 0 && <> · {aiDropResult.images_analyzed} afbeelding(en) geanalyseerd</>}
+            </p>
+            {(aiDropResult.extraction.order_numbers.length > 0 || aiDropResult.extraction.shop_orders.length > 0) && (
+              <p className="text-xs text-gray-500">
+                {aiDropResult.extraction.order_numbers.length > 0 && <>Order: {aiDropResult.extraction.order_numbers.join(', ')} </>}
+                {aiDropResult.extraction.shop_orders.length > 0 && <>· Shop orders: {aiDropResult.extraction.shop_orders.join(', ')}</>}
+              </p>
+            )}
+            <div className="flex flex-wrap gap-1.5">
+              {aiDropResult.requests.map((req) => (
+                <button
+                  key={req.id}
+                  onClick={() => openMailViewer(req.case_label, req.linked_mail_id ?? null)}
+                  title={`${req.matched_on ? `Gematcht op ${req.matched_on} — ` : ''}klik om de mail te openen`}
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border transition-colors ${
+                    req.on_pils
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
+                      : 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100'
+                  }`}
+                >
+                  <Mail className="w-3 h-3" />
+                  {req.case_label}
+                  <span className="opacity-70">{req.on_pils ? '· op PILS' : '· wacht op PILS/forecast'}</span>
+                </button>
+              ))}
+            </div>
+            {aiDropResult.unmatched && (
+              <p className="text-xs text-amber-700">
+                ⚠️ Deze units staan nog niet op forecast of PILS. De klantvragen verschijnen automatisch
+                zodra de caselabels opduiken.
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── UPLOAD SECTIE ── */}
