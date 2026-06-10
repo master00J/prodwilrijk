@@ -10,6 +10,51 @@ import {
 
 export const dynamic = 'force-dynamic'
 
+const ACTIVE_CUSTOMER_REQUEST_STATUSES = ['open', 'waiting_forecast', 'on_pils']
+
+async function loadCustomerRequestsByCaseLabel(caseLabels: string[]) {
+  const uniqueLabels = [...new Set(caseLabels.map(label => String(label || '').trim()).filter(Boolean))]
+  const requestsByLabel = new Map<string, any[]>()
+  const batchSize = 500
+
+  for (let i = 0; i < uniqueLabels.length; i += batchSize) {
+    const batch = uniqueLabels.slice(i, i + batchSize)
+    const { data, error } = await supabaseAdmin
+      .from('grote_inpak_customer_requests')
+      .select('*')
+      .in('case_label', batch)
+      .in('status', ACTIVE_CUSTOMER_REQUEST_STATUSES)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+
+    ;(data || []).forEach((request: any) => {
+      const label = String(request.case_label || '').trim()
+      if (!label) return
+      requestsByLabel.set(label, [...(requestsByLabel.get(label) || []), request])
+    })
+  }
+
+  return requestsByLabel
+}
+
+function attachCustomerRequests<T extends Record<string, any>>(
+  row: T,
+  requestsByLabel: Map<string, any[]>,
+  onPils: boolean
+) {
+  const label = String(row.case_label || '').trim()
+  const customerRequests = label ? (requestsByLabel.get(label) || []) : []
+  return {
+    ...row,
+    customer_requests: customerRequests,
+    open_customer_requests_count: customerRequests.length,
+    customer_request_followup_status: customerRequests.length === 0
+      ? null
+      : onPils ? 'on_pils' : 'waiting_forecast',
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
@@ -71,13 +116,26 @@ export async function GET(request: NextRequest) {
       on_pils: true,
     }))
 
+    const allLabelsForRequests = [
+      ...all.map(row => String(row.case_label || '').trim()).filter(Boolean),
+      ...pilsOnly.map(row => String(row.case_label || '').trim()).filter(Boolean),
+    ]
+    const customerRequestsByLabel = await loadCustomerRequestsByCaseLabel(allLabelsForRequests)
+
+    pilsOnly = pilsOnly.map(row => attachCustomerRequests(row, customerRequestsByLabel, true))
+
     const forecastRows = all.map(row => {
       const label = String(row.case_label || '').trim()
-      return {
-        ...row,
-        list_kind: 'forecast' as const,
-        on_pils: label ? pilsLabels.has(label) : false,
-      }
+      const onPils = label ? pilsLabels.has(label) : false
+      return attachCustomerRequests(
+        {
+          ...row,
+          list_kind: 'forecast' as const,
+          on_pils: onPils,
+        },
+        customerRequestsByLabel,
+        onPils
+      )
     })
 
     return NextResponse.json(

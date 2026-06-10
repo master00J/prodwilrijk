@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Upload, Download, TrendingUp, ChevronDown, ChevronRight, Plus, Minus, Calendar, RefreshCw, Search, Clock, History } from 'lucide-react'
+import { Upload, Download, TrendingUp, ChevronDown, ChevronRight, Plus, Minus, Calendar, RefreshCw, Search, Clock, History, MessageSquare, CheckCircle, XCircle } from 'lucide-react'
 
 type ChangeType = 'added' | 'removed' | 'date_change'
+type CustomerRequestFilter = 'all' | 'open' | 'not_on_pils' | 'on_pils'
 
 interface Snapshot {
   id: string
@@ -25,6 +26,18 @@ interface ForecastChange {
   change_type: ChangeType
   snapshot_id: string
   changed_at: string
+}
+
+interface CustomerRequest {
+  id: number
+  case_label: string
+  case_type?: string | null
+  customer_name?: string | null
+  request_text: string
+  requested_action?: string | null
+  status: 'open' | 'waiting_forecast' | 'on_pils' | 'handled' | 'cancelled'
+  due_date?: string | null
+  created_at: string
 }
 
 function fmtDate(d: string | null | undefined) {
@@ -49,6 +62,13 @@ const CHANGE_COLORS: Record<ChangeType, { bg: string; text: string; badge: strin
   date_change: { bg: 'bg-orange-50', text: 'text-orange-800', badge: 'bg-orange-100 text-orange-800',icon: '🟠', label: 'Datum' },
 }
 
+const customerRequestFilterLabels: Record<CustomerRequestFilter, string> = {
+  all: 'Alles',
+  open: 'Open klantvragen',
+  not_on_pils: 'Nog niet op PILS',
+  on_pils: 'Nu op PILS',
+}
+
 export default function ForecastTab() {
   const [forecastData, setForecastData] = useState<any[]>([])
   const [pilsOnlyData, setPilsOnlyData] = useState<any[]>([])
@@ -60,6 +80,8 @@ export default function ForecastTab() {
   const [dragActive, setDragActive] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [searchQuery, setSearchQuery] = useState('')
+  const [customerRequestFilter, setCustomerRequestFilter] = useState<CustomerRequestFilter>('all')
+  const [savingCustomerRequestFor, setSavingCustomerRequestFor] = useState<string | null>(null)
 
   // Collapsible secties
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -260,19 +282,109 @@ export default function ForecastTab() {
     }
   }
 
-  const matchesSearch = (item: { case_label?: string; case_type?: string; source_file?: string }) => {
+  const getCustomerRequests = (item: { customer_requests?: CustomerRequest[] }) =>
+    Array.isArray(item.customer_requests) ? item.customer_requests : []
+
+  const hasOpenCustomerRequests = (item: { customer_requests?: CustomerRequest[] }) =>
+    getCustomerRequests(item).length > 0
+
+  const matchesCustomerRequestFilter = (item: { customer_requests?: CustomerRequest[]; on_pils?: boolean }) => {
+    const hasRequests = hasOpenCustomerRequests(item)
+    if (customerRequestFilter === 'all') return true
+    if (customerRequestFilter === 'open') return hasRequests
+    if (customerRequestFilter === 'not_on_pils') return hasRequests && !item.on_pils
+    return hasRequests && Boolean(item.on_pils)
+  }
+
+  const handleAddCustomerRequest = async (item: any) => {
+    const caseLabel = String(item.case_label || '').trim()
+    if (!caseLabel) return
+
+    const customerName = window.prompt('Klant / contactpersoon (optioneel):', '')
+    if (customerName === null) return
+    const requestText = window.prompt('Wat vraagt de klant?', '')
+    if (requestText === null) return
+    if (!requestText.trim()) {
+      alert('Vul een klantvraag in.')
+      return
+    }
+    const requestedAction = window.prompt('Actie / afspraak (optioneel):', 'Klant verwittigen wanneer unit op PILS staat')
+    if (requestedAction === null) return
+
+    setSavingCustomerRequestFor(caseLabel)
+    try {
+      const res = await fetch('/api/grote-inpak/customer-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          case_label: caseLabel,
+          case_type: item.case_type || null,
+          customer_name: customerName.trim() || null,
+          request_text: requestText.trim(),
+          requested_action: requestedAction.trim() || null,
+          status: item.on_pils ? 'on_pils' : 'waiting_forecast',
+          created_from: 'forecast',
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Klantvraag opslaan mislukt')
+      }
+      await loadForecast()
+    } catch (err: any) {
+      alert(`Klantvraag opslaan mislukt: ${err.message || 'Onbekende fout'}`)
+    } finally {
+      setSavingCustomerRequestFor(null)
+    }
+  }
+
+  const handleUpdateCustomerRequestStatus = async (requestId: number, status: 'handled' | 'cancelled') => {
+    setSavingCustomerRequestFor(String(requestId))
+    try {
+      const res = await fetch('/api/grote-inpak/customer-requests', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: requestId, status }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Klantvraag bijwerken mislukt')
+      }
+      await loadForecast()
+    } catch (err: any) {
+      alert(`Klantvraag bijwerken mislukt: ${err.message || 'Onbekende fout'}`)
+    } finally {
+      setSavingCustomerRequestFor(null)
+    }
+  }
+
+  const matchesSearch = (item: { case_label?: string; case_type?: string; source_file?: string; customer_requests?: CustomerRequest[] }) => {
     if (!searchQuery) return true
     const q = searchQuery.toLowerCase()
     return (
       String(item.case_label || '').toLowerCase().includes(q) ||
       String(item.case_type || '').toLowerCase().includes(q) ||
-      String(item.source_file || '').toLowerCase().includes(q)
+      String(item.source_file || '').toLowerCase().includes(q) ||
+      getCustomerRequests(item).some((req) =>
+        String(req.customer_name || '').toLowerCase().includes(q) ||
+        String(req.request_text || '').toLowerCase().includes(q) ||
+        String(req.requested_action || '').toLowerCase().includes(q)
+      )
     )
   }
 
-  const filteredForecast = forecastData.filter(matchesSearch)
-  const filteredPilsOnly = pilsOnlyData.filter(matchesSearch)
+  const filteredForecast = forecastData.filter(matchesSearch).filter(matchesCustomerRequestFilter)
+  const filteredPilsOnly = pilsOnlyData.filter(matchesSearch).filter(matchesCustomerRequestFilter)
   const totalVisible = filteredForecast.length + filteredPilsOnly.length
+  const openCustomerRequestCount = [...forecastData, ...pilsOnlyData]
+    .filter(hasOpenCustomerRequests)
+    .length
+  const customerRequestsNotOnPilsCount = [...forecastData, ...pilsOnlyData]
+    .filter((item) => hasOpenCustomerRequests(item) && !item.on_pils)
+    .length
+  const customerRequestsOnPilsCount = [...forecastData, ...pilsOnlyData]
+    .filter((item) => hasOpenCustomerRequests(item) && item.on_pils)
+    .length
 
   // ── HISTORIEK OVERZICHT (alle caselabels) ──
   const [historyData, setHistoryData] = useState<any[]>([])
@@ -874,6 +986,7 @@ export default function ForecastTab() {
                   {forecastData.length} forecast
                   {countPilsOnly > 0 ? ` + ${countPilsOnly} alleen PILS` : ''}
                   {countForecastOnPils > 0 ? ` · ${countForecastOnPils} forecast ook op PILS` : ''}
+                  {openCustomerRequestCount > 0 ? ` · ${openCustomerRequestCount} klantvraag` : ''}
                   {forecastData.length > 0 ? ' · zelfde labels als Excel' : ''})
                 </span>
               )}
@@ -899,9 +1012,33 @@ export default function ForecastTab() {
             />
             <input
               type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Zoeken op caselabel, type..."
+              placeholder="Zoeken op caselabel, type, klantvraag..."
               className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 w-52"
             />
+            <div className="flex flex-wrap items-center gap-1.5">
+              {(['all', 'open', 'not_on_pils', 'on_pils'] as const).map((filter) => {
+                const count =
+                  filter === 'open' ? openCustomerRequestCount
+                  : filter === 'not_on_pils' ? customerRequestsNotOnPilsCount
+                  : filter === 'on_pils' ? customerRequestsOnPilsCount
+                  : forecastData.length + pilsOnlyData.length
+                const active = customerRequestFilter === filter
+                return (
+                  <button
+                    key={filter}
+                    type="button"
+                    onClick={() => setCustomerRequestFilter(filter)}
+                    className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
+                      active
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'
+                    }`}
+                  >
+                    {customerRequestFilterLabels[filter]} <span className="font-bold">{count}</span>
+                  </button>
+                )
+              })}
+            </div>
         </div>
 
         {loading ? (
@@ -918,44 +1055,178 @@ export default function ForecastTab() {
                   <th className="px-5 py-3 text-left">Case Type</th>
                   <th className="px-4 py-3 text-left">Aankomstdatum</th>
                   <th className="px-4 py-3 text-left">Bronbestand</th>
+                  <th className="px-4 py-3 text-left">Klantvraag</th>
+                  <th className="px-4 py-3 text-left">Actie</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredForecast.map((item, i) => (
-                  <tr
-                    key={`f-${i}`}
-                    className={item.on_pils ? 'hover:bg-sky-50/50 bg-sky-50/20' : 'hover:bg-gray-50'}
-                  >
-                    <td className="px-5 py-2.5">
-                      <span
-                        className={`text-xs font-semibold px-2 py-0.5 rounded ${
-                          item.on_pils
-                            ? 'text-sky-900 bg-sky-100'
-                            : 'text-emerald-800 bg-emerald-50'
-                        }`}
-                      >
-                        {item.on_pils ? 'Forecast + PILS' : 'Forecast'}
-                      </span>
-                    </td>
-                    <td className="px-5 py-2.5 font-medium text-gray-900">{item.case_label || '—'}</td>
-                    <td className="px-5 py-2.5 text-gray-700">{item.case_type || '—'}</td>
-                    <td className="px-4 py-2.5 text-gray-700">{fmtDate(item.arrival_date)}</td>
-                    <td className="px-4 py-2.5 text-gray-400 text-xs">{item.source_file || '—'}</td>
-                  </tr>
-                ))}
-                {filteredPilsOnly.map((item, i) => (
-                  <tr key={`p-${i}`} className="hover:bg-amber-50/60 bg-amber-50/30">
-                    <td className="px-5 py-2.5">
-                      <span className="text-xs font-semibold text-amber-900 bg-amber-100 px-2 py-0.5 rounded">
-                        Alleen PILS
-                      </span>
-                    </td>
-                    <td className="px-5 py-2.5 font-medium text-gray-900">{item.case_label || '—'}</td>
-                    <td className="px-5 py-2.5 text-gray-700">{item.case_type || '—'}</td>
-                    <td className="px-4 py-2.5 text-gray-700">{fmtDate(item.arrival_date)}</td>
-                    <td className="px-4 py-2.5 text-gray-400 text-xs">{item.source_file || '—'}</td>
-                  </tr>
-                ))}
+                {filteredForecast.map((item, i) => {
+                  const requests = getCustomerRequests(item)
+                  const hasRequests = requests.length > 0
+                  return (
+                    <tr
+                      key={`f-${i}`}
+                      className={
+                        hasRequests && item.on_pils ? 'hover:bg-sky-50 bg-sky-50'
+                        : hasRequests ? 'hover:bg-amber-50 bg-amber-50/50'
+                        : item.on_pils ? 'hover:bg-sky-50/50 bg-sky-50/20'
+                        : 'hover:bg-gray-50'
+                      }
+                    >
+                      <td className="px-5 py-2.5">
+                        <div className="flex flex-col gap-1">
+                          <span
+                            className={`text-xs font-semibold px-2 py-0.5 rounded w-fit ${
+                              item.on_pils
+                                ? 'text-sky-900 bg-sky-100'
+                                : 'text-emerald-800 bg-emerald-50'
+                            }`}
+                          >
+                            {item.on_pils ? 'Forecast + PILS' : 'Forecast'}
+                          </span>
+                          {hasRequests && (
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded w-fit ${
+                              item.on_pils ? 'text-sky-900 bg-sky-100' : 'text-amber-900 bg-amber-100'
+                            }`}>
+                              {item.on_pils ? 'Klantvraag: nu op PILS' : 'Klantvraag: wachten op PILS'}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-5 py-2.5 font-medium text-gray-900">{item.case_label || '—'}</td>
+                      <td className="px-5 py-2.5 text-gray-700">{item.case_type || '—'}</td>
+                      <td className="px-4 py-2.5 text-gray-700">{fmtDate(item.arrival_date)}</td>
+                      <td className="px-4 py-2.5 text-gray-400 text-xs">{item.source_file || '—'}</td>
+                      <td className="px-4 py-2.5 min-w-[260px]">
+                        {requests.length === 0 ? (
+                          <span className="text-xs text-gray-300">Geen open klantvraag</span>
+                        ) : (
+                          <div className="space-y-2">
+                            {requests.map((req) => (
+                              <div key={req.id} className="rounded-lg border border-amber-200 bg-white/70 p-2 text-xs text-gray-700">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <MessageSquare className="w-3.5 h-3.5 text-amber-600" />
+                                  {req.customer_name && <span className="font-semibold text-gray-900">{req.customer_name}</span>}
+                                  <span className="text-gray-400">{fmtTs(req.created_at)}</span>
+                                </div>
+                                <p className="mt-1 font-medium text-gray-900">{req.request_text}</p>
+                                {req.requested_action && <p className="mt-1 text-gray-500">{req.requested_action}</p>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex flex-col gap-1.5 min-w-[150px]">
+                          <button
+                            type="button"
+                            onClick={() => handleAddCustomerRequest(item)}
+                            disabled={savingCustomerRequestFor === String(item.case_label || '')}
+                            className="inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            Vraag toevoegen
+                          </button>
+                          {requests.map((req) => (
+                            <div key={req.id} className="flex gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateCustomerRequestStatus(req.id, 'handled')}
+                                disabled={savingCustomerRequestFor === String(req.id)}
+                                className="inline-flex items-center justify-center gap-1 px-2 py-1 text-[11px] rounded bg-emerald-100 text-emerald-800 hover:bg-emerald-200 disabled:opacity-50"
+                              >
+                                <CheckCircle className="w-3 h-3" /> Afgehandeld
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateCustomerRequestStatus(req.id, 'cancelled')}
+                                disabled={savingCustomerRequestFor === String(req.id)}
+                                className="inline-flex items-center justify-center gap-1 px-2 py-1 text-[11px] rounded bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50"
+                              >
+                                <XCircle className="w-3 h-3" /> Annuleer
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+                {filteredPilsOnly.map((item, i) => {
+                  const requests = getCustomerRequests(item)
+                  return (
+                    <tr key={`p-${i}`} className={requests.length > 0 ? 'hover:bg-sky-50 bg-sky-50' : 'hover:bg-amber-50/60 bg-amber-50/30'}>
+                      <td className="px-5 py-2.5">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-xs font-semibold text-amber-900 bg-amber-100 px-2 py-0.5 rounded w-fit">
+                            Alleen PILS
+                          </span>
+                          {requests.length > 0 && (
+                            <span className="text-xs font-semibold text-sky-900 bg-sky-100 px-2 py-0.5 rounded w-fit">
+                              Klantvraag: nu op PILS
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-5 py-2.5 font-medium text-gray-900">{item.case_label || '—'}</td>
+                      <td className="px-5 py-2.5 text-gray-700">{item.case_type || '—'}</td>
+                      <td className="px-4 py-2.5 text-gray-700">{fmtDate(item.arrival_date)}</td>
+                      <td className="px-4 py-2.5 text-gray-400 text-xs">{item.source_file || '—'}</td>
+                      <td className="px-4 py-2.5 min-w-[260px]">
+                        {requests.length === 0 ? (
+                          <span className="text-xs text-gray-300">Geen open klantvraag</span>
+                        ) : (
+                          <div className="space-y-2">
+                            {requests.map((req) => (
+                              <div key={req.id} className="rounded-lg border border-sky-200 bg-white/70 p-2 text-xs text-gray-700">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <MessageSquare className="w-3.5 h-3.5 text-sky-600" />
+                                  {req.customer_name && <span className="font-semibold text-gray-900">{req.customer_name}</span>}
+                                  <span className="text-gray-400">{fmtTs(req.created_at)}</span>
+                                </div>
+                                <p className="mt-1 font-medium text-gray-900">{req.request_text}</p>
+                                {req.requested_action && <p className="mt-1 text-gray-500">{req.requested_action}</p>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex flex-col gap-1.5 min-w-[150px]">
+                          <button
+                            type="button"
+                            onClick={() => handleAddCustomerRequest(item)}
+                            disabled={savingCustomerRequestFor === String(item.case_label || '')}
+                            className="inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            Vraag toevoegen
+                          </button>
+                          {requests.map((req) => (
+                            <div key={req.id} className="flex gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateCustomerRequestStatus(req.id, 'handled')}
+                                disabled={savingCustomerRequestFor === String(req.id)}
+                                className="inline-flex items-center justify-center gap-1 px-2 py-1 text-[11px] rounded bg-emerald-100 text-emerald-800 hover:bg-emerald-200 disabled:opacity-50"
+                              >
+                                <CheckCircle className="w-3 h-3" /> Afgehandeld
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateCustomerRequestStatus(req.id, 'cancelled')}
+                                disabled={savingCustomerRequestFor === String(req.id)}
+                                className="inline-flex items-center justify-center gap-1 px-2 py-1 text-[11px] rounded bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50"
+                              >
+                                <XCircle className="w-3 h-3" /> Annuleer
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
