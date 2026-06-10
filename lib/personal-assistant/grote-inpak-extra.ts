@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { normalizeKistnummer } from '@/lib/utils/erp-code-normalizer'
+import { sanitizePostgrestOrValue } from '@/lib/api/postgrest-filter'
 
 function normalizeCode(value: string): string {
   return value.trim().toUpperCase().replace(/\s+/g, '')
@@ -79,7 +80,7 @@ export async function getGroteInpakKanbanSummary(limit = 12) {
 }
 
 export async function getGroteInpakStockLookup(kistnummer: string) {
-  const code = normalizeCode(kistnummer)
+  const code = sanitizePostgrestOrValue(normalizeCode(kistnummer))
   const { data: stockRows, error } = await supabaseAdmin
     .from('grote_inpak_stock')
     .select('erp_code, kistnummer, location, quantity, productie, item_number')
