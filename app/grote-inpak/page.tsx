@@ -162,6 +162,7 @@ export default function GroteInpakPage() {
       const skipFiles = (result.results || []).filter((r: any) => r.status === 'skip')
       const successParts = ok.map((r: any) => {
         let msg = `${r.file}: ${r.rijen} kisttype(n) gematcht, ${r.totaal_stuks} stuks`
+        if (r.bouwpakket_rijen > 0) msg += ` (waarvan ${r.bouwpakket_rijen} bouwpakket-type(n), ${r.bouwpakket_stuks} stuks)`
         if (r.niet_gematcht_aantal > 0) msg += ` (${r.niet_gematcht_aantal} codes niet in ERP LINK: ${r.niet_gematcht_preview?.join(', ')})`
         return msg
       })

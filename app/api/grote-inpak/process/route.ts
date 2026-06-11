@@ -3,6 +3,10 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 import { logApiError } from '@/lib/api/log-error'
 import { shopOrderMatchKey } from '@/lib/grote-inpak/pils-serial'
 import { normalizeKistnummer } from '@/lib/utils/erp-code-normalizer'
+import {
+  sendPriorityRemovedReport,
+  type RemovedPriorityCase,
+} from '@/lib/grote-inpak/priority-removed-report'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,10 +43,10 @@ async function processGroteInpakPilsData({
     throw new Error('PILS data is required')
   }
 
-  // Haal huidige case_labels op vóór verwerking (voor upload-log)
+  // Haal huidige case_labels op vóór verwerking (voor upload-log + prio-rapport)
   const { data: existingRows } = await supabaseAdmin
     .from('grote_inpak_cases')
-    .select('case_label, case_type')
+    .select('case_label, case_type, priority, serial_number, status, arrival_date, deadline, comment, atlas_planner_email, bc_shop_order_no')
   const existingLabels = new Set(
     (existingRows || []).map((r: any) => String(r.case_label || '').trim()).filter(Boolean)
   )
@@ -83,6 +87,29 @@ async function processGroteInpakPilsData({
   // Save to database
   await saveCasesToDatabase(overview)
   await saveTransportToDatabase(transport)
+
+  // Prio-lijnen die van de PILS verdwijnen = verwerkt/verpakt → rapportagemail.
+  // Moet vóór removeMissingCases: de gekoppelde klantmails verdwijnen mee (CASCADE).
+  const overviewLabels = new Set(
+    overview.map((r: any) => String(r.case_label || '').trim()).filter(Boolean)
+  )
+  const removedPriorityCases: RemovedPriorityCase[] = (existingRows || [])
+    .filter((row: any) => {
+      const label = String(row.case_label || '').trim()
+      return label && row.priority === true && !overviewLabels.has(label)
+    })
+    .map((row: any) => ({
+      case_label: String(row.case_label).trim(),
+      case_type: row.case_type ? String(row.case_type).trim() : null,
+      serial_number: row.serial_number || null,
+      status: row.status || null,
+      arrival_date: row.arrival_date || null,
+      deadline: row.deadline || null,
+      comment: row.comment || null,
+      atlas_planner_email: row.atlas_planner_email || null,
+      bc_shop_order_no: row.bc_shop_order_no || null,
+    }))
+  await sendPriorityRemovedReport(removedPriorityCases, sourceFile || null)
 
   // Remove cases that are no longer present in the latest PILS upload
   await removeMissingCases(overview)

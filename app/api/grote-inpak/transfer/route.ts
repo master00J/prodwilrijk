@@ -12,7 +12,7 @@ export async function GET() {
   try {
     const { data, error } = await supabaseAdmin
       .from('grote_inpak_transfer')
-      .select('erp_code, kistnummer, quantity, source_file, uploaded_at')
+      .select('erp_code, kistnummer, quantity, source_file, uploaded_at, is_bouwpakket')
       .order('uploaded_at', { ascending: false })
 
     if (error) throw error
@@ -171,16 +171,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Geen bestanden aangeleverd' }, { status: 400 })
     }
 
-    // ERP LINK ophalen: alleen C-kisten die relevant zijn voor grote inpak
+    // ERP LINK ophalen: kist-codes én bouwpakket-codes (beide BC-codes op het ERP LINK tabblad)
     const { data: erpLinkData } = await supabaseAdmin
       .from('grote_inpak_erp_link')
-      .select('kistnummer, erp_code')
+      .select('kistnummer, erp_code, bouwpakket_code')
 
     const erpToKist = new Map<string, string>()
+    const bouwpakketToKist = new Map<string, string>()
     ;(erpLinkData || []).forEach((row: any) => {
+      const kist = row.kistnummer ? String(row.kistnummer).toUpperCase().trim() : ''
+      if (!kist) return
+
       const norm = normalizeErpCode(row.erp_code)
-      if (norm && row.kistnummer) {
-        const kist = String(row.kistnummer).toUpperCase().trim()
+      if (norm) {
         erpToKist.set(norm, kist)
         if (/^GP\d+$/i.test(norm)) {
           const numPart = norm.replace(/^GP/i, '')
@@ -188,20 +191,29 @@ export async function POST(request: NextRequest) {
           if (!isNaN(asNum)) erpToKist.set(String(asNum), kist)
         }
       }
+
+      const bpNorm = normalizeErpCode(row.bouwpakket_code)
+      if (bpNorm) {
+        bouwpakketToKist.set(bpNorm, kist)
+      } else if (row.bouwpakket_code && String(row.bouwpakket_code).trim()) {
+        bouwpakketToKist.set(String(row.bouwpakket_code).trim().toUpperCase(), kist)
+      }
     })
 
     const bcMapping = await getBcMappingLookup()
-    const erpPairs = Array.from(erpToKist.entries())
-    for (const [erpKey, kistVal] of erpPairs) {
-      if (!kistVal) continue
-      for (const alt of [bcMapping.toNew(erpKey), bcMapping.toOld(erpKey)]) {
-        if (!alt) continue
-        const aNorm = normalizeErpCode(alt)
-        if (aNorm && aNorm !== erpKey) erpToKist.set(aNorm, kistVal)
+    for (const map of [erpToKist, bouwpakketToKist]) {
+      const pairs = Array.from(map.entries())
+      for (const [erpKey, kistVal] of pairs) {
+        if (!kistVal) continue
+        for (const alt of [bcMapping.toNew(erpKey), bcMapping.toOld(erpKey)]) {
+          if (!alt) continue
+          const aNorm = normalizeErpCode(alt)
+          if (aNorm && aNorm !== erpKey) map.set(aNorm, kistVal)
+        }
       }
     }
 
-    const resolveKist = (rawErp: string): string | null => {
+    const resolveKist = (rawErp: string): { kist: string; isBouwpakket: boolean } | null => {
       const erpNorm = normalizeErpCode(rawErp)
       if (!erpNorm) return null
       let kist = erpToKist.get(erpNorm) || null
@@ -218,7 +230,22 @@ export async function POST(request: NextRequest) {
       if (!kist && /^\d{4,8}$/.test(String(rawErp).trim())) {
         kist = erpToKist.get(String(rawErp).trim()) || null
       }
-      return kist
+      if (kist) return { kist, isBouwpakket: false }
+
+      // Bouwpakket-codes: BC-code van het bouwpakket op het ERP LINK tabblad
+      let bpKist = bouwpakketToKist.get(erpNorm) || null
+      if (!bpKist) {
+        const n2 = normalizeErpCode(bcMapping.toNew(erpNorm))
+        const o2 = normalizeErpCode(bcMapping.toOld(erpNorm))
+        bpKist = (n2 && bouwpakketToKist.get(n2)) || (o2 && bouwpakketToKist.get(o2)) || null
+      }
+      if (!bpKist) {
+        const rawUpper = String(rawErp).trim().toUpperCase()
+        bpKist = bouwpakketToKist.get(rawUpper) || null
+      }
+      if (bpKist) return { kist: bpKist, isBouwpakket: true }
+
+      return null
     }
 
     const results = []
@@ -235,7 +262,7 @@ export async function POST(request: NextRequest) {
       const { headerRow, erpIdx, getQty } = detectTransferColumns(rows)
       const startRow = headerRow >= 0 ? headerRow + 1 : 0
 
-      const parsed: { erp_code: string; kistnummer: string; quantity: number; source_file: string }[] = []
+      const parsed: { erp_code: string; kistnummer: string; quantity: number; source_file: string; is_bouwpakket: boolean }[] = []
       const nietGematcht: string[] = []
 
       for (let ri = startRow; ri < rows.length; ri++) {
@@ -250,20 +277,28 @@ export async function POST(request: NextRequest) {
         const qty = getQty(row)
         if (qty <= 0) continue
 
-        const kist = resolveKist(rawErp)
+        const resolved = resolveKist(rawErp)
 
-        if (!kist) {
+        if (!resolved) {
           // Niet in ERP LINK → niet relevant voor grote inpak, bijhouden voor feedback
           if (!nietGematcht.includes(rawErp)) nietGematcht.push(rawErp)
           continue
         }
 
-        // Zelfde kistnummer samenvoegen
-        const existing = parsed.find(p => p.kistnummer === kist)
+        // Zelfde kistnummer samenvoegen — kisten en bouwpakketten als aparte rijen
+        const existing = parsed.find(
+          p => p.kistnummer === resolved.kist && p.is_bouwpakket === resolved.isBouwpakket
+        )
         if (existing) {
           existing.quantity += Math.round(qty)
         } else {
-          parsed.push({ erp_code: rawErp, kistnummer: kist, quantity: Math.round(qty), source_file: fileName })
+          parsed.push({
+            erp_code: rawErp,
+            kistnummer: resolved.kist,
+            quantity: Math.round(qty),
+            source_file: fileName,
+            is_bouwpakket: resolved.isBouwpakket,
+          })
         }
       }
 
@@ -271,7 +306,7 @@ export async function POST(request: NextRequest) {
         results.push({
           file: fileName,
           status: 'skip',
-          message: `Geen C-kisten gevonden via ERP LINK. Niet-gematchte codes: ${nietGematcht.slice(0, 5).join(', ')}${nietGematcht.length > 5 ? '…' : ''}`,
+          message: `Geen kisten of bouwpakketten gevonden via ERP LINK. Niet-gematchte codes: ${nietGematcht.slice(0, 5).join(', ')}${nietGematcht.length > 5 ? '…' : ''}`,
           niet_gematcht: nietGematcht,
         })
         continue
@@ -282,11 +317,14 @@ export async function POST(request: NextRequest) {
       const { error: insertError } = await supabaseAdmin.from('grote_inpak_transfer').insert(parsed)
       if (insertError) throw insertError
 
+      const bouwpakketRijen = parsed.filter(p => p.is_bouwpakket)
       results.push({
         file: fileName,
         status: 'ok',
         rijen: parsed.length,
         totaal_stuks: parsed.reduce((s, r) => s + r.quantity, 0),
+        bouwpakket_rijen: bouwpakketRijen.length,
+        bouwpakket_stuks: bouwpakketRijen.reduce((s, r) => s + r.quantity, 0),
         niet_gematcht_aantal: nietGematcht.length,
         niet_gematcht_preview: nietGematcht.slice(0, 5),
       })
