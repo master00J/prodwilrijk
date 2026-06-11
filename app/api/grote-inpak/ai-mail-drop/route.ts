@@ -12,6 +12,7 @@ import {
   parseDroppedMailFile,
 } from '@/lib/grote-inpak/parse-dropped-mail'
 import { extractMailDataWithAi, type AiMailExtraction } from '@/lib/grote-inpak/ai-mail-extract'
+import { markPilsPriorityFromMail } from '@/lib/grote-inpak/mail-priority'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -178,6 +179,7 @@ export async function POST(request: NextRequest) {
 
     const dueHintSuffix = extraction.due_hint ? ` (timing: ${extraction.due_hint})` : ''
     const createdRequests: Array<Record<string, unknown>> = []
+    const priorityMarkedLabels: string[] = []
 
     for (const match of matches) {
       // Mail per unit opslaan zodat hij via de mailviewer van elke unit te openen is.
@@ -216,20 +218,33 @@ export async function POST(request: NextRequest) {
         .single()
       if (requestError) throw requestError
 
+      let priorityMarked = false
+      if (match.on_pils) {
+        priorityMarked = await markPilsPriorityFromMail(match.case_label, parsed, {
+          aiSaysUrgent: extraction.is_urgent,
+        })
+        if (priorityMarked) priorityMarkedLabels.push(match.case_label)
+      }
+
       createdRequests.push({
         ...customerRequest,
         on_pils: match.on_pils,
         matched_on: match.matched_on,
+        priority_marked: priorityMarked,
       })
     }
 
-    const matchedSummary = unmatchedCreated
+    let matchedSummary = unmatchedCreated
       ? `Geen bestaande unit gevonden; ${createdRequests.length} klantvra(a)g(en) klaargezet op de geëxtraheerde nummers`
       : `${createdRequests.length} klantvra(a)g(en) aangemaakt voor gematchte units`
+    if (priorityMarkedLabels.length > 0) {
+      matchedSummary += ` — prio gezet op PILS: ${priorityMarkedLabels.join(', ')}`
+    }
 
     return NextResponse.json({
       success: true,
       summary: matchedSummary,
+      priority_marked_labels: priorityMarkedLabels,
       extraction,
       images_analyzed: images.length,
       unmatched: unmatchedCreated,

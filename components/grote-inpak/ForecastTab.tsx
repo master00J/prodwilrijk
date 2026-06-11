@@ -55,7 +55,8 @@ interface AiMailDropResult {
     requested_action: string
     due_hint: string | null
   }
-  requests: Array<CustomerRequest & { on_pils?: boolean; matched_on?: string }>
+  priority_marked_labels?: string[]
+  requests: Array<CustomerRequest & { on_pils?: boolean; matched_on?: string; priority_marked?: boolean }>
 }
 
 function fmtDate(d: string | null | undefined) {
@@ -753,6 +754,7 @@ export default function ForecastTab() {
                 >
                   <Mail className="w-3 h-3" />
                   {req.case_label}
+                  {req.priority_marked && <span title="Automatisch als prio gemarkeerd op PILS">⭐</span>}
                   <span className="opacity-70">{req.on_pils ? '· op PILS' : '· wacht op PILS/forecast'}</span>
                 </button>
               ))}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { parseDroppedMailFile } from '@/lib/grote-inpak/parse-dropped-mail'
+import { markPilsPriorityFromMail } from '@/lib/grote-inpak/mail-priority'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -113,11 +114,19 @@ export async function POST(request: NextRequest) {
 
     if (requestError) throw requestError
 
+    const priorityMarked = pilsCase
+      ? await markPilsPriorityFromMail(caseLabel, parsed)
+      : false
+
+    let summary = `Mail gekoppeld aan ${caseLabel} en klantvraag aangemaakt`
+    if (priorityMarked) summary += ` — ${caseLabel} op PILS automatisch als prio gemarkeerd`
+
     return NextResponse.json({
       success: true,
       mail: mailRow,
       customer_request: customerRequest,
-      summary: `Mail gekoppeld aan ${caseLabel} en klantvraag aangemaakt`,
+      priority_marked: priorityMarked,
+      summary,
       parsed: {
         subject: parsed.subject,
         fromEmail: parsed.fromEmail,

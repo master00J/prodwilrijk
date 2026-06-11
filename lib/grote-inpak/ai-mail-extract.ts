@@ -17,6 +17,7 @@ export type AiMailExtraction = {
   request_summary: string
   requested_action: string
   due_hint: string | null
+  is_urgent: boolean
 }
 
 const EXTRACTION_PROMPT = `Je bent een assistent voor een verpakkingsafdeling (grote inpak van industriële units zoals compressoren/koelers).
@@ -31,7 +32,8 @@ Lees ALLES grondig, inclusief tabellen in de afbeeldingen, en extraheer de volge
   "customer_name": "...",     // naam van de klant/afzender-organisatie, of null
   "request_summary": "...",   // korte samenvatting (1-2 zinnen, Nederlands) van wat er gevraagd wordt
   "requested_action": "...",  // concrete actie voor de verpakkingsafdeling (Nederlands), bv. "Foto's nemen van de unit vóór en na verpakking en doorsturen"
-  "due_hint": "..."           // timing-indicatie uit de mail (bv. "komende weken", "voor 1 juli"), of null
+  "due_hint": "...",          // timing-indicatie uit de mail (bv. "komende weken", "voor 1 juli"), of null
+  "is_urgent": true/false     // true als de mail dringend/prio/urgent/asap/spoed aangeeft
 }
 
 Regels:
@@ -124,6 +126,7 @@ export async function extractMailDataWithAi(
       toNullableString(raw.request_summary, 1000) || parsed.subject || 'Klantvraag uit mail',
     requested_action: toNullableString(raw.requested_action, 1000) || 'Klantvraag opvolgen',
     due_hint: toNullableString(raw.due_hint, 200),
+    is_urgent: raw.is_urgent === true,
   }
 }
 
