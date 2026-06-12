@@ -137,7 +137,7 @@ export async function GET(_request: NextRequest) {
       await Promise.all([
         loadAllRows(
           'grote_inpak_cases',
-          'case_label, case_type, productielocatie, priority, arrival_date, dagen_te_laat, forecast_date'
+          'case_label, case_type, productielocatie, priority, arrival_date, dagen_te_laat'
         ),
         loadAllRows('grote_inpak_kpi_history', '*', (q) =>
           q.gte('snapshot_date', trendFrom).order('snapshot_date', { ascending: true })
@@ -161,11 +161,11 @@ export async function GET(_request: NextRequest) {
       ])
 
     // --- 1. Live KPI's per locatie ---
+    // Forecastdatum per case label komt uit de forecast-tabel (geen kolom op cases)
     const forecastByLabel = new Map<string, string>()
-    for (const item of cases) {
-      if (item.forecast_date && item.case_label) {
-        forecastByLabel.set(String(item.case_label).trim(), String(item.forecast_date))
-      }
+    for (const row of currentForecast) {
+      const label = String(row.case_label || '').trim()
+      if (label && row.arrival_date) forecastByLabel.set(label, String(row.arrival_date))
     }
     const locations = buildLocationKpis(cases, forecastByLabel)
 

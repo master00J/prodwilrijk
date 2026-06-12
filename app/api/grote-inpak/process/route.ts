@@ -231,16 +231,16 @@ async function saveKpiSnapshot(overview: any[]): Promise<void> {
   const today = new Date().toISOString().split('T')[0]
   const now = Date.now()
 
-  // forecast_date staat niet in het overview-object, alleen in de cases-tabel
+  // Forecastdatum per case label komt uit de forecast-tabel (geen kolom op cases)
   const forecastByLabel = new Map<string, string>()
   {
     const { data: forecastRows } = await supabaseAdmin
-      .from('grote_inpak_cases')
-      .select('case_label, forecast_date')
-      .not('forecast_date', 'is', null)
+      .from('grote_inpak_forecast')
+      .select('case_label, arrival_date')
+      .not('arrival_date', 'is', null)
     for (const row of forecastRows || []) {
       const label = String(row.case_label || '').trim()
-      if (label && row.forecast_date) forecastByLabel.set(label, String(row.forecast_date))
+      if (label && row.arrival_date) forecastByLabel.set(label, String(row.arrival_date))
     }
   }
 
