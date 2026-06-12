@@ -46,7 +46,7 @@ async function processGroteInpakPilsData({
   // Haal huidige case_labels op vóór verwerking (voor upload-log + prio-rapport)
   const { data: existingRows } = await supabaseAdmin
     .from('grote_inpak_cases')
-    .select('case_label, case_type, priority, serial_number, status, arrival_date, deadline, comment, atlas_planner_email, bc_shop_order_no')
+    .select('case_label, case_type, priority, serial_number, status, arrival_date, deadline, comment, atlas_planner_email, bc_shop_order_no, productielocatie, dagen_te_laat, created_at')
   const existingLabels = new Set(
     (existingRows || []).map((r: any) => String(r.case_label || '').trim()).filter(Boolean)
   )
@@ -111,6 +111,44 @@ async function processGroteInpakPilsData({
     }))
   await sendPriorityRemovedReport(removedPriorityCases, sourceFile || null)
 
+  // Archiveer alle units die van de PILS verdwijnen (= verpakt/verwerkt) met hun
+  // doorlooptijd (PILS-aankomst -> nu). Voedt de doorlooptijd-stats op het dashboard.
+  try {
+    const removedRows = (existingRows || []).filter((row: any) => {
+      const label = String(row.case_label || '').trim()
+      return label && !overviewLabels.has(label)
+    })
+    if (removedRows.length > 0) {
+      const now = Date.now()
+      const archiveRows = removedRows.map((row: any) => {
+        let doorlooptijd: number | null = null
+        if (row.arrival_date) {
+          const arrival = new Date(String(row.arrival_date)).getTime()
+          if (!Number.isNaN(arrival)) {
+            doorlooptijd = Math.max(0, Math.round((now - arrival) / 86400000))
+          }
+        }
+        return {
+          case_label: String(row.case_label).trim(),
+          case_type: row.case_type ? String(row.case_type).trim() : null,
+          productielocatie: row.productielocatie || null,
+          priority: row.priority === true,
+          arrival_date: row.arrival_date || null,
+          deadline: row.deadline || null,
+          dagen_te_laat: row.dagen_te_laat ?? null,
+          first_seen_at: row.created_at || null,
+          doorlooptijd_dagen: doorlooptijd,
+        }
+      })
+      const { error: archiveError } = await supabaseAdmin
+        .from('grote_inpak_case_archive')
+        .insert(archiveRows)
+      if (archiveError) console.warn('Could not archive removed cases:', archiveError.message)
+    }
+  } catch (err) {
+    console.warn('Could not archive removed cases:', err)
+  }
+
   // Remove cases that are no longer present in the latest PILS upload
   await removeMissingCases(overview)
 
@@ -164,11 +202,112 @@ async function processGroteInpakPilsData({
     console.warn('Could not save backlog history snapshot:', err)
   }
 
+  // KPI-snapshot per productielocatie (1x per dag, laatste verwerking wint) — dashboard-trends
+  try {
+    await saveKpiSnapshot(overview)
+  } catch (err) {
+    console.warn('Could not save KPI snapshot:', err)
+  }
+
   return {
     overview,
     transport,
     count: overview.length,
   }
+}
+
+function normalizeLocationForKpi(value: unknown): string {
+  const s = String(value || '').toLowerCase()
+  if (s.includes('genk')) return 'Genk'
+  if (s.includes('wilrijk')) return 'Wilrijk'
+  return 'Overig'
+}
+
+/**
+ * Dagelijkse KPI-snapshot per productielocatie (+ rij 'Totaal') voor het dashboard:
+ * aantallen, prio's, te-laat buckets, forecast-kritiek en gemiddelde ligtijd.
+ */
+async function saveKpiSnapshot(overview: any[]): Promise<void> {
+  const today = new Date().toISOString().split('T')[0]
+  const now = Date.now()
+
+  // forecast_date staat niet in het overview-object, alleen in de cases-tabel
+  const forecastByLabel = new Map<string, string>()
+  {
+    const { data: forecastRows } = await supabaseAdmin
+      .from('grote_inpak_cases')
+      .select('case_label, forecast_date')
+      .not('forecast_date', 'is', null)
+    for (const row of forecastRows || []) {
+      const label = String(row.case_label || '').trim()
+      if (label && row.forecast_date) forecastByLabel.set(label, String(row.forecast_date))
+    }
+  }
+
+  const groups = new Map<string, any[]>()
+  for (const item of overview) {
+    const loc = normalizeLocationForKpi(item.productielocatie)
+    if (!groups.has(loc)) groups.set(loc, [])
+    groups.get(loc)!.push(item)
+  }
+  groups.set('Totaal', overview)
+
+  const kpiRows = [...groups.entries()].map(([location, rows]) => {
+    let priorityCases = 0
+    let overdue = 0
+    let overdue13 = 0
+    let overdue47 = 0
+    let overdue8plus = 0
+    let forecastKritiek = 0
+    let ligtijdSom = 0
+    let ligtijdCount = 0
+
+    for (const item of rows) {
+      if (item.priority === true) priorityCases += 1
+
+      const teLaat = Number(item.dagen_te_laat || 0)
+      if (teLaat > 0) {
+        overdue += 1
+        if (teLaat <= 3) overdue13 += 1
+        else if (teLaat <= 7) overdue47 += 1
+        else overdue8plus += 1
+      }
+
+      // Zelfde definitie als OverviewTab: unit op PILS vóór forecastdatum = kritiek
+      const forecastDate = forecastByLabel.get(String(item.case_label || '').trim())
+      if (forecastDate && item.arrival_date) {
+        const f = new Date(forecastDate).getTime()
+        const a = new Date(String(item.arrival_date)).getTime()
+        if (!Number.isNaN(f) && !Number.isNaN(a) && a - f < 0) forecastKritiek += 1
+      }
+
+      if (item.arrival_date) {
+        const arrival = new Date(String(item.arrival_date)).getTime()
+        if (!Number.isNaN(arrival)) {
+          ligtijdSom += Math.max(0, (now - arrival) / 86400000)
+          ligtijdCount += 1
+        }
+      }
+    }
+
+    return {
+      snapshot_date: today,
+      location,
+      total_cases: rows.length,
+      priority_cases: priorityCases,
+      overdue_cases: overdue,
+      overdue_1_3: overdue13,
+      overdue_4_7: overdue47,
+      overdue_8_plus: overdue8plus,
+      forecast_kritiek: forecastKritiek,
+      avg_ligtijd_dagen: ligtijdCount > 0 ? Math.round((ligtijdSom / ligtijdCount) * 10) / 10 : null,
+    }
+  })
+
+  const { error } = await supabaseAdmin
+    .from('grote_inpak_kpi_history')
+    .upsert(kpiRows, { onConflict: 'snapshot_date,location' })
+  if (error) console.warn('KPI snapshot upsert failed:', error.message)
 }
 
 /** Alleen cellen die als YYYYMMDD bruikbaar zijn (geen 00000000). */

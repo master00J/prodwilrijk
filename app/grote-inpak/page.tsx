@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { Upload, Database, RefreshCw, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import DashboardTab from '@/components/grote-inpak/DashboardTab'
 import OverviewTab from '@/components/grote-inpak/OverviewTab'
 import TransportTab from '@/components/grote-inpak/TransportTab'
 import ForecastTab from '@/components/grote-inpak/ForecastTab'
@@ -14,7 +15,7 @@ import ProductieOrdersTab from '@/components/grote-inpak/ProductieOrdersTab'
 import UploadLogTab from '@/components/grote-inpak/UploadLogTab'
 
 export default function GroteInpakPage() {
-  const [activeTab, setActiveTab] = useState(0)
+  const [activeTab, setActiveTab] = useState(10) // start op het dashboard
   const [isProcessing, setIsProcessing] = useState(false)
   const [dataLoaded, setDataLoaded] = useState(false)
   const [pilsFile, setPilsFile] = useState<File | null>(null)
@@ -46,6 +47,7 @@ export default function GroteInpakPage() {
   const bcShopLinesInputRef = useRef<HTMLInputElement>(null)
 
   const tabs = [
+    { id: 10, label: '📊 Dashboard' },
     { id: 0, label: 'Overzicht' },
     { id: 1, label: 'Transport' },
     { id: 2, label: 'Forecast' },
@@ -921,6 +923,7 @@ export default function GroteInpakPage() {
         </nav>
 
         <div className="bg-white p-5 sm:p-6">
+          {activeTab === 10 && <DashboardTab />}
           {activeTab === 0 && dataLoaded && <OverviewTab overview={overviewData} />}
           {activeTab === 1 && dataLoaded && <TransportTab transport={transportData} overview={overviewData} />}
           {activeTab === 2 && dataLoaded && <ForecastTab />}
@@ -931,7 +934,7 @@ export default function GroteInpakPage() {
           {activeTab === 7 && <ErpLinkTab />}
           {activeTab === 9 && <ProductieOrdersTab />}
           {activeTab === 8 && <UploadLogTab refreshTrigger={uploadLogTrigger} />}
-          {activeTab !== 4 && activeTab !== 5 && activeTab !== 7 && activeTab !== 8 && activeTab !== 9 && !dataLoaded && (
+          {activeTab !== 4 && activeTab !== 5 && activeTab !== 7 && activeTab !== 8 && activeTab !== 9 && activeTab !== 10 && !dataLoaded && (
             <div className="text-center py-12 text-gray-500">
               Upload bestanden en klik op &apos;Verwerken&apos; om deze tab te gebruiken.
             </div>
