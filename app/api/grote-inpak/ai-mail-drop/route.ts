@@ -35,6 +35,29 @@ type MatchedUnit = {
   matched_on: string
 }
 
+// In terminal-/AS400-screenshots zijn O↔0 en I↔1 visueel niet te onderscheiden.
+// Genereer daarom alle leesvarianten van een case label zodat bv. "I085F" ook
+// de unit "IO85F" matcht. Max. 4 ambigue posities (16 varianten) om explosie te vermijden.
+function caseLabelVariants(value: string): string[] {
+  const chars = value.split('')
+  const ambiguous: Array<[number, string, string]> = []
+  chars.forEach((ch, i) => {
+    if (ch === 'O' || ch === '0') ambiguous.push([i, 'O', '0'])
+    else if (ch === 'I' || ch === '1') ambiguous.push([i, 'I', '1'])
+  })
+  if (ambiguous.length === 0 || ambiguous.length > 4) return [value]
+
+  const variants = new Set<string>()
+  for (let mask = 0; mask < 1 << ambiguous.length; mask += 1) {
+    const copy = [...chars]
+    ambiguous.forEach(([pos, a, b], bit) => {
+      copy[pos] = (mask >> bit) & 1 ? a : b
+    })
+    variants.add(copy.join(''))
+  }
+  return [...variants]
+}
+
 async function findMatchingUnits(extraction: AiMailExtraction): Promise<MatchedUnit[]> {
   const byLabel = new Map<string, MatchedUnit>()
   const addMatch = (
@@ -55,7 +78,9 @@ async function findMatchingUnits(extraction: AiMailExtraction): Promise<MatchedU
 
   // Alleen veilige tekens toelaten in .or()-filters (AI-output is niet vertrouwd).
   const safeFilterValue = (value: string) => /^[A-Za-z0-9_\-./]+$/.test(value)
-  const caseNumbers = extraction.case_numbers.map((value) => value.toUpperCase())
+  const caseNumbers = [...new Set(
+    extraction.case_numbers.flatMap((value) => caseLabelVariants(value.toUpperCase()))
+  )]
   const shopOrders = extraction.shop_orders.filter(safeFilterValue)
   const orderNumbers = extraction.order_numbers.filter(safeFilterValue)
 

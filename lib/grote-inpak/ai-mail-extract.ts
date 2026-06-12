@@ -21,13 +21,14 @@ export type AiMailExtraction = {
 }
 
 const EXTRACTION_PROMPT = `Je bent een assistent voor een verpakkingsafdeling (grote inpak van industriële units zoals compressoren/koelers).
-Je krijgt een e-mail van een klant of collega, soms met afbeeldingen (bv. screenshots van ordertabellen uit een ERP-systeem).
-Lees ALLES grondig, inclusief tabellen in de afbeeldingen, en extraheer de volgende gegevens als JSON:
+Je krijgt een e-mail van een klant of collega, soms met afbeeldingen (bv. screenshots van ordertabellen uit een ERP-systeem,
+of screenshots van een groen terminal-/AS400-scherm met velden als "Produkt S/N", "Kist", "Klantenorder").
+Lees ALLES grondig, inclusief tabellen en veldlabels in de afbeeldingen, en extraheer de volgende gegevens als JSON:
 
 {
-  "order_numbers": ["..."],   // bestel-/order-/dispatch-/PO-nummers, bv. "16932757"
+  "order_numbers": ["..."],   // bestel-/order-/dispatch-/PO-/SO-nummers, bv. "16932757"
   "shop_orders": ["..."],     // shop order nummers (vaak 6 cijfers), bv. "300895"
-  "case_numbers": ["..."],    // case-/kistnummers of case labels, bv. "MM65F"
+  "case_numbers": ["..."],    // case labels / kistnummers, bv. "MM65F" of "IO85F"
   "product_codes": ["..."],   // productcodes/artikelnummers, bv. "T334235007" of "HD3500"
   "customer_name": "...",     // naam van de klant/afzender-organisatie, of null
   "request_summary": "...",   // korte samenvatting (1-2 zinnen, Nederlands) van wat er gevraagd wordt
@@ -38,6 +39,8 @@ Lees ALLES grondig, inclusief tabellen in de afbeeldingen, en extraheer de volge
 
 Regels:
 - Neem nummers exact over zoals ze in de mail of afbeelding staan (geen nummers verzinnen).
+- In terminal-screenshots: het veld "Kist" bevat het case label (→ case_numbers); "Kist Type" (bv. "K258") is het kisttype, GEEN case label; "Produkt S/N" en "Produkt" zijn productcodes (→ product_codes); "Klantenorder" is een ordernummer (→ order_numbers).
+- Case labels zijn korte alfanumerieke codes (4-6 tekens, letters + cijfers, bv. "MM65F", "IO85F"). Let op: de letter O en het cijfer 0 zijn in zulke screenshots moeilijk te onderscheiden; neem je beste lezing over.
 - Negeer handtekeningen, logo's, juridische disclaimers en links.
 - Als een veld onbekend is: lege array of null.
 - Antwoord ALLEEN met geldige JSON.`

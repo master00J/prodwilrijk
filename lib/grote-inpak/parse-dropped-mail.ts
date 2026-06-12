@@ -16,9 +16,12 @@ export type MailInlineImage = {
   bytes: number
 }
 
-// Kleine afbeeldingen zijn vrijwel altijd logo's/handtekeningen — overslaan voor AI.
-const MIN_INLINE_IMAGE_BYTES = 8 * 1024
-const MAX_INLINE_IMAGES = 6
+// Alleen piepkleine afbeeldingen (tracking pixels, spacers, icoontjes) overslaan.
+// Terminal-/AS400-screenshots comprimeren extreem goed (veel egaal zwart) en kunnen
+// kleiner zijn dan signature-logo's, dus grootte is geen betrouwbare logo-filter;
+// de AI-prompt zegt zelf logo's te negeren.
+const MIN_INLINE_IMAGE_BYTES = 2 * 1024
+const MAX_INLINE_IMAGES = 8
 
 function imageMediaTypeForName(name: string): string | null {
   const lower = name.toLowerCase()
