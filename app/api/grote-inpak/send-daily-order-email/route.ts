@@ -347,7 +347,11 @@ async function fetchKKistenForExcel(
   }
 }
 
-async function fetchOverdueKisten(location: 'Genk' | 'Wilrijk'): Promise<any[]> {
+async function fetchOverdueKisten(
+  location: 'Genk' | 'Wilrijk',
+  productieAndereLoc?: Map<string, number>
+): Promise<any[]> {
+  const andereLocatie = location === 'Genk' ? 'Wilrijk' : 'Genk'
   try {
     const { data: cases } = await supabaseAdmin
       .from('grote_inpak_cases')
@@ -422,12 +426,20 @@ async function fetchOverdueKisten(location: 'Genk' | 'Wilrijk'): Promise<any[]> 
       return stock < overdue
     })
 
-    return filtered.map((c: any) => ({
-      ...c,
-      eerste_geplande_datum: eersteGeplandeDatum.get(c.case_label) || null,
-      huidige_forecast_datum: huidigeForecastDatum.get(c.case_label) || null,
-      aantal_verschuivingen: aantalVerschuivingen.get(c.case_label) || 0,
-    }))
+    return filtered.map((c: any) => {
+      // Lopende productie op de andere locatie: kist staat hier als "te laat"
+      // maar wordt effectief elders gemaakt → toon dat zodat niets "vergeten" lijkt.
+      const kt = normalizeKistnummer(c.case_type || '')
+      const prodAndere = productieAndereLoc?.get(kt) || 0
+      return {
+        ...c,
+        eerste_geplande_datum: eersteGeplandeDatum.get(c.case_label) || null,
+        huidige_forecast_datum: huidigeForecastDatum.get(c.case_label) || null,
+        aantal_verschuivingen: aantalVerschuivingen.get(c.case_label) || 0,
+        in_productie_andere_locatie: prodAndere > 0 ? andereLocatie : null,
+        in_productie_andere_aantal: prodAndere,
+      }
+    })
   } catch (err) {
     console.error('fetchOverdueKisten:', err)
     return []
@@ -484,7 +496,7 @@ async function buildLocationDailyOrderPayload(
 
   const kKistenRaw = await fetchKKistenForExcel(location, productieAndereLoc)
   const kKisten = kKistenRaw.map((r) => enrichRowWithBouwpakketStock(r, bouwpakketCtx))
-  const overdueKisten = await fetchOverdueKisten(location)
+  const overdueKisten = await fetchOverdueKisten(location, productieAndereLoc)
 
   return {
     data: renumbered,

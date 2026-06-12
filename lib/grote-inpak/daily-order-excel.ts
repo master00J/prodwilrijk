@@ -255,7 +255,7 @@ function addOverdueSheet(
   today: string
 ) {
   const headers = [
-    'Case Label', 'Kisttype', 'Prod. locatie',
+    'Case Label', 'Kisttype', 'Prod. locatie', 'In productie te',
     'PILS aankomst', 'Deadline', 'Dagen te laat',
     'Eerst geplande datum', 'Huidige forecast datum', '# Verschuivingen',
   ]
@@ -263,7 +263,7 @@ function addOverdueSheet(
 
   const ws = wb.addWorksheet(sheetTitle)
   ws.columns = [
-    { width: 22 }, { width: 12 }, { width: 14 },
+    { width: 22 }, { width: 12 }, { width: 14 }, { width: 18 },
     { width: 16 }, { width: 14 }, { width: 14 },
     { width: 22 }, { width: 22 }, { width: 14 },
   ]
@@ -298,6 +298,13 @@ function addOverdueSheet(
     const days = row.dagen_te_laat ?? 0
     const verschuivingen = row.aantal_verschuivingen ?? 0
 
+    // Kist wordt effectief op de andere locatie gemaakt (lopende productie-order)
+    const andereLocatie = row.in_productie_andere_locatie || null
+    const andereAantal = Number(row.in_productie_andere_aantal || 0)
+    const inProductieTe = andereLocatie
+      ? `${andereLocatie}${andereAantal > 0 ? ` (${andereAantal})` : ''}`
+      : '—'
+
     // Detecteer grote verschuiving: eerste vs huidige forecast datum
     const eersteDate = row.eerste_geplande_datum ? new Date(row.eerste_geplande_datum) : null
     const huidigDate = row.huidige_forecast_datum ? new Date(row.huidige_forecast_datum) : null
@@ -309,6 +316,7 @@ function addOverdueSheet(
       row.case_label || '—',
       row.case_type || '—',
       row.productielocatie || '—',
+      inProductieTe,
       fmtDate(row.arrival_date),
       fmtDate(row.deadline),
       days,
@@ -320,21 +328,27 @@ function addOverdueSheet(
       cell.style = {
         fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: fgColor } },
         border,
-        alignment: { horizontal: col <= 3 ? 'left' : 'center', vertical: 'middle' },
+        alignment: { horizontal: col <= 4 ? 'left' : 'center', vertical: 'middle' },
+      }
+      // In productie te (andere locatie): blauw markeren zodat duidelijk is dat de
+      // kist daar gemaakt wordt en hier niets "vergeten" is
+      if (col === 4 && andereLocatie) {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD6E4F0' } }
+        cell.font = { bold: true, color: { argb: 'FF1F497D' } }
       }
       // Dagen te laat: kleurschaal
-      if (col === 6) {
+      if (col === 7) {
         const bgColor = days >= 5 ? 'FFFF0000' : days >= 2 ? 'FFFF6600' : 'FFFFFF00'
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } }
         cell.font = { bold: true, color: { argb: days >= 5 ? 'FFFFFFFF' : 'FF000000' } }
       }
       // Huidige forecast datum: oranje/geel als later dan eerst geplande datum
-      if (col === 8 && verschuivingDagen !== null && verschuivingDagen > 0) {
+      if (col === 9 && verschuivingDagen !== null && verschuivingDagen > 0) {
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: verschuivingDagen >= 14 ? 'FFFF6600' : 'FFFFFF00' } }
         cell.font = { bold: true, color: { argb: 'FF000000' } }
       }
       // # Verschuivingen: rood als veel
-      if (col === 9 && verschuivingen >= 2) {
+      if (col === 10 && verschuivingen >= 2) {
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFC7CE' } }
         cell.font = { bold: true, color: { argb: 'FF9C0006' } }
       }
