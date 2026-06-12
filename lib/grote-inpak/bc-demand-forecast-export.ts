@@ -1,4 +1,7 @@
 import ExcelJS from 'exceljs'
+import JSZip from 'jszip'
+import fs from 'fs'
+import path from 'path'
 
 export type LocationName = 'Wilrijk' | 'Genk'
 
@@ -229,51 +232,120 @@ export function matrixToDemandForecastEntries(
   return entries
 }
 
+// BC "Import from Excel" (Config. Package) vereist een werkboek mét XML-map
+// (xl/xmlMaps.xml + connections + tableSingleCells). Die kan ExcelJS niet maken,
+// dus we gebruiken een door BC zelf geëxporteerd werkboek als binaire template
+// en vervangen alleen de data-onderdelen (sheet, sharedStrings, tabel-range).
+const BC_TEMPLATE_PATH = path.join(
+  process.cwd(),
+  'lib',
+  'grote-inpak',
+  'templates',
+  'bc-demand-forecast-template.xlsx'
+)
+
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+}
+
 export async function createDemandForecastWorkbook(
   location: LocationName,
   entries: DemandForecastEntry[]
 ): Promise<ArrayBuffer> {
-  const workbook = new ExcelJS.Workbook()
-  const worksheet = workbook.addWorksheet('Demand Forecast Entry')
   const locationCode = BC_LOCATION_BY_SITE[location]
+  const templateBuffer = fs.readFileSync(BC_TEMPLATE_PATH)
+  const zip = await JSZip.loadAsync(templateBuffer)
 
-  worksheet.addRow([BC_FORECAST_SHEET_META, 'Demand Forecast Entry', BC_FORECAST_TABLE_ID])
-  worksheet.addRow([])
+  // Shared strings: vaste indices 0–8 (zelfde volgorde als BC-export), daarna dynamisch
+  const strings: string[] = [
+    BC_FORECAST_SHEET_META,
+    'Demand Forecast Entry',
+    BC_FORECAST_TABLE_ID,
+    ...BC_DEMAND_FORECAST_HEADERS,
+  ]
+  const stringIndex = new Map(strings.map((value, i) => [value, i]))
+  const sIdx = (value: string): number => {
+    let i = stringIndex.get(value)
+    if (i === undefined) {
+      i = strings.length
+      strings.push(value)
+      stringIndex.set(value, i)
+    }
+    return i
+  }
 
-  const tableRows = entries.map((entry, index) => [
-    index + 1,
-    BC_FORECAST_NAME,
-    entry.itemNo,
-    formatForecastDateIso(entry.forecastDate),
-    entry.quantity,
-    locationCode,
-  ])
+  let sharedStringRefs = 0
+  const sCell = (ref: string, value: string, style?: string): string => {
+    sharedStringRefs += 1
+    return `<c r="${ref}"${style ? ` s="${style}"` : ''} t="s"><v>${sIdx(value)}</v></c>`
+  }
+  const nCell = (ref: string, value: number): string => `<c r="${ref}"><v>${value}</v></c>`
 
-  worksheet.addTable({
-    name: `ForecastImport${location}`,
-    displayName: `ForecastImport${location}`,
-    ref: 'A3',
-    headerRow: true,
-    totalsRow: false,
-    style: {
-      theme: 'TableStyleMedium2',
-      showRowStripes: true,
-      showFirstColumn: false,
-      showLastColumn: false,
-      showColumnStripes: false,
-    },
-    columns: BC_DEMAND_FORECAST_HEADERS.map((name) => ({ name, filterButton: true })),
-    rows: tableRows,
+  const rowsXml: string[] = []
+  rowsXml.push(
+    `<row r="1" spans="1:6">${sCell('A1', BC_FORECAST_SHEET_META, '1')}${sCell('B1', 'Demand Forecast Entry', '1')}${sCell('C1', BC_FORECAST_TABLE_ID, '1')}</row>`
+  )
+  rowsXml.push(
+    `<row r="3" spans="1:6">${BC_DEMAND_FORECAST_HEADERS.map((h, i) =>
+      sCell(`${String.fromCharCode(65 + i)}3`, h, '1')
+    ).join('')}</row>`
+  )
+
+  entries.forEach((entry, index) => {
+    const r = 4 + index
+    rowsXml.push(
+      `<row r="${r}" spans="1:6">` +
+        nCell(`A${r}`, index + 1) +
+        sCell(`B${r}`, BC_FORECAST_NAME) +
+        sCell(`C${r}`, entry.itemNo) +
+        sCell(`D${r}`, formatForecastDateIso(entry.forecastDate)) +
+        nCell(`E${r}`, entry.quantity) +
+        sCell(`F${r}`, locationCode) +
+      `</row>`
+    )
   })
 
-  worksheet.getColumn(1).width = 12
-  worksheet.getColumn(2).width = 24
-  worksheet.getColumn(3).width = 14
-  worksheet.getColumn(4).width = 14
-  worksheet.getColumn(5).width = 18
-  worksheet.getColumn(6).width = 16
+  // Tabel moet minstens één datarij omvatten om geldig te blijven
+  const lastRow = 3 + Math.max(1, entries.length)
+  if (entries.length === 0) rowsXml.push(`<row r="4" spans="1:6"/>`)
 
-  return workbook.xlsx.writeBuffer() as Promise<ArrayBuffer>
+  const sheetXml =
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n` +
+    `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="x14ac xr xr2 xr3" xmlns:x14ac="http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac" xmlns:xr="http://schemas.microsoft.com/office/spreadsheetml/2014/revision" xmlns:xr2="http://schemas.microsoft.com/office/spreadsheetml/2015/revision2" xmlns:xr3="http://schemas.microsoft.com/office/spreadsheetml/2016/revision3">` +
+    `<dimension ref="A1:F${lastRow}"/>` +
+    `<sheetViews><sheetView tabSelected="1" workbookViewId="0"/></sheetViews>` +
+    `<sheetFormatPr defaultRowHeight="14.4"/>` +
+    `<cols><col min="1" max="1" width="16.33203125" customWidth="1"/><col min="2" max="2" width="24.44140625" customWidth="1"/><col min="3" max="3" width="14.6640625" customWidth="1"/><col min="4" max="4" width="15.44140625" customWidth="1"/><col min="5" max="5" width="18.77734375" customWidth="1"/><col min="6" max="6" width="16" customWidth="1"/></cols>` +
+    `<sheetData>${rowsXml.join('')}</sheetData>` +
+    `<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/>` +
+    `<legacyDrawing r:id="rId1"/>` +
+    `<tableParts count="1"><tablePart r:id="rId3"/></tableParts>` +
+    `</worksheet>`
+
+  const sharedStringsXml =
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n` +
+    `<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${sharedStringRefs}" uniqueCount="${strings.length}">` +
+    strings.map((value) => `<si><t>${escapeXml(value)}</t></si>`).join('') +
+    `</sst>`
+
+  // Tabel-range bijwerken in de template-tabel (XML-map-bindings blijven intact)
+  const tableXmlRaw = await zip.file('xl/tables/table1.xml')!.async('string')
+  const tableXml = tableXmlRaw.replace(/ref="A3:F\d+"/g, `ref="A3:F${lastRow}"`)
+
+  zip.file('xl/worksheets/sheet1.xml', sheetXml)
+  zip.file('xl/sharedStrings.xml', sharedStringsXml)
+  zip.file('xl/tables/table1.xml', tableXml)
+
+  return zip.generateAsync({
+    type: 'arraybuffer',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 6 },
+  })
 }
 
 export function formatExportDateLabel(date = new Date()): string {

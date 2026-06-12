@@ -15,6 +15,10 @@ const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
   serverExternalPackages: ['pdf-parse', '@napi-rs/canvas', '@kenjiuno/msgreader'],
+  // BC-template (xlsx met XML-map) meeleveren in de standalone build
+  outputFileTracingIncludes: {
+    '/api/bc-forecast-converter': ['./lib/grote-inpak/templates/*.xlsx'],
+  },
   experimental: {
     // Grote Excel-bestanden (bv. Stock Willebroek 10000+ rijen) toelaten
     proxyClientMaxBodySize: '50mb',
