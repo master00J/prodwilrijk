@@ -356,6 +356,15 @@ export default function ProductionOrderTimePage() {
     return activeLogs.filter((log) => log.order_number === modalOrder.order_number)
   }, [activeLogs, modalOrder])
 
+  const activeLogsByEmployee = useMemo(() => {
+    const groups = new Map<string, ActiveLog[]>()
+    activeLogs.forEach((log) => {
+      const key = log.employee_name || `Employee ${log.employee_id}`
+      groups.set(key, [...(groups.get(key) || []), log])
+    })
+    return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b))
+  }, [activeLogs])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -365,16 +374,21 @@ export default function ProductionOrderTimePage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-6xl">
-      <h1 className="text-3xl font-bold text-center mb-8">Werkregistratie</h1>
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-6xl">
+      <div className="mb-5 text-center sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold">Werkregistratie</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          Werknemers kunnen meerdere orders of lijnen tegelijk actief hebben.
+        </p>
+      </div>
 
       {/* Tabs */}
-      <div className="mb-6 border-b">
-        <nav className="flex -mb-px">
+      <div className="mb-4 sm:mb-6 border-b overflow-x-auto">
+        <nav className="flex -mb-px min-w-max">
           <button
             type="button"
             onClick={() => setActiveTab('actief')}
-            className={`min-h-[48px] px-6 py-3 text-lg font-medium border-b-2 transition-colors ${
+            className={`min-h-[52px] px-5 sm:px-6 py-3 text-base sm:text-lg font-medium border-b-2 transition-colors ${
               activeTab === 'actief'
                 ? 'border-blue-600 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -385,7 +399,7 @@ export default function ProductionOrderTimePage() {
           <button
             type="button"
             onClick={() => setActiveTab('afgewerkt')}
-            className={`min-h-[48px] px-6 py-3 text-lg font-medium border-b-2 transition-colors ${
+            className={`min-h-[52px] px-5 sm:px-6 py-3 text-base sm:text-lg font-medium border-b-2 transition-colors ${
               activeTab === 'afgewerkt'
                 ? 'border-blue-600 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -396,7 +410,7 @@ export default function ProductionOrderTimePage() {
         </nav>
       </div>
 
-      <div className="mb-6">
+      <div className="mb-5 sm:mb-6">
         <button
           type="button"
           onClick={() => setScannerOpen(true)}
@@ -412,7 +426,7 @@ export default function ProductionOrderTimePage() {
       </div>
 
       {/* Zoek en filters */}
-      <div className="mb-6 flex flex-col lg:flex-row gap-4 items-center">
+      <div className="mb-5 sm:mb-6 flex flex-col lg:flex-row gap-3 sm:gap-4 items-center">
         <div className="w-full lg:w-1/3">
           <select
             value={site}
@@ -465,6 +479,75 @@ export default function ProductionOrderTimePage() {
             )}
           </div>
         </div>
+      )}
+
+      {activeTab === 'actief' && (
+        <section className="mb-6 rounded-2xl border border-blue-100 bg-blue-50/60 p-3 sm:p-4">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Nu actief</h2>
+              <p className="text-sm text-slate-600">
+                {activeLogs.length === 0
+                  ? 'Geen lopende tijdregistraties.'
+                  : `${activeLogs.length} lopende registratie(s) bij ${activeLogsByEmployee.length} medewerker(s).`}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void fetchActiveLogs()}
+              className="mt-2 inline-flex min-h-[44px] items-center justify-center rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-medium text-blue-700 shadow-sm hover:bg-blue-50 sm:mt-0"
+            >
+              Vernieuwen
+            </button>
+          </div>
+
+          {activeLogs.length > 0 && (
+            <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+              {activeLogsByEmployee.map(([employeeName, logs]) => (
+                <div key={employeeName} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <div className="font-semibold text-slate-900">{employeeName}</div>
+                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+                      {logs.length} actief
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {logs.map((log) => (
+                      <div
+                        key={log.id}
+                        className="rounded-lg border border-slate-100 bg-slate-50 p-3"
+                      >
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="text-base font-semibold text-slate-900">
+                              {log.order_number}
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-slate-600">
+                              <span className="rounded bg-white px-2 py-0.5">
+                                <BcItemCode value={log.item_number} />
+                              </span>
+                              <span className="rounded bg-white px-2 py-0.5">{log.step}</span>
+                              <span className="rounded bg-emerald-100 px-2 py-0.5 font-medium text-emerald-800">
+                                {formatElapsed(log.elapsed_seconds)}
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => openStopModal(log)}
+                            className="min-h-[48px] rounded-lg bg-red-500 px-4 py-2 font-medium text-white shadow-sm hover:bg-red-600 sm:min-w-[96px]"
+                          >
+                            Stop
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       )}
 
       {/* Orders tabel (desktop) */}
@@ -559,17 +642,22 @@ export default function ProductionOrderTimePage() {
       {/* Order Details Modal */}
       {modalOrder && (
         <div
-          className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4"
+          className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
           role="dialog"
           aria-modal="true"
         >
-          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="sticky top-0 bg-white z-10 p-6 border-b flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Order Details – {modalOrder.order_number}</h2>
+          <div className="flex max-h-[100dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-h-[92vh] sm:rounded-lg">
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b bg-white p-4 sm:p-6">
+              <div>
+                <h2 className="text-xl font-bold sm:text-2xl">Order {modalOrder.order_number}</h2>
+                {modalOrder.sales_order_number && (
+                  <p className="mt-1 text-sm text-gray-500">Verkooporder {modalOrder.sales_order_number}</p>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={closeOrderModal}
-                className="p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
+                className="min-h-[44px] min-w-[44px] rounded-full p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
                 aria-label="Sluit modal"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -578,7 +666,7 @@ export default function ProductionOrderTimePage() {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-4 pb-32 sm:p-6 sm:pb-6">
               {/* Order info */}
               <div className="mb-6 p-4 bg-blue-50 rounded-lg">
                 <div className="text-sm text-gray-700">
@@ -595,21 +683,27 @@ export default function ProductionOrderTimePage() {
               {/* Actieve tijdsregistraties */}
               {activeLogsForOrder.length > 0 && (
                 <section className="mb-8">
-                  <h3 className="text-lg font-semibold mb-4">Actieve Tijdsregistraties</h3>
-                  <div className="space-y-3">
+                  <h3 className="mb-4 text-lg font-semibold">Actieve registraties op deze order</h3>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     {activeLogsForOrder.map((log) => (
                       <div
                         key={log.id}
-                        className="flex flex-wrap items-center justify-between gap-2 p-3 bg-gray-50 rounded-lg"
+                        className="rounded-xl border border-slate-200 bg-gray-50 p-3"
                       >
                         <div className="text-sm">
-                          <span className="font-medium">{log.employee_name}</span> – <BcItemCode value={log.item_number} /> · {log.step} ·{' '}
-                          {formatElapsed(log.elapsed_seconds)}
+                          <div className="font-semibold text-slate-900">{log.employee_name}</div>
+                          <div className="mt-1 flex flex-wrap gap-1.5 text-slate-600">
+                            <span className="rounded bg-white px-2 py-0.5"><BcItemCode value={log.item_number} /></span>
+                            <span className="rounded bg-white px-2 py-0.5">{log.step}</span>
+                            <span className="rounded bg-emerald-100 px-2 py-0.5 font-medium text-emerald-800">
+                              {formatElapsed(log.elapsed_seconds)}
+                            </span>
+                          </div>
                         </div>
                         <button
                           type="button"
                           onClick={() => openStopModal(log)}
-                          className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm min-h-[36px]"
+                          className="mt-3 min-h-[44px] w-full rounded-lg bg-red-500 px-3 py-2 text-sm font-medium text-white hover:bg-red-600"
                         >
                           Stop
                         </button>
@@ -643,10 +737,35 @@ export default function ProductionOrderTimePage() {
                     </tbody>
                   </table>
                 </div>
+                <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {orderLines.map((line) => {
+                    const item = line.item_number || ''
+                    const selected = selectedItem === item
+                    return (
+                      <button
+                        key={`card-${line.id}`}
+                        type="button"
+                        onClick={() => setSelectedItem(item)}
+                        className={`min-h-[72px] rounded-xl border p-3 text-left transition ${
+                          selected
+                            ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-100'
+                            : 'border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="font-semibold text-slate-900">
+                          {line.item_number ? <BcItemCode value={line.item_number} /> : 'Onbekend item'}
+                        </div>
+                        <div className="mt-1 text-sm text-slate-600">
+                          {line.quantity} st{line.description ? ` · ${line.description}` : ''}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
               </section>
 
               {/* Nieuwe tijdsregistratie form */}
-              <div className="bg-gray-50 p-4 rounded-lg shadow">
+              <div className="rounded-xl bg-gray-50 p-4 shadow">
                 <h3 className="text-lg font-semibold mb-4">Nieuwe Tijdsregistratie</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -667,11 +786,15 @@ export default function ProductionOrderTimePage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Werknemer(s)</label>
-                    <div className="border border-gray-300 rounded-lg max-h-40 overflow-y-auto p-2">
+                    <div className="grid max-h-56 grid-cols-1 gap-2 overflow-y-auto rounded-lg border border-gray-300 bg-white p-2 sm:grid-cols-2">
                       {employees.map((emp) => (
                         <label
                           key={emp.id}
-                          className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 rounded cursor-pointer"
+                          className={`flex min-h-[48px] cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 ${
+                            selectedEmployeeIds.includes(emp.id)
+                              ? 'border-blue-500 bg-blue-50'
+                              : 'border-slate-200 hover:bg-gray-50'
+                          }`}
                         >
                           <input
                             type="checkbox"
@@ -711,12 +834,12 @@ export default function ProductionOrderTimePage() {
                     )}
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-3 mt-4">
+                <div className="sticky bottom-0 -mx-4 mt-4 flex flex-col gap-2 border-t bg-white/95 p-4 backdrop-blur sm:static sm:mx-0 sm:flex-row sm:border-0 sm:bg-transparent sm:p-0">
                   <button
                     type="button"
                     onClick={() => startRegistration()}
                     disabled={starting}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-lg shadow min-h-[48px] hover:bg-blue-700 disabled:opacity-60"
+                    className="min-h-[52px] flex-1 rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white shadow hover:bg-blue-700 disabled:opacity-60"
                   >
                     {starting ? 'Bezig...' : 'Start'}
                   </button>
@@ -724,7 +847,7 @@ export default function ProductionOrderTimePage() {
                     type="button"
                     onClick={() => startRegistration('Hout Halen')}
                     disabled={starting}
-                    className="px-6 py-3 bg-amber-500 text-white rounded-lg shadow min-h-[48px] hover:bg-amber-600 disabled:opacity-60"
+                    className="min-h-[52px] flex-1 rounded-lg bg-amber-500 px-6 py-3 font-semibold text-white shadow hover:bg-amber-600 disabled:opacity-60"
                   >
                     Hout Halen
                   </button>

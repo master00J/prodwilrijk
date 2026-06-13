@@ -76,13 +76,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { data: existingLogs, error: checkError } = await supabaseAdmin
+    // Een medewerker mag aan meerdere orders/lijnen tegelijk werken.
+    // Blokkeer alleen exact dezelfde actieve registratie zodat dubbelklikken
+    // of per ongeluk twee keer starten geen dubbele log maakt.
+    const { data: duplicateLogs, error: checkError } = await supabaseAdmin
       .from('time_logs')
       .select('id, employee_id')
       .in('employee_id', employeeIds)
       .is('end_time', null)
       .eq('type', 'production_order')
       .eq('site', site)
+      .eq('production_order_number', String(orderNumber).trim())
+      .eq('production_item_number', String(itemNumber).trim())
+      .eq('production_step', String(step).trim())
 
     if (checkError) {
       console.error('Error checking existing logs:', checkError)
@@ -92,10 +98,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (existingLogs && existingLogs.length > 0) {
-      const activeEmployeeIds = existingLogs.map((log: any) => log.employee_id)
+    if (duplicateLogs && duplicateLogs.length > 0) {
+      const activeEmployeeIds = duplicateLogs.map((log: any) => log.employee_id)
       return NextResponse.json(
-        { error: `Employees with IDs ${activeEmployeeIds.join(', ')} already have active production logs` },
+        {
+          error:
+            `Medewerker(s) ${activeEmployeeIds.join(', ')} werken al actief aan deze order/lijn/stap. ` +
+            'Kies een andere lijn/stap of stop eerst de bestaande registratie.',
+        },
         { status: 400 }
       )
     }
