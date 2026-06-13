@@ -30,6 +30,17 @@ interface SkippedAttachment {
   reason: string
 }
 
+type ImportEntry = {
+  attachment: MailAttachment
+  sourceType: PackedSourceType
+  message: { id: string; messageId: string; date: string | null; subject: string | null }
+}
+
+type ImportedBatchKey = {
+  mail_message_id: string | null
+  source_file: string | null
+}
+
 class SimpleImapClient {
   private socket: TLSSocket
   private buffer = ''
@@ -249,6 +260,22 @@ function getBelgiumDate(): string {
   return `${year}-${month}-${day}`
 }
 
+function getBelgiumDateDaysAgo(daysAgo: number): string {
+  const date = new Date()
+  date.setDate(date.getDate() - Math.max(0, daysAgo))
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Brussels',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+
+  const year = parts.find(part => part.type === 'year')?.value
+  const month = parts.find(part => part.type === 'month')?.value
+  const day = parts.find(part => part.type === 'day')?.value
+  return `${year}-${month}-${day}`
+}
+
 function toImapDate(date: string): string {
   const [year, month, day] = date.split('-').map(Number)
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -377,6 +404,38 @@ async function importAttachmentGroup(
   }
 }
 
+async function loadRecentImportedBatchKeys(): Promise<ImportedBatchKey[]> {
+  const since = new Date()
+  since.setDate(since.getDate() - 14)
+
+  const { data, error } = await supabaseAdmin
+    .from('grote_inpak_packed_import_batches')
+    .select('mail_message_id, source_file')
+    .gte('imported_at', since.toISOString())
+
+  if (error) {
+    console.warn('Could not load recent PACKED import keys:', error.message)
+    return []
+  }
+  return data || []
+}
+
+function wasAttachmentAlreadyImported(
+  importedKeys: ImportedBatchKey[],
+  messageId: string,
+  filename: string
+): boolean {
+  const normalizedMessage = String(messageId || '').trim()
+  const normalizedFile = String(filename || '').trim()
+  if (!normalizedMessage || !normalizedFile) return false
+
+  return importedKeys.some((row) => {
+    const importedMessage = String(row.mail_message_id || '')
+    const importedFile = String(row.source_file || '')
+    return importedMessage.includes(normalizedMessage) && importedFile.includes(normalizedFile)
+  })
+}
+
 export async function GET(request: NextRequest) {
   return runImport(request)
 }
@@ -395,7 +454,9 @@ async function runImport(request: NextRequest) {
   const user = process.env.GROTE_INPAK_PACKED_MAIL_USER || process.env.AIRTEC_MAIL_USER
   const password = process.env.GROTE_INPAK_PACKED_MAIL_PASSWORD || process.env.AIRTEC_MAIL_PASSWORD
   const mailbox = process.env.GROTE_INPAK_PACKED_MAILBOX || process.env.AIRTEC_MAILBOX || 'INBOX'
-  const date = request.nextUrl.searchParams.get('date') || getBelgiumDate()
+  const requestedDate = request.nextUrl.searchParams.get('date')
+  const lookbackDays = Math.max(0, Math.min(14, Number(request.nextUrl.searchParams.get('lookbackDays') || 2)))
+  const date = requestedDate || getBelgiumDateDaysAgo(lookbackDays)
   const includeSeen = request.nextUrl.searchParams.get('includeSeen') === 'true'
 
   if (!host || !user || !password) {
@@ -406,8 +467,12 @@ async function runImport(request: NextRequest) {
   const imported: ImportedAttachment[] = []
   const errors: Array<{ messageId: string; error: string }> = []
   const skipped: SkippedAttachment[] = []
+  const pendingIndusEntries: ImportEntry[] = []
+  const markSeenIds = new Set<string>()
 
   try {
+    const importedKeys = await loadRecentImportedBatchKeys()
+
     client = await SimpleImapClient.connect(host, port)
     await client.command(`LOGIN ${imapQuote(user)} ${imapQuote(password)}`, 'LOGIN', 60000)
     await client.command(`SELECT ${imapQuote(mailbox)}`, 'SELECT mailbox')
@@ -451,7 +516,18 @@ async function runImport(request: NextRequest) {
             })
           })
 
-        const validAttachments = attachments.filter((entry): entry is { attachment: MailAttachment; sourceType: PackedSourceType } => Boolean(entry.sourceType))
+        const validAttachments = attachments
+          .filter((entry): entry is { attachment: MailAttachment; sourceType: PackedSourceType } => Boolean(entry.sourceType))
+          .filter((entry) => {
+            if (!wasAttachmentAlreadyImported(importedKeys, messageId, entry.attachment.filename)) return true
+            skipped.push({
+              messageId,
+              subject,
+              filename: entry.attachment.filename,
+              reason: 'Bijlage al eerder geïmporteerd',
+            })
+            return false
+          })
         const packedAttachments = validAttachments.filter(entry => entry.sourceType === 'packed')
         const packedNyAttachments = validAttachments.filter(entry => entry.sourceType === 'packed_n' || entry.sourceType === 'packed_y')
 
@@ -467,17 +543,17 @@ async function runImport(request: NextRequest) {
         }
 
         if (packedNyAttachments.length > 0) {
-          const result = await importAttachmentGroup(packedNyAttachments, {
-            id,
-            messageId,
-            date: headers.date || null,
-          })
-          imported.push(result)
-          if (result.rows > 0) importedConcept = true
+          pendingIndusEntries.push(
+            ...packedNyAttachments.map((entry) => ({
+              ...entry,
+              message: { id, messageId, date: headers.date || null, subject },
+            }))
+          )
+          importedConcept = true
         }
 
         if (importedConcept) {
-          await client.command(`STORE ${id} +FLAGS (\\Seen)`)
+          markSeenIds.add(id)
         }
       } catch (error) {
         errors.push({
@@ -487,9 +563,47 @@ async function runImport(request: NextRequest) {
       }
     }
 
+    if (pendingIndusEntries.length > 0) {
+      try {
+        const uniqueIds = [...new Set(pendingIndusEntries.map(entry => entry.message.id))]
+        const uniqueMessageIds = [...new Set(pendingIndusEntries.map(entry => entry.message.messageId))]
+        const uniqueDates = [...new Set(pendingIndusEntries.map(entry => entry.message.date).filter(Boolean) as string[])]
+        const result = await importAttachmentGroup(
+          pendingIndusEntries.map(entry => ({
+            attachment: entry.attachment,
+            sourceType: entry.sourceType,
+          })),
+          {
+            id: uniqueIds.join(','),
+            messageId: uniqueMessageIds.join(' + '),
+            date: uniqueDates.join(' + ') || null,
+          }
+        )
+        imported.push(result)
+        if (result.rows > 0) uniqueIds.forEach(id => markSeenIds.add(id))
+      } catch (error) {
+        errors.push({
+          messageId: 'PACKED_N/Y group',
+          error: error instanceof Error ? error.message : 'Onbekende fout',
+        })
+      }
+    }
+
+    for (const id of markSeenIds) {
+      try {
+        await client.command(`STORE ${id} +FLAGS (\\Seen)`)
+      } catch (error) {
+        errors.push({
+          messageId: id,
+          error: error instanceof Error ? `Mail geïmporteerd maar niet als gelezen gemarkeerd: ${error.message}` : 'Mail geïmporteerd maar niet als gelezen gemarkeerd',
+        })
+      }
+    }
+
     return NextResponse.json({
       success: errors.length === 0,
       date,
+      lookbackDays: requestedDate ? 0 : lookbackDays,
       checkedMessages: ids.length,
       imported,
       skipped,

@@ -43,7 +43,9 @@ const GROUP_VENDOR: Record<string, string> = {
 
 export function getPackedSourceType(filename: string): PackedSourceType | null {
   const name = filename.toLowerCase()
-  if (!/\.(xlsx|xls)$/i.test(filename)) return null
+  // Deze helper wordt ook op mail-subjects gebruikt. Vereis daarom niet
+  // altijd een Excel-extensie: de bijlage zelf is elders al op Excel gefilterd.
+  if (!/packed/.test(name)) return null
   if (/packed[\s_-]?n/.test(name)) return 'packed_n'
   if (/packed[\s_-]?y/.test(name)) return 'packed_y'
   if (/packed/.test(name)) return 'packed'
