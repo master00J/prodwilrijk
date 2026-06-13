@@ -47,6 +47,15 @@ interface ActiveLog {
 
 const STEPS = ['Zagen', 'Hout Halen', 'Assemblage', 'Schuren', 'Afwerking']
 
+type ActiveTaskGroup = {
+  key: string
+  order_number: string
+  item_number: string
+  step: string
+  elapsed_seconds: number
+  logs: ActiveLog[]
+}
+
 function formatDate(d: string | null) {
   if (!d) return '-'
   return new Date(d).toLocaleDateString('nl-NL', {
@@ -83,7 +92,7 @@ export default function ProductionOrderTimePage() {
 
   const [modalOrder, setModalOrder] = useState<OrderRow | null>(null)
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<number[]>([])
-  const [selectedItem, setSelectedItem] = useState('')
+  const [selectedItems, setSelectedItems] = useState<string[]>([])
   const [selectedStep, setSelectedStep] = useState(STEPS[0])
   const [customStep, setCustomStep] = useState('')
   const [starting, setStarting] = useState(false)
@@ -182,7 +191,7 @@ export default function ProductionOrderTimePage() {
   const openOrderModal = async (order: OrderRow) => {
     setModalOrder(order)
     setSelectedEmployeeIds([])
-    setSelectedItem('')
+    setSelectedItems([])
     setSelectedStep(STEPS[0])
     setCustomStep('')
     await fetchOrderLines(order.order_number)
@@ -255,6 +264,14 @@ export default function ProductionOrderTimePage() {
     )
   }
 
+  const toggleItem = (itemNumber: string) => {
+    const item = String(itemNumber || '').trim()
+    if (!item) return
+    setSelectedItems((prev) =>
+      prev.includes(item) ? prev.filter((value) => value !== item) : [...prev, item]
+    )
+  }
+
   const startRegistration = async (stepOverride?: string) => {
     const step = stepOverride || (selectedStep === 'Andere' ? customStep.trim() : selectedStep)
     if (!step) {
@@ -265,8 +282,8 @@ export default function ProductionOrderTimePage() {
       alert('Selecteer minstens één medewerker')
       return
     }
-    if (!modalOrder || !selectedItem) {
-      alert('Selecteer een item')
+    if (!modalOrder || selectedItems.length === 0) {
+      alert('Selecteer minstens één lijn')
       return
     }
 
@@ -278,7 +295,7 @@ export default function ProductionOrderTimePage() {
         body: JSON.stringify({
           employeeIds: selectedEmployeeIds,
           orderNumber: modalOrder.order_number,
-          itemNumber: selectedItem,
+          itemNumbers: selectedItems,
           step,
           site,
         }),
@@ -289,7 +306,8 @@ export default function ProductionOrderTimePage() {
       }
       await fetchActiveLogs()
       setSelectedEmployeeIds([])
-      alert('Tijdregistratie gestart')
+      setSelectedItems([])
+      alert(`Tijdregistratie gestart voor ${selectedItems.length} lijn(en)`)
     } catch (e: any) {
       alert(e.message || 'Starten mislukt')
     } finally {
@@ -356,14 +374,37 @@ export default function ProductionOrderTimePage() {
     return activeLogs.filter((log) => log.order_number === modalOrder.order_number)
   }, [activeLogs, modalOrder])
 
-  const activeLogsByEmployee = useMemo(() => {
-    const groups = new Map<string, ActiveLog[]>()
-    activeLogs.forEach((log) => {
-      const key = log.employee_name || `Employee ${log.employee_id}`
-      groups.set(key, [...(groups.get(key) || []), log])
+  const groupActiveLogsByTask = useCallback((logs: ActiveLog[]): ActiveTaskGroup[] => {
+    const groups = new Map<string, ActiveTaskGroup>()
+    logs.forEach((log) => {
+      const key = [log.order_number, log.item_number, log.step].join('|')
+      const existing = groups.get(key)
+      if (existing) {
+        existing.logs.push(log)
+        existing.elapsed_seconds = Math.max(existing.elapsed_seconds, log.elapsed_seconds)
+      } else {
+        groups.set(key, {
+          key,
+          order_number: log.order_number,
+          item_number: log.item_number,
+          step: log.step,
+          elapsed_seconds: log.elapsed_seconds,
+          logs: [log],
+        })
+      }
     })
-    return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b))
-  }, [activeLogs])
+    return [...groups.values()].sort((a, b) =>
+      a.order_number.localeCompare(b.order_number) ||
+      a.item_number.localeCompare(b.item_number) ||
+      a.step.localeCompare(b.step)
+    )
+  }, [])
+
+  const activeTaskGroups = useMemo(() => groupActiveLogsByTask(activeLogs), [activeLogs, groupActiveLogsByTask])
+  const activeTaskGroupsForOrder = useMemo(
+    () => groupActiveLogsByTask(activeLogsForOrder),
+    [activeLogsForOrder, groupActiveLogsByTask]
+  )
 
   if (loading) {
     return (
@@ -489,7 +530,7 @@ export default function ProductionOrderTimePage() {
               <p className="text-sm text-slate-600">
                 {activeLogs.length === 0
                   ? 'Geen lopende tijdregistraties.'
-                  : `${activeLogs.length} lopende registratie(s) bij ${activeLogsByEmployee.length} medewerker(s).`}
+                  : `${activeLogs.length} lopende registratie(s), gegroepeerd in ${activeTaskGroups.length} taak/taken.`}
               </p>
             </div>
             <button
@@ -503,34 +544,35 @@ export default function ProductionOrderTimePage() {
 
           {activeLogs.length > 0 && (
             <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
-              {activeLogsByEmployee.map(([employeeName, logs]) => (
-                <div key={employeeName} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+              {activeTaskGroups.map((group) => (
+                <div key={group.key} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                   <div className="mb-2 flex items-center justify-between gap-2">
-                    <div className="font-semibold text-slate-900">{employeeName}</div>
+                    <div className="min-w-0">
+                      <div className="font-semibold text-slate-900">{group.order_number}</div>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-slate-600">
+                        <span className="rounded bg-slate-100 px-2 py-0.5">
+                          <BcItemCode value={group.item_number} />
+                        </span>
+                        <span className="rounded bg-slate-100 px-2 py-0.5">{group.step}</span>
+                        <span className="rounded bg-emerald-100 px-2 py-0.5 font-medium text-emerald-800">
+                          {formatElapsed(group.elapsed_seconds)}
+                        </span>
+                      </div>
+                    </div>
                     <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
-                      {logs.length} actief
+                      {group.logs.length} medewerker(s)
                     </span>
                   </div>
                   <div className="space-y-2">
-                    {logs.map((log) => (
+                    {group.logs.map((log) => (
                       <div
                         key={log.id}
                         className="rounded-lg border border-slate-100 bg-slate-50 p-3"
                       >
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div className="min-w-0">
-                            <div className="text-base font-semibold text-slate-900">
-                              {log.order_number}
-                            </div>
-                            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-slate-600">
-                              <span className="rounded bg-white px-2 py-0.5">
-                                <BcItemCode value={log.item_number} />
-                              </span>
-                              <span className="rounded bg-white px-2 py-0.5">{log.step}</span>
-                              <span className="rounded bg-emerald-100 px-2 py-0.5 font-medium text-emerald-800">
-                                {formatElapsed(log.elapsed_seconds)}
-                              </span>
-                            </div>
+                            <div className="text-base font-semibold text-slate-900">{log.employee_name}</div>
+                            <div className="text-sm text-slate-500">Gestart: {new Date(log.start_time).toLocaleTimeString('nl-BE', { hour: '2-digit', minute: '2-digit' })}</div>
                           </div>
                           <button
                             type="button"
@@ -681,32 +723,40 @@ export default function ProductionOrderTimePage() {
               </div>
 
               {/* Actieve tijdsregistraties */}
-              {activeLogsForOrder.length > 0 && (
+              {activeTaskGroupsForOrder.length > 0 && (
                 <section className="mb-8">
                   <h3 className="mb-4 text-lg font-semibold">Actieve registraties op deze order</h3>
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    {activeLogsForOrder.map((log) => (
+                    {activeTaskGroupsForOrder.map((group) => (
                       <div
-                        key={log.id}
+                        key={group.key}
                         className="rounded-xl border border-slate-200 bg-gray-50 p-3"
                       >
-                        <div className="text-sm">
-                          <div className="font-semibold text-slate-900">{log.employee_name}</div>
+                        <div className="mb-3 text-sm">
+                          <div className="font-semibold text-slate-900">
+                            <BcItemCode value={group.item_number} /> · {group.step}
+                          </div>
                           <div className="mt-1 flex flex-wrap gap-1.5 text-slate-600">
-                            <span className="rounded bg-white px-2 py-0.5"><BcItemCode value={log.item_number} /></span>
-                            <span className="rounded bg-white px-2 py-0.5">{log.step}</span>
                             <span className="rounded bg-emerald-100 px-2 py-0.5 font-medium text-emerald-800">
-                              {formatElapsed(log.elapsed_seconds)}
+                              {formatElapsed(group.elapsed_seconds)}
                             </span>
+                            <span className="rounded bg-white px-2 py-0.5">{group.logs.length} medewerker(s)</span>
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => openStopModal(log)}
-                          className="mt-3 min-h-[44px] w-full rounded-lg bg-red-500 px-3 py-2 text-sm font-medium text-white hover:bg-red-600"
-                        >
-                          Stop
-                        </button>
+                        <div className="space-y-2">
+                          {group.logs.map((log) => (
+                            <div key={log.id} className="flex items-center justify-between gap-2 rounded-lg bg-white p-2">
+                              <span className="text-sm font-medium text-slate-800">{log.employee_name}</span>
+                              <button
+                                type="button"
+                                onClick={() => openStopModal(log)}
+                                className="min-h-[40px] rounded-lg bg-red-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-600"
+                              >
+                                Stop
+                              </button>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -740,12 +790,12 @@ export default function ProductionOrderTimePage() {
                 <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {orderLines.map((line) => {
                     const item = line.item_number || ''
-                    const selected = selectedItem === item
+                    const selected = selectedItems.includes(item)
                     return (
                       <button
                         key={`card-${line.id}`}
                         type="button"
-                        onClick={() => setSelectedItem(item)}
+                        onClick={() => toggleItem(item)}
                         className={`min-h-[72px] rounded-xl border p-3 text-left transition ${
                           selected
                             ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-100'
@@ -758,6 +808,11 @@ export default function ProductionOrderTimePage() {
                         <div className="mt-1 text-sm text-slate-600">
                           {line.quantity} st{line.description ? ` · ${line.description}` : ''}
                         </div>
+                        {selected && (
+                          <div className="mt-2 inline-flex rounded-full bg-blue-600 px-2 py-0.5 text-xs font-medium text-white">
+                            Geselecteerd
+                          </div>
+                        )}
                       </button>
                     )
                   })}
@@ -769,20 +824,38 @@ export default function ProductionOrderTimePage() {
                 <h3 className="text-lg font-semibold mb-4">Nieuwe Tijdsregistratie</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Item</label>
-                    <select
-                      value={selectedItem}
-                      onChange={(e) => setSelectedItem(e.target.value)}
-                      className="w-full px-3 py-3 min-h-[48px] border border-gray-300 rounded-lg shadow-sm"
-                    >
-                      <option value="">Selecteer item</option>
-                      {orderLines.map((line) => (
-                        <option key={line.id} value={line.item_number || ''}>
-                          {line.item_number || 'Onbekend'} ({line.quantity} st)
-                          {line.description ? ` – ${line.description}` : ''}
-                        </option>
-                      ))}
-                    </select>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Geselecteerde lijn(en)</label>
+                    <div className="min-h-[48px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm">
+                      {selectedItems.length === 0 ? (
+                        <span className="text-slate-400">Tik hierboven één of meerdere lijnen aan</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedItems.map((item) => (
+                            <span key={item} className="rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-800">
+                              <BcItemCode value={item} />
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSelectedItems(orderLines.map((line) => line.item_number || '').filter(Boolean))
+                        }
+                        className="min-h-[40px] flex-1 rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+                      >
+                        Alle lijnen
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedItems([])}
+                        className="min-h-[40px] flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                      >
+                        Wissen
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Werknemer(s)</label>
@@ -841,7 +914,11 @@ export default function ProductionOrderTimePage() {
                     disabled={starting}
                     className="min-h-[52px] flex-1 rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white shadow hover:bg-blue-700 disabled:opacity-60"
                   >
-                    {starting ? 'Bezig...' : 'Start'}
+                    {starting
+                      ? 'Bezig...'
+                      : selectedEmployeeIds.length > 0 && selectedItems.length > 0
+                        ? `Start (${selectedEmployeeIds.length} × ${selectedItems.length})`
+                        : 'Start'}
                   </button>
                   <button
                     type="button"

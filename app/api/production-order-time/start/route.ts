@@ -10,6 +10,9 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { employeeIds, orderNumber, itemNumber, step } = body
+    const itemNumbers = Array.isArray(body.itemNumbers)
+      ? body.itemNumbers.map((value: unknown) => String(value || '').trim()).filter(Boolean)
+      : [String(itemNumber || '').trim()].filter(Boolean)
     const site = normalizeSite(body.site)
     const siteAccessError = requireSiteAccess(request, site)
     if (siteAccessError) return siteAccessError
@@ -20,9 +23,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-    if (!orderNumber || !itemNumber || !step) {
+    if (!orderNumber || itemNumbers.length === 0 || !step) {
       return NextResponse.json(
-        { error: 'orderNumber, itemNumber and step are required' },
+        { error: 'orderNumber, itemNumbers and step are required' },
         { status: 400 }
       )
     }
@@ -87,7 +90,7 @@ export async function POST(request: NextRequest) {
       .eq('type', 'production_order')
       .eq('site', site)
       .eq('production_order_number', String(orderNumber).trim())
-      .eq('production_item_number', String(itemNumber).trim())
+      .in('production_item_number', itemNumbers)
       .eq('production_step', String(step).trim())
 
     if (checkError) {
@@ -110,15 +113,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const timeLogs = employeeIds.map((employeeId: number) => ({
-      employee_id: employeeId,
-      type: 'production_order',
-      production_order_number: String(orderNumber).trim(),
-      production_item_number: String(itemNumber).trim(),
-      production_step: String(step).trim(),
-      site,
-      start_time: new Date().toISOString(),
-    }))
+    const startedAt = new Date().toISOString()
+    const timeLogs = employeeIds.flatMap((employeeId: number) =>
+      itemNumbers.map((selectedItemNumber: string) => ({
+        employee_id: employeeId,
+        type: 'production_order',
+        production_order_number: String(orderNumber).trim(),
+        production_item_number: selectedItemNumber,
+        production_step: String(step).trim(),
+        site,
+        start_time: startedAt,
+      }))
+    )
 
     const { data, error } = await supabaseAdmin
       .from('time_logs')
@@ -133,11 +139,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    void markPlanningInProgressForTimeLog(orderNumber, itemNumber, step, site)
+    itemNumbers.forEach((selectedItemNumber: string) => {
+      void markPlanningInProgressForTimeLog(orderNumber, selectedItemNumber, step, site)
+    })
 
     return NextResponse.json({
       success: true,
-      message: `Started production time registration for ${employeeIds.length} employee(s)`,
+      message: `Started production time registration for ${employeeIds.length} employee(s) on ${itemNumbers.length} line(s)`,
       logs: data,
     })
   } catch (error) {
