@@ -546,7 +546,7 @@ export default function ProductionOrderTimePage() {
             <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
               {activeTaskGroups.map((group) => (
                 <div key={group.key} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                  <div className="mb-2 flex items-center justify-between gap-2">
+                  <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <div className="font-semibold text-slate-900">{group.order_number}</div>
                       <div className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-slate-600">
@@ -559,9 +559,19 @@ export default function ProductionOrderTimePage() {
                         </span>
                       </div>
                     </div>
-                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
-                      {group.logs.length} medewerker(s)
-                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+                        {group.logs.length} medewerker(s)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void openOrderByNumber(group.order_number)}
+                        disabled={openingOrder}
+                        className="min-h-[40px] rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-60"
+                      >
+                        Open order
+                      </button>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     {group.logs.map((log) => (
