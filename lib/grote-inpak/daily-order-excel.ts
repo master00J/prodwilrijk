@@ -29,6 +29,14 @@ function computeNogAanmaken(row: any, effectief: number): number {
   return Math.max(0, Number(effectief ?? 0) - inProdTotaal)
 }
 
+function computeEffectiefTeProduceren(row: any, variant: 'c' | 'k'): number {
+  const bruto = variant === 'c'
+    ? (row.bestel_aantal ?? row.tekort ?? 0)
+    : (row.tekort ?? 0)
+  const bouwpakketStock = Number(row.bouwpakket_stock_totaal ?? 0)
+  return Math.max(0, Number(bruto ?? 0) - bouwpakketStock)
+}
+
 function addDailyOrderSheet(
   wb: ExcelJS.Workbook,
   sheetTitle: string,
@@ -98,7 +106,7 @@ function addDailyOrderSheet(
   }
 
   const rowValuesC = (row: any, i: number) => {
-    const effectief = row.bestel_aantal ?? row.tekort ?? 0
+    const effectief = computeEffectiefTeProduceren(row, 'c')
     const nogAanmaken = computeNogAanmaken(row, effectief)
     const einddatum = lookupEinddatum(row.case_type)
     return [
@@ -112,7 +120,7 @@ function addDailyOrderSheet(
     ]
   }
   const rowValuesK = (row: any, i: number) => {
-    const effectief = row.tekort ?? 0
+    const effectief = computeEffectiefTeProduceren(row, 'k')
     const nogAanmaken = computeNogAanmaken(row, effectief)
     const einddatum = lookupEinddatum(row.case_type)
     return [
@@ -188,11 +196,11 @@ function addDailyOrderSheet(
         cell.font = { bold: true, color: { argb: 'FF1F497D' } }
       }
       if (col === colEffectief) {
-        const effectief = variant === 'c' ? (row.bestel_aantal ?? row.tekort ?? 0) : (row.tekort ?? 0)
+        const effectief = computeEffectiefTeProduceren(row, variant)
         if (effectief > 0) cell.font = { bold: true, color: { argb: 'FFCC0000' } }
       }
       if (col === colNogAanmaken) {
-        const effectiefVal = variant === 'c' ? (row.bestel_aantal ?? row.tekort ?? 0) : (row.tekort ?? 0)
+        const effectiefVal = computeEffectiefTeProduceren(row, variant)
         const nogAanmaken = computeNogAanmaken(row, effectiefVal)
         if (nogAanmaken > 0) {
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE699' } }
