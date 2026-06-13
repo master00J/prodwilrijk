@@ -25,6 +25,124 @@ interface ItemsResponse {
   totalPages: number
 }
 
+function PartialPackModal({
+  items,
+  initialQuantities,
+  onConfirm,
+  onCancel,
+}: {
+  items: ItemToPack[]
+  initialQuantities: Record<string, number>
+  onConfirm: (quantities: Record<string, number>) => void
+  onCancel: () => void
+}) {
+  const [quantities, setQuantities] = useState<Record<string, number>>(initialQuantities)
+
+  const updateQuantity = (item: ItemToPack, value: number) => {
+    const max = Math.max(1, Number(item.amount) || 1)
+    const next = Math.min(max, Math.max(1, Math.floor(Number(value) || 1)))
+    setQuantities(prev => ({ ...prev, [String(item.id)]: next }))
+  }
+
+  const fullCount = items.filter(item => {
+    const amount = Math.max(1, Number(item.amount) || 1)
+    return (quantities[String(item.id)] || amount) >= amount
+  }).length
+  const partialCount = items.length - fullCount
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-hidden rounded-xl bg-white shadow-xl">
+        <div className="border-b p-4">
+          <h2 className="text-xl font-semibold">Aantallen posten</h2>
+          <p className="mt-1 text-sm text-gray-600">
+            Kies per lijn hoeveel stuks je wil posten. Het restant blijft open op de lijst.
+          </p>
+        </div>
+
+        <div className="max-h-[60vh] overflow-y-auto p-4">
+          <div className="space-y-3">
+            {items.map(item => {
+              const amount = Math.max(1, Number(item.amount) || 1)
+              const quantity = quantities[String(item.id)] || amount
+              const remaining = amount - quantity
+              return (
+                <div key={item.id} className="rounded-lg border border-gray-200 p-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <div className="font-medium text-gray-900">{item.item_number}</div>
+                      <div className="text-sm text-gray-500">
+                        Pallet {item.po_number} · open: {amount}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => updateQuantity(item, quantity - 1)}
+                        className="h-11 w-11 rounded-lg border border-gray-300 text-xl font-bold"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="number"
+                        min={1}
+                        max={amount}
+                        value={quantity}
+                        onChange={(e) => updateQuantity(item, Number(e.target.value))}
+                        className="h-11 w-20 rounded-lg border border-gray-300 text-center text-lg font-semibold"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => updateQuantity(item, quantity + 1)}
+                        className="h-11 w-11 rounded-lg border border-gray-300 text-xl font-bold"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mt-2 text-sm">
+                    {remaining > 0 ? (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800">
+                        Partial: {quantity} posten, {remaining} blijft open
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-medium text-emerald-800">
+                        Volledig posten
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 border-t bg-gray-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm text-gray-600">
+            {fullCount} volledig · {partialCount} partial
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="min-h-[44px] flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 font-medium sm:flex-none"
+            >
+              Annuleren
+            </button>
+            <button
+              type="button"
+              onClick={() => onConfirm(quantities)}
+              className="min-h-[44px] flex-1 rounded-lg bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700 sm:flex-none"
+            >
+              Verder
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ItemsToPackPage() {
   const [items, setItems] = useState<ItemToPack[]>([])
   const [loading, setLoading] = useState(true)
@@ -49,7 +167,9 @@ export default function ItemsToPackPage() {
   const [showMarkProblemModal, setShowMarkProblemModal] = useState(false)
   const [showMeasurementModal, setShowMeasurementModal] = useState(false)
   const [showEmployeePickerModal, setShowEmployeePickerModal] = useState(false)
+  const [showPartialPackModal, setShowPartialPackModal] = useState(false)
   const [pendingPackIds, setPendingPackIds] = useState<number[]>([])
+  const [pendingPackQuantities, setPendingPackQuantities] = useState<Record<string, number>>({})
   const [activeTimeLogs, setActiveTimeLogs] = useState<any[]>([])
   const [selectedItemForAction, setSelectedItemForAction] = useState<number | null>(null)
   const [sortColumn, setSortColumn] = useState<keyof ItemToPack | null>(null)
@@ -203,7 +323,23 @@ export default function ItemsToPackPage() {
       return
     }
 
-    setPendingPackIds(Array.from(selectedItems))
+    const selectedIds = Array.from(selectedItems)
+    const defaultQuantities = Object.fromEntries(
+      selectedItemsArray.map(item => [String(item.id), Math.max(1, Number(item.amount) || 1)])
+    )
+    setPendingPackIds(selectedIds)
+    setPendingPackQuantities(defaultQuantities)
+
+    if (selectedItemsArray.some(item => (Number(item.amount) || 1) > 1)) {
+      setShowPartialPackModal(true)
+    } else {
+      setShowEmployeePickerModal(true)
+    }
+  }
+
+  const handlePartialPackConfirm = (quantities: Record<string, number>) => {
+    setPendingPackQuantities(quantities)
+    setShowPartialPackModal(false)
     setShowEmployeePickerModal(true)
   }
 
@@ -215,6 +351,7 @@ export default function ItemsToPackPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ids: pendingPackIds,
+          quantitiesById: pendingPackQuantities,
           employeeId: employeeIds[0] ?? null,
           employeeName: employeeNames.join(', '),
         }),
@@ -225,6 +362,7 @@ export default function ItemsToPackPage() {
       await fetchItems()
       setSelectedItems(new Set())
       setPendingPackIds([])
+      setPendingPackQuantities({})
       alert('Items marked as packed successfully')
     } catch (error) {
       console.error('Error marking items as packed:', error)
@@ -832,6 +970,19 @@ export default function ItemsToPackPage() {
         />
       )}
 
+      {showPartialPackModal && pendingPackIds.length > 0 && (
+        <PartialPackModal
+          items={items.filter(item => pendingPackIds.includes(item.id))}
+          initialQuantities={pendingPackQuantities}
+          onConfirm={handlePartialPackConfirm}
+          onCancel={() => {
+            setShowPartialPackModal(false)
+            setPendingPackIds([])
+            setPendingPackQuantities({})
+          }}
+        />
+      )}
+
       {showEmployeePickerModal && (
         <EmployeePickerModal
           itemCount={pendingPackIds.length}
@@ -839,6 +990,7 @@ export default function ItemsToPackPage() {
           onCancel={() => {
             setShowEmployeePickerModal(false)
             setPendingPackIds([])
+            setPendingPackQuantities({})
           }}
         />
       )}

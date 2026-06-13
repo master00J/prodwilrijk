@@ -158,7 +158,7 @@ export const POST = withAuth(async (request: NextRequest, user) => {
   try {
     const body = await validateBody(request, packItemsSchema)
     if (isErrorResponse(body)) return body
-    const { ids, employeeId, employeeName } = body
+    const { ids, employeeId, employeeName, quantitiesById } = body
 
     // Get items to pack
     const { data: items, error: fetchError } = await supabaseAdmin
@@ -173,11 +173,17 @@ export const POST = withAuth(async (request: NextRequest, user) => {
       )
     }
 
-    // Insert into packed_items (including employee tracking)
+    const packQuantityFor = (item: any) => {
+      const requested = quantitiesById?.[String(item.id)]
+      const currentAmount = Math.max(1, Number(item.amount) || 1)
+      if (requested == null) return currentAmount
+      return Math.min(currentAmount, Math.max(1, Number(requested) || 1))
+    }
+
     const packedItems = items.map(item => ({
       item_number: item.item_number,
       po_number: item.po_number,
-      amount: item.amount,
+      amount: packQuantityFor(item),
       date_added: item.date_added,
       original_id: item.id,
       packed_by_employee_id: employeeId ?? null,
@@ -200,25 +206,55 @@ export const POST = withAuth(async (request: NextRequest, user) => {
       await consumeStageKistenForPackedPowertoolsItems(
         items.map((item: any) => ({
           item_number: item.item_number,
-          amount: item.amount,
+          amount: packQuantityFor(item),
         }))
       )
     } catch (e) {
       console.error('Stagekisten stock-afname (prepack):', e)
     }
 
-    // Delete from items_to_pack
-    const { error: deleteError } = await supabaseAdmin
-      .from('items_to_pack')
-      .delete()
-      .in('id', ids)
+    const fullyPackedIds: number[] = []
+    const partialUpdates: Array<{ id: number; amount: number }> = []
 
-    if (deleteError) {
-      console.error('Error deleting items:', deleteError)
-      return NextResponse.json(
-        { error: 'Failed to delete items' },
-        { status: 500 }
-      )
+    for (const item of items) {
+      const currentAmount = Math.max(1, Number(item.amount) || 1)
+      const packedAmount = packQuantityFor(item)
+      const remaining = currentAmount - packedAmount
+      if (remaining > 0) {
+        partialUpdates.push({ id: item.id, amount: remaining })
+      } else {
+        fullyPackedIds.push(item.id)
+      }
+    }
+
+    for (const update of partialUpdates) {
+      const { error: updateError } = await supabaseAdmin
+        .from('items_to_pack')
+        .update({ amount: update.amount })
+        .eq('id', update.id)
+
+      if (updateError) {
+        console.error('Error updating partial packed item:', updateError)
+        return NextResponse.json(
+          { error: 'Failed to update remaining quantity' },
+          { status: 500 }
+        )
+      }
+    }
+
+    if (fullyPackedIds.length > 0) {
+      const { error: deleteError } = await supabaseAdmin
+        .from('items_to_pack')
+        .delete()
+        .in('id', fullyPackedIds)
+
+      if (deleteError) {
+        console.error('Error deleting items:', deleteError)
+        return NextResponse.json(
+          { error: 'Failed to delete packed items' },
+          { status: 500 }
+        )
+      }
     }
 
     logAudit({
@@ -229,6 +265,9 @@ export const POST = withAuth(async (request: NextRequest, user) => {
       details: {
         count: ids.length,
         ids,
+        quantities_by_id: quantitiesById ?? null,
+        fully_packed_ids: fullyPackedIds,
+        partial_updates: partialUpdates,
         employee_id: employeeId ?? null,
         employee_name: employeeName ?? null,
       },

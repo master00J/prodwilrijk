@@ -75,6 +75,9 @@ export const packItemsSchema = z.object({
   ids: z.array(z.number().int().positive()).min(1).max(200),
   employeeId: z.number().int().positive().optional().nullable(),
   employeeName: z.string().max(120).optional().nullable(),
+  // Optioneel: per item-id het aantal dat effectief gepost/verpakt wordt.
+  // Ontbreekt dit veld, dan blijft het oude gedrag: volledige lijn posten.
+  quantitiesById: z.record(z.number().int().positive()).optional(),
 })
 
 export const searchQuerySchema = z.object({
