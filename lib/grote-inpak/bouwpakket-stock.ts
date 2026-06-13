@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { getBcMappingLookup } from '@/lib/bc-mapping/server'
 import {
   formatKistnummerForErpLink,
   normalizeErpCode,
@@ -71,18 +72,26 @@ function addStockQty(
 export async function fetchBouwpakketStockContext(): Promise<BouwpakketStockContext> {
   const kistToBouwpakket = new Map<string, string>()
   const stockByBouwpakket = new Map<string, BouwpakketStockQty>()
-  const bouwpakketCodes = new Set<string>()
+  const bouwpakketAliasToCanonical = new Map<string, string>()
 
   try {
+    const bcMapping = await getBcMappingLookup()
     const [{ data: erpLink }, { data: stockRaw }] = await Promise.all([
       supabaseAdmin.from('grote_inpak_erp_link').select('kistnummer, bouwpakket_code'),
       supabaseAdmin.from('grote_inpak_stock').select('erp_code, item_number, location, quantity'),
     ])
 
+    const addBouwpakketAlias = (canonical: string, value: unknown) => {
+      const normalized = normalizeBouwpakketCode(value)
+      if (normalized) bouwpakketAliasToCanonical.set(normalized, canonical)
+    }
+
     ;(erpLink || []).forEach((row: { kistnummer?: string; bouwpakket_code?: string }) => {
       const bp = normalizeBouwpakketCode(row.bouwpakket_code)
       if (!bp || !row.kistnummer) return
-      bouwpakketCodes.add(bp)
+      addBouwpakketAlias(bp, bp)
+      addBouwpakketAlias(bp, bcMapping.toNew(bp))
+      addBouwpakketAlias(bp, bcMapping.toOld(bp))
       for (const k of kistKeysForBouwpakketLookup(row.kistnummer)) {
         kistToBouwpakket.set(k, bp)
       }
@@ -104,8 +113,9 @@ export async function fetchBouwpakketStockContext(): Promise<BouwpakketStockCont
       ].filter(Boolean) as string[]
 
       for (const c of candidates) {
-        if (bouwpakketCodes.has(c)) {
-          addStockQty(stockByBouwpakket, c, String(s.location || ''), qty)
+        const canonical = bouwpakketAliasToCanonical.get(c)
+        if (canonical) {
+          addStockQty(stockByBouwpakket, canonical, String(s.location || ''), qty)
           return
         }
       }

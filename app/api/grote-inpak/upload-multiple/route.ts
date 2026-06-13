@@ -60,15 +60,26 @@ export async function POST(request: NextRequest) {
     if (fileType === 'stock') {
       const { data: erpLinkData } = await supabaseAdmin
         .from('grote_inpak_erp_link')
-        .select('kistnummer, erp_code')
+        .select('kistnummer, erp_code, bouwpakket_code')
 
       // Laad BC item mapping zodat ook nieuwe BC36 codes (FP...) kunnen matchen
       // op ERP LINK entries die nog op oude codes (GP...) staan.
       const bcMapping = await getBcMappingLookup()
 
       const erpToKist = new Map<string, string>()
+      const bouwpakketCodes = new Set<string>()
+      const addBouwpakketCode = (value: unknown) => {
+        const normalized = value == null ? null : normalizeErpCode(String(value))
+        if (!normalized) return
+        bouwpakketCodes.add(normalized)
+        for (const alt of [bcMapping.toNew(normalized), bcMapping.toOld(normalized)]) {
+          const altNorm = normalizeErpCode(alt)
+          if (altNorm) bouwpakketCodes.add(altNorm)
+        }
+      }
       if (erpLinkData && erpLinkData.length > 0) {
         erpLinkData.forEach((row: any) => {
+          addBouwpakketCode(row.bouwpakket_code)
           const normalized = normalizeErpCode(row.erp_code)
           if (!normalized || !row.kistnummer) return
           const kist = String(row.kistnummer).toUpperCase().trim()
@@ -156,10 +167,11 @@ export async function POST(request: NextRequest) {
                 } else {
                   let kistnummer: string | null = null
                   const erpCodeStr = String(item.erp_code || '').toUpperCase().trim()
+                  const normalized = normalizeErpCode(item.erp_code)
+                  const isBouwpakketStock = !!normalized && bouwpakketCodes.has(normalized)
                   if (/^[KCV]/.test(erpCodeStr)) {
                     kistnummer = erpCodeStr.replace(/^V/, 'K')
                   } else {
-                    const normalized = normalizeErpCode(item.erp_code)
                     if (normalized && erpToKist.has(normalized)) {
                       kistnummer = erpToKist.get(normalized) || null
                     }
@@ -188,22 +200,19 @@ export async function POST(request: NextRequest) {
                     productie: item.productie || 0,
                     in_transfer: item.in_transfer || 0,
                     kistnummer,
+                    is_bouwpakket_stock: isBouwpakketStock,
                   })
                 }
               }
               
               const uniqueDataArray = Array.from(uniqueData.values())
 
-              // Pre-filter voor insert: enkel items die uiteindelijk zichtbaar zullen
-              // zijn in de /grote-inpak tabs hebben we nodig. Dat zijn items met een
-              // geldig kistnummer (K/C/V-prefix). Alle andere items komen uit een
-              // ongefilterde BC-export en zouden de DB alleen maar vervuilen — de
-              // GET-endpoint filtert ze toch weer weg.
-              // Hierdoor kan de gebruiker de volledige BC-items-lijst uploaden
-              // (10k+ rijen) zonder dat we die allemaal moeten opslaan.
+              // Pre-filter voor insert: bewaar kist-stock én bouwpakket-stock.
+              // Bouwpakketartikelen hebben zelf geen kistnummer, maar zijn nodig
+              // voor de BP-stock kolommen in de daily-order Excel.
               const relevantForInsert = uniqueDataArray.filter((item: any) => {
                 const kist = item.kistnummer ? String(item.kistnummer).toUpperCase() : ''
-                return kist && /^[KCV]/.test(kist)
+                return (kist && /^[KCV]/.test(kist)) || item.is_bouwpakket_stock === true
               })
               const skippedNoLink = uniqueDataArray.length - relevantForInsert.length
               console.log(`Location ${location}: ${processedData.length} rijen geparsed → ${uniqueDataArray.length} uniek → ${relevantForInsert.length} match met ERP LINK (skipped: ${skippedNoLink} zonder kistnummer)`)
