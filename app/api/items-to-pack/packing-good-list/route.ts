@@ -3,7 +3,6 @@ import * as XLSX from 'xlsx'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { withAdmin } from '@/lib/api/with-auth'
 import { validateExcelUpload } from '@/lib/api/upload-limits'
-import { markItemsToPackShippedForPackageNos } from '@/lib/prepack/shipping-status'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -182,16 +181,12 @@ export const POST = withAdmin(async (request: NextRequest) => {
         matched,
         packedMatched,
         updated: matched + packedMatched,
-        packageNo: matched + packedMatched > 0 ? entry.currentPackageNo : null,
       }
     })
 
     const matched = updateResults.reduce((sum, result) => sum + result.matched, 0)
     const packedMatched = updateResults.reduce((sum, result) => sum + result.packedMatched, 0)
     const updated = updateResults.reduce((sum, result) => sum + result.updated, 0)
-    const packageNos = updateResults.map((result) => result.packageNo).filter(Boolean) as string[]
-
-    const shipped = await markItemsToPackShippedForPackageNos(packageNos)
 
     return NextResponse.json({
       success: true,
@@ -200,7 +195,6 @@ export const POST = withAdmin(async (request: NextRequest) => {
       matched,
       packed_matched: packedMatched,
       updated,
-      shipped_updated: shipped.updated,
     })
   } catch (error: any) {
     console.error('packing-good-list import error:', error)

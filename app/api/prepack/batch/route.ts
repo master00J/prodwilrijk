@@ -78,7 +78,10 @@ export async function POST(request: NextRequest) {
 
     let shippedItemsUpdated = 0
     try {
-      const shippedResult = await markItemsToPackShippedForPackageNos(rows.map((r) => r.code))
+      const shippedResult = await markItemsToPackShippedForPackageNos(rows.map((r) => r.code), {
+        shippedAt: new Date().toISOString(),
+        skipScanLookup: true,
+      })
       shippedItemsUpdated = shippedResult.updated
     } catch (error) {
       // Shipped-status is verrijking. Scan-sync zelf mag hierdoor nooit falen.

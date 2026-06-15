@@ -31,28 +31,50 @@ async function mapWithConcurrency<T, R>(
   return results
 }
 
-export async function markItemsToPackShippedForPackageNos(values: unknown[]) {
+type MarkShippedOptions = {
+  shippedAt?: string
+  skipScanLookup?: boolean
+  onlyScansSince?: string
+}
+
+export async function markItemsToPackShippedForPackageNos(
+  values: unknown[],
+  options: MarkShippedOptions = {}
+) {
   const packageNos = [...new Set(values.map(normalizePackageNo).filter(Boolean) as string[])]
   if (packageNos.length === 0) return { updated: 0 }
 
   const latestScanByPackageNo = new Map<string, { id: number; created_at: string }>()
 
-  for (const packageChunk of chunk(packageNos, 500)) {
-    const { data: scans, error } = await supabaseAdmin
-      .from('prepack_scans')
-      .select('id, code, created_at')
-      .in('code', packageChunk)
-      .order('created_at', { ascending: false })
-
-    if (error) {
-      console.error('markItemsToPackShippedForPackageNos scans:', error)
-      continue
+  if (options.skipScanLookup) {
+    const shippedAt = options.shippedAt || new Date().toISOString()
+    for (const packageNo of packageNos) {
+      latestScanByPackageNo.set(packageNo, { id: 0, created_at: shippedAt })
     }
+  } else {
+    for (const packageChunk of chunk(packageNos, 500)) {
+      let query = supabaseAdmin
+        .from('prepack_scans')
+        .select('id, code, created_at')
+        .in('code', packageChunk)
+        .order('created_at', { ascending: false })
 
-    for (const scan of scans || []) {
-      const key = normalizePackageNo(scan.code)
-      if (key && !latestScanByPackageNo.has(key)) {
-        latestScanByPackageNo.set(key, { id: scan.id, created_at: scan.created_at })
+      if (options.onlyScansSince) {
+        query = query.gte('created_at', options.onlyScansSince)
+      }
+
+      const { data: scans, error } = await query
+
+      if (error) {
+        console.error('markItemsToPackShippedForPackageNos scans:', error)
+        continue
+      }
+
+      for (const scan of scans || []) {
+        const key = normalizePackageNo(scan.code)
+        if (key && !latestScanByPackageNo.has(key)) {
+          latestScanByPackageNo.set(key, { id: scan.id, created_at: scan.created_at })
+        }
       }
     }
   }
@@ -67,8 +89,8 @@ export async function markItemsToPackShippedForPackageNos(values: unknown[]) {
     const update: Record<string, unknown> = {
       shipping_status: 'shipped',
       shipped_at: latestScan.created_at,
-      shipped_scan_id: latestScan.id,
     }
+    if (latestScan.id > 0) update.shipped_scan_id = latestScan.id
 
     const [openResult, packedResult] = await Promise.all([
       supabaseAdmin
