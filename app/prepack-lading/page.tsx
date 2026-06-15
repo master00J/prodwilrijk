@@ -592,8 +592,8 @@ export default function PrepackLadingPage() {
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Packing Good List import</h2>
             <p className="mt-1 text-sm text-gray-600">
-              Upload dagelijks de Packing Good List. Kolom AD wordt gematcht met palletnummer,
-              kolom V wordt opgeslagen als Current Package No. voor shipped-matching.
+              Upload dagelijks de Packing Good List. De import zoekt op kolomnamen:
+              Atlas Pallet No. matcht met palletnummer en Current Package No. wordt gebruikt voor shipped-matching.
             </p>
           </div>
           <label className="inline-flex cursor-pointer items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 font-medium text-white hover:bg-emerald-700">

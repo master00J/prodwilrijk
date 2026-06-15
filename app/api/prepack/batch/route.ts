@@ -54,8 +54,17 @@ export async function POST(request: NextRequest) {
         .from('prepack_scans')
         .upsert(rowsWithId, { onConflict: 'client_id', ignoreDuplicates: false })
       if (error) {
-        console.error('prepack/batch upsert error:', error)
-        return NextResponse.json({ success: false }, { status: 500 })
+        console.error('prepack/batch upsert error, retrying without client_id:', error)
+        // Fallback voor omgevingen waar de client_id migratie nog niet is toegepast.
+        // Liever mogelijk een dubbele legacy-scan dan dat de scanner op 500 blijft hangen.
+        const fallbackRows = rowsWithId.map(({ client_id, ...row }) => row)
+        const { error: fallbackError } = await supabaseAdmin
+          .from('prepack_scans')
+          .insert(fallbackRows)
+        if (fallbackError) {
+          console.error('prepack/batch fallback insert error:', fallbackError)
+          return NextResponse.json({ success: false }, { status: 500 })
+        }
       }
     }
 
@@ -67,13 +76,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const shippedResult = await markItemsToPackShippedForPackageNos(rows.map((r) => r.code))
+    let shippedItemsUpdated = 0
+    try {
+      const shippedResult = await markItemsToPackShippedForPackageNos(rows.map((r) => r.code))
+      shippedItemsUpdated = shippedResult.updated
+    } catch (error) {
+      // Shipped-status is verrijking. Scan-sync zelf mag hierdoor nooit falen.
+      console.error('prepack/batch shipped status update skipped:', error)
+    }
 
     return NextResponse.json({
       success: true,
       inserted: rows.length,
       synced_client_ids: rowsWithId.map((r) => r.client_id),
-      shipped_items_updated: shippedResult.updated,
+      shipped_items_updated: shippedItemsUpdated,
     })
   } catch (error) {
     console.error('prepack/batch error:', error)

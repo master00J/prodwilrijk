@@ -5,55 +5,95 @@ function normalizePackageNo(value: unknown): string | null {
   return text ? text.toUpperCase() : null
 }
 
+function chunk<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = []
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size))
+  }
+  return chunks
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = []
+  let next = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const current = next
+      next += 1
+      results[current] = await fn(items[current])
+    }
+  })
+  await Promise.all(workers)
+  return results
+}
+
 export async function markItemsToPackShippedForPackageNos(values: unknown[]) {
   const packageNos = [...new Set(values.map(normalizePackageNo).filter(Boolean) as string[])]
   if (packageNos.length === 0) return { updated: 0 }
 
-  let updated = 0
+  const latestScanByPackageNo = new Map<string, { id: number; created_at: string }>()
 
-  for (const packageNo of packageNos) {
-    const { data: latestScan } = await supabaseAdmin
+  for (const packageChunk of chunk(packageNos, 500)) {
+    const { data: scans, error } = await supabaseAdmin
       .from('prepack_scans')
-      .select('id, created_at')
-      .ilike('code', packageNo)
+      .select('id, code, created_at')
+      .in('code', packageChunk)
       .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+
+    if (error) {
+      console.error('markItemsToPackShippedForPackageNos scans:', error)
+      continue
+    }
+
+    for (const scan of scans || []) {
+      const key = normalizePackageNo(scan.code)
+      if (key && !latestScanByPackageNo.has(key)) {
+        latestScanByPackageNo.set(key, { id: scan.id, created_at: scan.created_at })
+      }
+    }
+  }
+
+  const scannedPackageNos = packageNos.filter((packageNo) => latestScanByPackageNo.has(packageNo))
+  if (scannedPackageNos.length === 0) return { updated: 0 }
+
+  const counts = await mapWithConcurrency(scannedPackageNos, 20, async (packageNo) => {
+    const latestScan = latestScanByPackageNo.get(packageNo)
+    if (!latestScan) return 0
 
     const update: Record<string, unknown> = {
       shipping_status: 'shipped',
-      shipped_at: latestScan?.created_at || new Date().toISOString(),
-    }
-    if (latestScan?.id) update.shipped_scan_id = latestScan.id
-
-    const { data, error } = await supabaseAdmin
-      .from('items_to_pack')
-      .update(update)
-      .ilike('current_package_no', packageNo)
-      .eq('packed', false)
-      .select('id')
-
-    if (error) {
-      console.error('markItemsToPackShippedForPackageNos:', error)
-      continue
+      shipped_at: latestScan.created_at,
+      shipped_scan_id: latestScan.id,
     }
 
-    updated += data?.length || 0
+    const [openResult, packedResult] = await Promise.all([
+      supabaseAdmin
+        .from('items_to_pack')
+        .update(update)
+        .ilike('current_package_no', packageNo)
+        .eq('packed', false)
+        .select('id'),
+      supabaseAdmin
+        .from('packed_items')
+        .update(update)
+        .ilike('current_package_no', packageNo)
+        .select('id'),
+    ])
 
-    const { data: packedData, error: packedError } = await supabaseAdmin
-      .from('packed_items')
-      .update(update)
-      .ilike('current_package_no', packageNo)
-      .select('id')
-
-    if (packedError) {
-      console.error('markPackedItemsShippedForPackageNos:', packedError)
-      continue
+    if (openResult.error) {
+      console.error('markItemsToPackShippedForPackageNos:', openResult.error)
+    }
+    if (packedResult.error) {
+      console.error('markPackedItemsShippedForPackageNos:', packedResult.error)
     }
 
-    updated += packedData?.length || 0
-  }
+    return (openResult.data?.length || 0) + (packedResult.data?.length || 0)
+  })
 
-  return { updated }
+  return { updated: counts.reduce((sum, count) => sum + count, 0) }
 }
 
