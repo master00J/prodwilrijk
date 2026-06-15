@@ -41,7 +41,7 @@ function applyFilters(query: any, request: NextRequest) {
   let filtered = query.eq('packed', false)
 
   if (search) {
-    filtered = filtered.or(`item_number.ilike.%${search}%,po_number.ilike.%${search}%`)
+    filtered = filtered.or(`item_number.ilike.%${search}%,po_number.ilike.%${search}%,current_package_no.ilike.%${search}%`)
   }
 
   if (dateFilter) {
@@ -132,7 +132,7 @@ function buildWorkbook(rows: ItemToPackExportRow[]) {
     { header: 'Item nummer', key: 'item_number', width: 22 },
     { header: 'Pallet nummer', key: 'po_number', width: 22 },
     { header: 'Aantal open', key: 'amount', width: 14 },
-    { header: 'Current Package No.', key: 'current_package_no', width: 24 },
+    { header: 'PAC nummer', key: 'current_package_no', width: 24 },
     { header: 'Packing Good status', key: 'packing_good_status', width: 20 },
     { header: 'Datum toegevoegd', key: 'date_added', width: 18 },
     { header: 'Prioriteit', key: 'priority', width: 12 },

@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
 
     // Apply search filter
     if (search) {
-      query = query.or(`item_number.ilike.%${search}%,po_number.ilike.%${search}%`)
+      query = query.or(`item_number.ilike.%${search}%,po_number.ilike.%${search}%,current_package_no.ilike.%${search}%`)
     }
 
     // Apply date filter

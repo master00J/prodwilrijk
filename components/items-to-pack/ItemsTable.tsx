@@ -86,7 +86,7 @@ export default function ItemsTable({
                 Pallet Number {sortColumn === 'po_number' && (sortDirection === 'asc' ? '↑' : '↓')}
               </th>
               <th className="px-2 sm:px-4 py-3 sm:py-4 text-left text-xs sm:text-sm font-medium text-gray-700">
-                Current Package No.
+                PAC nummer
               </th>
               <th
                 className="px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
