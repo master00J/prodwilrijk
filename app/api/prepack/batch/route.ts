@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { markItemsToPackShippedForPackageNos } from '@/lib/prepack/shipping-status'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -66,10 +67,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const shippedResult = await markItemsToPackShippedForPackageNos(rows.map((r) => r.code))
+
     return NextResponse.json({
       success: true,
       inserted: rows.length,
       synced_client_ids: rowsWithId.map((r) => r.client_id),
+      shipped_items_updated: shippedResult.updated,
     })
   } catch (error) {
     console.error('prepack/batch error:', error)

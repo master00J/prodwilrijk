@@ -15,6 +15,9 @@ interface PackedItem {
   date_added: string
   date_packed: string
   original_id?: number
+  current_package_no?: string | null
+  shipping_status?: 'open' | 'shipped'
+  shipped_at?: string | null
 }
 
 interface PackedItemsResponse {
@@ -130,6 +133,9 @@ export default function PackedItemsPage() {
         'Item Number': item.item_number,
         'Pallet Number': item.po_number,
         'Amount': item.amount,
+        'Current Package No.': item.current_package_no || '',
+        'Shipping Status': item.shipping_status === 'shipped' ? 'Shipped' : 'Open',
+        'Shipped At': item.shipped_at ? new Date(item.shipped_at).toLocaleDateString() : '',
         'Date Added': new Date(item.date_added).toLocaleDateString(),
         'Date Packed': new Date(item.date_packed).toLocaleDateString(),
       }))

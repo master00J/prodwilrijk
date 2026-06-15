@@ -72,6 +72,9 @@ export async function POST(request: NextRequest) {
         'Item Number': item.item_number,
         'Pallet Number': item.po_number,
         'Amount': item.amount,
+        'Current Package No.': item.current_package_no || '',
+        'Shipping Status': item.shipping_status === 'shipped' ? 'Shipped' : 'Open',
+        'Shipped At': item.shipped_at ? new Date(item.shipped_at).toLocaleDateString() : '',
         'Date Added': new Date(item.date_added).toLocaleDateString(),
         'Date Packed': new Date(item.date_packed).toLocaleDateString(),
       }))

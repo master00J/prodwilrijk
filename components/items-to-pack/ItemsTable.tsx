@@ -85,6 +85,9 @@ export default function ItemsTable({
               >
                 Pallet Number {sortColumn === 'po_number' && (sortDirection === 'asc' ? '↑' : '↓')}
               </th>
+              <th className="px-2 sm:px-4 py-3 sm:py-4 text-left text-xs sm:text-sm font-medium text-gray-700">
+                Current Package No.
+              </th>
               <th
                 className="px-4 py-4 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
                 onClick={() => onSort('amount')}
@@ -117,7 +120,7 @@ export default function ItemsTable({
           <tbody className="bg-white divide-y divide-gray-200">
             {items.length === 0 ? (
               <tr>
-                <td colSpan={12} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={13} className="px-4 py-8 text-center text-gray-500">
                   No items found
                 </td>
               </tr>
@@ -160,6 +163,9 @@ export default function ItemsTable({
                       <BcItemCode value={item.item_number} />
                     </td>
                     <td className="px-2 sm:px-4 py-3 sm:py-4 text-xs sm:text-sm text-gray-900 break-all">{item.po_number}</td>
+                    <td className="px-2 sm:px-4 py-3 sm:py-4 text-xs sm:text-sm text-gray-900 break-all">
+                      {item.current_package_no || '—'}
+                    </td>
                     <td className="px-2 sm:px-4 py-3 sm:py-4 text-xs sm:text-sm text-gray-900">{item.amount}</td>
                     <td className="px-2 sm:px-4 py-3 sm:py-4 text-xs sm:text-sm text-gray-900 whitespace-nowrap">
                       {new Date(item.date_added).toLocaleDateString()}

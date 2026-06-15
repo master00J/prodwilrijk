@@ -72,6 +72,16 @@ export default function PrepackLadingPage() {
   )
   const [isSyncing, setIsSyncing] = useState(false)
   const [lastSyncError, setLastSyncError] = useState<string | null>(null)
+  const [packingGoodImporting, setPackingGoodImporting] = useState(false)
+  const [packingGoodResult, setPackingGoodResult] = useState<{
+    parsed: number
+    unique_pallets: number
+    matched: number
+    packed_matched: number
+    updated: number
+    shipped_updated: number
+  } | null>(null)
+  const [packingGoodError, setPackingGoodError] = useState<string | null>(null)
   const [reconcileStatus, setReconcileStatus] = useState<
     | { state: 'idle' }
     | { state: 'running' }
@@ -433,6 +443,34 @@ export default function PrepackLadingPage() {
     downloadFile(`prepack-scans-${stamp}.csv`, csv, 'text/csv;charset=utf-8')
   }
 
+  const handlePackingGoodImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+
+    setPackingGoodImporting(true)
+    setPackingGoodResult(null)
+    setPackingGoodError(null)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch('/api/items-to-pack/packing-good-list', {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data.error || 'Packing Good List import mislukt')
+      }
+      setPackingGoodResult(data)
+    } catch (error: any) {
+      setPackingGoodError(error.message || 'Packing Good List import mislukt')
+    } finally {
+      setPackingGoodImporting(false)
+    }
+  }
+
   return (
     <div className="container mx-auto px-4 py-6 max-w-6xl">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
@@ -548,6 +586,40 @@ export default function PrepackLadingPage() {
           )}
         </div>
       )}
+
+      <div className="bg-white rounded-xl shadow p-4 md:p-6 mb-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Packing Good List import</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Upload dagelijks de Packing Good List. Kolom AD wordt gematcht met palletnummer,
+              kolom V wordt opgeslagen als Current Package No. voor shipped-matching.
+            </p>
+          </div>
+          <label className="inline-flex cursor-pointer items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 font-medium text-white hover:bg-emerald-700">
+            {packingGoodImporting ? 'Importeren...' : 'Packing Good List uploaden'}
+            <input
+              type="file"
+              accept=".xlsx,.xls,.xlsm"
+              onChange={handlePackingGoodImport}
+              disabled={packingGoodImporting}
+              className="sr-only"
+            />
+          </label>
+        </div>
+        {packingGoodResult && (
+          <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+            Import klaar: {packingGoodResult.parsed} regels gelezen, {packingGoodResult.unique_pallets} unieke pallets,
+            {packingGoodResult.matched} open items en {packingGoodResult.packed_matched} packed items gematcht,
+            {packingGoodResult.shipped_updated} op shipped gezet.
+          </div>
+        )}
+        {packingGoodError && (
+          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
+            {packingGoodError}
+          </div>
+        )}
+      </div>
 
       <div className="bg-white rounded-xl shadow p-4 md:p-6 mb-6">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 items-end">

@@ -188,6 +188,12 @@ export const POST = withAuth(async (request: NextRequest, user) => {
       original_id: item.id,
       packed_by_employee_id: employeeId ?? null,
       packed_by_name: employeeName ?? null,
+      current_package_no: item.current_package_no ?? null,
+      packing_good_status: item.packing_good_status ?? null,
+      packing_good_imported_at: item.packing_good_imported_at ?? null,
+      shipping_status: item.shipping_status ?? 'open',
+      shipped_at: item.shipped_at ?? null,
+      shipped_scan_id: item.shipped_scan_id ?? null,
     }))
 
     const { error: insertError } = await supabaseAdmin

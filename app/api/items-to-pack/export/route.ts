@@ -19,6 +19,9 @@ type ItemToPackExportRow = {
   problem_comment: string | null
   wms_line_id: string | null
   wms_import_date: string | null
+  current_package_no: string | null
+  packing_good_status: string | null
+  packing_good_imported_at: string | null
   created_at: string | null
   updated_at: string | null
 }
@@ -77,6 +80,9 @@ async function fetchOpenItems(request: NextRequest): Promise<ItemToPackExportRow
         problem_comment,
         wms_line_id,
         wms_import_date,
+        current_package_no,
+        packing_good_status,
+        packing_good_imported_at,
         created_at,
         updated_at
       `)
@@ -126,6 +132,8 @@ function buildWorkbook(rows: ItemToPackExportRow[]) {
     { header: 'Item nummer', key: 'item_number', width: 22 },
     { header: 'Pallet nummer', key: 'po_number', width: 22 },
     { header: 'Aantal open', key: 'amount', width: 14 },
+    { header: 'Current Package No.', key: 'current_package_no', width: 24 },
+    { header: 'Packing Good status', key: 'packing_good_status', width: 20 },
     { header: 'Datum toegevoegd', key: 'date_added', width: 18 },
     { header: 'Prioriteit', key: 'priority', width: 12 },
     { header: 'Opmeting nodig', key: 'measurement', width: 16 },
@@ -133,6 +141,7 @@ function buildWorkbook(rows: ItemToPackExportRow[]) {
     { header: 'Probleem commentaar', key: 'problem_comment', width: 40 },
     { header: 'WMS lijn ID', key: 'wms_line_id', width: 22 },
     { header: 'WMS importdatum', key: 'wms_import_date', width: 18 },
+    { header: 'Packing Good import', key: 'packing_good_imported_at', width: 20 },
     { header: 'Aangemaakt op', key: 'created_at', width: 18 },
     { header: 'Bijgewerkt op', key: 'updated_at', width: 18 },
   ]
@@ -149,6 +158,8 @@ function buildWorkbook(rows: ItemToPackExportRow[]) {
       item_number: row.item_number || '',
       po_number: row.po_number || '',
       amount: Number(row.amount || 0),
+      current_package_no: row.current_package_no || '',
+      packing_good_status: row.packing_good_status || '',
       date_added: formatDate(row.date_added),
       priority: boolLabel(row.priority),
       measurement: boolLabel(row.measurement),
@@ -156,6 +167,7 @@ function buildWorkbook(rows: ItemToPackExportRow[]) {
       problem_comment: row.problem_comment || '',
       wms_line_id: row.wms_line_id || '',
       wms_import_date: formatDate(row.wms_import_date),
+      packing_good_imported_at: formatDate(row.packing_good_imported_at),
       created_at: formatDate(row.created_at),
       updated_at: formatDate(row.updated_at),
     })
