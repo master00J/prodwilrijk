@@ -10,6 +10,8 @@ interface PackedItem {
   amount: number
   date_added: string
   date_packed: string
+  packed_by_name?: string | null
+  packed_by_employee_id?: number | null
   current_package_no?: string | null
   shipping_status?: 'open' | 'shipped'
   shipped_at?: string | null
@@ -173,6 +175,9 @@ export default function PackedItemsTable({
                 Amount
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                Verpakt door
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Current Package No.
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
@@ -189,7 +194,7 @@ export default function PackedItemsTable({
           <tbody className="bg-white divide-y divide-gray-200">
             {items.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
                   No items found
                 </td>
               </tr>
@@ -218,6 +223,9 @@ export default function PackedItemsTable({
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                       {item.amount}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                      {item.packed_by_name || '—'}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                       {item.current_package_no || '—'}

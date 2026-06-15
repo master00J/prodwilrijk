@@ -15,6 +15,8 @@ interface PackedItem {
   date_added: string
   date_packed: string
   original_id?: number
+  packed_by_name?: string | null
+  packed_by_employee_id?: number | null
   current_package_no?: string | null
   shipping_status?: 'open' | 'shipped'
   shipped_at?: string | null
@@ -133,6 +135,7 @@ export default function PackedItemsPage() {
         'Item Number': item.item_number,
         'Pallet Number': item.po_number,
         'Amount': item.amount,
+        'Verpakt door': item.packed_by_name || '',
         'Current Package No.': item.current_package_no || '',
         'Shipping Status': item.shipping_status === 'shipped' ? 'Shipped' : 'Open',
         'Shipped At': item.shipped_at ? new Date(item.shipped_at).toLocaleDateString() : '',

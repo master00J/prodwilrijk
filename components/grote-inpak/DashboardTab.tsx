@@ -1,7 +1,7 @@
 'use client'
 
 // Dashboard-tab voor grote inpak: cockpit met live KPI's per locatie,
-// trends over tijd, doorlooptijd-statistiek en forecast-betrouwbaarheid.
+// trends over tijd en doorlooptijd-statistiek.
 
 import { useCallback, useEffect, useState } from 'react'
 import {
@@ -14,7 +14,6 @@ import {
   TrendingDown,
   Minus,
   Timer,
-  CalendarClock,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -65,14 +64,6 @@ type DashboardData = {
       removed_at: string
     }>
   }
-  forecast_reliability: Array<{
-    case_type: string
-    cases: number
-    shifted_cases: number
-    shifted_pct: number
-    avg_changes: number
-    avg_shift_days: number
-  }>
   customer_requests: {
     open_total: number
     by_status: Record<string, number>
@@ -286,9 +277,8 @@ export default function DashboardTab() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Doorlooptijd */}
-        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      {/* Doorlooptijd */}
+      <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
             <Timer className="w-5 h-5 text-violet-600" /> Doorlooptijd verpakte units
           </h3>
@@ -300,112 +290,23 @@ export default function DashboardTab() {
               Nog geen verpakte units geregistreerd. Dit vult zich automatisch vanaf de volgende PILS-verwerkingen.
             </p>
           ) : (
-            <>
-              <div className="flex gap-6 mb-4">
-                <div>
-                  <div className="text-2xl font-bold text-gray-900">{data.doorlooptijd.avg}d</div>
-                  <div className="text-xs text-gray-500">gemiddeld</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-gray-900">{data.doorlooptijd.median}d</div>
-                  <div className="text-xs text-gray-500">mediaan</div>
-                </div>
-                {data.doorlooptijd.per_location.map((row) => (
-                  <div key={row.location}>
-                    <div className="text-2xl font-bold text-gray-900">{row.avg}d</div>
-                    <div className="text-xs text-gray-500">{row.location} ({row.count})</div>
-                  </div>
-                ))}
+            <div className="flex flex-wrap gap-6">
+              <div>
+                <div className="text-2xl font-bold text-gray-900">{data.doorlooptijd.avg}d</div>
+                <div className="text-xs text-gray-500">gemiddeld</div>
               </div>
-              {data.doorlooptijd.per_case_type.length > 0 && (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-xs text-gray-500 border-b">
-                      <th className="py-1.5">Kisttype (traagste eerst)</th>
-                      <th className="py-1.5 text-right"># verpakt</th>
-                      <th className="py-1.5 text-right">Gem.</th>
-                      <th className="py-1.5 text-right">Max.</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.doorlooptijd.per_case_type.map((row) => (
-                      <tr key={row.case_type} className="border-b border-slate-100">
-                        <td className="py-1.5 font-medium">{row.case_type}</td>
-                        <td className="py-1.5 text-right">{row.count}</td>
-                        <td className="py-1.5 text-right">{row.avg}d</td>
-                        <td className="py-1.5 text-right text-red-600">{row.max}d</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-              {data.doorlooptijd.outliers.length > 0 && (
-                <div className="mt-3">
-                  <p className="text-xs font-medium text-gray-600 mb-1">Langste doorlooptijden:</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {data.doorlooptijd.outliers.map((row) => (
-                      <span
-                        key={`${row.case_label}-${row.removed_at}`}
-                        className="px-2 py-0.5 rounded bg-red-50 border border-red-200 text-xs text-red-800"
-                        title={`${row.case_type || ''} ${row.productielocatie || ''}`}
-                      >
-                        {row.case_label}: {row.doorlooptijd}d
-                      </span>
-                    ))}
-                  </div>
+              <div>
+                <div className="text-2xl font-bold text-gray-900">{data.doorlooptijd.median}d</div>
+                <div className="text-xs text-gray-500">mediaan</div>
+              </div>
+              {data.doorlooptijd.per_location.map((row) => (
+                <div key={row.location}>
+                  <div className="text-2xl font-bold text-gray-900">{row.avg}d</div>
+                  <div className="text-xs text-gray-500">{row.location} ({row.count})</div>
                 </div>
-              )}
-            </>
+              ))}
+            </div>
           )}
-        </div>
-
-        {/* Forecast-betrouwbaarheid */}
-        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
-            <CalendarClock className="w-5 h-5 text-orange-600" /> Forecast-betrouwbaarheid per kisttype
-          </h3>
-          <p className="text-xs text-gray-500 mb-3">
-            Hoe vaak schuift de forecastdatum op, en hoeveel dagen in totaal (eerste vs laatste datum)?
-          </p>
-          {data.forecast_reliability.length === 0 ? (
-            <p className="text-sm text-gray-500 py-4">Nog geen forecast-wijzigingen geregistreerd.</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-gray-500 border-b">
-                  <th className="py-1.5">Kisttype</th>
-                  <th className="py-1.5 text-right"># units</th>
-                  <th className="py-1.5 text-right">% geschoven</th>
-                  <th className="py-1.5 text-right">Gem. # wijz.</th>
-                  <th className="py-1.5 text-right">Gem. verschuiving</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.forecast_reliability.map((row) => (
-                  <tr key={row.case_type} className="border-b border-slate-100">
-                    <td className="py-1.5 font-medium">{row.case_type || 'Onbekend'}</td>
-                    <td className="py-1.5 text-right">{row.cases}</td>
-                    <td className="py-1.5 text-right">
-                      <span
-                        className={`px-1.5 py-0.5 rounded text-xs font-medium ${
-                          row.shifted_pct >= 50
-                            ? 'bg-red-100 text-red-800'
-                            : row.shifted_pct >= 25
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-emerald-100 text-emerald-800'
-                        }`}
-                      >
-                        {row.shifted_pct}%
-                      </span>
-                    </td>
-                    <td className="py-1.5 text-right">{row.avg_changes}</td>
-                    <td className="py-1.5 text-right">{row.avg_shift_days}d</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
       </div>
 
       {/* Forecast-kritiek per locatie */}
@@ -419,7 +320,7 @@ export default function DashboardTab() {
 
       <p className="text-xs text-gray-400">
         Gegenereerd: {new Date(data.generated_at).toLocaleString('nl-BE')} — KPI&apos;s zijn live; trends, doorlooptijd
-        en betrouwbaarheid worden opgebouwd bij elke PILS-verwerking.
+        worden opgebouwd bij elke PILS-verwerking.
       </p>
     </div>
   )
