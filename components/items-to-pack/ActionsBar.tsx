@@ -13,7 +13,9 @@ interface ActionsBarProps {
   onDeleteSelected: () => void
   onShowScanner: () => void
   onShowTimer: () => void
+  onExportExcel: () => void
   activeTimerCount?: number
+  exportingExcel?: boolean
 }
 
 export default function ActionsBar({
@@ -27,7 +29,9 @@ export default function ActionsBar({
   onDeleteSelected,
   onShowScanner,
   onShowTimer,
+  onExportExcel,
   activeTimerCount = 0,
+  exportingExcel = false,
 }: ActionsBarProps) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -139,6 +143,14 @@ export default function ActionsBar({
         </div>
 
         {/* Scanner Button */}
+        <button
+          onClick={onExportExcel}
+          disabled={exportingExcel || totalCount === 0}
+          className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium text-lg"
+        >
+          {exportingExcel ? 'Exporteren...' : 'Export Excel'}
+        </button>
+
         <button
           onClick={onShowScanner}
           className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-medium text-lg"

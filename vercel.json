@@ -9,6 +9,10 @@
       "schedule": "25 12 * * 5"
     },
     {
+      "path": "/api/airtec-kisten-stock/send-reorder",
+      "schedule": "15 13,14 * * 1-5"
+    },
+    {
       "path": "/api/grote-inpak/pils-mail-import",
       "schedule": "2 5 * * *"
     },

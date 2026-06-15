@@ -174,6 +174,7 @@ export default function ItemsToPackPage() {
   const [selectedItemForAction, setSelectedItemForAction] = useState<number | null>(null)
   const [sortColumn, setSortColumn] = useState<keyof ItemToPack | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [exportingExcel, setExportingExcel] = useState(false)
 
   // Fetch items
   const fetchItems = useCallback(async () => {
@@ -429,6 +430,40 @@ export default function ItemsToPackPage() {
 
     // Open modal to add comment
     setShowMarkProblemModal(true)
+  }
+
+  const handleExportExcel = async () => {
+    setExportingExcel(true)
+    try {
+      const params = new URLSearchParams()
+      if (searchTerm) params.append('search', searchTerm)
+      if (dateFilter) params.append('date', dateFilter)
+      if (priorityOnly) params.append('priority', 'true')
+      if (measurementOnly) params.append('measurement', 'true')
+      if (problemOnly) params.append('problem', 'true')
+
+      const response = await fetch(`/api/items-to-pack/export?${params.toString()}`)
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Excel export mislukt')
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const dateStr = new Date().toISOString().split('T')[0]
+      link.href = url
+      link.download = `items-to-pack-openstaand-${dateStr}.xlsx`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (error: any) {
+      console.error('Error exporting items to pack:', error)
+      alert(error.message || 'Excel export mislukt')
+    } finally {
+      setExportingExcel(false)
+    }
   }
 
   const handleMarkProblemConfirm = async (comment: string) => {
@@ -864,7 +899,9 @@ export default function ItemsToPackPage() {
         onDeleteSelected={handleDeleteSelected}
         onShowScanner={() => setShowScanner(true)}
         onShowTimer={() => setShowTimeModal(true)}
+        onExportExcel={handleExportExcel}
         activeTimerCount={activeTimeLogs.length}
+        exportingExcel={exportingExcel}
       />
 
       <ItemsTable

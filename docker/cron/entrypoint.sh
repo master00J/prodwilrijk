@@ -19,6 +19,7 @@ cat > /etc/crontabs/root <<EOF
 # UTC — zelfde schema als voormalige Vercel crons (vercel.json)
 25 13 * * 1-4 curl -fsS -H "${AUTH_HEADER}" "${APP_BASE_URL}/api/packed-items-airtec/send-daily-report" >> /var/log/prodwilrijk-cron.log 2>&1
 25 12 * * 5 curl -fsS -H "${AUTH_HEADER}" "${APP_BASE_URL}/api/packed-items-airtec/send-daily-report" >> /var/log/prodwilrijk-cron.log 2>&1
+15 13,14 * * 1-5 curl -fsS -H "${AUTH_HEADER}" "${APP_BASE_URL}/api/airtec-kisten-stock/send-reorder" >> /var/log/prodwilrijk-cron.log 2>&1
 2 5 * * * curl -fsS -H "${AUTH_HEADER}" "${APP_BASE_URL}/api/grote-inpak/pils-mail-import" >> /var/log/prodwilrijk-cron.log 2>&1
 5 10 * * * curl -fsS -H "${AUTH_HEADER}" "${APP_BASE_URL}/api/grote-inpak/pils-mail-import" >> /var/log/prodwilrijk-cron.log 2>&1
 5 14 * * * curl -fsS -H "${AUTH_HEADER}" "${APP_BASE_URL}/api/grote-inpak/pils-mail-import" >> /var/log/prodwilrijk-cron.log 2>&1
