@@ -196,16 +196,33 @@ export const POST = withAuth(async (request: NextRequest, user) => {
       shipped_scan_id: item.shipped_scan_id ?? null,
     }))
 
+    const basePackedItems = items.map(item => ({
+      item_number: item.item_number,
+      po_number: item.po_number,
+      amount: packQuantityFor(item),
+      date_added: item.date_added,
+      original_id: item.id,
+      packed_by_employee_id: employeeId ?? null,
+      packed_by_name: employeeName ?? null,
+    }))
+
     const { error: insertError } = await supabaseAdmin
       .from('packed_items')
       .insert(packedItems)
 
     if (insertError) {
-      console.error('Error inserting packed items:', insertError)
-      return NextResponse.json(
-        { error: 'Failed to save packed items' },
-        { status: 500 }
-      )
+      console.error('Error inserting packed items, retrying base fields:', insertError)
+      const { error: fallbackInsertError } = await supabaseAdmin
+        .from('packed_items')
+        .insert(basePackedItems)
+
+      if (fallbackInsertError) {
+        console.error('Error inserting packed items fallback:', fallbackInsertError)
+        return NextResponse.json(
+          { error: 'Failed to save packed items' },
+          { status: 500 }
+        )
+      }
     }
 
     try {
