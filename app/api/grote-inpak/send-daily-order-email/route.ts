@@ -523,9 +523,7 @@ async function buildLocationDailyOrderPayload(
   })
 
   const kKistenRaw = await fetchKKistenForExcel(location, productieAndereLoc)
-  const kKisten = kKistenRaw
-    .filter((r) => location !== 'Wilrijk' || isAllowedWilrijkDailyOrderKist(r))
-    .map((r) => enrichRowWithBouwpakketStock(r, bouwpakketCtx))
+  const kKisten = kKistenRaw.map((r) => enrichRowWithBouwpakketStock(r, bouwpakketCtx))
   const overdueKisten = await fetchOverdueKisten(location, productieAndereLoc)
 
   return {
