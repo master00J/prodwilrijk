@@ -18,6 +18,18 @@ export const maxDuration = 120
 
 // Speciale C-kisten die op het K-tabblad verschijnen (geen standaard voorraadkisten)
 const SPECIALE_C_KISTEN = ['C791', 'C792', 'C794', 'C795', 'C796']
+const WILRIJK_DAILY_ORDER_KISTEN = new Set([
+  'C142',
+  'C167',
+  'C201',
+  'C202',
+  'C548',
+  'C549',
+  'C640',
+  'C650',
+  'C660',
+  'K361',
+])
 
 /** Haalt stock op voor C-kisten vanuit de database (zelfde logica als kanban-besteladvies) */
 async function fetchStockForCKisten(caseTypes: string[]): Promise<Map<string, { genk: number; willebroek: number; wilrijk: number }>> {
@@ -453,6 +465,21 @@ function isCKistRow(r: any) {
   return ct.startsWith('C') && !SPECIALE_C_KISTEN.includes(ct)
 }
 
+function isAllowedWilrijkDailyOrderKist(r: any) {
+  const ct = normalizeKistnummer(String(r.case_type || '').trim())
+  return WILRIJK_DAILY_ORDER_KISTEN.has(ct)
+}
+
+function computeCRekVulling(rows: any[]) {
+  return rows.reduce(
+    (acc, row) => ({
+      stockInRek: acc.stockInRek + Number(row.stock_in_rek ?? 0),
+      maxVoorraad: acc.maxVoorraad + Number(row.max_voorraad ?? 0),
+    }),
+    { stockInRek: 0, maxVoorraad: 0 }
+  )
+}
+
 function locationHasExportData(cRows: any[], kKisten: any[], overdueKisten: any[]) {
   return cRows.length > 0 || kKisten.length > 0 || overdueKisten.length > 0
 }
@@ -468,6 +495,7 @@ async function buildLocationDailyOrderPayload(
   const locRows = toExport
     .filter(isCKistRow)
     .filter((r: any) => String(r.productielocatie || '').toLowerCase().includes(keyword))
+    .filter((r: any) => location !== 'Wilrijk' || isAllowedWilrijkDailyOrderKist(r))
 
   const normCase = (x: string) => normalizeKistnummer(String(x || '').trim())
   const caseTypes = [...new Set(locRows.map((r: any) => normCase(r.case_type || '')))] as string[]
@@ -495,12 +523,14 @@ async function buildLocationDailyOrderPayload(
   })
 
   const kKistenRaw = await fetchKKistenForExcel(location, productieAndereLoc)
-  const kKisten = kKistenRaw.map((r) => enrichRowWithBouwpakketStock(r, bouwpakketCtx))
+  const kKisten = kKistenRaw
+    .filter((r) => location !== 'Wilrijk' || isAllowedWilrijkDailyOrderKist(r))
+    .map((r) => enrichRowWithBouwpakketStock(r, bouwpakketCtx))
   const overdueKisten = await fetchOverdueKisten(location, productieAndereLoc)
 
   return {
     data: renumbered,
-    options: { kKisten, overdueKisten },
+    options: { kKisten, overdueKisten, cRekVulling: computeCRekVulling(renumbered) },
   }
 }
 

@@ -44,7 +44,8 @@ function addDailyOrderSheet(
   data: any[],
   today: string,
   variant: 'c' | 'k' = 'c',
-  endingDatesByKist?: Map<string, EndingDateEntry[]>
+  endingDatesByKist?: Map<string, EndingDateEntry[]>,
+  cRekVulling?: { stockInRek: number; maxVoorraad: number }
 ) {
   const headers = variant === 'k' ? headersK : headersC
   const numCols = headers.length
@@ -75,6 +76,23 @@ function addDailyOrderSheet(
   titleRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } }
   titleRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' }
   titleRow.height = 28
+  if (variant === 'c') {
+    const stockInRek = Number(
+      cRekVulling?.stockInRek ?? data.reduce((sum, row) => sum + Number(row.stock_in_rek ?? 0), 0)
+    )
+    const maxVoorraad = Number(
+      cRekVulling?.maxVoorraad ?? data.reduce((sum, row) => sum + Number(row.max_voorraad ?? 0), 0)
+    )
+    const percentage = maxVoorraad > 0 ? Math.round((stockInRek / maxVoorraad) * 1000) / 10 : 0
+    const rekRow = ws.addRow([
+      `Reklocaties gevuld: ${percentage}% (${stockInRek} / ${maxVoorraad} stuks in rek)`,
+    ])
+    ws.mergeCells(3, 1, 3, numCols)
+    rekRow.getCell(1).font = { bold: true, size: 11, color: { argb: 'FF375623' } }
+    rekRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2EFDA' } }
+    rekRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' }
+    rekRow.height = 22
+  }
   ws.addRow([])
   const hRow = ws.addRow(headers)
   hRow.eachCell(cell => {
@@ -248,9 +266,9 @@ function addDailyOrderSheet(
     {
       state: 'frozen',
       xSplit: 4,
-      ySplit: 4,
-      topLeftCell: 'E5',
-      activeCell: 'E5',
+      ySplit: variant === 'c' ? 5 : 4,
+      topLeftCell: variant === 'c' ? 'E6' : 'E5',
+      activeCell: variant === 'c' ? 'E6' : 'E5',
     },
   ]
 }
@@ -367,6 +385,10 @@ function addOverdueSheet(
 export type DailyOrderLocationOptions = {
   kKisten?: any[]
   overdueKisten?: any[]
+  cRekVulling?: {
+    stockInRek: number
+    maxVoorraad: number
+  }
   /**
    * Map van kistnummer (UPPERCASE) → array van `{ date, qty }` van lopende
    * productie-orders in Business Central, gesorteerd oplopend op datum.
@@ -390,6 +412,7 @@ export function appendDailyOrderLocationSheets(
     today,
     'c',
     options?.endingDatesByKist,
+    options?.cRekVulling,
   )
   if (options?.kKisten && options.kKisten.length > 0) {
     addDailyOrderSheet(

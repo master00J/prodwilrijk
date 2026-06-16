@@ -11,6 +11,29 @@ import {
 
 export const dynamic = 'force-dynamic'
 
+const WILRIJK_DAILY_ORDER_KISTEN = new Set([
+  'C142',
+  'C167',
+  'C201',
+  'C202',
+  'C548',
+  'C549',
+  'C640',
+  'C650',
+  'C660',
+  'K361',
+])
+
+function computeCRekVulling(rows: any[]) {
+  return rows.reduce(
+    (acc, row) => ({
+      stockInRek: acc.stockInRek + Number(row.stock_in_rek ?? 0),
+      maxVoorraad: acc.maxVoorraad + Number(row.max_voorraad ?? 0),
+    }),
+    { stockInRek: 0, maxVoorraad: 0 }
+  )
+}
+
 export async function GET() {
   try {
     // 1. Haal rekindeling op (alleen C kisten — Kanban Rekken is voor C kisten)
@@ -326,7 +349,9 @@ export async function POST(request: NextRequest) {
     const locGenk = (loc: string) => String(loc || '').toLowerCase().includes('genk')
     const locWilrijk = (loc: string) => String(loc || '').toLowerCase().includes('wilrijk')
     const genkRows = cRowsOnly.filter((r: any) => locGenk(r.productielocatie))
-    const wilrijkRows = cRowsOnly.filter((r: any) => locWilrijk(r.productielocatie))
+    const wilrijkRows = cRowsOnly
+      .filter((r: any) => locWilrijk(r.productielocatie))
+      .filter((r: any) => WILRIJK_DAILY_ORDER_KISTEN.has(normalizeKistnummer(String(r.case_type || '').trim())))
 
     // Hernummer per locatie zodat elke Excel begint bij 1, 2, 3...
     const renumber = (rows: any[]) => rows.map((r, i) => ({ ...r, priority_rank: i + 1 }))
@@ -336,8 +361,16 @@ export async function POST(request: NextRequest) {
     ])
     // Bouwpakket-referentie + BP-stock uit ERP koppeling toevoegen (zelfde als daily order download)
     const withBouwpakket = (rows: any[]) => rows.map((r) => enrichRowWithBouwpakketStock(r, bouwpakketCtx))
-    const wbGenk = buildDailyOrderWorkbook('Genk', withBouwpakket(renumber(genkRows)), today, { endingDatesByKist })
-    const wbWilrijk = buildDailyOrderWorkbook('Wilrijk', withBouwpakket(renumber(wilrijkRows)), today, { endingDatesByKist })
+    const genkExportRows = withBouwpakket(renumber(genkRows))
+    const wilrijkExportRows = withBouwpakket(renumber(wilrijkRows))
+    const wbGenk = buildDailyOrderWorkbook('Genk', genkExportRows, today, {
+      endingDatesByKist,
+      cRekVulling: computeCRekVulling(genkExportRows),
+    })
+    const wbWilrijk = buildDailyOrderWorkbook('Wilrijk', wilrijkExportRows, today, {
+      endingDatesByKist,
+      cRekVulling: computeCRekVulling(wilrijkExportRows),
+    })
 
     const bufGenk = await wbGenk.xlsx.writeBuffer() as ArrayBuffer
     const bufWilrijk = await wbWilrijk.xlsx.writeBuffer() as ArrayBuffer
