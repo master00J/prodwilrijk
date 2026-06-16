@@ -14,6 +14,51 @@ type Entry = {
   note?: string
 }
 
+function parseScanTimestamp(value: unknown): string | null {
+  const text = String(value ?? '').trim()
+  if (!text) return null
+
+  // Nieuwe scans worden lokaal als "YYYY-MM-DD HH:mm:ss" opgeslagen op de tablet.
+  // Interpreteer die als Brussels-tijd; shipped_at moet het scanmoment zijn, niet
+  // het latere syncmoment.
+  const localMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/)
+  if (localMatch) {
+    const [, year, month, day, hour, minute, second = '00'] = localMatch
+    const utcGuess = new Date(Date.UTC(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hour),
+      Number(minute),
+      Number(second)
+    ))
+    // Europe/Brussels is UTC+1 of UTC+2. Bepaal de offset rond dit moment via Intl.
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Brussels',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).formatToParts(utcGuess)
+    const brusselsAsUtc = Date.UTC(
+      Number(parts.find((p) => p.type === 'year')?.value),
+      Number(parts.find((p) => p.type === 'month')?.value) - 1,
+      Number(parts.find((p) => p.type === 'day')?.value),
+      Number(parts.find((p) => p.type === 'hour')?.value),
+      Number(parts.find((p) => p.type === 'minute')?.value),
+      Number(parts.find((p) => p.type === 'second')?.value)
+    )
+    const offsetMs = brusselsAsUtc - utcGuess.getTime()
+    return new Date(utcGuess.getTime() - offsetMs).toISOString()
+  }
+
+  const parsed = new Date(text)
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -78,8 +123,17 @@ export async function POST(request: NextRequest) {
 
     let shippedItemsUpdated = 0
     try {
+      const shippedAtByPackageNo = new Map<string, string>()
+      for (const row of rows) {
+        const code = String(row.code || '').trim().toUpperCase()
+        if (!code) continue
+        const shippedAt = parseScanTimestamp(row.ts) || row.created_at
+        const existing = shippedAtByPackageNo.get(code)
+        if (!existing || shippedAt > existing) shippedAtByPackageNo.set(code, shippedAt)
+      }
       const shippedResult = await markItemsToPackShippedForPackageNos(rows.map((r) => r.code), {
         shippedAt: new Date().toISOString(),
+        shippedAtByPackageNo,
         skipScanLookup: true,
       })
       shippedItemsUpdated = shippedResult.updated

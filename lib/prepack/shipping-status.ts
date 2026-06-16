@@ -33,6 +33,7 @@ async function mapWithConcurrency<T, R>(
 
 type MarkShippedOptions = {
   shippedAt?: string
+  shippedAtByPackageNo?: Map<string, string>
   skipScanLookup?: boolean
   onlyScansSince?: string
 }
@@ -47,8 +48,11 @@ export async function markItemsToPackShippedForPackageNos(
   const latestScanByPackageNo = new Map<string, { id: number; created_at: string }>()
 
   if (options.skipScanLookup) {
-    const shippedAt = options.shippedAt || new Date().toISOString()
     for (const packageNo of packageNos) {
+      const shippedAt =
+        options.shippedAtByPackageNo?.get(packageNo) ||
+        options.shippedAt ||
+        new Date().toISOString()
       latestScanByPackageNo.set(packageNo, { id: 0, created_at: shippedAt })
     }
   } else {
