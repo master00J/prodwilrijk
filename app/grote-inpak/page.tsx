@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
+import Link from 'next/link'
 import { Upload, Database, RefreshCw, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import DashboardTab from '@/components/grote-inpak/DashboardTab'
 import OverviewTab from '@/components/grote-inpak/OverviewTab'
@@ -501,7 +502,7 @@ export default function GroteInpakPage() {
               </p>
             </div>
           </div>
-          <div className="text-xs text-sky-100/95 tabular-nums">
+          <div className="flex flex-wrap items-center gap-3 text-xs text-sky-100/95 tabular-nums">
             {new Date().toLocaleString('nl-BE', {
               weekday: 'short',
               day: 'numeric',
@@ -510,6 +511,12 @@ export default function GroteInpakPage() {
               hour: '2-digit',
               minute: '2-digit',
             })}
+            <Link
+              href="/grote-inpak/instructie"
+              className="rounded border border-white/30 bg-white/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide hover:bg-white/20"
+            >
+              Instructievideo
+            </Link>
           </div>
         </div>
       </header>
