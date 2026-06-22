@@ -12,33 +12,18 @@ import {
   Package,
   Pause,
   Play,
+  SkipBack,
   SkipForward,
   Upload,
+  Volume2,
+  VolumeX,
 } from 'lucide-react'
 import Link from 'next/link'
-
-type StepId =
-  | 'intro'
-  | 'packed-xml'
-  | 'stock-upload'
-  | 'stock-verwerken'
-  | 'forecast-upload'
-  | 'transport-excel'
-  | 'forecast-dates'
-  | 'forecast-export'
-  | 'done'
-
-type TabId = 1 | 2 | 3 | 'upload'
-
-interface WalkStep {
-  id: StepId
-  tab: TabId
-  title: string
-  narration: string
-  tip?: string
-  durationMs: number
-  highlight?: string
-}
+import {
+  INSTRUCTIE_STEPS,
+  instructieSpeechText,
+  type InstructieStepId,
+} from '@/lib/grote-inpak/instructie-steps'
 
 const TABS = [
   { id: 10, label: '📊 Dashboard' },
@@ -54,90 +39,7 @@ const TABS = [
   { id: 8, label: 'Uploadhistoriek' },
 ]
 
-const STEPS: WalkStep[] = [
-  {
-    id: 'intro',
-    tab: 3,
-    title: 'Welkom',
-    narration:
-      'Deze handleiding loopt de dagelijkse Grote Inpak-flow door met voorbeelddata. Volg de stappen in volgorde — morgen kan je zo de orders doorboeken.',
-    durationMs: 6000,
-  },
-  {
-    id: 'packed-xml',
-    tab: 3,
-    title: 'Stap 1 — Packed → XML',
-    narration:
-      'Open tab Packed. Onder «Concept imports uit mailbox» staan de PACKED-bestanden. Controleer de regels (vink «Gebruik» uit wat niet mee mag). Klik daarna op «XML genereren» — de XML-bestanden worden gedownload voor BC.',
-    tip: 'INDUS Y aanvinken waar het KC-suffix op het itemnummer hoort.',
-    durationMs: 12000,
-    highlight: 'packed-xml-btn',
-  },
-  {
-    id: 'stock-upload',
-    tab: 'upload',
-    title: 'Stap 2 — Stock uit Business Central',
-    narration:
-      'Ga naar «Data uploaden» bovenaan. Exporteer in Business Central per locatie een Excel en noem de bestanden exact: Stock Wilrijk.xlsx, Stock Willebroek.xlsx en Stock Genk.xlsx. Filter steeds op de juiste locatie vóór export.',
-    tip: 'Zet «Nieuwe BC36» aan tenzij je bewust een oude GP-export uploadt.',
-    durationMs: 14000,
-    highlight: 'stock-upload-zone',
-  },
-  {
-    id: 'stock-verwerken',
-    tab: 'upload',
-    title: 'Stap 2b — Stock verwerken',
-    narration:
-      'Selecteer alle drie stock-bestanden tegelijk en klik op «Verwerken». Wacht tot de groene bevestiging verschijnt — daarna zijn de voorraadcijfers beschikbaar in Transport en Forecast.',
-    durationMs: 9000,
-    highlight: 'verwerken-btn',
-  },
-  {
-    id: 'forecast-upload',
-    tab: 2,
-    title: 'Stap 3 — Forecast CSV uploaden',
-    narration:
-      'Open tab Forecast. In «Forecast uploaden» sleep je de Atlas-forecast CSV-bestanden (FOR#### of FORESCO). Klik «Upload» — het systeem vergelijkt met de vorige upload en toont wijzigingen.',
-    durationMs: 11000,
-    highlight: 'forecast-upload-btn',
-  },
-  {
-    id: 'transport-excel',
-    tab: 1,
-    title: 'Stap 4 — Transport planning',
-    narration:
-      'Open tab Transport. Controleer het planningsoverzicht (Genk → Willebroek) en klik op «Genereer Transport Planning Excel». Het Excel-bestand wordt gedownload voor de transportplanning.',
-    durationMs: 10000,
-    highlight: 'transport-excel-btn',
-  },
-  {
-    id: 'forecast-dates',
-    tab: 2,
-    title: 'Stap 5a — Datumfilters instellen',
-    narration:
-      'Terug naar tab Forecast. Stel bij «Huidige forecast» de datumfilters in: «Van» = vandaag of start van de periode, «Tot» = einde van de gewenste forecastperiode (bv. +4 weken). Zonder correcte datums exporteert BC te veel of te weinig.',
-    durationMs: 12000,
-    highlight: 'forecast-dates',
-  },
-  {
-    id: 'forecast-export',
-    tab: 2,
-    title: 'Stap 5b — Forecast trekken (BC import)',
-    narration:
-      'Klik op «BC forecast import» (groene knop). Dit genereert het zip-bestand voor Business Central Demand Forecast Entry — per locatie Wilrijk en Genk, enkel nog te starten FP-codes binnen je datumbereik.',
-    tip: 'Alternatief: «Matrix Genk» / «Matrix Wilrijk» voor handmatige Excel-controle.',
-    durationMs: 11000,
-    highlight: 'bc-forecast-btn',
-  },
-  {
-    id: 'done',
-    tab: 2,
-    title: 'Klaar',
-    narration:
-      'Flow afgerond: XML uit Packed, stock verwerkt, forecast geüpload, transport-Excel gegenereerd en BC-forecast geëxporteerd. Bij twijfel: vraag collega\'s of bekijk Uploadhistoriek.',
-    durationMs: 8000,
-  },
-]
+const STEPS = INSTRUCTIE_STEPS
 
 const MOCK_PACKED_BATCH = {
   source_file: 'PACKED_20250622.xls',
@@ -168,6 +70,62 @@ function fmtToday(offsetDays = 0) {
   return d.toISOString().slice(0, 10)
 }
 
+type SimState = {
+  xmlExported: boolean
+  stockSelected: boolean
+  stockProcessed: boolean
+  forecastSelected: boolean
+  forecastUploaded: boolean
+  transportGenerated: boolean
+  dateFrom: string
+  dateTo: string
+  matrixAlleExported: boolean
+}
+
+const INITIAL_SIM_STATE: SimState = {
+  xmlExported: false,
+  stockSelected: false,
+  stockProcessed: false,
+  forecastSelected: false,
+  forecastUploaded: false,
+  transportGenerated: false,
+  dateFrom: '',
+  dateTo: '',
+  matrixAlleExported: false,
+}
+
+function buildSimState(upToStepIndex: number): SimState {
+  const state = { ...INITIAL_SIM_STATE }
+  for (let i = 0; i <= upToStepIndex; i++) {
+    switch (STEPS[i].id) {
+      case 'packed-xml':
+        state.xmlExported = true
+        break
+      case 'stock-upload':
+        state.stockSelected = true
+        break
+      case 'stock-verwerken':
+        state.stockProcessed = true
+        break
+      case 'forecast-upload':
+        state.forecastSelected = true
+        state.forecastUploaded = true
+        break
+      case 'transport-excel':
+        state.transportGenerated = true
+        break
+      case 'forecast-dates':
+        state.dateFrom = fmtToday(0)
+        state.dateTo = fmtToday(28)
+        break
+      case 'forecast-export':
+        state.matrixAlleExported = true
+        break
+    }
+  }
+  return state
+}
+
 function HighlightRing({ active, children, id }: { active: boolean; children: React.ReactNode; id?: string }) {
   return (
     <div
@@ -189,68 +147,186 @@ function HighlightRing({ active, children, id }: { active: boolean; children: Re
 export default function InstructieVideo() {
   const [stepIndex, setStepIndex] = useState(0)
   const [playing, setPlaying] = useState(true)
+  const [voiceEnabled, setVoiceEnabled] = useState(true)
+  const [voiceLoading, setVoiceLoading] = useState(false)
+  const [voiceBlocked, setVoiceBlocked] = useState(false)
   const [uploadExpanded, setUploadExpanded] = useState(true)
-  const [simState, setSimState] = useState({
-    xmlExported: false,
-    stockSelected: false,
-    stockProcessed: false,
-    forecastSelected: false,
-    forecastUploaded: false,
-    transportGenerated: false,
-    dateFrom: '',
-    dateTo: '',
-    bcExported: false,
-  })
+  const [simState, setSimState] = useState<SimState>(INITIAL_SIM_STATE)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const audioCacheRef = useRef<Map<InstructieStepId, string>>(new Map())
+  const speechGenerationRef = useRef(0)
 
   const step = STEPS[stepIndex]
   const activeTab = step.tab === 'upload' ? null : step.tab
 
   const progress = ((stepIndex + 1) / STEPS.length) * 100
 
-  const applyStepEffects = useCallback((s: WalkStep) => {
-    setSimState((prev) => {
-      const next = { ...prev }
-      if (s.id === 'packed-xml') next.xmlExported = true
-      if (s.id === 'stock-upload') next.stockSelected = true
-      if (s.id === 'stock-verwerken') next.stockProcessed = true
-      if (s.id === 'forecast-upload') {
-        next.forecastSelected = true
-        next.forecastUploaded = true
+  const stopSpeech = useCallback(() => {
+    speechGenerationRef.current += 1
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.src = ''
+      audioRef.current = null
+    }
+    if (typeof window !== 'undefined') window.speechSynthesis?.cancel()
+    setVoiceLoading(false)
+  }, [])
+
+  const speakWithBrowser = useCallback((text: string) => {
+    return new Promise<void>((resolve) => {
+      if (typeof window === 'undefined' || !window.speechSynthesis) {
+        resolve()
+        return
       }
-      if (s.id === 'transport-excel') next.transportGenerated = true
-      if (s.id === 'forecast-dates') {
-        next.dateFrom = fmtToday(0)
-        next.dateTo = fmtToday(28)
-      }
-      if (s.id === 'forecast-export') next.bcExported = true
-      return next
+      const utterance = new SpeechSynthesisUtterance(text)
+      utterance.lang = 'nl-BE'
+      utterance.rate = 0.95
+      utterance.onend = () => resolve()
+      utterance.onerror = () => resolve()
+      window.speechSynthesis.speak(utterance)
     })
   }, [])
 
-  const goToStep = useCallback(
-    (idx: number) => {
-      const clamped = Math.max(0, Math.min(idx, STEPS.length - 1))
-      setStepIndex(clamped)
-      for (let i = 0; i <= clamped; i++) applyStepEffects(STEPS[i])
+  const speakStep = useCallback(
+    async (stepId: InstructieStepId): Promise<void> => {
+      if (!voiceEnabled) return
+
+      const stepDef = STEPS.find((s) => s.id === stepId)
+      if (!stepDef) return
+
+      const generation = ++speechGenerationRef.current
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current.src = ''
+        audioRef.current = null
+      }
+      if (typeof window !== 'undefined') window.speechSynthesis?.cancel()
+
+      const text = instructieSpeechText(stepDef)
+      setVoiceLoading(true)
+
+      try {
+        let url = audioCacheRef.current.get(stepId)
+        if (!url) {
+          const res = await fetch('/api/grote-inpak/instructie-tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ stepId }),
+          })
+          if (!res.ok) throw new Error('OpenAI TTS niet beschikbaar')
+          const blob = await res.blob()
+          url = URL.createObjectURL(blob)
+          audioCacheRef.current.set(stepId, url)
+        }
+
+        if (generation !== speechGenerationRef.current) return
+
+        const audio = new Audio(url)
+        audioRef.current = audio
+        await audio.play()
+        setVoiceBlocked(false)
+
+        await new Promise<void>((resolve, reject) => {
+          audio.onended = () => resolve()
+          audio.onerror = () => reject(new Error('Audio playback failed'))
+        })
+      } catch {
+        if (generation !== speechGenerationRef.current) return
+        setVoiceBlocked(true)
+        await speakWithBrowser(text)
+      } finally {
+        if (generation === speechGenerationRef.current) setVoiceLoading(false)
+      }
     },
-    [applyStepEffects],
+    [voiceEnabled, stopSpeech, speakWithBrowser],
   )
 
-  useEffect(() => {
-    applyStepEffects(step)
-  }, [step, applyStepEffects])
+  const goToStep = useCallback((idx: number, options?: { resume?: boolean }) => {
+    const clamped = Math.max(0, Math.min(idx, STEPS.length - 1))
+    setStepIndex(clamped)
+    setSimState(buildSimState(clamped))
+    if (options?.resume !== true) setPlaying(false)
+  }, [])
+
+  const goPrevious = useCallback(() => goToStep(stepIndex - 1), [goToStep, stepIndex])
+  const goNext = useCallback(() => {
+    if (stepIndex >= STEPS.length - 1) {
+      setPlaying(false)
+      return
+    }
+    goToStep(stepIndex + 1)
+  }, [goToStep, stepIndex])
 
   useEffect(() => {
-    if (!playing) return
-    timerRef.current = setTimeout(() => {
-      if (stepIndex < STEPS.length - 1) goToStep(stepIndex + 1)
-      else setPlaying(false)
-    }, step.durationMs)
+    if (!voiceEnabled || playing) return
+    void speakStep(step.id)
     return () => {
+      speechGenerationRef.current += 1
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current = null
+      }
+      if (typeof window !== 'undefined') window.speechSynthesis?.cancel()
+    }
+  }, [stepIndex, voiceEnabled, playing, step.id, speakStep])
+
+  useEffect(() => {
+    if (!playing) {
+      audioRef.current?.pause()
+      return
+    }
+
+    let cancelled = false
+
+    const run = async () => {
+      if (voiceEnabled) {
+        await speakStep(step.id)
+        if (cancelled) return
+        await new Promise((r) => setTimeout(r, 1200))
+      } else {
+        await new Promise((r) => {
+          timerRef.current = setTimeout(r, step.durationMs)
+        })
+      }
+      if (cancelled) return
+      if (stepIndex < STEPS.length - 1) goToStep(stepIndex + 1, { resume: true })
+      else setPlaying(false)
+    }
+
+    void run()
+
+    return () => {
+      cancelled = true
       if (timerRef.current) clearTimeout(timerRef.current)
     }
-  }, [playing, stepIndex, step.durationMs, goToStep])
+  }, [playing, stepIndex, step.id, step.durationMs, voiceEnabled, goToStep, speakStep])
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        goPrevious()
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        goNext()
+      } else if (e.key === ' ') {
+        e.preventDefault()
+        setPlaying((p) => !p)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [goPrevious, goNext])
+
+  useEffect(() => {
+    return () => {
+      stopSpeech()
+      audioCacheRef.current.forEach((url) => URL.revokeObjectURL(url))
+      audioCacheRef.current.clear()
+    }
+  }, [stopSpeech])
 
   const isHighlight = (id: string) => step.highlight === id
 
@@ -276,6 +352,9 @@ export default function InstructieVideo() {
             <span className="shrink-0 rounded bg-amber-600 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-white">
               Instructievideo
             </span>
+            {voiceLoading && (
+              <span className="shrink-0 animate-pulse text-[10px] font-medium text-amber-700">Spraak laden…</span>
+            )}
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-amber-950">{step.title}</p>
               <p className="line-clamp-2 text-xs text-amber-900/80">{step.narration}</p>
@@ -285,17 +364,55 @@ export default function InstructieVideo() {
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
+              onClick={() => {
+                setVoiceEnabled((v) => {
+                  if (v) stopSpeech()
+                  return !v
+                })
+              }}
+              className={`inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-sm ${
+                voiceEnabled
+                  ? 'border-amber-400 bg-amber-100 text-amber-900 hover:bg-amber-200'
+                  : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+              title={voiceEnabled ? 'Spraak uit' : 'Spraak aan (OpenAI)'}
+            >
+              {voiceEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+              {voiceEnabled ? 'Spraak' : 'Stil'}
+            </button>
+            {voiceBlocked && voiceEnabled && (
+              <button
+                type="button"
+                onClick={() => void speakStep(step.id)}
+                className="rounded-lg border border-amber-400 bg-white px-2 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-50"
+              >
+                🔊 Geluid starten
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={goPrevious}
+              disabled={stepIndex <= 0}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-40"
+              title="Vorige stap (←)"
+            >
+              <SkipBack className="h-4 w-4" /> Vorige
+            </button>
+            <button
+              type="button"
               onClick={() => setPlaying((p) => !p)}
               className="inline-flex items-center gap-1.5 rounded-lg bg-[#1a4b8c] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#153d75]"
+              title="Pauze / afspelen (spatiebalk)"
             >
               {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
               {playing ? 'Pauze' : 'Afspelen'}
             </button>
             <button
               type="button"
-              onClick={() => goToStep(stepIndex + 1)}
+              onClick={goNext}
               disabled={stepIndex >= STEPS.length - 1}
               className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-40"
+              title="Volgende stap (→)"
             >
               <SkipForward className="h-4 w-4" /> Volgende
             </button>
@@ -315,10 +432,7 @@ export default function InstructieVideo() {
             <button
               key={s.id}
               type="button"
-              onClick={() => {
-                setPlaying(false)
-                goToStep(i)
-              }}
+              onClick={() => goToStep(i)}
               className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-medium transition-colors ${
                 i === stepIndex
                   ? 'bg-amber-600 text-white'
@@ -601,16 +715,22 @@ export default function InstructieVideo() {
                     <button type="button" className="flex items-center gap-2 rounded-lg bg-gray-200 px-4 py-2 text-sm text-gray-700">
                       <Download className="h-4 w-4" /> Matrix Wilrijk
                     </button>
-                    <HighlightRing active={isHighlight('bc-forecast-btn')} id="bc-forecast-btn">
+                    <HighlightRing active={isHighlight('matrix-alle-btn')} id="matrix-alle-btn">
                       <button
                         type="button"
-                        className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white ${
-                          simState.bcExported ? 'bg-emerald-700' : 'bg-emerald-600'
+                        className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium ${
+                          simState.matrixAlleExported
+                            ? 'bg-blue-200 text-blue-800'
+                            : 'bg-blue-100 text-blue-700'
                         }`}
                       >
-                        <Download className="h-4 w-4" /> {simState.bcExported ? 'BC import gedownload ✓' : 'BC forecast import'}
+                        <Download className="h-4 w-4" />{' '}
+                        {simState.matrixAlleExported ? 'Matrix gedownload ✓' : 'Matrix Alle locaties'}
                       </button>
                     </HighlightRing>
+                    <button type="button" className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white">
+                      <Download className="h-4 w-4" /> BC forecast import
+                    </button>
                   </div>
                 </div>
 
@@ -670,7 +790,7 @@ export default function InstructieVideo() {
                         value={simState.dateTo || fmtToday(28)}
                         className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
                       />
-                      <span className="text-xs text-slate-500">← stel dit bereik in vóór BC forecast import</span>
+                      <span className="text-xs text-slate-500">← stel dit bereik in vóór «Matrix Alle locaties»</span>
                     </div>
                   </HighlightRing>
                   <table className="min-w-full divide-y divide-gray-100 text-sm">
@@ -794,7 +914,7 @@ export default function InstructieVideo() {
         </div>
 
         <p className="mt-6 text-center text-xs text-slate-500">
-          Demo met mockdata — geen echte uploads.{' '}
+          Demo met mockdata — geen echte uploads. Spraak via OpenAI (ChatGPT-stem). Sneltoetsen: ← vorige · → volgende · spatie pauze.{' '}
           <Link href="/grote-inpak" className="font-medium text-[#1a4b8c] underline">
             Open de live Grote Inpak-app
           </Link>
