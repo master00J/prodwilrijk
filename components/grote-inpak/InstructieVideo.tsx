@@ -12,6 +12,7 @@ import {
   Package,
   Pause,
   Play,
+  RefreshCw,
   SkipBack,
   SkipForward,
   Upload,
@@ -21,6 +22,7 @@ import {
 import Link from 'next/link'
 import {
   INSTRUCTIE_STEPS,
+  getInstructieScrollTargets,
   instructieSpeechText,
   type InstructieStepId,
 } from '@/lib/grote-inpak/instructie-steps'
@@ -41,14 +43,49 @@ const TABS = [
 
 const STEPS = INSTRUCTIE_STEPS
 
+/** Ruimte voor sticky instructie-balk bovenaan. */
+const SCROLL_TOP_OFFSET = 168
+const HIGHLIGHT_CYCLE_MS = 4500
+
+function scrollToAnchor(anchorId: string) {
+  if (typeof window === 'undefined') return
+  const el = document.querySelector(`[data-scroll-anchor="${anchorId}"]`)
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  const top = window.scrollY + rect.top - SCROLL_TOP_OFFSET
+  window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+}
+
 const MOCK_PACKED_BATCH = {
   source_file: 'PACKED_20250622.xls',
-  source_type: 'PACKED',
-  imported_at: '22/06/2025 08:15',
+  source_type: 'packed',
+  imported_at: '22/06/2025 08:15:00',
   rows: [
-    { case_label: 'FOR1234567', series: 'S4', case_type: 'C142', packed_date: '21/06/2025', excluded: false },
-    { case_label: 'FOR1234568', series: 'APF', case_type: 'C167', packed_date: '21/06/2025', excluded: false },
-    { case_label: 'FOR1234569', series: 'S5', case_type: 'K361', packed_date: '21/06/2025', excluded: true },
+    {
+      case_label: 'FOR1234567',
+      series: 'S4',
+      case_type: 'C142',
+      packed_date: '2025-06-21',
+      notes: '',
+      excluded: false,
+    },
+    {
+      case_label: 'FOR1234568',
+      series: 'APF',
+      case_type: 'C167',
+      packed_date: '2025-06-21',
+      notes: '',
+      excluded: false,
+      demoCaseTypeEdit: true,
+    },
+    {
+      case_label: 'FOR1234569',
+      series: 'S5',
+      case_type: 'K361',
+      packed_date: '2025-06-21',
+      notes: '',
+      excluded: true,
+    },
   ],
 }
 
@@ -72,6 +109,7 @@ function fmtToday(offsetDays = 0) {
 
 type SimState = {
   xmlExported: boolean
+  packedReviewSaved: boolean
   stockSelected: boolean
   stockProcessed: boolean
   forecastSelected: boolean
@@ -84,6 +122,7 @@ type SimState = {
 
 const INITIAL_SIM_STATE: SimState = {
   xmlExported: false,
+  packedReviewSaved: false,
   stockSelected: false,
   stockProcessed: false,
   forecastSelected: false,
@@ -99,6 +138,7 @@ function buildSimState(upToStepIndex: number): SimState {
   for (let i = 0; i <= upToStepIndex; i++) {
     switch (STEPS[i].id) {
       case 'packed-xml':
+        state.packedReviewSaved = true
         state.xmlExported = true
         break
       case 'stock-upload':
@@ -130,7 +170,8 @@ function HighlightRing({ active, children, id }: { active: boolean; children: Re
   return (
     <div
       data-highlight={id}
-      className={`relative rounded-lg transition-all duration-500 ${
+      data-scroll-anchor={id}
+      className={`relative scroll-mt-44 rounded-lg transition-all duration-500 ${
         active ? 'ring-4 ring-amber-400 ring-offset-2 shadow-lg shadow-amber-200/60 z-10' : ''
       }`}
     >
@@ -151,6 +192,7 @@ export default function InstructieVideo() {
   const [voiceLoading, setVoiceLoading] = useState(false)
   const [voiceBlocked, setVoiceBlocked] = useState(false)
   const [uploadExpanded, setUploadExpanded] = useState(true)
+  const [focusedHighlight, setFocusedHighlight] = useState<string | null>(null)
   const [simState, setSimState] = useState<SimState>(INITIAL_SIM_STATE)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -159,6 +201,7 @@ export default function InstructieVideo() {
 
   const step = STEPS[stepIndex]
   const activeTab = step.tab === 'upload' ? null : step.tab
+  const scrollTargets = useMemo(() => getInstructieScrollTargets(step), [step])
 
   const progress = ((stepIndex + 1) / STEPS.length) * 100
 
@@ -328,7 +371,40 @@ export default function InstructieVideo() {
     }
   }, [stopSpeech])
 
-  const isHighlight = (id: string) => step.highlight === id
+  useEffect(() => {
+    if (step.tab === 'upload') setUploadExpanded(true)
+
+    const targets = scrollTargets
+    if (targets.length === 0) return
+
+    let highlightIndex = 0
+    setFocusedHighlight(targets[0])
+
+    const initialScroll = window.setTimeout(() => scrollToAnchor(targets[0]), 220)
+
+    let cycleTimer: ReturnType<typeof setInterval> | undefined
+    if (targets.length > 1 && playing) {
+      cycleTimer = window.setInterval(() => {
+        highlightIndex = (highlightIndex + 1) % targets.length
+        const next = targets[highlightIndex]
+        setFocusedHighlight(next)
+        scrollToAnchor(next)
+      }, HIGHLIGHT_CYCLE_MS)
+    }
+
+    return () => {
+      window.clearTimeout(initialScroll)
+      if (cycleTimer) window.clearInterval(cycleTimer)
+    }
+  }, [stepIndex, step.id, step.tab, playing, scrollTargets])
+
+  const isHighlight = (id: string) => {
+    if (!scrollTargets.includes(id)) return false
+    if (scrollTargets.length > 1 && playing && focusedHighlight) {
+      return focusedHighlight === id
+    }
+    return scrollTargets.includes(id)
+  }
 
   const nowStr = useMemo(
     () =>
@@ -470,7 +546,8 @@ export default function InstructieVideo() {
       <div className="w-full max-w-none px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
         {/* Upload section */}
         <div
-          className={`mb-6 rounded-lg border border-slate-300/80 bg-white p-5 shadow-sm sm:p-6 transition-all ${
+          data-scroll-anchor="upload-section"
+          className={`scroll-mt-44 mb-6 rounded-lg border border-slate-300/80 bg-white p-5 shadow-sm sm:p-6 transition-all ${
             step.tab === 'upload' ? 'ring-2 ring-amber-300' : ''
           }`}
         >
@@ -589,7 +666,7 @@ export default function InstructieVideo() {
         )}
 
         {/* Tabs */}
-        <div className="overflow-hidden rounded-lg border border-slate-400/90 shadow-md">
+        <div className="overflow-hidden rounded-lg border border-slate-400/90 shadow-md" data-scroll-anchor="instructie-tabs">
           <nav
             className="flex gap-0.5 overflow-x-auto border-b border-[#0f2d52] bg-gradient-to-b from-[#1a4b8c] to-[#153d75] px-1 pt-1"
             aria-label="Grote inpak"
@@ -609,96 +686,250 @@ export default function InstructieVideo() {
             ))}
           </nav>
 
-          <div className="bg-white p-5 sm:p-6">
+          <div className="bg-white p-5 sm:p-6 scroll-mt-44" data-scroll-anchor="instructie-tab-panel">
             {/* PACKED TAB */}
             {activeTab === 3 && (
               <div>
-                <div className="mb-6 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 shadow-sm">
-                      <Package className="h-6 w-6 text-white" />
-                    </div>
-                    <div>
-                      <h2 className="text-2xl font-bold text-slate-800">Packed Items</h2>
-                      <p className="text-sm text-slate-500">Beheer packed bestanden en XML-export</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mb-6 rounded-xl border border-amber-200 bg-white p-5 shadow-sm">
-                  <div className="mb-4 flex flex-col justify-between gap-3 md:flex-row md:items-center">
-                    <div>
-                      <h3 className="text-lg font-semibold text-slate-800">Concept imports uit mailbox</h3>
-                      <p className="text-sm text-slate-500">
-                        Uitgevinkt bij <strong>Gebruik</strong> komt niet in de XML.
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-white"
-                      >
-                        <Mail className="h-4 w-4" /> Haal mails op
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="overflow-hidden rounded-lg border border-slate-200">
-                    <div className="flex flex-col justify-between gap-2 bg-slate-50 px-4 py-3 md:flex-row md:items-center">
+                <div className="mb-6">
+                  <div className="mb-6 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 shadow-sm">
+                        <Package className="h-6 w-6 text-white" />
+                      </div>
                       <div>
-                        <div className="font-semibold text-slate-800">{MOCK_PACKED_BATCH.source_file}</div>
-                        <div className="text-xs text-slate-500">
-                          Type: {MOCK_PACKED_BATCH.source_type} · {MOCK_PACKED_BATCH.rows.length} regel(s) · geïmporteerd{' '}
-                          {MOCK_PACKED_BATCH.imported_at}
+                        <h2 className="text-2xl font-bold text-slate-800">Packed Items</h2>
+                        <p className="text-sm text-slate-500">Beheer packed bestanden en XML-export</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-2 rounded-lg bg-slate-100 px-5 py-2.5 font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-200 hover:shadow-md"
+                    >
+                      <Download className="h-4 w-4" />
+                      Download Excel
+                    </button>
+                  </div>
+
+                  <div
+                    className="mb-6 rounded-xl border border-amber-200 bg-white p-5 shadow-sm scroll-mt-44"
+                    data-scroll-anchor="packed-concept-imports"
+                  >
+                    <div className="mb-4 flex flex-col justify-between gap-3 md:flex-row md:items-center">
+                      <div>
+                        <h3 className="text-lg font-semibold text-slate-800">Concept imports uit mailbox</h3>
+                        <p className="text-sm text-slate-500">
+                          Uitgevinkt bij <strong>Gebruik</strong> komt niet in de XML. PACKED_N en PACKED_Y gaan samen in
+                          één <strong>indus.xml</strong>; vink <strong>INDUS Y</strong> aan waar het suffix{' '}
+                          <strong>KC</strong> op het itemnummer hoort.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-white hover:bg-amber-700"
+                          title="Haalt ongelezen PACKED-mails op"
+                        >
+                          <Mail className="h-4 w-4" />
+                          Haal mails op
+                        </button>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-white px-4 py-2 text-amber-800 hover:bg-amber-50"
+                          title="Scant ook gelezen mails van vandaag. Alleen gebruiken als mails eerder gemist zijn."
+                        >
+                          Ook gelezen
+                        </button>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-2 rounded-lg bg-amber-100 px-4 py-2 text-amber-800 hover:bg-amber-200"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                          Vernieuwen
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-5">
+                      <div className="overflow-hidden rounded-lg border border-slate-200">
+                        <div className="flex flex-col justify-between gap-2 bg-slate-50 px-4 py-3 md:flex-row md:items-center">
+                          <div>
+                            <div className="font-semibold text-slate-800">{MOCK_PACKED_BATCH.source_file}</div>
+                            <div className="text-xs text-slate-500">
+                              Type: {MOCK_PACKED_BATCH.source_type.toUpperCase()} · {MOCK_PACKED_BATCH.rows.length}{' '}
+                              regel(s) · geïmporteerd{' '}
+                              {new Date(MOCK_PACKED_BATCH.imported_at).toLocaleString('nl-BE')}
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <HighlightRing active={isHighlight('packed-opslaan-btn')} id="packed-opslaan-btn">
+                              <button
+                                type="button"
+                                className={`rounded-lg px-3 py-2 text-sm text-white ${
+                                  simState.packedReviewSaved ? 'bg-slate-800' : 'bg-slate-700 hover:bg-slate-800'
+                                }`}
+                              >
+                                {simState.packedReviewSaved ? 'Opslaan ✓' : 'Opslaan'}
+                              </button>
+                            </HighlightRing>
+                            <HighlightRing active={isHighlight('packed-xml-btn')} id="packed-xml-btn">
+                              <button
+                                type="button"
+                                className={`rounded-lg px-3 py-2 text-sm text-white disabled:opacity-50 ${
+                                  simState.xmlExported ? 'bg-emerald-700' : 'bg-emerald-600 hover:bg-emerald-700'
+                                }`}
+                              >
+                                {simState.xmlExported ? 'XML gemaakt ✓' : 'XML genereren'}
+                              </button>
+                            </HighlightRing>
+                          </div>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-white">
+                              <tr>
+                                <th
+                                  className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-700"
+                                  title="Uitgevinkt = regel komt niet in XML"
+                                >
+                                  Gebruik
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-700">
+                                  Case Label
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-700">
+                                  Serie
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-700">
+                                  Case Type
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-700">
+                                  Packed Date
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-700">
+                                  Notitie
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 bg-white">
+                              {MOCK_PACKED_BATCH.rows.map((row) => (
+                                <tr
+                                  key={row.case_label}
+                                  className={row.excluded ? 'bg-slate-50 opacity-60' : 'hover:bg-gray-50'}
+                                >
+                                  <td className="px-3 py-2">
+                                    <input type="checkbox" checked={!row.excluded} readOnly />
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    <input
+                                      readOnly
+                                      value={row.case_label}
+                                      className="w-36 rounded border border-gray-300 px-2 py-1"
+                                    />
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    <input
+                                      readOnly
+                                      value={row.series}
+                                      className="w-24 rounded border border-gray-300 px-2 py-1"
+                                    />
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    {'demoCaseTypeEdit' in row && row.demoCaseTypeEdit ? (
+                                      <HighlightRing active={isHighlight('packed-case-type')} id="packed-case-type">
+                                        <input
+                                          readOnly
+                                          value={row.case_type}
+                                          className="w-28 rounded border border-amber-400 bg-amber-50 px-2 py-1 ring-1 ring-amber-300"
+                                          title="Kisttype aanpassen indien nodig"
+                                        />
+                                      </HighlightRing>
+                                    ) : (
+                                      <input
+                                        readOnly
+                                        value={row.case_type}
+                                        className="w-28 rounded border border-gray-300 px-2 py-1"
+                                      />
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    <input
+                                      readOnly
+                                      type="date"
+                                      value={row.packed_date}
+                                      className="w-36 rounded border border-gray-300 px-2 py-1"
+                                    />
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    <input
+                                      readOnly
+                                      value={row.notes}
+                                      placeholder="Optioneel"
+                                      className="w-48 rounded border border-gray-300 px-2 py-1"
+                                    />
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <button type="button" className="rounded-lg bg-slate-700 px-3 py-2 text-sm text-white">
-                          Opslaan
-                        </button>
-                        <HighlightRing active={isHighlight('packed-xml-btn')} id="packed-xml-btn">
-                          <button
-                            type="button"
-                            className={`rounded-lg px-3 py-2 text-sm text-white ${
-                              simState.xmlExported ? 'bg-emerald-700' : 'bg-emerald-600'
-                            }`}
-                          >
-                            {simState.xmlExported ? 'XML gemaakt ✓' : 'XML genereren'}
-                          </button>
-                        </HighlightRing>
-                      </div>
                     </div>
-                    <table className="min-w-full divide-y divide-gray-200 text-sm">
-                      <thead className="bg-white">
-                        <tr>
-                          <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-700">Gebruik</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-700">Case Label</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-700">Serie</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-700">Case Type</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-700">Packed Date</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100 bg-white">
-                        {MOCK_PACKED_BATCH.rows.map((row) => (
-                          <tr key={row.case_label} className={row.excluded ? 'bg-slate-50 opacity-60' : ''}>
-                            <td className="px-3 py-2">
-                              <input type="checkbox" checked={!row.excluded} readOnly />
-                            </td>
-                            <td className="px-3 py-2">{row.case_label}</td>
-                            <td className="px-3 py-2">{row.series}</td>
-                            <td className="px-3 py-2">{row.case_type}</td>
-                            <td className="px-3 py-2">{row.packed_date}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+
+                    {simState.xmlExported && (
+                      <div className="mt-3 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                        <Download className="h-4 w-4" /> 2 XML-bestand(en) aangemaakt
+                      </div>
+                    )}
                   </div>
 
-                  {simState.xmlExported && (
-                    <div className="mt-3 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-                      <Download className="h-4 w-4" /> 2 XML-bestand(en) gedownload (apf_s4_s5.xml, indus.xml)
+                  <div className="mb-4 rounded-xl border-2 border-dashed border-slate-300 bg-white p-8 text-center shadow-sm">
+                    <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
+                      <Upload className="h-8 w-8 text-slate-400" />
                     </div>
-                  )}
+                    <h3 className="mb-2 text-lg font-semibold text-slate-800">Packed Excel Upload</h3>
+                    <p className="mb-4 text-sm text-slate-500">
+                      Sleep bestand hierheen of
+                      <br />
+                      <span className="text-slate-400">klik om te selecteren</span>
+                    </p>
+                    <span className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-2.5 font-medium text-white shadow-sm">
+                      Selecteer Bestanden
+                    </span>
+                    <p className="mt-4 text-xs text-slate-400">Ondersteunde formaten: .xlsx, .xls</p>
+                  </div>
+
+                  <div className="mb-6 rounded-lg bg-gray-50 p-4">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                      <div>
+                        <label className="mb-1 block text-sm font-medium text-gray-700">Van Datum</label>
+                        <input type="date" readOnly className="w-full rounded-lg border border-gray-300 px-3 py-2" />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-sm font-medium text-gray-700">Tot Datum</label>
+                        <input type="date" readOnly className="w-full rounded-lg border border-gray-300 px-3 py-2" />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-sm font-medium text-gray-700">🔍 Zoeken</label>
+                        <input
+                          readOnly
+                          type="text"
+                          placeholder="Zoek case label"
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mb-10 overflow-hidden rounded-lg border border-gray-200 bg-white">
+                    <div className="flex w-full items-center justify-between bg-gray-50 px-4 py-3 text-left">
+                      <div>
+                        <h3 className="font-semibold text-slate-800">Historiek packed items</h3>
+                        <p className="text-sm text-slate-500">0 regel(s), standaard ingeklapt</p>
+                      </div>
+                      <ChevronDown className="h-5 w-5 text-slate-500" />
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

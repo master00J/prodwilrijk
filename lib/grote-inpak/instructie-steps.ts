@@ -19,6 +19,7 @@ export interface InstructieStep {
   tip?: string
   durationMs: number
   highlight?: string
+  highlights?: string[]
 }
 
 export const INSTRUCTIE_STEPS: InstructieStep[] = [
@@ -35,10 +36,10 @@ export const INSTRUCTIE_STEPS: InstructieStep[] = [
     tab: 3,
     title: 'Stap 1 — Packed → XML',
     narration:
-      'Open tab Packed. Onder Concept imports uit mailbox staan de PACKED-bestanden. Controleer de regels en vink Gebruik uit wat niet mee mag. Klik daarna op XML genereren. De XML-bestanden worden gedownload voor Business Central.',
-    tip: 'Vink INDUS Y aan waar het KC-suffix op het itemnummer hoort.',
-    durationMs: 12000,
-    highlight: 'packed-xml-btn',
+      'Open tab Packed. Onder Concept imports uit mailbox staan de PACKED-bestanden. Controleer de regels en vink Gebruik uit wat niet mee mag. Indien nodig pas je het kisttype aan in de kolom Case Type en klik je op Opslaan. Pas daarna op XML genereren. De XML-bestanden worden gedownload voor Business Central.',
+    tip: 'Bij INDUS-bestanden: vink INDUS Y aan waar het KC-suffix op het itemnummer hoort.',
+    durationMs: 16000,
+    highlights: ['packed-case-type', 'packed-opslaan-btn', 'packed-xml-btn'],
   },
   {
     id: 'stock-upload',
@@ -114,4 +115,14 @@ export function instructieSpeechText(step: InstructieStep): string {
   const parts = [step.narration]
   if (step.tip) parts.push(`Tip: ${step.tip}`)
   return parts.join(' ')
+}
+
+/** Scroll-doelen per stap — volgorde = volgorde van acties op het scherm. */
+export function getInstructieScrollTargets(step: InstructieStep): string[] {
+  if (step.highlights?.length) return step.highlights
+  if (step.highlight) return [step.highlight]
+  if (step.tab === 'upload') return ['upload-section']
+  if (step.id === 'intro') return ['instructie-tabs']
+  if (step.tab === 3) return ['packed-concept-imports']
+  return ['instructie-tab-panel']
 }
