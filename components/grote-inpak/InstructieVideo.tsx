@@ -326,10 +326,10 @@ export default function InstructieVideo() {
       if (voiceEnabled) {
         await speakStep(step.id)
         if (cancelled) return
-        await new Promise((r) => setTimeout(r, 1200))
+        await new Promise((r) => window.setTimeout(r, 1200))
       } else {
         await new Promise((r) => {
-          timerRef.current = setTimeout(r, step.durationMs)
+          timerRef.current = window.setTimeout(r, step.durationMs)
         })
       }
       if (cancelled) return
@@ -341,7 +341,7 @@ export default function InstructieVideo() {
 
     return () => {
       cancelled = true
-      if (timerRef.current) clearTimeout(timerRef.current)
+      if (timerRef.current) window.clearTimeout(timerRef.current)
     }
   }, [playing, stepIndex, step.id, step.durationMs, voiceEnabled, goToStep, speakStep])
 
