@@ -194,7 +194,7 @@ export default function InstructieVideo() {
   const [uploadExpanded, setUploadExpanded] = useState(true)
   const [focusedHighlight, setFocusedHighlight] = useState<string | null>(null)
   const [simState, setSimState] = useState<SimState>(INITIAL_SIM_STATE)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const timerRef = useRef<number | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const audioCacheRef = useRef<Map<InstructieStepId, string>>(new Map())
   const speechGenerationRef = useRef(0)
@@ -382,7 +382,7 @@ export default function InstructieVideo() {
 
     const initialScroll = window.setTimeout(() => scrollToAnchor(targets[0]), 220)
 
-    let cycleTimer: ReturnType<typeof setInterval> | undefined
+    let cycleTimer: number | undefined
     if (targets.length > 1 && playing) {
       cycleTimer = window.setInterval(() => {
         highlightIndex = (highlightIndex + 1) % targets.length
