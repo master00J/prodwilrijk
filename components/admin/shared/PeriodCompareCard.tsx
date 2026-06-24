@@ -16,6 +16,7 @@ export interface CompareTotals {
   totalRevenue: number
   totalMaterialCost: number
   totalIncoming: number
+  incomingVsPackedRatio?: number | null
   avgLeadTimeHours: number | null
 }
 
@@ -140,6 +141,11 @@ export default function PeriodCompareCard({
     ? [
         { metric: 'Items', A: totals?.totalItemsPacked ?? 0, B: compareTotals.totalItemsPacked },
         {
+          metric: 'Instroom',
+          A: totals?.totalIncoming ?? 0,
+          B: compareTotals.totalIncoming,
+        },
+        {
           metric: 'Manuren',
           A: Math.round((totals?.totalManHours ?? 0) * 10) / 10,
           B: Math.round(compareTotals.totalManHours * 10) / 10,
@@ -232,6 +238,11 @@ export default function PeriodCompareCard({
               deltaPct={hasCompareData ? pct(totals.totalItemsPacked, compareTotals.totalItemsPacked) : undefined}
             />
             <StatLine
+              label="Goederen binnen"
+              value={totals.totalIncoming.toLocaleString('nl-NL')}
+              deltaPct={hasCompareData ? pct(totals.totalIncoming, compareTotals.totalIncoming) : undefined}
+            />
+            <StatLine
               label="Manuren"
               value={`${totals.totalManHours.toFixed(2)} u`}
               deltaPct={hasCompareData ? pct(totals.totalManHours, compareTotals.totalManHours) : undefined}
@@ -284,6 +295,7 @@ export default function PeriodCompareCard({
                 <p className="text-xs text-gray-500 mb-3 font-mono">{periodBDates}</p>
                 <StatLine label="Dagen met activiteit" value={String(compareTotals.totalDays)} />
                 <StatLine label="Items verpakt" value={compareTotals.totalItemsPacked.toLocaleString('nl-NL')} />
+                <StatLine label="Goederen binnen" value={compareTotals.totalIncoming.toLocaleString('nl-NL')} />
                 <StatLine label="Manuren" value={`${compareTotals.totalManHours.toFixed(2)} u`} />
                 <StatLine label="Omzet" value={formatCurrency(compareTotals.totalRevenue)} />
                 <StatLine label="Materiaalkost" value={formatCurrency(compareTotals.totalMaterialCost)} />

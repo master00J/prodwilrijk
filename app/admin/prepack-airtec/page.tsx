@@ -136,6 +136,26 @@ export default function PrepackAirtecOverviewPage() {
     return `${days.toFixed(1)} dagen`
   }
 
+  const formatNumber = (value: number | null | undefined) => {
+    if (!Number.isFinite(value ?? NaN)) return '-'
+    return Number(value).toLocaleString('nl-NL')
+  }
+
+  const pctChange = (current: number, previous: number): number | null => {
+    if (!previous || !Number.isFinite(previous)) return null
+    return ((current - previous) / previous) * 100
+  }
+
+  const formatSignedNumber = (value: number) => {
+    const sign = value > 0 ? '+' : ''
+    return `${sign}${value.toLocaleString('nl-NL')}`
+  }
+
+  const formatRatio = (incoming: number, packed: number) => {
+    if (packed <= 0) return '—'
+    return `${(incoming / packed).toFixed(2)}×`
+  }
+
   const fetchAll = async () => {
     setLoading(true)
     setError(null)
@@ -254,6 +274,7 @@ export default function PrepackAirtecOverviewPage() {
       totalRevenue,
       totalMaterialCost: totalMaterial,
       totalIncoming,
+      incomingVsPackedRatio: totalItems > 0 ? Number((totalIncoming / totalItems).toFixed(2)) : null,
       avgLeadTimeHours,
     }
   }
@@ -320,6 +341,7 @@ export default function PrepackAirtecOverviewPage() {
         date: formatDate(row.date),
         rawDate: row.date,
         itemsPacked: row.itemsPacked,
+        incomingItems: row.incomingItems,
         manHours: row.manHours,
         revenue: row.revenue,
         materialCost: row.materialCost,
@@ -333,12 +355,93 @@ export default function PrepackAirtecOverviewPage() {
         date: formatDate(row.date),
         rawDate: row.date,
         itemsPacked: row.itemsPacked,
+        incomingItems: row.incomingItems,
         manHours: row.manHours,
         revenue: row.revenue,
         materialCost: row.materialCost,
       })),
     [airtecDaily]
   )
+
+  const incomingCompareRows = useMemo(() => {
+    if (!compareEnabled || !prepackTotals || !airtecTotals) return []
+    const rows = [
+      {
+        label: 'Totaal (Prepack + Airtec)',
+        current: (prepackTotals.totalIncoming ?? 0) + (airtecTotals.totalIncoming ?? 0),
+        compare: (comparePrepackTotals?.totalIncoming ?? 0) + (compareAirtecTotals?.totalIncoming ?? 0),
+      },
+      {
+        label: 'Prepack',
+        current: prepackTotals.totalIncoming ?? 0,
+        compare: comparePrepackTotals?.totalIncoming ?? 0,
+      },
+      {
+        label: 'Airtec',
+        current: airtecTotals.totalIncoming ?? 0,
+        compare: compareAirtecTotals?.totalIncoming ?? 0,
+      },
+    ]
+    return rows.map((row) => ({
+      ...row,
+      diff: row.current - row.compare,
+      pct: pctChange(row.current, row.compare),
+    }))
+  }, [
+    compareEnabled,
+    prepackTotals,
+    airtecTotals,
+    comparePrepackTotals,
+    compareAirtecTotals,
+  ])
+
+  const incomingFlowChartData = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        date: string
+        prepackIncoming: number
+        airtecIncoming: number
+        prepackPacked: number
+        airtecPacked: number
+      }
+    >()
+
+    for (const row of prepackDaily) {
+      const d = formatDate(row.date)
+      const existing = map.get(d) ?? {
+        date: d,
+        prepackIncoming: 0,
+        airtecIncoming: 0,
+        prepackPacked: 0,
+        airtecPacked: 0,
+      }
+      existing.prepackIncoming += row.incomingItems
+      existing.prepackPacked += row.itemsPacked
+      map.set(d, existing)
+    }
+    for (const row of airtecDaily) {
+      const d = formatDate(row.date)
+      const existing = map.get(d) ?? {
+        date: d,
+        prepackIncoming: 0,
+        airtecIncoming: 0,
+        prepackPacked: 0,
+        airtecPacked: 0,
+      }
+      existing.airtecIncoming += row.incomingItems
+      existing.airtecPacked += row.itemsPacked
+      map.set(d, existing)
+    }
+
+    return Array.from(map.values())
+      .map((row) => ({
+        ...row,
+        totalIncoming: row.prepackIncoming + row.airtecIncoming,
+        totalPacked: row.prepackPacked + row.airtecPacked,
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date))
+  }, [prepackDaily, airtecDaily])
 
   // Gecombineerde grafiek: merge prepack + airtec per datum
   const combinedChartData = useMemo(() => {
@@ -497,6 +600,129 @@ export default function PrepackAirtecOverviewPage() {
         </div>
       )}
 
+      {(prepackTotals || airtecTotals) && (
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+            <div>
+              <h2 className="text-xl font-semibold">Goederen binnen</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Aantal items dat in de geselecteerde periode is binnengekomen (Prepack:{' '}
+                <span className="font-medium">items_to_pack</span>, Airtec:{' '}
+                <span className="font-medium">ontvangstdatum</span>).
+              </p>
+            </div>
+            <span className="text-xs text-gray-500 font-mono">
+              {dateFrom} → {dateTo}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+            <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-sky-700">Totaal instroom</div>
+              <div className="text-2xl font-bold text-sky-950 mt-1">
+                {formatNumber((prepackTotals?.totalIncoming ?? 0) + (airtecTotals?.totalIncoming ?? 0))}
+              </div>
+              <div className="text-xs text-sky-800 mt-1">
+                Ratio instroom/verpakt:{' '}
+                {formatRatio(
+                  (prepackTotals?.totalIncoming ?? 0) + (airtecTotals?.totalIncoming ?? 0),
+                  (prepackTotals?.totalItemsPacked ?? 0) + (airtecTotals?.totalItemsPacked ?? 0)
+                )}
+              </div>
+            </div>
+            <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Prepack</div>
+              <div className="text-2xl font-bold text-indigo-950 mt-1">
+                {formatNumber(prepackTotals?.totalIncoming)}
+              </div>
+              <div className="text-xs text-indigo-800 mt-1">
+                Verpakt: {formatNumber(prepackTotals?.totalItemsPacked)} · Ratio{' '}
+                {prepackTotals
+                  ? formatRatio(prepackTotals.totalIncoming, prepackTotals.totalItemsPacked)
+                  : '—'}
+              </div>
+            </div>
+            <div className="rounded-xl border border-purple-200 bg-purple-50 px-4 py-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-purple-700">Airtec</div>
+              <div className="text-2xl font-bold text-purple-950 mt-1">
+                {formatNumber(airtecTotals?.totalIncoming)}
+              </div>
+              <div className="text-xs text-purple-800 mt-1">
+                Verpakt: {formatNumber(airtecTotals?.totalItemsPacked)} · Ratio{' '}
+                {airtecTotals ? formatRatio(airtecTotals.totalIncoming, airtecTotals.totalItemsPacked) : '—'}
+              </div>
+            </div>
+          </div>
+
+          {compareEnabled && incomingCompareRows.length > 0 && (
+            <div className="mb-6 overflow-x-auto rounded-xl border border-gray-200">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold">Flow</th>
+                    <th className="px-4 py-3 text-right font-semibold">Periode A</th>
+                    <th className="px-4 py-3 text-right font-semibold">Periode B</th>
+                    <th className="px-4 py-3 text-right font-semibold">Verschil</th>
+                    <th className="px-4 py-3 text-right font-semibold">% wijziging</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 bg-white">
+                  {incomingCompareRows.map((row) => (
+                    <tr key={row.label}>
+                      <td className="px-4 py-3 font-medium text-gray-800">{row.label}</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{formatNumber(row.current)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{formatNumber(row.compare)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{formatSignedNumber(row.diff)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums">
+                        {row.pct != null ? `${row.pct > 0 ? '+' : ''}${row.pct.toFixed(1)}%` : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="px-4 py-2 text-xs text-gray-500 border-t border-gray-100">
+                Periode A: {dateFrom} → {dateTo} · Periode B: {compareFrom} → {compareTo}
+              </p>
+            </div>
+          )}
+
+          <h3 className="text-sm font-semibold mb-2">Instroom vs verpakt per dag</h3>
+          <div className="h-72">
+            {incomingFlowChartData.length === 0 ? (
+              <p className="text-sm text-gray-500">Geen instroomdata voor deze periode.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={incomingFlowChartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="totalIncoming"
+                    name="Goederen binnen (totaal)"
+                    stroke="#0ea5e9"
+                    strokeWidth={2.5}
+                    dot={{ r: 3 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="totalPacked"
+                    name="Items verpakt (totaal)"
+                    stroke="#2563eb"
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                  />
+                  <Bar dataKey="prepackIncoming" name="Instroom Prepack" fill="#6366f1" opacity={0.35} />
+                  <Bar dataKey="airtecIncoming" name="Instroom Airtec" fill="#a855f7" opacity={0.35} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-4">
@@ -522,7 +748,8 @@ export default function PrepackAirtecOverviewPage() {
               <thead className="bg-gray-100">
                 <tr>
                   <th className="px-3 py-2 text-left">Datum</th>
-                  <th className="px-3 py-2 text-left">Items</th>
+                  <th className="px-3 py-2 text-left">Binnen</th>
+                  <th className="px-3 py-2 text-left">Verpakt</th>
                   <th className="px-3 py-2 text-left">Omzet</th>
                   <th className="px-3 py-2 text-left">Materiaalkost</th>
                 </tr>
@@ -531,14 +758,15 @@ export default function PrepackAirtecOverviewPage() {
                 {prepackDaily.map((row) => (
                   <tr key={row.date} className="border-b">
                     <td className="px-3 py-2">{formatDate(row.date)}</td>
-                    <td className="px-3 py-2">{row.itemsPacked}</td>
+                    <td className="px-3 py-2 tabular-nums">{row.incomingItems}</td>
+                    <td className="px-3 py-2 tabular-nums">{row.itemsPacked}</td>
                     <td className="px-3 py-2">{formatCurrency(row.revenue)}</td>
                     <td className="px-3 py-2">{formatCurrency(row.materialCost)}</td>
                   </tr>
                 ))}
                 {prepackDaily.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-3 py-3 text-gray-500 text-center">
+                    <td colSpan={5} className="px-3 py-3 text-gray-500 text-center">
                       Geen data voor deze periode.
                     </td>
                   </tr>
@@ -560,7 +788,8 @@ export default function PrepackAirtecOverviewPage() {
                   <YAxis yAxisId="money" orientation="right" tick={{ fontSize: 11 }} tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`} label={{ value: '€', angle: 90, position: 'insideRight', offset: 10, style: { fontSize: 10 } }} />
                   <Tooltip formatter={(value, name) => name === 'Omzet' || name === 'Materiaalkost' ? [`€${Number(value).toLocaleString('nl-NL', { minimumFractionDigits: 2 })}`, name] : [value, name]} />
                   <Legend />
-                  <Bar  yAxisId="items" dataKey="itemsPacked" name="Items"         fill="#2563eb" opacity={0.85} />
+                  <Bar  yAxisId="items" dataKey="itemsPacked" name="Verpakt"         fill="#2563eb" opacity={0.85} />
+                  <Line yAxisId="items" dataKey="incomingItems" name="Binnen"       stroke="#0ea5e9" strokeWidth={2} dot={{ r: 3 }} />
                   <Line yAxisId="items" dataKey="manHours"    name="Manuren"        stroke="#06b6d4" strokeWidth={2} dot={{ r: 3 }} />
                   <Line yAxisId="money" dataKey="revenue"     name="Omzet"          stroke="#16a34a" strokeWidth={2} dot={{ r: 3 }} />
                   <Line yAxisId="money" dataKey="materialCost" name="Materiaalkost" stroke="#f97316" strokeWidth={2} dot={{ r: 3 }} />
@@ -594,7 +823,8 @@ export default function PrepackAirtecOverviewPage() {
               <thead className="bg-gray-100">
                 <tr>
                   <th className="px-3 py-2 text-left">Datum</th>
-                  <th className="px-3 py-2 text-left">Items</th>
+                  <th className="px-3 py-2 text-left">Binnen</th>
+                  <th className="px-3 py-2 text-left">Verpakt</th>
                   <th className="px-3 py-2 text-left">Omzet</th>
                 </tr>
               </thead>
@@ -602,13 +832,14 @@ export default function PrepackAirtecOverviewPage() {
                 {airtecDaily.map((row) => (
                   <tr key={row.date} className="border-b">
                     <td className="px-3 py-2">{formatDate(row.date)}</td>
-                    <td className="px-3 py-2">{row.itemsPacked}</td>
+                    <td className="px-3 py-2 tabular-nums">{row.incomingItems}</td>
+                    <td className="px-3 py-2 tabular-nums">{row.itemsPacked}</td>
                     <td className="px-3 py-2">{formatCurrency(row.revenue)}</td>
                   </tr>
                 ))}
                 {airtecDaily.length === 0 && (
                   <tr>
-                    <td colSpan={3} className="px-3 py-3 text-gray-500 text-center">
+                    <td colSpan={4} className="px-3 py-3 text-gray-500 text-center">
                       Geen data voor deze periode.
                     </td>
                   </tr>
@@ -630,7 +861,8 @@ export default function PrepackAirtecOverviewPage() {
                   <YAxis yAxisId="money" orientation="right" tick={{ fontSize: 11 }} tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`} label={{ value: '€', angle: 90, position: 'insideRight', offset: 10, style: { fontSize: 10 } }} />
                   <Tooltip formatter={(value, name) => name === 'Omzet' || name === 'Materiaalkost' ? [`€${Number(value).toLocaleString('nl-NL', { minimumFractionDigits: 2 })}`, name] : [value, name]} />
                   <Legend />
-                  <Bar  yAxisId="items" dataKey="itemsPacked" name="Items"         fill="#7c3aed" opacity={0.85} />
+                  <Bar  yAxisId="items" dataKey="itemsPacked" name="Verpakt"         fill="#7c3aed" opacity={0.85} />
+                  <Line yAxisId="items" dataKey="incomingItems" name="Binnen"       stroke="#0ea5e9" strokeWidth={2} dot={{ r: 3 }} />
                   <Line yAxisId="items" dataKey="manHours"    name="Manuren"        stroke="#06b6d4" strokeWidth={2} dot={{ r: 3 }} />
                   <Line yAxisId="money" dataKey="revenue"     name="Omzet"          stroke="#16a34a" strokeWidth={2} dot={{ r: 3 }} />
                   <Line yAxisId="money" dataKey="materialCost" name="Materiaalkost" stroke="#f97316" strokeWidth={2} dot={{ r: 3 }} />
