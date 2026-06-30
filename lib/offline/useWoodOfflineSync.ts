@@ -11,9 +11,11 @@ import {
   patchCachedStock,
   removeCachedStock,
   removeOutbox,
+  resetAuthErrorOutboxItems,
   updateOutbox,
   type OutboxItem,
 } from './woodOfflineDb'
+import { supabase } from '@/lib/supabase/client'
 
 interface SyncState {
   online: boolean
@@ -31,10 +33,43 @@ const INITIAL_STATE: SyncState = {
   errors: 0,
 }
 
-async function sendOutboxItem(item: OutboxItem): Promise<{ ok: boolean; error?: string; fatal?: boolean }> {
+const FETCH_INIT: RequestInit = { credentials: 'include' }
+
+function isAuthHttpStatus(status: number): boolean {
+  return status === 401 || status === 403
+}
+
+async function ensureSessionCookie(): Promise<boolean> {
+  try {
+    let res = await fetch('/api/auth/me', { ...FETCH_INIT, cache: 'no-store' })
+    if (res.ok) return true
+    if (res.status !== 401) return false
+
+    const { data } = await supabase.auth.refreshSession()
+    const token = data.session?.access_token
+    if (!token) return false
+
+    await fetch('/api/auth/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ access_token: token }),
+    })
+
+    res = await fetch('/api/auth/me', { ...FETCH_INIT, cache: 'no-store' })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
+async function sendOutboxItem(
+  item: OutboxItem
+): Promise<{ ok: boolean; error?: string; fatal?: boolean; authError?: boolean }> {
   try {
     if (item.kind === 'pick') {
       const res = await fetch('/api/wood/pick', {
+        ...FETCH_INIT,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -45,12 +80,14 @@ async function sendOutboxItem(item: OutboxItem): Promise<{ ok: boolean; error?: 
       })
       if (res.ok) return { ok: true }
       const body = await res.json().catch(() => ({} as any))
+      const authError = isAuthHttpStatus(res.status)
       // 404 / 400 zijn "fataal" — dit item gaat nooit alsnog slagen
-      const fatal = res.status === 404 || res.status === 400
-      return { ok: false, error: body?.error || `HTTP ${res.status}`, fatal }
+      const fatal = !authError && (res.status === 404 || res.status === 400)
+      return { ok: false, error: body?.error || `HTTP ${res.status}`, fatal, authError }
     }
     if (item.kind === 'count') {
       const res = await fetch('/api/wood/count', {
+        ...FETCH_INIT,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -65,19 +102,22 @@ async function sendOutboxItem(item: OutboxItem): Promise<{ ok: boolean; error?: 
       })
       if (res.ok) return { ok: true }
       const body = await res.json().catch(() => ({} as any))
-      const fatal = res.status === 400
-      return { ok: false, error: body?.error || `HTTP ${res.status}`, fatal }
+      const authError = isAuthHttpStatus(res.status)
+      const fatal = !authError && res.status === 400
+      return { ok: false, error: body?.error || `HTTP ${res.status}`, fatal, authError }
     }
     if (item.kind === 'edit') {
       const res = await fetch('/api/wood/stock', {
+        ...FETCH_INIT,
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: item.stock_id, ...(item.patch || {}) }),
       })
       if (res.ok) return { ok: true }
       const body = await res.json().catch(() => ({} as any))
-      const fatal = res.status === 404 || res.status === 400
-      return { ok: false, error: body?.error || `HTTP ${res.status}`, fatal }
+      const authError = isAuthHttpStatus(res.status)
+      const fatal = !authError && (res.status === 404 || res.status === 400)
+      return { ok: false, error: body?.error || `HTTP ${res.status}`, fatal, authError }
     }
     return { ok: false, error: `Onbekend type ${item.kind}`, fatal: true }
   } catch (err) {
@@ -130,12 +170,17 @@ export function useWoodOfflineSync({ fetchStock, onChange }: UseWoodOfflineSyncO
     }
   }, [fetchStock, refreshPending])
 
-  const syncOutbox = useCallback(async () => {
+  const syncOutbox = useCallback(async (options?: { retryAuthErrors?: boolean }) => {
     if (syncInFlightRef.current) return
     if (typeof navigator !== 'undefined' && !navigator.onLine) return
     syncInFlightRef.current = true
     setState((s) => ({ ...s, syncing: true }))
     try {
+      if (options?.retryAuthErrors) {
+        await resetAuthErrorOutboxItems()
+      }
+      await ensureSessionCookie()
+
       const ob = await getOutbox()
       for (const item of ob) {
         if (item.status === 'error') continue // wachten op handmatig actie
@@ -146,18 +191,22 @@ export function useWoodOfflineSync({ fetchStock, onChange }: UseWoodOfflineSyncO
         const result = await sendOutboxItem(item)
         if (result.ok) {
           await removeOutbox(item.clientId)
+        } else if (result.authError) {
+          // Sessie verlopen: blijf pending zodat opnieuw inloggen + sync kan helpen
+          await updateOutbox(item.clientId, {
+            status: 'pending',
+            last_error: result.error || 'Niet ingelogd',
+          })
+        } else if (result.fatal || item.attempts + 1 >= 5) {
+          await updateOutbox(item.clientId, {
+            status: 'error',
+            last_error: result.error || 'Onbekende fout',
+          })
         } else {
-          if (result.fatal || item.attempts + 1 >= 5) {
-            await updateOutbox(item.clientId, {
-              status: 'error',
-              last_error: result.error || 'Onbekende fout',
-            })
-          } else {
-            await updateOutbox(item.clientId, {
-              status: 'pending',
-              last_error: result.error || null,
-            })
-          }
+          await updateOutbox(item.clientId, {
+            status: 'pending',
+            last_error: result.error || null,
+          })
         }
       }
     } finally {
@@ -168,11 +217,17 @@ export function useWoodOfflineSync({ fetchStock, onChange }: UseWoodOfflineSyncO
   }, [refreshPending])
 
   const fullSync = useCallback(async () => {
-    await syncOutbox()
+    await syncOutbox({ retryAuthErrors: true })
     if (typeof navigator !== 'undefined' && navigator.onLine) {
       await refetchFromServer()
     }
   }, [refetchFromServer, syncOutbox])
+
+  const retryAuthErrors = useCallback(async () => {
+    await resetAuthErrorOutboxItems()
+    await syncOutbox({ retryAuthErrors: true })
+    await refreshPending()
+  }, [refreshPending, syncOutbox])
 
   // Init
   useEffect(() => {
@@ -209,11 +264,22 @@ export function useWoodOfflineSync({ fetchStock, onChange }: UseWoodOfflineSyncO
   useEffect(() => {
     const id = window.setInterval(async () => {
       if (typeof navigator !== 'undefined' && navigator.onLine) {
-        const n = await countOutbox()
-        if (n > 0) void syncOutbox()
+        const ob = await getOutbox()
+        const hasWork = ob.some((item) => item.status === 'pending' || item.status === 'syncing')
+        if (hasWork) void syncOutbox()
       }
     }, 10_000)
     return () => window.clearInterval(id)
+  }, [syncOutbox])
+
+  // Na opnieuw inloggen: auth-fouten opnieuw proberen
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        void syncOutbox({ retryAuthErrors: true })
+      }
+    })
+    return () => sub.subscription.unsubscribe()
   }, [syncOutbox])
 
   // Helpers die de lokale cache bijwerken. Gebruik deze vanuit de UI.
@@ -268,6 +334,7 @@ export function useWoodOfflineSync({ fetchStock, onChange }: UseWoodOfflineSyncO
     refetchFromServer,
     syncOutbox,
     fullSync,
+    retryAuthErrors,
     applyLocalPick,
     applyLocalCount,
     applyLocalEdit,

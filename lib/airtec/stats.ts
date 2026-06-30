@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { toLocalDateKey } from '@/lib/utils/periodPresets'
 import { calculateWorkedSeconds } from '@/lib/utils/time'
 import { calculateProportionFactor, groupLogsByEmployee } from '@/lib/utils/overlap-time'
 
@@ -83,14 +84,6 @@ const toStartOfDay = (value: Date) => {
   return date
 }
 
-const toDateKey = (value: unknown) => {
-  const date = new Date(value as string)
-  if (!Number.isFinite(date.getTime())) {
-    return null
-  }
-  return date.toISOString().split('T')[0]
-}
-
 const fetchAllRows = async <T,>(
   buildQuery: (from: number, to: number) => Promise<{ data: T[] | null; error: any }>
 ) => {
@@ -154,43 +147,44 @@ export async function fetchAirtecStats({
       ? Math.ceil((toDate.getTime() - fromDate.getTime()) / 86400000)
       : 0
   const skipDetails = !includeDetails || (rangeDays > maxDetailsDays && includeDetails)
+  const fromValue = dateFrom ? `${dateFrom} 00:00:00` : null
+  const toValue = dateTo ? `${dateTo} 23:59:59` : null
+
   const packedItems = await fetchAllRows<any>(async (from, to) => {
     let packedQuery = supabaseAdmin.from('packed_items_airtec').select('*').range(from, to)
-
-    if (dateFrom) {
-      const fromDate = new Date(dateFrom)
-      fromDate.setHours(0, 0, 0, 0)
-      packedQuery = packedQuery.gte('date_packed', fromDate.toISOString())
-    }
-
-    if (dateTo) {
-      const toDate = new Date(dateTo)
-      toDate.setHours(23, 59, 59, 999)
-      packedQuery = packedQuery.lte('date_packed', toDate.toISOString())
-    }
-
+    if (fromValue) packedQuery = packedQuery.gte('date_packed', fromValue)
+    if (toValue) packedQuery = packedQuery.lte('date_packed', toValue)
     return await packedQuery
   })
 
-  const incomingItems = await fetchAllRows<any>(async (from, to) => {
-    let incomingQuery = supabaseAdmin
+  const incomingGoods = await fetchAllRows<any>(async (from, to) => {
+    let query = supabaseAdmin
+      .from('incoming_goods_airtec')
+      .select('quantity, datum_ontvangen')
+      .range(from, to)
+    if (fromValue) query = query.gte('datum_ontvangen', fromValue)
+    if (toValue) query = query.lte('datum_ontvangen', toValue)
+    return await query
+  })
+
+  const incomingQueue = await fetchAllRows<any>(async (from, to) => {
+    let query = supabaseAdmin
+      .from('items_to_pack_airtec')
+      .select('quantity, datum_ontvangen')
+      .range(from, to)
+    if (fromValue) query = query.gte('datum_ontvangen', fromValue)
+    if (toValue) query = query.lte('datum_ontvangen', toValue)
+    return await query
+  })
+
+  const incomingPacked = await fetchAllRows<any>(async (from, to) => {
+    let query = supabaseAdmin
       .from('packed_items_airtec')
       .select('quantity, datum_ontvangen')
       .range(from, to)
-
-    if (dateFrom) {
-      const fromDate = new Date(dateFrom)
-      fromDate.setHours(0, 0, 0, 0)
-      incomingQuery = incomingQuery.gte('datum_ontvangen', fromDate.toISOString())
-    }
-
-    if (dateTo) {
-      const toDate = new Date(dateTo)
-      toDate.setHours(23, 59, 59, 999)
-      incomingQuery = incomingQuery.lte('datum_ontvangen', toDate.toISOString())
-    }
-
-    return await incomingQuery
+    if (fromValue) query = query.gte('datum_ontvangen', fromValue)
+    if (toValue) query = query.lte('datum_ontvangen', toValue)
+    return await query
   })
 
 
@@ -210,18 +204,8 @@ export async function fetchAirtecStats({
       .eq('type', 'items_to_pack_airtec')
       .range(from, to)
 
-    if (dateFrom) {
-      const fromDate = new Date(dateFrom)
-      fromDate.setHours(0, 0, 0, 0)
-      timeLogsQuery = timeLogsQuery.gte('start_time', fromDate.toISOString())
-    }
-
-    if (dateTo) {
-      const toDate = new Date(dateTo)
-      toDate.setHours(23, 59, 59, 999)
-      timeLogsQuery = timeLogsQuery.lte('start_time', toDate.toISOString())
-    }
-
+    if (fromValue) timeLogsQuery = timeLogsQuery.gte('start_time', fromValue)
+    if (toValue) timeLogsQuery = timeLogsQuery.lte('start_time', toValue)
     return await timeLogsQuery
   })
 
@@ -232,16 +216,8 @@ export async function fetchAirtecStats({
       .select('id, employee_id, start_time, end_time')
       .eq('type', 'items_to_pack')
       .range(from, to)
-    if (dateFrom) {
-      const fromDate = new Date(dateFrom)
-      fromDate.setHours(0, 0, 0, 0)
-      query = query.gte('start_time', fromDate.toISOString())
-    }
-    if (dateTo) {
-      const toDate = new Date(dateTo)
-      toDate.setHours(23, 59, 59, 999)
-      query = query.lte('start_time', toDate.toISOString())
-    }
+    if (fromValue) query = query.gte('start_time', fromValue)
+    if (toValue) query = query.lte('start_time', toValue)
     return await query
   })
 
@@ -257,7 +233,7 @@ export async function fetchAirtecStats({
 
   const items = packedItems || []
   const logs = (timeLogs || []).map(normalizeLog)
-  const incoming = incomingItems || []
+  const incoming = [...(incomingGoods || []), ...(incomingQueue || []), ...(incomingPacked || [])]
 
   const uniqueKistnummers = [
     ...new Set(items.map((item: any) => normalizeKistnummer(item.kistnummer)).filter(Boolean)),
@@ -299,7 +275,7 @@ export async function fetchAirtecStats({
   > = {}
 
   items.forEach((item: any) => {
-    const date = toDateKey(item.date_packed) || toDateKey(item.datum_ontvangen)
+    const date = toLocalDateKey(item.date_packed) || toLocalDateKey(item.datum_ontvangen)
     if (!date) return
     if (!dailyStats[date]) {
       dailyStats[date] = {
@@ -329,7 +305,8 @@ export async function fetchAirtecStats({
       if (!Number.isFinite(startTime.getTime()) || !Number.isFinite(endTime.getTime())) {
         return
       }
-      const date = startTime.toISOString().split('T')[0]
+      const date = toLocalDateKey(log.start_time)
+      if (!date) return
 
       const rawSeconds = calculateWorkedSeconds(startTime, endTime)
       const factor = calculateProportionFactor(
@@ -358,7 +335,7 @@ export async function fetchAirtecStats({
   })
 
   incoming.forEach((item: any) => {
-    const date = toDateKey(item.datum_ontvangen)
+    const date = toLocalDateKey(item.datum_ontvangen)
     if (!date) return
     if (!dailyStats[date]) {
       dailyStats[date] = {

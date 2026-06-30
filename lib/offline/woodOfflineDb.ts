@@ -220,3 +220,36 @@ export async function clearOutbox(): Promise<void> {
     await reqToPromise(s[STORE_OUTBOX].clear())
   })
 }
+
+const AUTH_ERROR_MARKERS = [
+  'niet ingelogd',
+  'ongeldige',
+  'verlopen sessie',
+  'geverifieerd',
+  'http 401',
+  'http 403',
+] as const
+
+export function isAuthRelatedOutboxError(lastError?: string | null): boolean {
+  if (!lastError) return false
+  const msg = lastError.toLowerCase()
+  return AUTH_ERROR_MARKERS.some((marker) => msg.includes(marker))
+}
+
+/** Zet auth-gerelateerde fouten terug naar pending zodat sync na opnieuw inloggen kan slagen. */
+export async function resetAuthErrorOutboxItems(): Promise<number> {
+  if (!hasIdb()) return 0
+  const ob = await getOutbox()
+  let reset = 0
+  for (const item of ob) {
+    if (item.status === 'error' && isAuthRelatedOutboxError(item.last_error)) {
+      await updateOutbox(item.clientId, {
+        status: 'pending',
+        attempts: 0,
+        last_error: null,
+      })
+      reset += 1
+    }
+  }
+  return reset
+}

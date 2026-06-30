@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { OutboxItem } from '@/lib/offline/woodOfflineDb'
-import { getOutbox, removeOutbox } from '@/lib/offline/woodOfflineDb'
+import { getOutbox, isAuthRelatedOutboxError, removeOutbox, updateOutbox } from '@/lib/offline/woodOfflineDb'
 
 interface OfflineStatusBannerProps {
   online: boolean
@@ -11,6 +11,7 @@ interface OfflineStatusBannerProps {
   lastSync: string | null
   errors: number
   onManualSync: () => void | Promise<void>
+  onRetryAuthErrors?: () => void | Promise<void>
 }
 
 export default function OfflineStatusBanner({
@@ -20,12 +21,16 @@ export default function OfflineStatusBanner({
   lastSync,
   errors,
   onManualSync,
+  onRetryAuthErrors,
 }: OfflineStatusBannerProps) {
   const [showDetails, setShowDetails] = useState(false)
   const [items, setItems] = useState<OutboxItem[]>([])
 
+  const authErrorCount = items.filter(
+    (it) => it.status === 'error' && isAuthRelatedOutboxError(it.last_error)
+  ).length
+
   useEffect(() => {
-    if (!showDetails) return
     let cancelled = false
     void getOutbox().then((ob) => {
       if (!cancelled) setItems(ob)
@@ -33,7 +38,7 @@ export default function OfflineStatusBanner({
     return () => {
       cancelled = true
     }
-  }, [showDetails, pending, syncing])
+  }, [pending, syncing, errors, showDetails])
 
   const bgClass = !online
     ? 'bg-red-50 border-red-200 text-red-800'
@@ -48,7 +53,7 @@ export default function OfflineStatusBanner({
     : syncing
     ? `Synchroniseren (${pending} in wachtrij)...`
     : errors > 0
-    ? `${errors} item(s) met fout`
+    ? `${errors} item(s) met fout${authErrorCount > 0 ? ' (sessie verlopen?)' : ''}`
     : pending > 0
     ? `${pending} wijziging(en) in wachtrij`
     : 'Alles gesynchroniseerd'
@@ -87,6 +92,16 @@ export default function OfflineStatusBanner({
               {showDetails ? 'Verbergen' : 'Details'}
             </button>
           )}
+          {errors > 0 && onRetryAuthErrors && (
+            <button
+              type="button"
+              onClick={() => void onRetryAuthErrors()}
+              disabled={!online || syncing}
+              className="text-xs px-3 py-1 rounded-full bg-white border border-current disabled:opacity-50"
+            >
+              Opnieuw proberen
+            </button>
+          )}
           <button
             type="button"
             onClick={() => void onManualSync()}
@@ -123,18 +138,38 @@ export default function OfflineStatusBanner({
                   <td className="py-1 pr-3 text-red-700">{it.last_error || ''}</td>
                   <td className="py-1">
                     {it.status === 'error' && (
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (confirm('Deze gefaalde wijziging verwijderen uit de wachtrij?')) {
-                            await removeOutbox(it.clientId)
-                            setItems((prev) => prev.filter((x) => x.clientId !== it.clientId))
-                          }
-                        }}
-                        className="text-red-700 underline"
-                      >
-                        verwijder
-                      </button>
+                      <div className="flex flex-col gap-1">
+                        {isAuthRelatedOutboxError(it.last_error) && onRetryAuthErrors && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await updateOutbox(it.clientId, {
+                                status: 'pending',
+                                attempts: 0,
+                                last_error: null,
+                              })
+                              await onRetryAuthErrors()
+                              const ob = await getOutbox()
+                              setItems(ob)
+                            }}
+                            className="text-indigo-700 underline"
+                          >
+                            opnieuw
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (confirm('Deze gefaalde wijziging verwijderen uit de wachtrij?')) {
+                              await removeOutbox(it.clientId)
+                              setItems((prev) => prev.filter((x) => x.clientId !== it.clientId))
+                            }
+                          }}
+                          className="text-red-700 underline"
+                        >
+                          verwijder
+                        </button>
+                      </div>
                     )}
                   </td>
                 </tr>

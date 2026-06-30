@@ -1,6 +1,7 @@
 import { sanitizePostgrestOrValue } from '@/lib/api/postgrest-filter'
 import { salesOrdersSupportsUnitCost } from '@/lib/prepack/sales-orders-schema'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { toLocalDateKey } from '@/lib/utils/periodPresets'
 import { calculateWorkedSeconds } from '@/lib/utils/time'
 import { calculateProportionFactor, groupLogsByEmployee } from '@/lib/utils/overlap-time'
 
@@ -174,14 +175,6 @@ const getExpectedHoursForDay = (dateValue: string) => {
   if (day === 5) return 7
   if (day === 0 || day === 6) return 0
   return 8
-}
-
-const toDateKey = (value: unknown) => {
-  const date = new Date(value as string)
-  if (!Number.isFinite(date.getTime())) {
-    return null
-  }
-  return date.toISOString().split('T')[0]
 }
 
 /** Extraheert itemnummer tussen haakjes aan het einde van de beschrijving (bv. "KIST ... (8092373403)") */
@@ -612,7 +605,8 @@ export async function fetchPrepackStats({
   > = {}
 
   items.forEach((item: any) => {
-    const date = new Date(item.date_packed).toISOString().split('T')[0]
+    const date = toLocalDateKey(item.date_packed)
+    if (!date) return
     if (!dailyStats[date]) {
       dailyStats[date] = {
         date,
@@ -638,7 +632,8 @@ export async function fetchPrepackStats({
     if (log.start_time) {
       const startTime = new Date(log.start_time)
       const endTime = new Date(log.end_time)
-      const date = startTime.toISOString().split('T')[0]
+      const date = toLocalDateKey(log.start_time)
+      if (!date) return
 
       const rawSeconds = calculateWorkedSeconds(startTime, endTime)
       const factor = calculateProportionFactor(
@@ -667,7 +662,7 @@ export async function fetchPrepackStats({
   })
 
   incoming.forEach((item: any) => {
-    const date = toDateKey(item.date_added) || toDateKey(item.date_packed)
+    const date = toLocalDateKey(item.date_added) || toLocalDateKey(item.date_packed)
     if (!date) return
     if (!dailyStats[date]) {
       dailyStats[date] = {

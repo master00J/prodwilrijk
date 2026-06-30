@@ -22,6 +22,13 @@ export function toDateInput(date: Date): string {
   return `${year}-${month}-${day}`
 }
 
+/** Zet een timestamp om naar YYYY-MM-DD in lokale tijd (niet UTC). */
+export function toLocalDateKey(value: unknown): string | null {
+  const date = new Date(value as string)
+  if (!Number.isFinite(date.getTime())) return null
+  return toDateInput(date)
+}
+
 export function startOfIsoWeek(date: Date): Date {
   const d = new Date(date)
   const day = (d.getDay() + 6) % 7

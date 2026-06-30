@@ -7,7 +7,7 @@ import { enqueueOutbox } from '@/lib/offline/woodOfflineDb'
 import OfflineStatusBanner from '@/components/offline/OfflineStatusBanner'
 
 async function fetchStockFromServer(): Promise<WoodStock[]> {
-  const response = await fetch('/api/wood/stock', { cache: 'no-store' })
+  const response = await fetch('/api/wood/stock', { cache: 'no-store', credentials: 'include' })
   if (!response.ok) throw new Error('Failed to fetch stock')
   return response.json()
 }
@@ -19,6 +19,7 @@ export default function WoodPickingPage() {
     loading,
     refetchFromServer,
     fullSync,
+    retryAuthErrors,
     applyLocalPick,
   } = useWoodOfflineSync({ fetchStock: fetchStockFromServer })
 
@@ -224,6 +225,7 @@ export default function WoodPickingPage() {
           lastSync={state.lastSync}
           errors={state.errors}
           onManualSync={fullSync}
+          onRetryAuthErrors={retryAuthErrors}
         />
       </div>
 

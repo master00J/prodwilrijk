@@ -19,6 +19,7 @@ import PeriodCompareCard, { type CompareTotals } from '@/components/admin/shared
 import {
   getComparePreset,
   getPreviousPeriodRange,
+  toDateInput,
   type ComparePresetKey,
 } from '@/lib/utils/periodPresets'
 
@@ -112,14 +113,16 @@ export default function PrepackAirtecOverviewPage() {
   const [compareTo, setCompareTo] = useState('')
   const [comparePrepackTotals, setComparePrepackTotals] = useState<PrepackTotals | null>(null)
   const [compareAirtecTotals, setCompareAirtecTotals] = useState<AirtecTotals | null>(null)
+  const [comparePrepackDaily, setComparePrepackDaily] = useState<PrepackDailyStat[]>([])
+  const [compareAirtecDaily, setCompareAirtecDaily] = useState<AirtecDailyStat[]>([])
   const [compareLoading, setCompareLoading] = useState(false)
 
   useEffect(() => {
     const today = new Date()
     const lastWeek = new Date(today)
     lastWeek.setDate(today.getDate() - 7)
-    setDateTo(today.toISOString().split('T')[0])
-    setDateFrom(lastWeek.toISOString().split('T')[0])
+    setDateTo(toDateInput(today))
+    setDateFrom(toDateInput(lastWeek))
   }, [])
 
   const formatDate = (value: string) =>
@@ -207,10 +210,14 @@ export default function PrepackAirtecOverviewPage() {
       const [prepackData, airtecData] = await Promise.all([prepackRes.json(), airtecRes.json()])
       setComparePrepackTotals(prepackData.totals || null)
       setCompareAirtecTotals(airtecData.totals || null)
+      setComparePrepackDaily(prepackData.dailyStats || [])
+      setCompareAirtecDaily(airtecData.dailyStats || [])
     } catch (err) {
       console.error('compare combined fetch failed:', err)
       setComparePrepackTotals(null)
       setCompareAirtecTotals(null)
+      setComparePrepackDaily([])
+      setCompareAirtecDaily([])
     } finally {
       setCompareLoading(false)
     }
@@ -222,6 +229,8 @@ export default function PrepackAirtecOverviewPage() {
     } else {
       setComparePrepackTotals(null)
       setCompareAirtecTotals(null)
+      setComparePrepackDaily([])
+      setCompareAirtecDaily([])
     }
   }, [compareEnabled, compareFrom, compareTo, fetchCompareStats])
 
@@ -246,9 +255,25 @@ export default function PrepackAirtecOverviewPage() {
   }, [compareFrom, compareTo, dateFrom, dateTo])
 
   // Gecombineerde totalen (prepack + airtec) voor vergelijking
+  const countCombinedActivityDays = (
+    ppDaily: PrepackDailyStat[],
+    atDaily: AirtecDailyStat[]
+  ): number => {
+    const dates = new Set<string>()
+    for (const row of ppDaily) {
+      if (row.itemsPacked > 0 || row.manHours > 0 || row.incomingItems > 0) dates.add(row.date)
+    }
+    for (const row of atDaily) {
+      if (row.itemsPacked > 0 || row.manHours > 0 || row.incomingItems > 0) dates.add(row.date)
+    }
+    return dates.size
+  }
+
   const buildCombinedTotals = (
     pp: PrepackTotals | null,
-    at: AirtecTotals | null
+    at: AirtecTotals | null,
+    ppDaily: PrepackDailyStat[] = [],
+    atDaily: AirtecDailyStat[] = []
   ): CompareTotals | null => {
     if (!pp && !at) return null
     const ppI = pp?.totalItemsPacked ?? 0
@@ -260,7 +285,9 @@ export default function PrepackAirtecOverviewPage() {
     const totalRevenue = (pp?.totalRevenue ?? 0) + (at?.totalRevenue ?? 0)
     const totalMaterial = (pp?.totalMaterialCost ?? 0) + (at?.totalMaterialCost ?? 0)
     const totalIncoming = (pp?.totalIncoming ?? 0) + (at?.totalIncoming ?? 0)
-    const totalDays = Math.max(pp?.totalDays ?? 0, at?.totalDays ?? 0)
+    const activityDays = countCombinedActivityDays(ppDaily, atDaily)
+    const totalDays =
+      activityDays > 0 ? activityDays : Math.max(pp?.totalDays ?? 0, at?.totalDays ?? 0)
     const totalFte = (pp?.totalFte ?? 0) + (at?.totalFte ?? 0)
     const averageItemsPerFte = totalFte > 0 ? totalItems / totalFte : 0
     const weightedLead =
@@ -280,12 +307,18 @@ export default function PrepackAirtecOverviewPage() {
   }
 
   const combinedTotals = useMemo(
-    () => buildCombinedTotals(prepackTotals, airtecTotals),
-    [prepackTotals, airtecTotals]
+    () => buildCombinedTotals(prepackTotals, airtecTotals, prepackDaily, airtecDaily),
+    [prepackTotals, airtecTotals, prepackDaily, airtecDaily]
   )
   const combinedCompareTotals = useMemo(
-    () => buildCombinedTotals(comparePrepackTotals, compareAirtecTotals),
-    [comparePrepackTotals, compareAirtecTotals]
+    () =>
+      buildCombinedTotals(
+        comparePrepackTotals,
+        compareAirtecTotals,
+        comparePrepackDaily,
+        compareAirtecDaily
+      ),
+    [comparePrepackTotals, compareAirtecTotals, comparePrepackDaily, compareAirtecDaily]
   )
 
   const prepackSummary = useMemo(() => {
@@ -400,6 +433,7 @@ export default function PrepackAirtecOverviewPage() {
       string,
       {
         date: string
+        dateLabel: string
         prepackIncoming: number
         airtecIncoming: number
         prepackPacked: number
@@ -408,9 +442,10 @@ export default function PrepackAirtecOverviewPage() {
     >()
 
     for (const row of prepackDaily) {
-      const d = formatDate(row.date)
-      const existing = map.get(d) ?? {
-        date: d,
+      const iso = row.date
+      const existing = map.get(iso) ?? {
+        date: iso,
+        dateLabel: formatDate(iso),
         prepackIncoming: 0,
         airtecIncoming: 0,
         prepackPacked: 0,
@@ -418,12 +453,13 @@ export default function PrepackAirtecOverviewPage() {
       }
       existing.prepackIncoming += row.incomingItems
       existing.prepackPacked += row.itemsPacked
-      map.set(d, existing)
+      map.set(iso, existing)
     }
     for (const row of airtecDaily) {
-      const d = formatDate(row.date)
-      const existing = map.get(d) ?? {
-        date: d,
+      const iso = row.date
+      const existing = map.get(iso) ?? {
+        date: iso,
+        dateLabel: formatDate(iso),
         prepackIncoming: 0,
         airtecIncoming: 0,
         prepackPacked: 0,
@@ -431,7 +467,7 @@ export default function PrepackAirtecOverviewPage() {
       }
       existing.airtecIncoming += row.incomingItems
       existing.airtecPacked += row.itemsPacked
-      map.set(d, existing)
+      map.set(iso, existing)
     }
 
     return Array.from(map.values())
@@ -447,26 +483,27 @@ export default function PrepackAirtecOverviewPage() {
   const combinedChartData = useMemo(() => {
     const map = new Map<string, {
       date: string
+      dateLabel: string
       prepackItems: number; airtecItems: number
       prepackManHours: number; airtecManHours: number
       prepackRevenue: number; airtecRevenue: number
     }>()
 
     for (const row of prepackDaily) {
-      const d = formatDate(row.date)
-      const existing = map.get(d) ?? { date: d, prepackItems: 0, airtecItems: 0, prepackManHours: 0, airtecManHours: 0, prepackRevenue: 0, airtecRevenue: 0 }
+      const iso = row.date
+      const existing = map.get(iso) ?? { date: iso, dateLabel: formatDate(iso), prepackItems: 0, airtecItems: 0, prepackManHours: 0, airtecManHours: 0, prepackRevenue: 0, airtecRevenue: 0 }
       existing.prepackItems    += row.itemsPacked
       existing.prepackManHours += row.manHours
       existing.prepackRevenue  += row.revenue
-      map.set(d, existing)
+      map.set(iso, existing)
     }
     for (const row of airtecDaily) {
-      const d = formatDate(row.date)
-      const existing = map.get(d) ?? { date: d, prepackItems: 0, airtecItems: 0, prepackManHours: 0, airtecManHours: 0, prepackRevenue: 0, airtecRevenue: 0 }
+      const iso = row.date
+      const existing = map.get(iso) ?? { date: iso, dateLabel: formatDate(iso), prepackItems: 0, airtecItems: 0, prepackManHours: 0, airtecManHours: 0, prepackRevenue: 0, airtecRevenue: 0 }
       existing.airtecItems    += row.itemsPacked
       existing.airtecManHours += row.manHours
       existing.airtecRevenue  += row.revenue
-      map.set(d, existing)
+      map.set(iso, existing)
     }
 
     return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date))
@@ -694,7 +731,7 @@ export default function PrepackAirtecOverviewPage() {
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={incomingFlowChartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                  <XAxis dataKey="dateLabel" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip />
                   <Legend />
@@ -884,7 +921,7 @@ export default function PrepackAirtecOverviewPage() {
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={combinedChartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                <XAxis dataKey="dateLabel" tick={{ fontSize: 11 }} />
                 <YAxis yAxisId="items" orientation="left"  tick={{ fontSize: 11 }} label={{ value: 'Items / u', angle: -90, position: 'insideLeft', offset: 10, style: { fontSize: 10 } }} />
                 <YAxis yAxisId="money" orientation="right" tick={{ fontSize: 11 }} tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`} label={{ value: '€', angle: 90, position: 'insideRight', offset: 10, style: { fontSize: 10 } }} />
                 <Tooltip formatter={(value, name) => name === 'Omzet Prepack' || name === 'Omzet Airtec' ? [`€${Number(value).toLocaleString('nl-NL', { minimumFractionDigits: 2 })}`, name] : [value, name]} />
