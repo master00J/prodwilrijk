@@ -100,6 +100,14 @@ export default function AdminPage() {
       color: 'orange',
     },
     {
+      title: 'Groeiplan KPI-overzicht',
+      description:
+        'Managementdashboard: maandelijkse KPI-evolutie vanaf jan 2026, gekoppeld aan ProdWilrijk-data en groeiplan-categorieën',
+      href: '/admin/groeiplan-kpi',
+      icon: '🎯',
+      color: 'purple',
+    },
+    {
       title: 'Competentie Matrix',
       description: 'Beheer competenties van medewerkers per machine/werkplek en plan de dagelijkse bezetting',
       href: '/admin/competentie-matrix',
