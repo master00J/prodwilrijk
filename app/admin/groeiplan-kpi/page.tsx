@@ -104,8 +104,8 @@ function KpiCard({ kpi, defaultOpen }: { kpi: KpiAnalysisResult; defaultOpen?: b
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} width={48} />
                   <Tooltip
-                    formatter={(value: number) => [
-                      `${value?.toLocaleString('nl-BE')} ${kpi.definition.unit}`,
+                    formatter={(value) => [
+                      `${Number(value ?? 0).toLocaleString('nl-BE')} ${kpi.definition.unit}`,
                       kpi.definition.name,
                     ]}
                   />
